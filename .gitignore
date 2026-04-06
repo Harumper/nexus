@@ -6,7 +6,6 @@ vendor/
 dist/
 build/
 *.exe
-nexus-agent
 
 # Environment
 .env
@@ -43,6 +42,7 @@ logs/
 coverage/
 .nyc_output/
 
-# Go
+# Go — binaire compilé uniquement (pas le dossier source cmd/nexus-agent/)
+/nexus-agent
 agent/nexus-agent
 agent/tmp/
