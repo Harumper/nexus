@@ -1,0 +1,205 @@
+# ===========================================
+# Nexus - GitLab CI/CD Pipeline
+# ===========================================
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "22"
+  GO_VERSION: "1.23"
+  NPM_CONFIG_AUDIT: "false"
+  NPM_CONFIG_FUND: "false"
+  NPM_CONFIG_UPDATE_NOTIFIER: "false"
+
+# ===========================================
+# Test & Build checks
+# ===========================================
+
+# Backend : typecheck + build + tests (vitest)
+# Les tests lisent des fichiers dans agent/ et frontend/, donc on a besoin du repo complet
+test-backend:
+  stage: test
+  image: node:22-alpine
+  before_script:
+    - cd backend
+    - npm ci
+    - npx prisma generate
+  script:
+    - npx tsc --noEmit
+    - npm run build
+    - npm run test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_MERGE_REQUEST_ID'
+
+# Agent Go : vet + build statique
+test-agent:
+  stage: test
+  image: golang:1.23-alpine
+  before_script:
+    - cd agent
+  script:
+    - go vet ./...
+    - CGO_ENABLED=0 go build -o /tmp/nexus-agent ./cmd/nexus-agent
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_MERGE_REQUEST_ID'
+
+# Frontend : typecheck + build
+test-frontend:
+  stage: test
+  image: node:22-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npx tsc --noEmit
+    - npm run build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_MERGE_REQUEST_ID'
+
+# ===========================================
+# Build Docker Images
+# ===========================================
+build-backend:
+  stage: build
+  image: docker:24.0
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest ./backend
+    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/backend:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  needs:
+    - test-backend
+
+build-frontend:
+  stage: build
+  image: docker:24.0
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f frontend/Dockerfile -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/frontend:latest ./frontend
+    - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  needs:
+    - test-frontend
+
+# L'agent est compilé statiquement en Go — on build l'image Docker
+# mais en prod il est installé via scripts/install-agent.sh sur chaque machine
+build-agent:
+  stage: build
+  image: docker:24.0
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -f agent/Dockerfile -t $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/agent:latest ./agent
+    - docker push $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/agent:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  needs:
+    - test-agent
+
+# ===========================================
+# Deploy Production (serveur Nexus)
+# ===========================================
+deploy-prod:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: production
+    url: http://${PROD_SERVER_HOST}:26031
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - test -n "$PROD_SSH_PRIVATE_KEY" || (echo "PROD_SSH_PRIVATE_KEY not defined" && exit 1)
+    - test -n "$PROD_SERVER_HOST" || (echo "PROD_SERVER_HOST not defined" && exit 1)
+    - test -n "$PROD_SERVER_USER" || (echo "PROD_SERVER_USER not defined" && exit 1)
+    - echo "$PROD_SSH_PRIVATE_KEY" > /tmp/ssh_key
+    - chmod 600 /tmp/ssh_key
+    - ssh-add /tmp/ssh_key || (ssh-keygen -p -m PEM -f /tmp/ssh_key -N "" && ssh-add /tmp/ssh_key)
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H $PROD_SERVER_HOST >> ~/.ssh/known_hosts
+  script:
+    - echo "Deploying Nexus to production..."
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "mkdir -p /docker_server/nexus"
+    - scp docker-compose.yml $PROD_SERVER_USER@$PROD_SERVER_HOST:/docker_server/nexus/docker-compose.yml
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "test -f /docker_server/nexus/.env || echo 'WARNING - .env file not found'"
+    # Pull images
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY"
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker pull $CI_REGISTRY_IMAGE/backend:latest"
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker pull $CI_REGISTRY_IMAGE/frontend:latest"
+    # Retag
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker tag $CI_REGISTRY_IMAGE/backend:latest nexus-backend:latest"
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker tag $CI_REGISTRY_IMAGE/frontend:latest nexus-frontend:latest"
+    # Deploy
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker network create nexus || true"
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose down || true"
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose up -d"
+    - sleep 10
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker exec nexus-backend npx prisma db push --accept-data-loss || true"
+    - echo "Nexus production deployment complete!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  needs:
+    - build-backend
+    - build-frontend
+  when: manual
+
+# ===========================================
+# Deploy Agent (sur machines cibles)
+# L'agent est installé manuellement via :
+#   sudo ./scripts/install-agent.sh --server-url ... --machine-id ... --enrollment-token ...
+#
+# Le binaire peut être extrait de l'image Docker :
+#   docker cp $(docker create $CI_REGISTRY_IMAGE/agent:latest):/usr/local/bin/nexus-agent ./nexus-agent
+#
+# Ou compilé localement :
+#   cd agent && CGO_ENABLED=0 go build -o nexus-agent ./cmd/nexus-agent
+# ===========================================
+
+# ===========================================
+# Notifications
+# ===========================================
+notify-success:
+  stage: .post
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - test -n "$SLACK_WEBHOOK_URL" && curl -X POST -H "Content-type:application/json" --data "{\"text\":\"Nexus deployed successfully on $CI_COMMIT_BRANCH\"}" $SLACK_WEBHOOK_URL || echo "Notifications not configured"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  when: on_success
+
+notify-failure:
+  stage: .post
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - test -n "$SLACK_WEBHOOK_URL" && curl -X POST -H "Content-type:application/json" --data "{\"text\":\"Pipeline failed for Nexus on $CI_COMMIT_BRANCH\"}" $SLACK_WEBHOOK_URL || echo "Notifications not configured"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  when: on_failure

@@ -110,7 +110,7 @@ describe("Agent Go Files - Phase 4", () => {
   });
 
   describe("Systemd deployment", () => {
-    it("should have systemd service file", () => {
+    it("should have systemd service file with non-root user", () => {
       const path = resolve(agentDir, "deploy/nexus-agent.service");
       expect(existsSync(path)).toBe(true);
 
@@ -118,12 +118,13 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("[Unit]");
       expect(content).toContain("[Service]");
       expect(content).toContain("[Install]");
-      expect(content).toContain("nexus-agent");
-      expect(content).toContain("ProtectSystem=strict");
-      expect(content).toContain("NoNewPrivileges=true");
+      expect(content).toContain("User=nexus-agent");
+      expect(content).toContain("Group=nexus-agent");
+      expect(content).toContain("AmbientCapabilities=CAP_NET_RAW");
+      expect(content).toContain("ProtectHome=true");
     });
 
-    it("should have install script", () => {
+    it("should have install script with sudoers setup", () => {
       const path = resolve(agentDir, "deploy/install.sh");
       expect(existsSync(path)).toBe(true);
 
@@ -133,6 +134,9 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("--machine-id");
       expect(content).toContain("systemctl");
       expect(content).toContain("agent.env");
+      expect(content).toContain("sudoers");
+      expect(content).toContain("visudo -cf");
+      expect(content).toContain("/etc/sudoers.d/nexus-agent");
     });
   });
 
