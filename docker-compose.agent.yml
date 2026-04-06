@@ -1,0 +1,29 @@
+# Docker Compose pour déployer l'agent sur une machine distante
+# Usage: MACHINE_ID=xxx ENROLLMENT_TOKEN=yyy SERVER_HOST=nexus.example.com docker compose -f docker-compose.agent.yml up -d
+
+services:
+  nexus-agent:
+    image: nexus-agent:latest
+    container_name: nexus-agent
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NEXUS_SERVER_URL: wss://${NEXUS_SERVER_HOST}/ws/agent
+      NEXUS_MACHINE_ID: ${MACHINE_ID}
+      NEXUS_ENROLLMENT_TOKEN: ${ENROLLMENT_TOKEN}
+      NEXUS_SERVER_PUBLIC_KEY: ${SERVER_PUBLIC_KEY}
+      NEXUS_KEY_PATH: /opt/nexus/keys
+      NEXUS_HEARTBEAT_INTERVAL: ${HEARTBEAT_INTERVAL:-30}
+      NEXUS_METRICS_INTERVAL: ${METRICS_INTERVAL:-60}
+      NEXUS_PROC_PATH: /host/proc
+      NEXUS_SYS_PATH: /host/sys
+    volumes:
+      - nexus_keys:/opt/nexus/keys
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+
+volumes:
+  nexus_keys:

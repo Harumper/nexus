@@ -1,0 +1,47 @@
+[Unit]
+Description=Nexus Agent - Infrastructure Management
+Documentation=https://github.com/nexus
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nexus-agent
+Group=nexus-agent
+ExecStart=/usr/local/bin/nexus-agent
+EnvironmentFile=/etc/nexus/agent.env
+Restart=always
+RestartSec=10
+WatchdogSec=120
+
+# ===================== Sécurité =====================
+
+# L'agent tourne sous nexus-agent (non-root)
+# Les commandes privilégiées passent par sudo (voir /etc/sudoers.d/nexus-agent)
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+# Capabilities Linux minimales pour le monitoring
+AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
+
+# Limiter les syscalls aux essentiels
+SystemCallFilter=@system-service @file-system @network-io @process
+SystemCallArchitectures=native
+
+# Répertoires accessibles
+ReadOnlyPaths=/proc /sys /etc/os-release
+ReadWritePaths=/var/lib/nexus/keys /var/log/nexus /tmp
+
+# Limites de ressources
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
