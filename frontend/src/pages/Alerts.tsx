@@ -1,0 +1,482 @@
+import { useState, useEffect, useCallback } from "react";
+import {
+  Bell,
+  Plus,
+  AlertTriangle,
+  CheckCircle2,
+  Eye,
+  Trash2,
+  X,
+} from "lucide-react";
+import { api } from "../services/api";
+import { useAuth } from "../hooks/useAuth";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { timeAgo } from "../lib/utils";
+import type { WSDashboardMessage } from "../types";
+
+interface AlertRule {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  conditionType: string;
+  threshold: number | null;
+  durationSeconds: number;
+  machineIds: string[];
+  cooldownSeconds: number;
+  firingCount: number;
+  createdAt: string;
+}
+
+interface AlertState {
+  id: string;
+  ruleId: string;
+  machineId: string;
+  status: "FIRING" | "RESOLVED" | "ACKNOWLEDGED";
+  firedAt: string;
+  resolvedAt: string | null;
+  acknowledgedBy: string | null;
+  details: any;
+  rule: { name: string; severity: string; conditionType: string };
+  machine: { id: string; name: string; hostname?: string };
+}
+
+const SEVERITY_STYLES = {
+  INFO: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20" },
+  WARNING: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20" },
+  CRITICAL: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
+};
+
+const CONDITION_LABELS: Record<string, string> = {
+  CPU_ABOVE: "CPU supérieur à",
+  MEMORY_ABOVE: "Mémoire supérieure à",
+  DISK_ABOVE: "Disque supérieur à",
+  MACHINE_OFFLINE: "Machine hors ligne depuis",
+  LOAD_ABOVE: "Load average supérieur à",
+};
+
+export default function Alerts() {
+  const { user } = useAuth();
+  const [tab, setTab] = useState<"active" | "rules" | "history">("active");
+  const [activeAlerts, setActiveAlerts] = useState<AlertState[]>([]);
+  const [rules, setRules] = useState<AlertRule[]>([]);
+  const [history, setHistory] = useState<AlertState[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateRule, setShowCreateRule] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [alertsRes, rulesRes] = await Promise.all([
+        fetch("/api/alerts/active", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+        }),
+        fetch("/api/alerts/rules", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+        }),
+      ]);
+      setActiveAlerts(await alertsRes.json());
+      setRules(await rulesRes.json());
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/alerts/history?limit=100", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      });
+      const data = await res.json();
+      setHistory(data.alerts);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (tab === "history") fetchHistory();
+  }, [tab, fetchHistory]);
+
+  // WS temps réel
+  const handleWsMessage = useCallback(
+    (msg: WSDashboardMessage) => {
+      if (msg.type === "alert.fired") {
+        setActiveAlerts((prev) => [msg.data, ...prev]);
+      }
+      if (msg.type === "alert.resolved") {
+        setActiveAlerts((prev) => prev.filter((a) => a.id !== msg.data?.id));
+      }
+      if (msg.type === "alert.acknowledged") {
+        setActiveAlerts((prev) =>
+          prev.map((a) =>
+            a.id === msg.data?.id
+              ? { ...a, status: "ACKNOWLEDGED" as const, acknowledgedBy: msg.data.acknowledgedBy }
+              : a
+          )
+        );
+      }
+    },
+    []
+  );
+  useWebSocket({ onMessage: handleWsMessage });
+
+  const acknowledgeAlert = async (id: string) => {
+    await fetch(`/api/alerts/${id}/acknowledge`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+    });
+    fetchData();
+  };
+
+  const resolveAlert = async (id: string) => {
+    await fetch(`/api/alerts/${id}/resolve`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+    });
+    fetchData();
+  };
+
+  const deleteRule = async (id: string) => {
+    if (!confirm("Supprimer cette règle d'alerte ?")) return;
+    await fetch(`/api/alerts/rules/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+    });
+    fetchData();
+  };
+
+  const toggleRule = async (id: string, enabled: boolean) => {
+    await fetch(`/api/alerts/rules/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("nexus_token")}`,
+      },
+      body: JSON.stringify({ enabled }),
+    });
+    fetchData();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Alertes</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {activeAlerts.filter((a) => a.status === "FIRING").length} alerte{activeAlerts.filter((a) => a.status === "FIRING").length > 1 ? "s" : ""} active{activeAlerts.filter((a) => a.status === "FIRING").length > 1 ? "s" : ""}
+          </p>
+        </div>
+        {user?.role === "ADMIN" && (
+          <button
+            onClick={() => setShowCreateRule(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvelle règle
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg border border-border p-1 mb-6 w-fit">
+        {(["active", "rules", "history"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === t
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "active" && `Actives (${activeAlerts.length})`}
+            {t === "rules" && `Règles (${rules.length})`}
+            {t === "history" && "Historique"}
+          </button>
+        ))}
+      </div>
+
+      {/* Active alerts */}
+      {tab === "active" && (
+        <div className="space-y-3">
+          {activeAlerts.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
+              <p>Aucune alerte active</p>
+            </div>
+          ) : (
+            activeAlerts.map((alert) => {
+              const sev = SEVERITY_STYLES[alert.rule.severity as keyof typeof SEVERITY_STYLES] || SEVERITY_STYLES.WARNING;
+              return (
+                <div
+                  key={alert.id}
+                  className={`rounded-xl border ${sev.border} ${sev.bg} p-4`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className={`w-5 h-5 mt-0.5 ${sev.text}`} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {alert.rule.name}
+                          </span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${sev.bg} ${sev.text}`}>
+                            {alert.rule.severity}
+                          </span>
+                          {alert.status === "ACKNOWLEDGED" && (
+                            <span className="text-xs text-muted-foreground">
+                              (acquitté par {alert.acknowledgedBy})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Machine : <span className="text-foreground">{alert.machine.name}</span>
+                          {alert.details?.value != null && (
+                            <> — Valeur : <span className="text-foreground">{Number(alert.details.value).toFixed(1)}%</span>
+                              {alert.details.threshold != null && (
+                                <> (seuil : {alert.details.threshold}%)</>
+                              )}
+                            </>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Déclenchée {timeAgo(alert.firedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {alert.status === "FIRING" && (
+                        <button
+                          onClick={() => acknowledgeAlert(alert.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => resolveAlert(alert.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      >
+                        Résoudre
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Rules */}
+      {tab === "rules" && (
+        <div className="space-y-3">
+          {rules.map((rule) => (
+            <div
+              key={rule.id}
+              className="rounded-xl border border-border bg-card p-4 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-2 h-2 rounded-full ${rule.enabled ? "bg-emerald-400" : "bg-zinc-500"}`}
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{rule.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${SEVERITY_STYLES[rule.severity]?.bg} ${SEVERITY_STYLES[rule.severity]?.text}`}>
+                      {rule.severity}
+                    </span>
+                    {rule.firingCount > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                        {rule.firingCount} active{rule.firingCount > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {CONDITION_LABELS[rule.conditionType] || rule.conditionType}
+                    {rule.threshold != null && ` ${rule.threshold}${rule.conditionType === "MACHINE_OFFLINE" ? "s" : "%"}`}
+                    {rule.machineIds.length > 0 && ` · ${rule.machineIds.length} machine(s)`}
+                    {rule.machineIds.length === 0 && " · Toutes les machines"}
+                  </p>
+                </div>
+              </div>
+              {user?.role === "ADMIN" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleRule(rule.id, !rule.enabled)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      rule.enabled
+                        ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                        : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                    }`}
+                  >
+                    {rule.enabled ? "Désactiver" : "Activer"}
+                  </button>
+                  <button
+                    onClick={() => deleteRule(rule.id)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* History */}
+      {tab === "history" && (
+        <div className="space-y-2">
+          {history.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              Aucun historique
+            </div>
+          ) : (
+            history.map((alert) => (
+              <div
+                key={alert.id}
+                className="rounded-lg border border-border bg-card px-4 py-3 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                    alert.status === "RESOLVED" ? "bg-emerald-500/10 text-emerald-400" :
+                    alert.status === "FIRING" ? "bg-red-500/10 text-red-400" :
+                    "bg-amber-500/10 text-amber-400"
+                  }`}>
+                    {alert.status === "RESOLVED" ? "Résolu" : alert.status === "FIRING" ? "Actif" : "Acquitté"}
+                  </span>
+                  <span className="text-sm text-foreground">{alert.rule.name}</span>
+                  <span className="text-xs text-muted-foreground">{alert.machine.name}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{timeAgo(alert.firedAt)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Create Rule Dialog */}
+      {showCreateRule && (
+        <CreateRuleDialog
+          onClose={() => setShowCreateRule(false)}
+          onCreated={() => {
+            setShowCreateRule(false);
+            fetchData();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateRuleDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: "",
+    conditionType: "CPU_ABOVE",
+    threshold: 90,
+    severity: "WARNING",
+    durationSeconds: 0,
+    cooldownSeconds: 300,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/alerts/rules", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("nexus_token")}`,
+        },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed");
+      }
+      onCreated();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-card border border-border rounded-xl shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Nouvelle règle d'alerte</h2>
+          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">{error}</div>}
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Nom</label>
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="CPU critique" required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Condition</label>
+            <select value={form.conditionType} onChange={(e) => setForm({ ...form, conditionType: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="CPU_ABOVE">CPU supérieur à</option>
+              <option value="MEMORY_ABOVE">Mémoire supérieure à</option>
+              <option value="DISK_ABOVE">Disque supérieur à</option>
+              <option value="LOAD_ABOVE">Load average supérieur à</option>
+              <option value="MACHINE_OFFLINE">Machine hors ligne depuis</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Seuil {form.conditionType === "MACHINE_OFFLINE" ? "(secondes)" : "(%)"}
+            </label>
+            <input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" min={0} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Sévérité</label>
+            <div className="flex gap-2">
+              {(["INFO", "WARNING", "CRITICAL"] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setForm({ ...form, severity: s })} className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.severity === s ? `${SEVERITY_STYLES[s].bg} ${SEVERITY_STYLES[s].border} ${SEVERITY_STYLES[s].text}` : "border-border text-muted-foreground"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">Annuler</button>
+            <button type="submit" disabled={loading || !form.name} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">{loading ? "Création..." : "Créer"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

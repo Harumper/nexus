@@ -1,0 +1,41 @@
+@import "./styles/themes.css";
+@import "tailwindcss";
+
+/*
+ * Bridge Nexus theme variables → Tailwind CSS 4 @theme
+ * Les classes Tailwind (bg-card, text-foreground, border-border)
+ * lisent les variables --color-* définies ici, qui pointent vers
+ * les variables --nx-* de themes.css (changées par le thème actif).
+ */
+@theme {
+  --color-background: var(--nx-bg-base);
+  --color-foreground: var(--nx-text);
+  --color-card: var(--nx-bg-surface);
+  --color-card-foreground: var(--nx-text);
+  --color-popover: var(--nx-bg-elevated);
+  --color-popover-foreground: var(--nx-text);
+  --color-primary: var(--nx-primary);
+  --color-primary-foreground: var(--nx-primary-text);
+  --color-secondary: var(--nx-bg-elevated);
+  --color-secondary-foreground: var(--nx-text);
+  --color-muted: var(--nx-bg-elevated);
+  --color-muted-foreground: var(--nx-text-weak);
+  --color-accent: var(--nx-bg-elevated);
+  --color-accent-foreground: var(--nx-text);
+  --color-destructive: var(--nx-danger);
+  --color-destructive-foreground: #ffffff;
+  --color-success: var(--nx-success);
+  --color-warning: var(--nx-warning);
+  --color-border: var(--nx-border);
+  --color-input: var(--nx-border);
+  --color-ring: var(--nx-primary);
+  --radius: 0.625rem;
+}
+
+body {
+  background-color: var(--nx-bg-base);
+  color: var(--nx-text);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

@@ -1,0 +1,418 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== ENUMS =====================
+
+enum Role {
+  ADMIN
+  OPERATOR
+  READONLY
+}
+
+enum MachineStatus {
+  ENROLLMENT_PENDING
+  ONLINE
+  OFFLINE
+  DEGRADED
+  REVOKED
+  STALE
+  ARCHIVED
+}
+
+enum MachineType {
+  AGENT
+  PROBE
+}
+
+enum GroupType {
+  STATIC
+  DYNAMIC
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  MACHINE_CREATE
+  MACHINE_UPDATE
+  MACHINE_DELETE
+  MACHINE_ENROLL
+  MACHINE_REVOKE
+  ACTION_REQUEST
+  ACTION_COMPLETE
+  ACTION_FAILED
+  CAPABILITY_GRANT
+  CAPABILITY_REVOKE
+  CERT_ROTATE
+  CERT_REVOKE
+  SECURITY_ALERT
+  ALERT_TRIGGERED
+  ALERT_RESOLVED
+  UPDATE_START
+  UPDATE_COMPLETE
+  UPDATE_FAILED
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertConditionType {
+  CPU_ABOVE
+  MEMORY_ABOVE
+  DISK_ABOVE
+  MACHINE_OFFLINE
+  LOAD_ABOVE
+  CUSTOM
+}
+
+enum AlertStatus {
+  FIRING
+  RESOLVED
+  ACKNOWLEDGED
+}
+
+// ===================== USERS =====================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      Role     @default(OPERATOR)
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs  AuditLog[]
+  alertRules AlertRule[]
+  profiles   Profile[]
+
+  @@index([email])
+  @@index([username])
+}
+
+// ===================== MACHINES =====================
+
+model Machine {
+  id       String        @id @default(cuid())
+  name     String
+  hostname String?
+  os       String?
+  osVersion String?
+  arch     String?
+  ipAddress String?
+  agentVersion String?
+  status   MachineStatus @default(ENROLLMENT_PENDING)
+
+  // Enrollment
+  enrollmentToken  String?   @unique
+  enrollmentExpiry DateTime?
+  enrolledAt       DateTime?
+
+  // ECDSA - Clés pour la communication sécurisée
+  backendPrivateKey String?  @db.Text  // Chiffré AES-256-GCM avec ECDSA_MASTER_SECRET
+  backendPublicKey  String?  @db.Text  // PEM
+  agentPublicKey    String?  @db.Text  // PEM (reçue à l'enrollment)
+  sharedSecret      String?  @db.Text  // Chiffré AES-256-GCM - dérivé ECDH
+
+  // Sécurité
+  boundIp          String?            // IP liée après enrollment
+  keyRevokedAt     DateTime?
+  keyRevokedReason String?
+
+  // État
+  lastHeartbeat DateTime?
+  lastMetrics   DateTime?
+
+  // Type et état
+  type            MachineType @default(AGENT)
+  rebootRequired  Boolean     @default(false)
+  archivedAt      DateTime?
+
+  // Relations
+  capabilities MachineCapability[]
+  metrics      Metric[]
+  events       MachineEvent[]
+  auditLogs    AuditLog[]
+  alertStates  AlertState[]
+  tags              MachineTag[]
+  groupMembers      MachineGroupMember[]
+  profileExecutions ProfileExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([name])
+  @@index([lastHeartbeat])
+  @@index([enrollmentToken])
+  @@index([type])
+}
+
+// ===================== CAPABILITIES =====================
+
+model Capability {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  actions     String[]
+  isBuiltin   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  machines MachineCapability[]
+}
+
+model MachineCapability {
+  id           String     @id @default(cuid())
+  machineId    String
+  machine      Machine    @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  capabilityId String
+  capability   Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now())
+  grantedBy    String?
+
+  @@unique([machineId, capabilityId])
+  @@index([machineId])
+  @@index([capabilityId])
+}
+
+// ===================== METRICS =====================
+
+model Metric {
+  id        String  @id @default(cuid())
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  cpuPercent    Float
+  memoryUsed    BigInt
+  memoryTotal   BigInt
+  memoryPercent Float
+
+  disks     Json    // [{mountpoint, used, total, percent}]
+  network   Json?   // [{name, rx_bytes, tx_bytes, rx_bytes_per_sec, tx_bytes_per_sec}]
+  processes Json?   // {top_cpu: [...], top_memory: [...]}
+
+  loadAvg1  Float?
+  loadAvg5  Float?
+  loadAvg15 Float?
+
+  uptime BigInt?  // secondes
+
+  timestamp DateTime @default(now())
+
+  @@index([machineId, timestamp])
+  @@index([timestamp])
+}
+
+// ===================== EVENTS =====================
+
+model MachineEvent {
+  id        String   @id @default(cuid())
+  machineId String
+  machine   Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  type      String   // heartbeat, metrics, action, connection, disconnection, enrollment
+  data      Json?
+  timestamp DateTime @default(now())
+
+  @@index([machineId, timestamp])
+  @@index([type, timestamp])
+}
+
+// ===================== AUDIT =====================
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  resource   String      // machine, user, capability
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  machineId String?
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([machineId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+// ===================== ALERTS =====================
+
+model AlertRule {
+  id              String             @id @default(cuid())
+  name            String
+  description     String?
+  enabled         Boolean            @default(true)
+  severity        AlertSeverity      @default(WARNING)
+  conditionType   AlertConditionType
+  threshold       Float?             // Seuil (ex: 90 pour CPU > 90%)
+  durationSeconds Int                @default(0)  // Durée avant déclenchement (0 = immédiat)
+  machineIds      String[]           // Vide = toutes les machines
+  cooldownSeconds Int                @default(300) // Anti-spam (5 min par défaut)
+  notifyEmail     Boolean            @default(false)
+  notifyWebhook   String?
+
+  createdBy String?
+  creator   User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  states AlertState[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([conditionType])
+}
+
+model AlertState {
+  id           String      @id @default(cuid())
+  ruleId       String
+  rule         AlertRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  machineId    String
+  machine      Machine     @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  status       AlertStatus @default(FIRING)
+  firedAt      DateTime    @default(now())
+  resolvedAt   DateTime?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  lastNotified DateTime?
+  details      Json?       // { value: 95.2, threshold: 90 }
+
+  @@unique([ruleId, machineId, status])
+  @@index([machineId])
+  @@index([status])
+  @@index([firedAt])
+}
+
+// ===================== MODULES =====================
+
+model Module {
+  id           String   @id @default(cuid())
+  name         String   @unique // "nautilus", "zfs", "backup"
+  version      String
+  description  String?
+  enabled      Boolean  @default(true)
+  config       Json?    // Configuration spécifique au module
+  capability   String   // La capability que ce module fournit ("docker", "zfs", "backup")
+  actions      String[] // Actions fournies par ce module
+  installedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ===================== SETTINGS =====================
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// ===================== TAGS =====================
+
+model Tag {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  color     String       @default("#6366f1")
+  createdAt DateTime     @default(now())
+
+  machines MachineTag[]
+}
+
+model MachineTag {
+  id        String   @id @default(cuid())
+  machineId String
+  machine   Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([machineId, tagId])
+  @@index([machineId])
+  @@index([tagId])
+}
+
+// ===================== GROUPS =====================
+
+model MachineGroup {
+  id          String               @id @default(cuid())
+  name        String               @unique
+  description String?
+  type        GroupType            @default(STATIC)
+  filter      Json?                // Pour DYNAMIC: { tags: string[], status: string[] }
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  members MachineGroupMember[]
+}
+
+model MachineGroupMember {
+  id        String       @id @default(cuid())
+  groupId   String
+  group     MachineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  machineId String
+  machine   Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  addedAt   DateTime     @default(now())
+
+  @@unique([groupId, machineId])
+  @@index([groupId])
+  @@index([machineId])
+}
+
+// ===================== PROFILES =====================
+
+enum ProfileType {
+  UPGRADE
+  REBOOT
+  SCRIPT
+  PACKAGE
+}
+
+model Profile {
+  id          String             @id @default(cuid())
+  name        String             @unique
+  type        ProfileType
+  description String?
+  config      Json               // Structure dépend du type
+  enabled     Boolean            @default(true)
+  tagFilters  String[]           // Noms de tags pour résoudre les machines cibles
+  createdBy   String?
+  creator     User?              @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  executions  ProfileExecution[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([enabled])
+  @@index([type])
+}
+
+model ProfileExecution {
+  id          String    @id @default(cuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  machineId   String
+  machine     Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  status      String    // PENDING, RUNNING, COMPLETED, FAILED, SKIPPED
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  output      Json?
+
+  @@index([profileId, startedAt])
+  @@index([machineId])
+}

@@ -1,0 +1,170 @@
+/*
+ * Nexus Design System — Inspiré de Grafana + Datadog + Netdata
+ *
+ * Palette Grafana Dark:
+ *   body-bg: #111217, panel-bg: #181b1f, card-bg: #22252b
+ *   text: rgb(204,204,220), text-weak: rgba(204,204,220,0.65)
+ *   blue-base: #3d71d9, green-base: #1a7f4b, red-base: #d10e5c
+ *
+ * On adapte ces couleurs au contexte Nexus.
+ */
+
+/* ═══════════════════════════════════════════════════════
+   DARK THEME (default) — Deep space, Grafana-inspired
+   ═══════════════════════════════════════════════════════ */
+:root,
+.theme-dark {
+  /* Backgrounds - layered depth */
+  --nx-bg-base: #111217;
+  --nx-bg-surface: #181b1f;
+  --nx-bg-elevated: #22252b;
+  --nx-bg-hover: #282b33;
+  --nx-bg-sidebar: #0d0f14;
+
+  /* Text */
+  --nx-text: #ccccdc;
+  --nx-text-weak: rgba(204, 204, 220, 0.60);
+  --nx-text-strong: #ffffff;
+  --nx-text-disabled: rgba(204, 204, 220, 0.35);
+
+  /* Borders */
+  --nx-border: rgba(204, 204, 220, 0.08);
+  --nx-border-strong: rgba(204, 204, 220, 0.15);
+
+  /* Primary — Indigo/Blue */
+  --nx-primary: #6366f1;
+  --nx-primary-hover: #818cf8;
+  --nx-primary-subtle: rgba(99, 102, 241, 0.12);
+  --nx-primary-text: #ffffff;
+
+  /* Semantic colors */
+  --nx-success: #10b981;
+  --nx-success-subtle: rgba(16, 185, 129, 0.12);
+  --nx-warning: #f59e0b;
+  --nx-warning-subtle: rgba(245, 158, 11, 0.12);
+  --nx-danger: #f43f5e;
+  --nx-danger-subtle: rgba(244, 63, 94, 0.12);
+  --nx-info: #38bdf8;
+  --nx-info-subtle: rgba(56, 189, 248, 0.12);
+
+  /* Chart palette */
+  --nx-chart-1: #6366f1;
+  --nx-chart-2: #22d3ee;
+  --nx-chart-3: #a78bfa;
+  --nx-chart-4: #f472b6;
+  --nx-chart-5: #fbbf24;
+  --nx-chart-6: #34d399;
+
+  /* Shadows */
+  --nx-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --nx-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --nx-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+  --nx-shadow-glow-success: 0 0 12px rgba(16,185,129,0.15);
+  --nx-shadow-glow-danger: 0 0 12px rgba(244,63,94,0.15);
+  --nx-shadow-glow-warning: 0 0 12px rgba(245,158,11,0.15);
+  --nx-shadow-glow-primary: 0 0 12px rgba(99,102,241,0.15);
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT THEME — Clean paper
+   ═══════════════════════════════════════════════════════ */
+.theme-light {
+  --nx-bg-base: #f3f4f6;
+  --nx-bg-surface: #ffffff;
+  --nx-bg-elevated: #ffffff;
+  --nx-bg-hover: #f9fafb;
+  --nx-bg-sidebar: #ffffff;
+
+  --nx-text: #1f2937;
+  --nx-text-weak: #6b7280;
+  --nx-text-strong: #111827;
+  --nx-text-disabled: #d1d5db;
+
+  --nx-border: #e5e7eb;
+  --nx-border-strong: #d1d5db;
+
+  --nx-primary: #4f46e5;
+  --nx-primary-hover: #6366f1;
+  --nx-primary-subtle: rgba(79, 70, 229, 0.08);
+  --nx-primary-text: #ffffff;
+
+  --nx-success: #059669;
+  --nx-success-subtle: rgba(5, 150, 105, 0.08);
+  --nx-warning: #d97706;
+  --nx-warning-subtle: rgba(217, 119, 6, 0.08);
+  --nx-danger: #e11d48;
+  --nx-danger-subtle: rgba(225, 29, 72, 0.08);
+  --nx-info: #0284c7;
+  --nx-info-subtle: rgba(2, 132, 199, 0.08);
+
+  --nx-chart-1: #4f46e5;
+  --nx-chart-2: #0891b2;
+  --nx-chart-3: #7c3aed;
+  --nx-chart-4: #db2777;
+  --nx-chart-5: #ca8a04;
+  --nx-chart-6: #059669;
+
+  --nx-shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --nx-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --nx-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --nx-shadow-glow-success: 0 0 8px rgba(5,150,105,0.12);
+  --nx-shadow-glow-danger: 0 0 8px rgba(225,29,72,0.12);
+  --nx-shadow-glow-warning: 0 0 8px rgba(217,119,6,0.12);
+  --nx-shadow-glow-primary: 0 0 8px rgba(79,70,229,0.12);
+}
+
+/* ═══════════════════════════════════════════════════════
+   BLUE THEME — Navy command center
+   ═══════════════════════════════════════════════════════ */
+.theme-blue {
+  --nx-bg-base: #0a101e;
+  --nx-bg-surface: #111827;
+  --nx-bg-elevated: #1e293b;
+  --nx-bg-hover: #243349;
+  --nx-bg-sidebar: #070c17;
+
+  --nx-text: #c8d6e5;
+  --nx-text-weak: rgba(200, 214, 229, 0.60);
+  --nx-text-strong: #f1f5f9;
+  --nx-text-disabled: rgba(200, 214, 229, 0.30);
+
+  --nx-border: rgba(148, 163, 184, 0.12);
+  --nx-border-strong: rgba(148, 163, 184, 0.20);
+
+  --nx-primary: #3b82f6;
+  --nx-primary-hover: #60a5fa;
+  --nx-primary-subtle: rgba(59, 130, 246, 0.15);
+  --nx-primary-text: #ffffff;
+
+  --nx-success: #10b981;
+  --nx-success-subtle: rgba(16, 185, 129, 0.15);
+  --nx-warning: #f59e0b;
+  --nx-warning-subtle: rgba(245, 158, 11, 0.15);
+  --nx-danger: #f43f5e;
+  --nx-danger-subtle: rgba(244, 63, 94, 0.15);
+  --nx-info: #38bdf8;
+  --nx-info-subtle: rgba(56, 189, 248, 0.15);
+
+  --nx-chart-1: #3b82f6;
+  --nx-chart-2: #06b6d4;
+  --nx-chart-3: #8b5cf6;
+  --nx-chart-4: #ec4899;
+  --nx-chart-5: #eab308;
+  --nx-chart-6: #10b981;
+
+  --nx-shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --nx-shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --nx-shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+  --nx-shadow-glow-success: 0 0 12px rgba(16,185,129,0.18);
+  --nx-shadow-glow-danger: 0 0 12px rgba(244,63,94,0.18);
+  --nx-shadow-glow-warning: 0 0 12px rgba(245,158,11,0.18);
+  --nx-shadow-glow-primary: 0 0 12px rgba(59,130,246,0.18);
+}
+
+/* ═══════════════════════════════════════════════════════
+   CUSTOM SCROLLBAR
+   ═══════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--nx-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--nx-text-weak); }

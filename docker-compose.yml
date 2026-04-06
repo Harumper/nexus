@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexus-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-nexus}
+    ports:
+      - "${POSTGRES_PORT:-26030}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexus
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexus-backend
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus}:${POSTGRES_PASSWORD:-nexus_dev}@postgres:5432/${POSTGRES_DB:-nexus}
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      ECDSA_MASTER_SECRET: ${ECDSA_MASTER_SECRET:-dev_ecdsa_master_secret_change_in_production}
+      ENROLLMENT_TOKEN_EXPIRY_HOURS: ${ENROLLMENT_TOKEN_EXPIRY_HOURS:-24}
+      HEARTBEAT_TIMEOUT_SECONDS: ${HEARTBEAT_TIMEOUT_SECONDS:-90}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+      KEYCLOAK_ROLE_ADMIN: ${KEYCLOAK_ROLE_ADMIN:-nexus-admin}
+      KEYCLOAK_ROLE_OPERATOR: ${KEYCLOAK_ROLE_OPERATOR:-nexus-operator}
+      KEYCLOAK_ROLE_READONLY: ${KEYCLOAK_ROLE_READONLY:-nexus-readonly}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:26032}
+      NODE_ENV: production
+    ports:
+      - "${BACKEND_PORT:-26031}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nexus
+
+  # Probe locale (monitoring only, pas d'actions dangereuses)
+  probe:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: nexus-probe-local
+    restart: unless-stopped
+    environment:
+      NEXUS_SERVER_URL: ws://backend:3000/ws/agent
+      NEXUS_MACHINE_ID: ${PROBE_MACHINE_ID:-${AGENT_MACHINE_ID:-}}
+      NEXUS_ENROLLMENT_TOKEN: ${PROBE_ENROLLMENT_TOKEN:-${AGENT_ENROLLMENT_TOKEN:-}}
+      NEXUS_SERVER_PUBLIC_KEY: ${PROBE_SERVER_PUBLIC_KEY:-${AGENT_SERVER_PUBLIC_KEY:-}}
+      NEXUS_KEY_PATH: /opt/nexus/keys
+      NEXUS_HEARTBEAT_INTERVAL: ${HEARTBEAT_INTERVAL:-30}
+      NEXUS_METRICS_INTERVAL: ${METRICS_INTERVAL:-60}
+      NEXUS_AGENT_TYPE: probe
+    volumes:
+      - probe_keys:/opt/nexus/keys
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    networks:
+      - nexus
+    depends_on:
+      - backend
+    profiles:
+      - probe
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexus-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-26032}:80"
+      - "${FRONTEND_TLS_PORT:-26033}:443"
+    environment:
+      TLS_ENABLED: ${TLS_ENABLED:-true}
+    volumes:
+      - ${TLS_CERT_DIR:-./certs}:/etc/nginx/certs
+    depends_on:
+      - backend
+    networks:
+      - nexus
+
+volumes:
+  postgres_data:
+  probe_keys:
+
+networks:
+  nexus:
+    driver: bridge

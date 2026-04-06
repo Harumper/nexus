@@ -1,0 +1,102 @@
+import { prisma } from "./database.js";
+import type { MetricsReport, HeartbeatData, SystemInfo } from "../types/index.js";
+
+const HEARTBEAT_TIMEOUT = parseInt(
+  process.env.HEARTBEAT_TIMEOUT_SECONDS || "90",
+  10
+);
+
+export async function processHeartbeat(
+  machineId: string,
+  data: HeartbeatData
+): Promise<void> {
+  await prisma.machine.update({
+    where: { id: machineId },
+    data: {
+      lastHeartbeat: new Date(),
+      agentVersion: data.agent_version || undefined,
+      status: "ONLINE",
+    },
+  });
+
+  await prisma.machineEvent.create({
+    data: {
+      machineId,
+      type: "heartbeat",
+      data: { uptime: data.uptime, agent_version: data.agent_version },
+    },
+  });
+}
+
+export async function processMetrics(
+  machineId: string,
+  metrics: MetricsReport
+): Promise<void> {
+  await prisma.metric.create({
+    data: {
+      machineId,
+      cpuPercent: metrics.cpu_percent,
+      memoryUsed: BigInt(metrics.memory_used),
+      memoryTotal: BigInt(metrics.memory_total),
+      memoryPercent: metrics.memory_percent,
+      disks: metrics.disks as any,
+      network: metrics.network as any,
+      loadAvg1: metrics.load_avg_1,
+      loadAvg5: metrics.load_avg_5,
+      loadAvg15: metrics.load_avg_15,
+      uptime: metrics.uptime ? BigInt(metrics.uptime) : null,
+    },
+  });
+
+  await prisma.machine.update({
+    where: { id: machineId },
+    data: { lastMetrics: new Date() },
+  });
+}
+
+export async function updateSystemInfo(
+  machineId: string,
+  info: SystemInfo
+): Promise<void> {
+  await prisma.machine.update({
+    where: { id: machineId },
+    data: {
+      hostname: info.hostname,
+      os: info.os,
+      osVersion: info.os_version,
+      arch: info.arch,
+    },
+  });
+}
+
+export async function checkOfflineMachines(): Promise<void> {
+  const threshold = new Date(Date.now() - HEARTBEAT_TIMEOUT * 1000);
+
+  await prisma.machine.updateMany({
+    where: {
+      status: "ONLINE",
+      lastHeartbeat: { lt: threshold },
+    },
+    data: { status: "OFFLINE" },
+  });
+}
+
+export async function getMachineCapabilities(
+  machineId: string
+): Promise<string[]> {
+  const caps = await prisma.machineCapability.findMany({
+    where: { machineId },
+    include: { capability: true },
+  });
+  return caps.map((mc) => mc.capability.name);
+}
+
+export async function getMachineActions(
+  machineId: string
+): Promise<string[]> {
+  const caps = await prisma.machineCapability.findMany({
+    where: { machineId },
+    include: { capability: true },
+  });
+  return caps.flatMap((mc) => mc.capability.actions);
+}

@@ -1,0 +1,48 @@
+package transport
+
+// Message représente un message WebSocket
+type Message struct {
+	Type      string `json:"type"`
+	RequestID string `json:"request_id,omitempty"`
+	MachineID string `json:"machine_id"`
+	Timestamp string `json:"timestamp"`
+	Nonce     string `json:"nonce"`
+	Payload   string `json:"payload"`
+	Signature string `json:"signature"`
+}
+
+// SimpleMessage pour les messages non signés (erreurs, etc.)
+type SimpleMessage struct {
+	Type    string `json:"type"`
+	Error   string `json:"error,omitempty"`
+	Data    any    `json:"data,omitempty"`
+}
+
+// ActionRequestPayload est le payload déchiffré d'une demande d'action
+type ActionRequestPayload struct {
+	RequestID string                 `json:"request_id"`
+	ActionID  string                 `json:"action_id"`
+	Params    map[string]interface{} `json:"params"`
+}
+
+// CapabilitiesUpdatePayload contient les nouvelles capabilities
+type CapabilitiesUpdatePayload struct {
+	Type         string   `json:"type"`
+	MachineID    string   `json:"machine_id"`
+	Capabilities []string `json:"capabilities"`
+}
+
+const (
+	TypeEnrollmentRequest  = "enrollment.request"
+	TypeEnrollmentComplete = "enrollment.complete"
+	TypeEnrollmentRejected = "enrollment.rejected"
+	TypeHeartbeat          = "heartbeat"
+	TypeMetricsReport      = "metrics.report"
+	TypeActionRequest      = "action.request"
+	TypeActionResponse     = "action.response"
+	TypeCapabilitiesUpdate = "capabilities.update"
+	TypeUpdateProgress     = "update.progress"
+	TypePing               = "ping"
+	TypePong               = "pong"
+	TypeError              = "error"
+)

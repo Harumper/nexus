@@ -1,0 +1,86 @@
+import type { FastifyRequest, FastifyReply } from "fastify";
+import type { JwtPayload } from "../types/index.js";
+import {
+  isKeycloakEnabled,
+  isLocalAuthEnabled,
+  verifyKeycloakToken,
+  mapKeycloakRole,
+} from "../services/keycloak.js";
+
+// Extraire le token Bearer de la requête
+function extractBearerToken(request: FastifyRequest): string | null {
+  const authHeader = request.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  return authHeader.slice(7);
+}
+
+// Tenter l'authentification (Keycloak et/ou local selon AUTH_MODE)
+async function authenticate(
+  request: FastifyRequest
+): Promise<JwtPayload | null> {
+  const token = extractBearerToken(request);
+  if (!token) return null;
+
+  // 1. Essayer Keycloak si activé
+  if (isKeycloakEnabled()) {
+    const result = await verifyKeycloakToken(token);
+    if (result.valid && result.payload) {
+      const role = mapKeycloakRole(result.payload);
+      const jwtPayload: JwtPayload = {
+        sub: result.payload.sub,
+        username: result.payload.preferred_username,
+        role,
+        provider: "keycloak",
+        email: result.payload.email,
+      };
+      // Stocker dans request.user pour les handlers
+      (request as any).user = jwtPayload;
+      return jwtPayload;
+    }
+  }
+
+  // 2. Essayer le JWT local si activé
+  if (isLocalAuthEnabled()) {
+    try {
+      const payload = (await request.jwtVerify()) as JwtPayload;
+      payload.provider = "local";
+      return payload;
+    } catch {
+      // JWT local invalide
+    }
+  }
+
+  return null;
+}
+
+export async function requireAuth(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const user = await authenticate(request);
+  if (!user) {
+    reply.code(401).send({ error: "Unauthorized" });
+  }
+}
+
+export async function requireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const user = await authenticate(request);
+  if (!user) {
+    reply.code(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (user.role !== "ADMIN") {
+    reply.code(403).send({ error: "Admin access required" });
+  }
+}
+
+export function getUserFromRequest(request: FastifyRequest): JwtPayload | null {
+  try {
+    return (request as any).user as JwtPayload;
+  } catch {
+    return null;
+  }
+}
