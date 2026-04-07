@@ -18,6 +18,7 @@ import {
 } from "../services/machine-manager.js";
 import { prisma } from "../services/database.js";
 import { decryptMessagePayload } from "../services/security.js";
+import { updateMachineMetrics, actionsDispatched, actionsFailed } from "../services/prometheus.js";
 import type {
   WSMessage,
   EnrollmentRequest,
@@ -197,8 +198,25 @@ async function handleAuthenticatedMessage(
       });
       break;
 
-    case MSG_TYPES.METRICS_REPORT:
-      await processMetrics(machineId, payload as MetricsReport);
+    case MSG_TYPES.METRICS_REPORT: {
+      const metricsPayload = payload as MetricsReport;
+      await processMetrics(machineId, metricsPayload);
+
+      // Mettre a jour les gauges Prometheus par machine
+      const machine = await prisma.machine.findUnique({
+        where: { id: machineId },
+        select: { hostname: true },
+      });
+      updateMachineMetrics(machineId, machine?.hostname || machineId, {
+        cpu_percent: metricsPayload.cpu_percent,
+        memory_used: Number(metricsPayload.memory_used),
+        memory_total: Number(metricsPayload.memory_total),
+        memory_percent: metricsPayload.memory_percent,
+        disks: metricsPayload.disks,
+        load_avg_1: metricsPayload.load_avg_1,
+        uptime: metricsPayload.uptime ? Number(metricsPayload.uptime) : undefined,
+      });
+
       broadcastToDashboard({
         type: "machine.metrics",
         machine_id: machineId,
@@ -209,6 +227,7 @@ async function handleAuthenticatedMessage(
         console.error("[Alert] Evaluation error:", err)
       );
       break;
+    }
 
     case MSG_TYPES.ACTION_RESPONSE:
       await handleActionResponse(machineId, payload);
@@ -238,6 +257,11 @@ async function handleActionResponse(
   }
 
   const action = payload.success ? "ACTION_COMPLETE" : "ACTION_FAILED";
+
+  // Incrementer les compteurs Prometheus
+  if (!payload.success) {
+    actionsFailed.inc();
+  }
 
   await prisma.auditLog.create({
     data: {

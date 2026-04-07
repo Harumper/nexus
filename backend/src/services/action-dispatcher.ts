@@ -11,6 +11,7 @@ import {
 } from "./crypto.js";
 import { getAgentSession } from "../websocket/sessions.js";
 import type { DispatchActionBody } from "../types/index.js";
+import { actionsDispatched } from "./prometheus.js";
 
 export async function dispatchAction(
   machineId: string,
@@ -85,6 +86,7 @@ export async function dispatchAction(
   });
 
   session.ws.send(wsMessage);
+  actionsDispatched.inc();
 
   // 7. Audit log
   await prisma.auditLog.create({

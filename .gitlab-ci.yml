@@ -80,7 +80,7 @@ build-backend:
     DOCKER_HOST: unix:///var/run/docker.sock
     DOCKER_TLS_CERTDIR: ""
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest ./backend
     - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
@@ -97,7 +97,7 @@ build-frontend:
     DOCKER_HOST: unix:///var/run/docker.sock
     DOCKER_TLS_CERTDIR: ""
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - docker build -f frontend/Dockerfile -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/frontend:latest ./frontend
     - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA
@@ -116,7 +116,7 @@ build-agent:
     DOCKER_HOST: unix:///var/run/docker.sock
     DOCKER_TLS_CERTDIR: ""
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - docker build -f agent/Dockerfile -t $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/agent:latest ./agent
     - docker push $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA

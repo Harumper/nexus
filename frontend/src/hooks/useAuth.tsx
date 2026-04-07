@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(async (config: AuthConfig) => {
         setAuthConfig(config);
 
-        const savedProvider = localStorage.getItem(PROVIDER_KEY);
+        const savedProvider = sessionStorage.getItem(PROVIDER_KEY);
 
         // Si Keycloak est activé et c'est le provider principal
         if (
@@ -91,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (authenticated && kc.token) {
         api.setToken(kc.token);
-        localStorage.setItem(TOKEN_KEY, kc.token);
-        localStorage.setItem(PROVIDER_KEY, "keycloak");
+        sessionStorage.setItem(TOKEN_KEY, kc.token);
+        sessionStorage.setItem(PROVIDER_KEY, "keycloak");
 
         // Refresh token automatique
         setupTokenRefresh(kc);
@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const refreshed = await kc.updateToken(30); // refresh si expire dans <30s
         if (refreshed && kc.token) {
           api.setToken(kc.token);
-          localStorage.setItem(TOKEN_KEY, kc.token);
+          sessionStorage.setItem(TOKEN_KEY, kc.token);
           setState((prev) => ({ ...prev, token: kc.token! }));
         }
       } catch {
@@ -147,8 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restaurer session locale
   const restoreLocalSession = async () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const provider = localStorage.getItem(PROVIDER_KEY);
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    const provider = sessionStorage.getItem(PROVIDER_KEY);
 
     if (token && provider !== "keycloak") {
       api.setToken(token);
@@ -161,8 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           provider: "local",
         });
       } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(PROVIDER_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(PROVIDER_KEY);
         api.setToken(null);
       }
     }
@@ -171,8 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Login local
   const login = useCallback(async (username: string, password: string) => {
     const response = await api.login(username, password);
-    localStorage.setItem(TOKEN_KEY, response.token);
-    localStorage.setItem(PROVIDER_KEY, "local");
+    sessionStorage.setItem(TOKEN_KEY, response.token);
+    sessionStorage.setItem(PROVIDER_KEY, "local");
     api.setToken(response.token);
     setState({
       user: response.user,
@@ -191,9 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Logout
   const logout = useCallback(() => {
-    const provider = localStorage.getItem(PROVIDER_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(PROVIDER_KEY);
+    const provider = sessionStorage.getItem(PROVIDER_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(PROVIDER_KEY);
     api.setToken(null);
     setState({
       user: null,

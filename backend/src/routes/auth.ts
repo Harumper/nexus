@@ -44,6 +44,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           },
         },
       },
+      config: {
+        rateLimit: { max: 10, timeWindow: "1 minute" },
+      },
     },
     async (request, reply) => {
       if (!isLocalAuthEnabled()) {
@@ -80,7 +83,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           role: user.role,
           provider: "local",
         },
-        { expiresIn: "24h" }
+        { expiresIn: "4h" }
       );
 
       await logAudit({

@@ -59,7 +59,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("nexus_token")}`,
+          Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}`,
         },
         body: JSON.stringify({
           action_id: securityOnly ? "system.update_security" : "system.update",

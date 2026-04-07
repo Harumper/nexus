@@ -5,24 +5,25 @@ import { requireAuth } from "../middleware/auth.js";
 export async function fleetRoutes(app: FastifyInstance) {
   // GET /api/fleet/summary — Aggregated metrics across all online machines
   app.get("/api/fleet/summary", { preHandler: [requireAuth] }, async (request, reply) => {
-    // Get all online machines with latest metrics
+    // Get all online machines
     const machines = await prisma.machine.findMany({
       where: { status: "ONLINE" },
       select: { id: true, name: true, rebootRequired: true },
     });
     const machineIds = machines.map(m => m.id);
+    const machineMap = new Map(machines.map(m => [m.id, m.name]));
 
-    // Get latest metric for each online machine
-    const latestMetrics = await Promise.all(
-      machineIds.map(async (id) => {
-        const metric = await prisma.metric.findFirst({
-          where: { machineId: id },
-          orderBy: { timestamp: "desc" },
-        });
-        return metric ? { ...metric, machineId: id } : null;
-      })
-    );
-    const validMetrics = latestMetrics.filter(Boolean) as any[];
+    // Single query : latest metric per machine via raw SQL (DISTINCT ON)
+    const validMetrics: any[] = machineIds.length > 0
+      ? await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT ON ("machineId")
+            "machineId", "cpuPercent", "memoryPercent", "memoryUsed", "memoryTotal",
+            "disks", "loadAvg1", "uptime", "timestamp"
+          FROM "Metric"
+          WHERE "machineId" = ANY($1::text[])
+          ORDER BY "machineId", "timestamp" DESC
+        `, machineIds)
+      : [];
 
     // Calculate averages
     const avgCpu = validMetrics.length > 0
@@ -40,11 +41,11 @@ export async function fleetRoutes(app: FastifyInstance) {
     const topCpu = [...validMetrics]
       .sort((a, b) => b.cpuPercent - a.cpuPercent)
       .slice(0, 5)
-      .map(m => ({ machineId: m.machineId, name: machines.find(x => x.id === m.machineId)?.name, value: m.cpuPercent }));
+      .map(m => ({ machineId: m.machineId, name: machineMap.get(m.machineId), value: m.cpuPercent }));
     const topMemory = [...validMetrics]
       .sort((a, b) => b.memoryPercent - a.memoryPercent)
       .slice(0, 5)
-      .map(m => ({ machineId: m.machineId, name: machines.find(x => x.id === m.machineId)?.name, value: m.memoryPercent }));
+      .map(m => ({ machineId: m.machineId, name: machineMap.get(m.machineId), value: m.memoryPercent }));
     const topDisk = [...validMetrics]
       .sort((a, b) => {
         const aDisks = a.disks as any[];
@@ -54,13 +55,22 @@ export async function fleetRoutes(app: FastifyInstance) {
       .slice(0, 5)
       .map(m => {
         const disks = m.disks as any[];
-        return { machineId: m.machineId, name: machines.find(x => x.id === m.machineId)?.name, value: Array.isArray(disks) && disks[0]?.percent || 0 };
+        return { machineId: m.machineId, name: machineMap.get(m.machineId), value: Array.isArray(disks) && disks[0]?.percent || 0 };
       });
 
-    // Health score — get thresholds from settings
-    const cpuThreshold = await getSettingValue("health_threshold_cpu", 90);
-    const memThreshold = await getSettingValue("health_threshold_memory", 85);
-    const diskThreshold = await getSettingValue("health_threshold_disk", 80);
+    // Health score — pre-load all thresholds in one query
+    const thresholdSettings = await prisma.setting.findMany({
+      where: { key: { in: ["health_threshold_cpu", "health_threshold_memory", "health_threshold_disk"] } },
+    });
+    const settingMap = new Map(thresholdSettings.map(s => [s.key, s.value]));
+    const getThreshold = (key: string, def: number) => {
+      const v = settingMap.get(key);
+      const n = typeof v === "number" ? v : (v as any)?.value ?? v;
+      return typeof n === "number" ? n : def;
+    };
+    const cpuThreshold = getThreshold("health_threshold_cpu", 90);
+    const memThreshold = getThreshold("health_threshold_memory", 85);
+    const diskThreshold = getThreshold("health_threshold_disk", 80);
 
     const healthyCount = validMetrics.filter(m => {
       const disks = m.disks as any[];

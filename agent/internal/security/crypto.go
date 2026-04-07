@@ -115,8 +115,9 @@ func DeriveSharedSecret(privateKey *ecdsa.PrivateKey, peerPublicKey *ecdsa.Publi
 		return nil, fmt.Errorf("ECDH failed")
 	}
 
-	// Derive 256-bit key using HKDF
-	hkdfReader := hkdf.New(sha256.New, x.Bytes(), nil, []byte("nexus-shared-secret"))
+	// Derive 256-bit key using HKDF with a fixed salt
+	salt := sha256.Sum256([]byte("nexus-ecdh-salt-v1"))
+	hkdfReader := hkdf.New(sha256.New, x.Bytes(), salt[:], []byte("nexus-shared-secret"))
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(hkdfReader, key); err != nil {
 		return nil, fmt.Errorf("HKDF failed: %w", err)
@@ -212,7 +213,9 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 // GenerateNonce génère un nonce aléatoire hex
 func GenerateNonce() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand failed: %v", err))
+	}
 	return fmt.Sprintf("%x", b)
 }
 

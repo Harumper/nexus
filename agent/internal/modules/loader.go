@@ -53,6 +53,22 @@ func (l *Loader) Discover() error {
 		}
 
 		socketPath := filepath.Join(l.socketDir, entry.Name())
+
+		// Valider que c'est un socket Unix (pas un symlink ou fichier normal)
+		info, err := os.Lstat(socketPath)
+		if err != nil {
+			log.Printf("[Modules] Cannot stat %s: %v", socketPath, err)
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			log.Printf("[Modules] Rejected symlink: %s", socketPath)
+			continue
+		}
+		if info.Mode()&os.ModeSocket == 0 {
+			log.Printf("[Modules] Not a socket: %s", socketPath)
+			continue
+		}
+
 		moduleName := entry.Name()[:len(entry.Name())-5] // enlever .sock
 
 		if err := l.connectModule(moduleName, socketPath); err != nil {

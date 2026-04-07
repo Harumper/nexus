@@ -44,7 +44,7 @@ export default function Modules() {
   const fetchModules = useCallback(async () => {
     try {
       const res = await fetch("/api/modules", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
       });
       setModules(await res.json());
     } catch {
@@ -60,7 +60,7 @@ export default function Modules() {
   const toggleModule = async (name: string, enable: boolean) => {
     await fetch(`/api/modules/${name}/${enable ? "enable" : "disable"}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
     });
     fetchModules();
   };
@@ -69,7 +69,7 @@ export default function Modules() {
     if (!confirm(`Supprimer le module "${name}" ?`)) return;
     await fetch(`/api/modules/${name}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
     });
     fetchModules();
   };

@@ -30,26 +30,25 @@ export async function checkMachineLifecycle(): Promise<void> {
     },
   });
 
-  for (const machine of toStale) {
-    await prisma.machine.update({
-      where: { id: machine.id },
+  if (toStale.length > 0) {
+    const staleIds = toStale.map(m => m.id);
+    await prisma.machine.updateMany({
+      where: { id: { in: staleIds } },
       data: { status: "STALE" },
     });
-    await prisma.auditLog.create({
-      data: {
-        action: "MACHINE_UPDATE",
+    await prisma.auditLog.createMany({
+      data: toStale.map(m => ({
+        action: "MACHINE_UPDATE" as const,
         resource: "machine",
-        resourceId: machine.id,
-        machineId: machine.id,
+        resourceId: m.id,
+        machineId: m.id,
         details: { transition: "OFFLINE → STALE", reason: `Offline for ${staleAfterDays}+ days` },
-      },
+      })),
     });
-    broadcastToDashboard({
-      type: "machine.status",
-      machine_id: machine.id,
-      data: { status: "STALE" },
-    });
-    console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → STALE`);
+    for (const machine of toStale) {
+      broadcastToDashboard({ type: "machine.status", machine_id: machine.id, data: { status: "STALE" } });
+      console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → STALE`);
+    }
   }
 
   // 2. STALE > archiveAfterDays → ARCHIVED
@@ -61,21 +60,24 @@ export async function checkMachineLifecycle(): Promise<void> {
     },
   });
 
-  for (const machine of toArchive) {
-    await prisma.machine.update({
-      where: { id: machine.id },
+  if (toArchive.length > 0) {
+    const archiveIds = toArchive.map(m => m.id);
+    await prisma.machine.updateMany({
+      where: { id: { in: archiveIds } },
       data: { status: "ARCHIVED", archivedAt: now },
     });
-    await prisma.auditLog.create({
-      data: {
-        action: "MACHINE_UPDATE",
+    await prisma.auditLog.createMany({
+      data: toArchive.map(m => ({
+        action: "MACHINE_UPDATE" as const,
         resource: "machine",
-        resourceId: machine.id,
-        machineId: machine.id,
+        resourceId: m.id,
+        machineId: m.id,
         details: { transition: "STALE → ARCHIVED", reason: `Stale for ${archiveAfterDays}+ days` },
-      },
+      })),
     });
-    console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → ARCHIVED`);
+    for (const machine of toArchive) {
+      console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → ARCHIVED`);
+    }
   }
 
   // 3. ARCHIVED > deleteAfterDays → DELETE
@@ -87,17 +89,20 @@ export async function checkMachineLifecycle(): Promise<void> {
     },
   });
 
-  for (const machine of toDelete) {
-    await prisma.auditLog.create({
-      data: {
-        action: "MACHINE_DELETE",
+  if (toDelete.length > 0) {
+    await prisma.auditLog.createMany({
+      data: toDelete.map(m => ({
+        action: "MACHINE_DELETE" as const,
         resource: "machine",
-        resourceId: machine.id,
+        resourceId: m.id,
         details: { transition: "ARCHIVED → DELETED", reason: `Archived for ${deleteAfterDays}+ days` },
-      },
+      })),
     });
-    await prisma.machine.delete({ where: { id: machine.id } });
-    console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → DELETED`);
+    const deleteIds = toDelete.map(m => m.id);
+    await prisma.machine.deleteMany({ where: { id: { in: deleteIds } } });
+    for (const machine of toDelete) {
+      console.log(`[Lifecycle] Machine ${machine.name} (${machine.id}) → DELETED`);
+    }
   }
 
   if (toStale.length || toArchive.length || toDelete.length) {

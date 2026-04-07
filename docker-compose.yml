@@ -3,9 +3,15 @@ services:
     image: postgres:16-alpine
     container_name: nexus-db
     restart: unless-stopped
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nexus}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_dev}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-nexus}
     ports:
       - "${POSTGRES_PORT:-26030}:5432"
@@ -15,7 +21,7 @@ services:
       - nexus
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus}"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
 
@@ -28,8 +34,8 @@ services:
     environment:
       PORT: "3000"
       DATABASE_URL: postgresql://${POSTGRES_USER:-nexus}:${POSTGRES_PASSWORD:-nexus_dev}@postgres:5432/${POSTGRES_DB:-nexus}
-      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
-      ECDSA_MASTER_SECRET: ${ECDSA_MASTER_SECRET:-dev_ecdsa_master_secret_change_in_production}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ECDSA_MASTER_SECRET: ${ECDSA_MASTER_SECRET:?Set ECDSA_MASTER_SECRET in .env}
       ENROLLMENT_TOKEN_EXPIRY_HOURS: ${ENROLLMENT_TOKEN_EXPIRY_HOURS:-24}
       HEARTBEAT_TIMEOUT_SECONDS: ${HEARTBEAT_TIMEOUT_SECONDS:-90}
       AUTH_MODE: ${AUTH_MODE:-local}
@@ -49,6 +55,11 @@ services:
         condition: service_healthy
     networks:
       - nexus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Probe locale (monitoring only, pas d'actions dangereuses)
   probe:
@@ -95,6 +106,11 @@ services:
       - backend
     networks:
       - nexus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

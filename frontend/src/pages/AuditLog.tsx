@@ -67,7 +67,7 @@ export default function AuditLog() {
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/audit?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
       });
       const data = await res.json();
       setLogs(data.logs);
