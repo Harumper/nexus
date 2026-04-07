@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/aut
 import { logAudit } from "../middleware/audit.js";
 import { getAgentSession } from "../websocket/sessions.js";
 import { getMachineCapabilities } from "../services/machine-manager.js";
+import { signPayload, buildSignaturePayload, generateNonce, decryptPrivateKey } from "../services/crypto.js";
 
 export async function capabilityRoutes(app: FastifyInstance): Promise<void> {
   // List all capabilities
@@ -126,12 +127,37 @@ async function notifyCapabilitiesUpdate(machineId: string): Promise<void> {
 
   const capabilities = await getMachineCapabilities(machineId);
 
-  // Envoyer la mise à jour (non chiffré pour simplifier, l'agent vérifiera)
-  session.ws.send(
-    JSON.stringify({
+  // Recuperer la cle privee backend pour signer le message
+  const machine = await prisma.machine.findUnique({
+    where: { id: machineId },
+    select: { backendPrivateKey: true },
+  });
+
+  const payload = JSON.stringify({ capabilities });
+  const nonce = generateNonce();
+  const timestamp = new Date().toISOString();
+
+  const msg: Record<string, string> = {
+    type: "capabilities.update",
+    machine_id: machineId,
+    timestamp,
+    nonce,
+    payload,
+  };
+
+  // Signer si on a la cle privee
+  if (machine?.backendPrivateKey) {
+    const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey);
+    const sigPayload = buildSignaturePayload({
       type: "capabilities.update",
+      request_id: "",
       machine_id: machineId,
-      capabilities,
-    })
-  );
+      timestamp,
+      nonce,
+      payload,
+    });
+    msg.signature = signPayload(sigPayload, backendPrivateKey);
+  }
+
+  session.ws.send(JSON.stringify(msg));
 }

@@ -13,7 +13,7 @@ import { LRUCache } from "lru-cache";
 // Max 10 000 entrées = largement suffisant pour ~20 agents (200 nonces actifs max).
 const recentNonces = new LRUCache<string, true>({
   max: 10_000,
-  ttl: 5 * 60 * 1000,
+  ttl: 60 * 1000, // 60 secondes — fenetre de replay reduite
 });
 
 export async function verifyAgentMessage(

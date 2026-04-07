@@ -17,7 +17,7 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
-    const token = localStorage.getItem("nexus_token");
+    const token = sessionStorage.getItem("nexus_token");
     if (!token) {
       // Pas de token = pas de connexion WS dashboard
       return;

@@ -37,8 +37,10 @@ func (a *ScriptExecuteAction) Execute(params map[string]interface{}) (interface{
 		timeoutSec = 300 // Max 5 minutes
 	}
 
-	// Write script to temp file
-	tmpFile, err := os.CreateTemp("", "nexus-script-*.sh")
+	// Write script to dedicated temp directory (not world-writable /tmp)
+	scriptDir := "/var/tmp/nexus-agent"
+	os.MkdirAll(scriptDir, 0700)
+	tmpFile, err := os.CreateTemp(scriptDir, "nexus-script-*.sh")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}

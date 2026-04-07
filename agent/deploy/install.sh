@@ -116,48 +116,59 @@ log_info "Configuring sudo privileges for '$AGENT_USER'..."
 
 SUDOERS_FILE="/etc/sudoers.d/nexus-agent"
 SUDOERS_BACKUP="/etc/sudoers.bak.$(date +%s)"
+AGENT_SCRIPT_DIR="/var/tmp/nexus-agent"
 
 # Backup du sudoers principal
 cp /etc/sudoers "$SUDOERS_BACKUP"
 log_ok "Sudoers backup: $SUDOERS_BACKUP"
 
-cat > /tmp/nexus-agent-sudoers << 'SUDOERS'
+# Répertoire dédié pour les scripts agent (pas /tmp)
+mkdir -p "$AGENT_SCRIPT_DIR"
+chown "$AGENT_USER":"$AGENT_GROUP" "$AGENT_SCRIPT_DIR"
+chmod 0700 "$AGENT_SCRIPT_DIR"
+
+SUDOERS_TEMP=$(mktemp -t nexus-agent-sudoers.XXXXXX)
+trap "rm -f '$SUDOERS_TEMP'" EXIT
+
+cat > "$SUDOERS_TEMP" << 'SUDOERS'
 # Nexus Agent - Sudoers
 # Commandes autorisées pour l'agent Nexus (sans mot de passe)
 
 # === Package management (APT) ===
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get update *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get install *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get remove *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/unattended-upgrades *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get update
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade -y *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get install -y -qq *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get remove -y -qq *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/unattended-upgrades --minimal_upgrade_steps
 
 # === Package management (DNF/YUM) ===
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf upgrade *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf install *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf remove *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum update *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum install *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum remove *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update -y *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf upgrade -y *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/dnf install -y -q *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/dnf remove -y -q *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum update -y *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum install -y -q *
+nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum remove -y -q *
 
-# === Processus ===
-nexus-agent ALL=(root) NOPASSWD: /bin/kill *
+# === Processus (signaux explicites uniquement) ===
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGTERM [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGKILL [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGHUP [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGINT [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
-# === Scripts Nexus (uniquement les scripts temporaires générés) ===
-nexus-agent ALL=(root) NOPASSWD: /bin/bash /tmp/nexus-script-*.sh
+# === Scripts Nexus (répertoire dédié, pas /tmp) ===
+nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/tmp/nexus-agent/nexus-script-*.sh
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
 SUDOERS
 
-if visudo -cf /tmp/nexus-agent-sudoers; then
-    mv /tmp/nexus-agent-sudoers "$SUDOERS_FILE"
-    chmod 0440 "$SUDOERS_FILE"
-    chown root:root "$SUDOERS_FILE"
+if visudo -cf "$SUDOERS_TEMP"; then
+    install -m 0440 -o root -g root "$SUDOERS_TEMP" "$SUDOERS_FILE"
     log_ok "Sudoers configured: $SUDOERS_FILE"
 else
-    rm -f /tmp/nexus-agent-sudoers
     fail "Invalid sudoers syntax! No changes applied. Backup: $SUDOERS_BACKUP"
 fi
 

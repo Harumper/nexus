@@ -29,7 +29,7 @@ LockPersonality=true
 
 # Capabilities Linux minimales pour le monitoring
 AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
+CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 
 # Limiter les syscalls aux essentiels
 SystemCallFilter=@system-service @file-system @network-io @process
@@ -37,7 +37,7 @@ SystemCallArchitectures=native
 
 # Répertoires accessibles
 ReadOnlyPaths=/proc /sys /etc/os-release
-ReadWritePaths=/var/lib/nexus/keys /var/log/nexus /tmp
+ReadWritePaths=/var/lib/nexus/keys /var/log/nexus /var/tmp/nexus-agent
 
 # Limites de ressources
 LimitNOFILE=65536

@@ -69,10 +69,10 @@ export default function Alerts() {
     try {
       const [alertsRes, rulesRes] = await Promise.all([
         fetch("/api/alerts/active", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
         }),
         fetch("/api/alerts/rules", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
         }),
       ]);
       setActiveAlerts(await alertsRes.json());
@@ -86,7 +86,7 @@ export default function Alerts() {
   const fetchHistory = useCallback(async () => {
     try {
       const res = await fetch("/api/alerts/history?limit=100", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
       });
       const data = await res.json();
       setHistory(data.alerts);
@@ -127,7 +127,7 @@ export default function Alerts() {
   const acknowledgeAlert = async (id: string) => {
     await fetch(`/api/alerts/${id}/acknowledge`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
     });
     fetchData();
   };
@@ -135,7 +135,7 @@ export default function Alerts() {
   const resolveAlert = async (id: string) => {
     await fetch(`/api/alerts/${id}/resolve`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
     });
     fetchData();
   };
@@ -144,7 +144,7 @@ export default function Alerts() {
     if (!confirm("Supprimer cette règle d'alerte ?")) return;
     await fetch(`/api/alerts/rules/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${localStorage.getItem("nexus_token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
     });
     fetchData();
   };
@@ -154,7 +154,7 @@ export default function Alerts() {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("nexus_token")}`,
+        Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}`,
       },
       body: JSON.stringify({ enabled }),
     });
@@ -410,7 +410,7 @@ function CreateRuleDialog({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("nexus_token")}`,
+          Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}`,
         },
         body: JSON.stringify(form),
       });

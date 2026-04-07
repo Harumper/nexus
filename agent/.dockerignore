@@ -1,0 +1,5 @@
+.git
+.env
+nexus-agent
+tmp/
+*.md

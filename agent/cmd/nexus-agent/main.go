@@ -103,11 +103,10 @@ func main() {
 		}
 		client.SetKeys(keystore.GetPrivateKey(), sharedSecret)
 
-		// Charger les capabilities
+		// Charger les capabilities (pas de fallback silencieux)
 		caps, err := keystore.LoadCapabilities()
 		if err != nil {
-			log.Printf("[Agent] Warning: could not load capabilities: %v", err)
-			caps = []string{"monitoring"}
+			log.Fatalf("[Agent] Failed to load capabilities — refusing to start with unknown permissions: %v", err)
 		}
 		sandbox.SetCapabilities(caps)
 	}
@@ -151,6 +150,11 @@ func main() {
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {
 	switch msg.Type {
 	case transport.TypeActionRequest:
+		// Valider le timestamp pour eviter les replay attacks
+		if msg.Timestamp != "" && !security.IsTimestampValid(msg.Timestamp, 60*time.Second) {
+			log.Printf("[Agent] Rejected action request: timestamp too old or invalid (%s)", msg.Timestamp)
+			return
+		}
 		go handleActionRequest(msg, client, sandbox, keystore)
 
 	case transport.TypeCapabilitiesUpdate:
