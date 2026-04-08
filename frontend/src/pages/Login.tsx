@@ -1,10 +1,9 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useAuth } from "../hooks/useAuth";
-import Keycloak from "keycloak-js";
 import { Shield, KeyRound, LogIn } from "lucide-react";
 
 export default function Login() {
-  const { login, authConfig, loading: authLoading } = useAuth();
+  const { login, loginKeycloak, authConfig, loading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,9 +12,9 @@ export default function Login() {
   // Si mode keycloak only, redirect automatiquement
   useEffect(() => {
     if (authConfig?.mode === "keycloak" && authConfig.keycloak) {
-      redirectToKeycloak(authConfig.keycloak);
+      loginKeycloak();
     }
-  }, [authConfig]);
+  }, [authConfig, loginKeycloak]);
 
   const handleLocalLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,9 +38,7 @@ export default function Login() {
   };
 
   const handleKeycloakLogin = () => {
-    if (authConfig?.keycloak) {
-      redirectToKeycloak(authConfig.keycloak);
-    }
+    loginKeycloak();
   };
 
   if (authLoading) {
@@ -157,18 +154,3 @@ export default function Login() {
   );
 }
 
-function redirectToKeycloak(config: {
-  url: string;
-  realm: string;
-  clientId: string;
-}) {
-  // Construire l'URL de login Keycloak manuellement pour redirect vers /
-  // Evite de creer une instance Keycloak concurrente avec l'AuthProvider
-  const redirectUri = encodeURIComponent(window.location.origin + "/login");
-  const authUrl = `${config.url}/realms/${config.realm}/protocol/openid-connect/auth`
-    + `?client_id=${encodeURIComponent(config.clientId)}`
-    + `&redirect_uri=${redirectUri}`
-    + `&response_type=code`
-    + `&scope=openid`;
-  window.location.href = authUrl;
-}
