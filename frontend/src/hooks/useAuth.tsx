@@ -13,6 +13,7 @@ import type { User, AuthState, AuthConfig } from "../types";
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<void>;
+  loginKeycloak: () => void;
   logout: () => void;
   loading: boolean;
   authConfig: AuthConfig | null;
@@ -82,13 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     keycloakRef.current = kc;
 
     try {
-      // Si un code OIDC est present dans l'URL (retour de Keycloak), forcer le login
-      const hasAuthCode = window.location.search.includes("code=") ||
-        window.location.hash.includes("code=");
       const authenticated = await kc.init({
-        onLoad: hasAuthCode ? "login-required" : "check-sso",
+        onLoad: "check-sso",
         checkLoginIframe: false,
-        redirectUri: window.location.origin + "/login",
       });
 
       if (authenticated && kc.token) {
@@ -226,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         login,
+        loginKeycloak,
         logout,
         loading,
         authConfig,
