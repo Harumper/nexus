@@ -24,6 +24,10 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = "nexus_token";
 const PROVIDER_KEY = "nexus_provider";
 
+// Module-level guard — survit au remount React StrictMode
+// (useRef se reset au unmount/remount, pas une variable module)
+let authInitStarted = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -34,12 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const keycloakRef = useRef<Keycloak | null>(null);
-  const initRef = useRef(false);
 
   // 1. Charger la config auth du backend au démarrage
   useEffect(() => {
-    if (initRef.current) return;
-    initRef.current = true;
+    if (authInitStarted) return;
+    authInitStarted = true;
 
     fetch("/api/auth/config")
       .then((r) => r.json())
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authenticated = await kc.init({
         onLoad: forceLogin ? "login-required" : "check-sso",
         checkLoginIframe: false,
+        redirectUri: window.location.origin + "/login",
       });
 
       if (authenticated && kc.token) {
