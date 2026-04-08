@@ -84,8 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const authenticated = await kc.init({
         onLoad: "check-sso",
-        silentCheckSsoRedirectUri:
-          window.location.origin + "/silent-check-sso.html",
         checkLoginIframe: false,
       });
 
