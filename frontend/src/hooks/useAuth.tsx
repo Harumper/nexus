@@ -48,17 +48,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const savedProvider = sessionStorage.getItem(PROVIDER_KEY);
 
-        // Si Keycloak est activé et c'est le provider principal
+        // Toujours preparer l'instance Keycloak si configuree
+        // (pour que loginKeycloak() fonctionne meme en mode "both")
+        if (config.keycloak) {
+          const kc = new Keycloak({
+            url: config.keycloak.url,
+            realm: config.keycloak.realm,
+            clientId: config.keycloak.clientId,
+          });
+          keycloakRef.current = kc;
+        }
+
+        // Authentifier selon le mode
         if (
           config.keycloak &&
           (config.mode === "keycloak" || savedProvider === "keycloak")
         ) {
           await initKeycloak(config);
         } else if (config.local) {
-          // Restaurer session locale
           await restoreLocalSession();
         } else if (config.keycloak) {
-          // Fallback: init Keycloak si local n'est pas dispo
           await initKeycloak(config);
         }
 
@@ -70,16 +79,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  // Init Keycloak
+  // Init Keycloak (reutilise l'instance deja creee dans keycloakRef)
   const initKeycloak = async (config: AuthConfig) => {
     if (!config.keycloak) return;
 
-    const kc = new Keycloak({
+    const kc = keycloakRef.current || new Keycloak({
       url: config.keycloak.url,
       realm: config.keycloak.realm,
       clientId: config.keycloak.clientId,
     });
-
     keycloakRef.current = kc;
 
     try {
@@ -181,10 +189,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Login Keycloak (redirect)
+  // Login Keycloak (redirect via la meme instance)
   const loginKeycloak = useCallback(() => {
-    if (keycloakRef.current) {
-      keycloakRef.current.login();
+    const kc = keycloakRef.current;
+    if (!kc) {
+      console.error("[Auth] Keycloak instance not available");
+      return;
+    }
+    // Si Keycloak n'a pas encore ete init, faire un init puis login
+    if (!kc.authenticated && !kc.token) {
+      kc.init({ onLoad: "login-required", checkLoginIframe: false }).catch(() => {
+        // init login-required redirige automatiquement
+      });
+    } else {
+      kc.login();
     }
   }, []);
 
