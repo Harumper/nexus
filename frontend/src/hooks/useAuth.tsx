@@ -59,16 +59,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           keycloakRef.current = kc;
         }
 
+        // Detecter un code OIDC dans l'URL (retour de Keycloak)
+        const hasOidcCode = window.location.hash.includes("code=") ||
+          window.location.search.includes("code=");
+
         // Authentifier selon le mode
-        if (
+        if (hasOidcCode && config.keycloak) {
+          // Retour de Keycloak avec un code — forcer le traitement
+          await initKeycloak(config, true);
+        } else if (
           config.keycloak &&
           (config.mode === "keycloak" || savedProvider === "keycloak")
         ) {
-          await initKeycloak(config);
+          await initKeycloak(config, false);
         } else if (config.local) {
           await restoreLocalSession();
         } else if (config.keycloak) {
-          await initKeycloak(config);
+          await initKeycloak(config, false);
         }
 
         setLoading(false);
@@ -80,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Init Keycloak (reutilise l'instance deja creee dans keycloakRef)
-  const initKeycloak = async (config: AuthConfig) => {
+  const initKeycloak = async (config: AuthConfig, forceLogin = false) => {
     if (!config.keycloak) return;
 
     const kc = keycloakRef.current || new Keycloak({
@@ -92,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const authenticated = await kc.init({
-        onLoad: "check-sso",
+        onLoad: forceLogin ? "login-required" : "check-sso",
         checkLoginIframe: false,
       });
 
