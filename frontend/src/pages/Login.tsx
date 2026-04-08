@@ -162,10 +162,13 @@ function redirectToKeycloak(config: {
   realm: string;
   clientId: string;
 }) {
-  const kc = new Keycloak({
-    url: config.url,
-    realm: config.realm,
-    clientId: config.clientId,
-  });
-  kc.init({ onLoad: "login-required" });
+  // Construire l'URL de login Keycloak manuellement pour redirect vers /
+  // Evite de creer une instance Keycloak concurrente avec l'AuthProvider
+  const redirectUri = encodeURIComponent(window.location.origin + "/login");
+  const authUrl = `${config.url}/realms/${config.realm}/protocol/openid-connect/auth`
+    + `?client_id=${encodeURIComponent(config.clientId)}`
+    + `&redirect_uri=${redirectUri}`
+    + `&response_type=code`
+    + `&scope=openid`;
+  window.location.href = authUrl;
 }

@@ -82,9 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     keycloakRef.current = kc;
 
     try {
+      // Si un code OIDC est present dans l'URL (retour de Keycloak), forcer le login
+      const hasAuthCode = window.location.search.includes("code=") ||
+        window.location.hash.includes("code=");
       const authenticated = await kc.init({
-        onLoad: "check-sso",
+        onLoad: hasAuthCode ? "login-required" : "check-sso",
         checkLoginIframe: false,
+        redirectUri: window.location.origin + "/login",
       });
 
       if (authenticated && kc.token) {
