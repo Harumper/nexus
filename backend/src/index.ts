@@ -39,14 +39,20 @@ async function main() {
 
   // ===================== Plugins =====================
 
+  // CSP : autoriser Keycloak dans frame-src si SSO actif
+  const keycloakUrl = process.env.KEYCLOAK_URL || "";
+  const cspFrameSrc = keycloakUrl
+    ? ["'self'", keycloakUrl]
+    : ["'self'"];
+
   await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        connectSrc: ["'self'"],
-        frameSrc: ["'self'"],
+        connectSrc: ["'self'", ...(keycloakUrl ? [keycloakUrl] : [])],
+        frameSrc: cspFrameSrc,
       },
     },
   });
