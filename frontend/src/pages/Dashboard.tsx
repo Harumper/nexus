@@ -22,7 +22,7 @@ import { useMachines } from "../hooks/useMachines";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { api } from "../services/api";
 import MachineCard from "../components/MachineCard";
-import AddMachineDialog from "../components/AddMachineDialog";
+import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
@@ -47,11 +47,11 @@ interface TrendBucket {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { machines, loading, refresh, updateMachineStatus } = useMachines();
   const [latestMetrics, setLatestMetrics] = useState<Record<string, Metric>>(
     {}
   );
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [showBatchUpdate, setShowBatchUpdate] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetSummary | null>(null);
   const [fleetTrends, setFleetTrends] = useState<TrendBucket[]>([]);
@@ -181,7 +181,7 @@ export default function Dashboard() {
             </button>
           )}
           <button
-            onClick={() => setShowAddDialog(true)}
+            onClick={() => navigate("/machines/new")}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -277,7 +277,7 @@ export default function Dashboard() {
           <Server className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">Aucune machine</h3>
           <p className="text-sm text-muted-foreground mb-4">Ajoutez votre première machine pour commencer.</p>
-          <button onClick={() => setShowAddDialog(true)} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+          <button onClick={() => navigate("/machines/new")} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
             <Plus className="w-4 h-4" /> Ajouter une machine
           </button>
         </div>
@@ -298,7 +298,6 @@ export default function Dashboard() {
       )}
 
       {/* Dialogs */}
-      {showAddDialog && <AddMachineDialog onClose={() => setShowAddDialog(false)} onCreated={() => { setShowAddDialog(false); refresh(); }} />}
       {showBatchUpdate && <BatchUpdateDialog machines={machines} onClose={() => setShowBatchUpdate(false)} />}
     </div>
   );

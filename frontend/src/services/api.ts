@@ -82,6 +82,13 @@ class ApiClient {
     return this.request<void>(`/machines/${id}`, { method: "DELETE" });
   }
 
+  async regenerateBootstrap(id: string) {
+    return this.request<import("../types").BootstrapArtifacts>(
+      `/machines/${id}/bootstrap/regenerate`,
+      { method: "POST" }
+    );
+  }
+
   async revokeMachine(id: string, reason?: string) {
     return this.request<{ success: boolean }>(`/machines/${id}/revoke`, {
       method: "POST",

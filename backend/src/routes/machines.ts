@@ -8,6 +8,54 @@ import { revokeMachine } from "../services/security.js";
 import { disconnectAgent } from "../websocket/sessions.js";
 import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/auth.js";
 import { logAudit } from "../middleware/audit.js";
+import { generateBootstrapToken, invalidateInstallTokens } from "../services/bootstrap.js";
+import {
+  generateInstallSteps,
+  stepsToSingleCommand,
+  getAgentBackendUrl,
+  type BootstrapArtifacts,
+} from "../services/agent-bootstrap.js";
+
+interface MachineForBootstrap {
+  id: string;
+  name: string;
+  enrollmentToken: string;
+  backendPublicKey: string;
+}
+
+async function buildBootstrapArtifacts(
+  machine: MachineForBootstrap
+): Promise<BootstrapArtifacts | null> {
+  let backendUrl: string;
+  try {
+    backendUrl = getAgentBackendUrl();
+  } catch (err) {
+    console.warn("[Bootstrap] AGENT_BACKEND_URL not configured — skipping install commands generation");
+    return null;
+  }
+
+  const binaryTok = await generateBootstrapToken(machine.id, "install");
+  const scriptTok = await generateBootstrapToken(machine.id, "install");
+
+  const installSteps = generateInstallSteps({
+    machineId: machine.id,
+    machineName: machine.name,
+    enrollmentToken: machine.enrollmentToken,
+    backendPublicKey: machine.backendPublicKey,
+    binaryToken: binaryTok.rawToken,
+    scriptToken: scriptTok.rawToken,
+    backendUrl,
+  });
+
+  // Les 2 tokens expirent au meme moment, on prend le plus tot
+  const expiresAt = binaryTok.expiresAt < scriptTok.expiresAt ? binaryTok.expiresAt : scriptTok.expiresAt;
+
+  return {
+    installSteps,
+    installCommand: stepsToSingleCommand(installSteps),
+    expiresAt: expiresAt.toISOString(),
+  };
+}
 
 export async function machineRoutes(app: FastifyInstance): Promise<void> {
   // List all machines
@@ -137,7 +185,64 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         details: { name, capabilities },
       });
 
-      return reply.code(201).send(result);
+      // Generer les artifacts d'installation (binaire + script + commandes)
+      const bootstrap = await buildBootstrapArtifacts(result);
+      return reply.code(201).send({ ...result, bootstrap });
+    }
+  );
+
+  // Regenerer les tokens de bootstrap pour une machine existante
+  app.post(
+    "/api/machines/:id/bootstrap/regenerate",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const user = getUserFromRequest(request);
+
+      const machine = await prisma.machine.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          enrollmentToken: true,
+          backendPublicKey: true,
+        },
+      });
+
+      if (!machine) {
+        return reply.code(404).send({ error: "Machine not found" });
+      }
+
+      if (!machine.enrollmentToken) {
+        return reply.code(400).send({
+          error: "Machine is already enrolled. Use POST /re-enroll to regenerate the enrollment token.",
+        });
+      }
+
+      if (!machine.backendPublicKey) {
+        return reply.code(500).send({ error: "Machine has no backend public key" });
+      }
+
+      // Invalider tous les tokens install existants
+      await invalidateInstallTokens(id);
+
+      const bootstrap = await buildBootstrapArtifacts({
+        id: machine.id,
+        name: machine.name,
+        enrollmentToken: machine.enrollmentToken,
+        backendPublicKey: machine.backendPublicKey,
+      });
+
+      await logAudit({
+        action: "MACHINE_UPDATE",
+        resource: "machine",
+        resourceId: id,
+        userId: user?.sub,
+        ipAddress: request.ip,
+        details: { action: "bootstrap_regenerated" },
+      });
+
+      return reply.send(bootstrap);
     }
   );
 

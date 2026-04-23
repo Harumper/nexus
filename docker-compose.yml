@@ -27,8 +27,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: nexus-backend
     restart: unless-stopped
     environment:
@@ -47,6 +47,7 @@ services:
       KEYCLOAK_ROLE_OPERATOR: ${KEYCLOAK_ROLE_OPERATOR:-nexus-operator}
       KEYCLOAK_ROLE_READONLY: ${KEYCLOAK_ROLE_READONLY:-nexus-readonly}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:26032}
+      AGENT_BACKEND_URL: ${AGENT_BACKEND_URL:-http://localhost:26031}
       NODE_ENV: production
     ports:
       - "${BACKEND_PORT:-26031}:3000"

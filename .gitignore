@@ -46,3 +46,4 @@ coverage/
 /nexus-agent
 agent/nexus-agent
 agent/tmp/
+frontend/tsconfig.tsbuildinfo

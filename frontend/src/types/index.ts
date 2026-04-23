@@ -34,6 +34,28 @@ export type MachineStatus =
   | "DEGRADED"
   | "REVOKED";
 
+export interface InstallStep {
+  id: string;
+  title: string;
+  description: string;
+  command: string;
+}
+
+export interface BootstrapArtifacts {
+  installSteps: InstallStep[];
+  installCommand: string;
+  expiresAt: string;
+}
+
+export interface CreateMachineResponse {
+  id: string;
+  name: string;
+  enrollmentToken: string;
+  backendPublicKey: string;
+  expiresAt: string;
+  bootstrap: BootstrapArtifacts | null;
+}
+
 export interface Capability {
   id: string;
   name: string;

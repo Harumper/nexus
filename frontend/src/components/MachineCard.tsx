@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { statusColor, statusLabel, timeAgo } from "../lib/utils";
 import { api } from "../services/api";
@@ -13,8 +13,10 @@ interface MachineCardProps {
 }
 
 export default function MachineCard({ machine, latestMetric, onDeleted }: MachineCardProps) {
+  const navigate = useNavigate();
   const status = statusColor(machine.status);
   const isOnline = machine.status === "ONLINE";
+  const isPending = machine.status === "ENROLLMENT_PENDING";
   const isProbe = machine.type === "PROBE";
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
@@ -78,6 +80,15 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
               <div className="fixed inset-0 z-10" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); }} />
               <div className="absolute right-0 top-8 z-20 rounded-lg py-1 min-w-[160px]"
                 style={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", boxShadow: "var(--nx-shadow-lg)" }}>
+                {isPending && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); navigate(`/machines/${machine.id}/enroll`); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
+                    style={{ color: "var(--nx-info)" }}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Régénérer l'installation
+                  </button>
+                )}
                 {machine.status !== "REVOKED" && (
                   <button onClick={handleRevoke} disabled={actionLoading}
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
