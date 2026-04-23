@@ -26,13 +26,14 @@ PrivateTmp=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
-RestrictSUIDSGID=true
+# RestrictSUIDSGID retire : sudo est un binaire SUID necessaire pour les actions privilegiees
+# La protection reste via le sudoers ciblé (whitelist + NOEXEC)
 RestrictRealtime=true
 LockPersonality=true
 
 # Capabilities Linux minimales pour le monitoring
 AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
 
 # Limiter les syscalls aux essentiels
 SystemCallFilter=@system-service @file-system @network-io @process
