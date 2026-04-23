@@ -27,6 +27,7 @@ import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics }
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
 import { agentDownloadRoutes } from "./routes/agent-download.js";
 import { cleanupExpiredTokens } from "./services/bootstrap.js";
+import { ensureBuiltinSeed } from "./services/bootstrap-seed.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -127,6 +128,13 @@ async function main() {
   // ===================== Database =====================
 
   await connectDatabase();
+
+  // Seeder les capabilities/settings builtin (idempotent)
+  try {
+    await ensureBuiltinSeed();
+  } catch (err) {
+    console.error("[Seed] Failed to seed builtin data:", err);
+  }
 
   // ===================== Keycloak =====================
 
