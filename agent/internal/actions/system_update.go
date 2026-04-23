@@ -101,7 +101,7 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		// Étape 1 : apt-get update (refresh index)
 		// Via sudo — l'agent tourne sous nexus-agent (non-root)
 		sendProgress("Mise à jour de l'index des paquets...", 10)
-		updateCmd := exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "update", "-qq")
+		updateCmd := exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "update")
 		updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 		if out, err := updateCmd.CombinedOutput(); err != nil {
 			return &collector.UpdateResult{
