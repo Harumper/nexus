@@ -8,6 +8,10 @@ Wants=network-online.target
 Type=simple
 User=nexus-agent
 Group=nexus-agent
+# Creer le repertoire avant ReadWritePaths (evite l'erreur namespace si absent)
+ExecStartPre=+/bin/mkdir -p /var/tmp/nexus-agent
+ExecStartPre=+/bin/chown nexus-agent:nexus-agent /var/tmp/nexus-agent
+ExecStartPre=+/bin/chmod 0700 /var/tmp/nexus-agent
 ExecStart=/usr/local/bin/nexus-agent
 EnvironmentFile=/etc/nexus/agent.env
 Restart=always
