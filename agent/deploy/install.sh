@@ -116,7 +116,7 @@ log_info "Configuring sudo privileges for '$AGENT_USER'..."
 
 SUDOERS_FILE="/etc/sudoers.d/nexus-agent"
 SUDOERS_BACKUP="/etc/sudoers.bak.$(date +%s)"
-AGENT_SCRIPT_DIR="/var/tmp/nexus-agent"
+AGENT_SCRIPT_DIR="/var/lib/nexus-agent"
 
 # Backup du sudoers principal
 cp /etc/sudoers "$SUDOERS_BACKUP"
@@ -159,7 +159,7 @@ nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
 # === Scripts Nexus (répertoire dédié, pas /tmp) ===
-nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/tmp/nexus-agent/nexus-script-*.sh
+nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.sh
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot

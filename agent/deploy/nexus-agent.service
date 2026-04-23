@@ -8,10 +8,9 @@ Wants=network-online.target
 Type=simple
 User=nexus-agent
 Group=nexus-agent
-# Creer le repertoire avant ReadWritePaths (evite l'erreur namespace si absent)
-ExecStartPre=+/bin/mkdir -p /var/tmp/nexus-agent
-ExecStartPre=+/bin/chown nexus-agent:nexus-agent /var/tmp/nexus-agent
-ExecStartPre=+/bin/chmod 0700 /var/tmp/nexus-agent
+# systemd cree /var/lib/nexus-agent automatiquement (owner=nexus-agent, mode=0700)
+StateDirectory=nexus-agent
+StateDirectoryMode=0700
 ExecStart=/usr/local/bin/nexus-agent
 EnvironmentFile=/etc/nexus/agent.env
 Restart=always
@@ -41,7 +40,7 @@ SystemCallArchitectures=native
 
 # Répertoires accessibles
 ReadOnlyPaths=/proc /sys /etc/os-release
-ReadWritePaths=/var/lib/nexus/keys /var/log/nexus /var/tmp/nexus-agent
+ReadWritePaths=/var/lib/nexus/keys /var/log/nexus
 
 # Limites de ressources
 LimitNOFILE=65536
