@@ -125,10 +125,16 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("mktemp");
   });
 
-  it("should not have CAP_SETUID in systemd service", () => {
+  it("should have restricted systemd sandbox with SUID caps for sudo", () => {
     const content = readFileSync(resolve(agentDir, "deploy/nexus-agent.service"), "utf8");
-    expect(content).not.toContain("CAP_SETUID");
-    expect(content).not.toContain("CAP_SETGID");
+    // CAP_SETUID/SETGID necessaires a sudo — retirer casse les actions privilegiees.
+    // La protection repose sur le sudoers ciblé (whitelist + NOEXEC).
+    expect(content).toContain("CAP_SETUID");
+    expect(content).toContain("CAP_SETGID");
+    // Sandbox reste actif via les autres directives
+    expect(content).toContain("ProtectHome=true");
+    expect(content).toContain("ProtectKernelModules=true");
+    expect(content).toContain("LockPersonality=true");
   });
 });
 
