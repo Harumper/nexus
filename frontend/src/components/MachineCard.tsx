@@ -56,20 +56,20 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
   };
 
   return (
-    <Link
-      to={`/machines/${machine.id}`}
-      className="block rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5 group relative"
+    <div
+      className="rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5 group relative"
       style={{
         background: "var(--nx-bg-surface)",
         border: "1px solid var(--nx-border)",
         boxShadow: isOnline ? "var(--nx-shadow-glow-success)" : "var(--nx-shadow-sm)",
       }}
     >
-      {/* Context menu */}
+      {/* Context menu (hors Link pour eviter que les clicks soient captures par la navigation) */}
       {isAdmin && (
-        <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-3 right-3 z-20">
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(!menuOpen); }}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
             className="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ color: "var(--nx-text-weak)" }}
           >
@@ -77,12 +77,13 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
           </button>
           {menuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); }} />
-              <div className="absolute right-0 top-8 z-20 rounded-lg py-1 min-w-[160px]"
+              <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-8 z-40 rounded-lg py-1 min-w-[160px]"
                 style={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", boxShadow: "var(--nx-shadow-lg)" }}>
                 {isPending && (
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); navigate(`/machines/${machine.id}/enroll`); }}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); navigate(`/machines/${machine.id}/enroll`); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                     style={{ color: "var(--nx-info)" }}
                   >
@@ -90,13 +91,13 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
                   </button>
                 )}
                 {machine.status !== "REVOKED" && (
-                  <button onClick={handleRevoke} disabled={actionLoading}
+                  <button type="button" onClick={handleRevoke} disabled={actionLoading}
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                     style={{ color: "var(--nx-warning)" }}>
                     <ShieldOff className="w-3.5 h-3.5" /> Révoquer
                   </button>
                 )}
-                <button onClick={handleDelete} disabled={actionLoading}
+                <button type="button" onClick={handleDelete} disabled={actionLoading}
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                   style={{ color: "var(--nx-danger)" }}>
                   <Trash2 className="w-3.5 h-3.5" /> Supprimer
@@ -106,6 +107,11 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
           )}
         </div>
       )}
+
+      {/* Zone cliquable (Link) — englobe tout sauf le menu */}
+      <Link to={`/machines/${machine.id}`} className="absolute inset-0 rounded-xl z-0" aria-label={machine.name} />
+
+      <div className="relative pointer-events-none">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-3 pr-6">
@@ -183,7 +189,8 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
           ))}
         </div>
       )}
-    </Link>
+      </div>
+    </div>
   );
 }
 
