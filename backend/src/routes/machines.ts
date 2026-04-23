@@ -254,10 +254,24 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const user = getUserFromRequest(request);
 
-      // Déconnecter l'agent s'il est connecté
+      // Verifier que la machine existe
+      const machine = await prisma.machine.findUnique({ where: { id }, select: { id: true } });
+      if (!machine) {
+        return reply.code(404).send({ error: "Machine not found" });
+      }
+
+      // Deconnecter l'agent s'il est connecte
       disconnectAgent(id);
 
-      await prisma.machine.delete({ where: { id } });
+      try {
+        await prisma.machine.delete({ where: { id } });
+      } catch (err: any) {
+        request.log.error({ err, machineId: id }, "[Machines] Delete failed");
+        return reply.code(500).send({
+          error: "Failed to delete machine",
+          detail: err?.message || String(err),
+        });
+      }
 
       await logAudit({
         action: "MACHINE_DELETE",
