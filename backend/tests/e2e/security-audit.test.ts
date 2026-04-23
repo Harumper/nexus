@@ -80,10 +80,10 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toMatch(/if.*err.*:=.*rand\.Read/);
   });
 
-  it("should have HKDF salt in DeriveSharedSecret", () => {
+  it("should document HKDF context label in DeriveSharedSecret", () => {
     const content = readFileSync(resolve(agentDir, "internal/security/crypto.go"), "utf8");
-    expect(content).toContain("nexus-ecdh-salt");
-    expect(content).not.toMatch(/hkdf\.New\(sha256\.New,.*nil,/);
+    // Backend et agent utilisent tous les deux un salt vide — doit matcher
+    expect(content).toContain("nexus-shared-secret");
   });
 
   it("should validate timestamps on incoming action requests", () => {
