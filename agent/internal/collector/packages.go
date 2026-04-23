@@ -71,15 +71,14 @@ func ListPendingUpdates(pm PackageManager) ([]PendingUpdate, error) {
 
 func listPendingApt() ([]PendingUpdate, error) {
 	// Étape 1 : mise à jour de l'index (apt-get update)
-	// Chemin ABSOLU, arguments HARDCODÉS
-	updateCmd := exec.Command("/usr/bin/apt-get", "update", "-qq")
+	// Via sudo — l'agent tourne sous nexus-agent (non-root)
+	updateCmd := exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "update")
 	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	if err := updateCmd.Run(); err != nil {
-		return nil, fmt.Errorf("apt-get update failed: %w", err)
+	if out, err := updateCmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("apt-get update failed: %w: %s", err, string(out))
 	}
 
-	// Étape 2 : lister les upgradables
-	// Chemin ABSOLU, arguments HARDCODÉS
+	// Étape 2 : lister les upgradables (pas besoin de sudo)
 	cmd := exec.Command("/usr/bin/apt", "list", "--upgradable")
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	output, err := cmd.Output()
