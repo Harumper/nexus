@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download, Radio, AlertTriangle,
-  RotateCcw,
+  RotateCcw, ArrowUpCircle,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -86,6 +86,17 @@ export default function MachineDetail() {
     navigate("/machines");
   };
 
+  const handleUpgradeAgent = async () => {
+    if (!id) return;
+    if (!confirm("Mettre à jour le binaire de l'agent ?\n\nL'agent va télécharger la dernière version et se redémarrer automatiquement (~5s d'interruption).")) return;
+    try {
+      const res = await api.upgradeAgent(id);
+      alert(res.message || "Mise à jour déclenchée");
+    } catch (err: any) {
+      alert("Erreur : " + (err.message || "échec de la mise à jour"));
+    }
+  };
+
   if (loading || !machine) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -144,6 +155,11 @@ export default function MachineDetail() {
 
           {isAdmin && (
             <div className="flex gap-2">
+              {isOnline && (
+                <button onClick={handleUpgradeAgent} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-info)", color: "var(--nx-info)" }}>
+                  <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
+                </button>
+              )}
               {machine.status !== "REVOKED" && (
                 <button onClick={handleRevoke} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                   <ShieldOff className="w-3.5 h-3.5" /> Révoquer

@@ -94,6 +94,13 @@ class ApiClient {
     );
   }
 
+  async upgradeAgent(id: string) {
+    return this.request<{ success: boolean; message: string; request_id?: string }>(
+      `/machines/${id}/agent/upgrade`,
+      { method: "POST" }
+    );
+  }
+
   async revokeMachine(id: string, reason?: string) {
     return this.request<{ success: boolean }>(`/machines/${id}/revoke`, {
       method: "POST",
