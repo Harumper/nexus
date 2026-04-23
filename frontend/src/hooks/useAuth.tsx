@@ -200,21 +200,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Login Keycloak (redirect via la meme instance)
+  // Login Keycloak (redirect vers Keycloak — meme instance que l'AuthProvider)
   const loginKeycloak = useCallback(() => {
     const kc = keycloakRef.current;
     if (!kc) {
       console.error("[Auth] Keycloak instance not available");
       return;
     }
-    // Si Keycloak n'a pas encore ete init, faire un init puis login
-    if (!kc.authenticated && !kc.token) {
-      kc.init({ onLoad: "login-required", checkLoginIframe: false }).catch(() => {
-        // init login-required redirige automatiquement
-      });
-    } else {
-      kc.login();
-    }
+    // kc.login() construit l'URL et redirige, pas besoin d'init prealable
+    // Le retour sur /login avec le code sera traite par l'AuthProvider au remount
+    kc.login({ redirectUri: window.location.origin + "/login" });
   }, []);
 
   // Logout
