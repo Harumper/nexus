@@ -100,6 +100,14 @@ echo "  Machine ID    : $MACHINE_ID"
 echo "  Token         : ${ENROLLMENT_TOKEN:0:20}..."
 echo ""
 
+# ===================== 0. Arrêter l'agent s'il tourne déjà (re-install) =====================
+
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    info "Agent en cours d'exécution, arrêt avant réinstall..."
+    systemctl stop "$SERVICE_NAME"
+    ok "Agent arrêté."
+fi
+
 # ===================== 1. Créer l'utilisateur système =====================
 
 info "Création de l'utilisateur système '$AGENT_USER'..."
