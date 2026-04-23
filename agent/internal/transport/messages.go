@@ -9,6 +9,8 @@ type Message struct {
 	Nonce     string `json:"nonce"`
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
+	// Error est present dans les messages de type "error" envoyes par le backend
+	Error string `json:"error,omitempty"`
 }
 
 // SimpleMessage pour les messages non signés (erreurs, etc.)
