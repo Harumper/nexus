@@ -147,6 +147,7 @@ model Machine {
   tags              MachineTag[]
   groupMembers      MachineGroupMember[]
   profileExecutions ProfileExecution[]
+  bootstrapTokens   BootstrapToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,6 +157,24 @@ model Machine {
   @@index([lastHeartbeat])
   @@index([enrollmentToken])
   @@index([type])
+}
+
+// ===================== BOOTSTRAP TOKENS =====================
+// Jetons courts (1h) pour proteger le telechargement du binaire et du script
+// lors de l'enrollment. Separes du Machine.enrollmentToken qui sert a l'ECDSA handshake.
+
+model BootstrapToken {
+  id        String    @id @default(cuid())
+  machineId String
+  machine   Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  purpose   String    // 'install' (reserve: 'upgrade' pour le futur)
+  tokenHash String    @unique   // SHA256 hex du token brut
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([machineId, purpose])
+  @@index([expiresAt])
 }
 
 // ===================== CAPABILITIES =====================

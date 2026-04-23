@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import Profiles from "./pages/Profiles";
 import Compare from "./pages/Compare";
 import Docs from "./pages/Docs";
+import MachineEnroll from "./pages/MachineEnroll";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -54,6 +55,8 @@ export default function App() {
       >
         <Route path="/" element={<Dashboard />} />
         <Route path="/machines" element={<Machines />} />
+        <Route path="/machines/new" element={<MachineEnroll />} />
+        <Route path="/machines/:id/enroll" element={<MachineEnroll />} />
         <Route path="/machines/:id" element={<MachineDetail />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/tags" element={<Tags />} />

@@ -1,13 +1,13 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Server, Plus, Search } from "lucide-react";
 import { useMachines } from "../hooks/useMachines";
 import { api } from "../services/api";
 import MachineCard from "../components/MachineCard";
-import AddMachineDialog from "../components/AddMachineDialog";
 
 export default function Machines() {
+  const navigate = useNavigate();
   const { machines, loading, refresh } = useMachines();
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -48,7 +48,7 @@ export default function Machines() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddDialog(true)}
+          onClick={() => navigate("/machines/new")}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -99,15 +99,6 @@ export default function Machines() {
         </div>
       )}
 
-      {showAddDialog && (
-        <AddMachineDialog
-          onClose={() => setShowAddDialog(false)}
-          onCreated={() => {
-            setShowAddDialog(false);
-            refresh();
-          }}
-        />
-      )}
     </div>
   );
 }

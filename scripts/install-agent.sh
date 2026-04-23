@@ -58,6 +58,13 @@ while [[ $# -gt 0 ]]; do
         --machine-id)       MACHINE_ID="$2";        shift 2 ;;
         --enrollment-token) ENROLLMENT_TOKEN="$2";  shift 2 ;;
         --server-public-key) SERVER_PUBLIC_KEY="$2"; shift 2 ;;
+        --server-public-key-file)
+            if [ ! -f "$2" ]; then
+                error "Fichier cle publique introuvable: $2"
+                exit 1
+            fi
+            SERVER_PUBLIC_KEY="$(cat "$2")"
+            shift 2 ;;
         --binary)           AGENT_BINARY="$2";      shift 2 ;;
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;

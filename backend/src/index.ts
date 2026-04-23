@@ -25,6 +25,8 @@ import { initProfileScheduler } from "./services/profile-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
+import { agentDownloadRoutes } from "./routes/agent-download.js";
+import { cleanupExpiredTokens } from "./services/bootstrap.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -120,6 +122,7 @@ async function main() {
   await app.register(settingsRoutes);
   await app.register(fleetRoutes);
   await app.register(profileRoutes);
+  await app.register(agentDownloadRoutes);
 
   // ===================== Database =====================
 
@@ -155,6 +158,12 @@ async function main() {
   // Cleanup des metriques en DB toutes les 6h
   const cleanupInterval = setInterval(runMetricsCleanup, 6 * 60 * 60 * 1000);
 
+  // Cleanup des bootstrap tokens expires toutes les 24h
+  const bootstrapCleanupInterval = setInterval(
+    () => cleanupExpiredTokens().catch((err) => console.error("[Bootstrap] Cleanup error:", err)),
+    24 * 60 * 60 * 1000
+  );
+
   // ===================== Start =====================
 
   try {
@@ -175,6 +184,7 @@ async function main() {
     clearInterval(lifecycleInterval);
     clearInterval(fleetMetricsInterval);
     clearInterval(cleanupInterval);
+    clearInterval(bootstrapCleanupInterval);
     await app.close();
     await disconnectDatabase();
     process.exit(0);
