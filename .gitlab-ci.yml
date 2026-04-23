@@ -82,7 +82,7 @@ build-backend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest ./backend
+    - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
     - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/backend:latest
   rules:
