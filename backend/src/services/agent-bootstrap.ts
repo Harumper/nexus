@@ -46,16 +46,16 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
     {
       id: "binary",
       title: "Télécharger le binaire de l'agent",
-      description: "Récupère le binaire nexus-agent depuis le serveur et le place dans /usr/local/bin.",
-      command: `sudo curl -fSL "${backendUrl}/api/agents/download?token=${binaryToken}" \\
-  -o /usr/local/bin/nexus-agent && sudo chmod +x /usr/local/bin/nexus-agent`,
+      description: "Récupère le binaire nexus-agent depuis le serveur dans /tmp.",
+      command: `curl -fSL "${backendUrl}/api/agents/download?token=${binaryToken}" \\
+  -o /tmp/nexus-agent && chmod +x /tmp/nexus-agent`,
     },
     {
       id: "script",
       title: "Télécharger le script d'installation",
       description: "Récupère le script install-agent.sh qui configure user Linux, sudoers et systemd.",
-      command: `sudo curl -fSL "${backendUrl}/api/agents/install-script?token=${scriptToken}" \\
-  -o /tmp/install-agent.sh && sudo chmod +x /tmp/install-agent.sh`,
+      command: `curl -fSL "${backendUrl}/api/agents/install-script?token=${scriptToken}" \\
+  -o /tmp/install-agent.sh && chmod +x /tmp/install-agent.sh`,
     },
     {
       id: "run",
@@ -69,7 +69,7 @@ sudo /tmp/install-agent.sh \\
   --machine-id "${machineId}" \\
   --enrollment-token "${enrollmentToken}" \\
   --server-public-key-file /tmp/nexus-pubkey.pem \\
-  --binary /usr/local/bin/nexus-agent`,
+  --binary /tmp/nexus-agent`,
     },
   ];
 }

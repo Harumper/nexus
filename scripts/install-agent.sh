@@ -208,7 +208,13 @@ ok "Répertoires créés."
 info "Installation du binaire..."
 
 if [ -n "$AGENT_BINARY" ] && [ -f "$AGENT_BINARY" ]; then
-    cp "$AGENT_BINARY" "$BIN_PATH"
+    # Skip cp if source and destination are the same file (cas ou le binaire
+    # a ete telecharge directement dans $BIN_PATH avant l'install)
+    if [ "$(readlink -f "$AGENT_BINARY")" != "$(readlink -f "$BIN_PATH")" ]; then
+        cp "$AGENT_BINARY" "$BIN_PATH"
+    else
+        ok "Binaire deja en place : $BIN_PATH"
+    fi
 elif [ -f "./nexus-agent" ]; then
     cp "./nexus-agent" "$BIN_PATH"
 elif [ -f "$(dirname "$0")/../agent/nexus-agent" ]; then
