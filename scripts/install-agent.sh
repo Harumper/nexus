@@ -244,6 +244,15 @@ info "Création de la configuration..."
 HOSTNAME_DETECTED=$(hostname -f 2>/dev/null || hostname)
 IPS_DETECTED=$(ip -4 addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v 'br-' | grep -v 'veth' | awk '{print $2}' | cut -d/ -f1 | tr '\n' ',' | sed 's/,$//')
 
+# Ecrire la cle publique dans un fichier dedie (systemd EnvironmentFile ne
+# supporte pas les valeurs multi-lignes PEM)
+SERVER_PUBKEY_FILE="$CONFIG_DIR/server-public-key.pem"
+if [ -n "${SERVER_PUBLIC_KEY:-}" ]; then
+    printf '%s\n' "$SERVER_PUBLIC_KEY" > "$SERVER_PUBKEY_FILE"
+    chown root:"$AGENT_GROUP" "$SERVER_PUBKEY_FILE"
+    chmod 640 "$SERVER_PUBKEY_FILE"
+fi
+
 cat > "$CONFIG_DIR/agent.env" << EOF
 # Nexus Agent Configuration
 # Généré par install-agent.sh le $(date -Iseconds)
@@ -251,7 +260,7 @@ cat > "$CONFIG_DIR/agent.env" << EOF
 NEXUS_SERVER_URL=$SERVER_URL
 NEXUS_MACHINE_ID=$MACHINE_ID
 NEXUS_ENROLLMENT_TOKEN=$ENROLLMENT_TOKEN
-NEXUS_SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-}
+NEXUS_SERVER_PUBLIC_KEY_FILE=$SERVER_PUBKEY_FILE
 NEXUS_KEY_PATH=$KEY_DIR
 NEXUS_HOSTNAME=$HOSTNAME_DETECTED
 NEXUS_HOST_IPS=$IPS_DETECTED
@@ -259,8 +268,8 @@ NEXUS_HEARTBEAT_INTERVAL=$HEARTBEAT_INTERVAL
 NEXUS_METRICS_INTERVAL=$METRICS_INTERVAL
 EOF
 
-chown root:root "$CONFIG_DIR/agent.env"
-chmod 600 "$CONFIG_DIR/agent.env"
+chown root:"$AGENT_GROUP" "$CONFIG_DIR/agent.env"
+chmod 640 "$CONFIG_DIR/agent.env"
 
 ok "Configuration : $CONFIG_DIR/agent.env"
 echo "  Hostname : $HOSTNAME_DETECTED"
@@ -281,6 +290,10 @@ Wants=network-online.target
 Type=simple
 User=nexus-agent
 Group=nexus-agent
+# Creer le repertoire avant ReadWritePaths (evite l'erreur namespace si absent)
+ExecStartPre=+/bin/mkdir -p /var/tmp/nexus-agent
+ExecStartPre=+/bin/chown nexus-agent:nexus-agent /var/tmp/nexus-agent
+ExecStartPre=+/bin/chmod 0700 /var/tmp/nexus-agent
 ExecStart=/usr/local/bin/nexus-agent
 EnvironmentFile=/etc/nexus/agent.env
 Restart=always
