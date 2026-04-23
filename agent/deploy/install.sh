@@ -163,6 +163,9 @@ nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.s
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+
+# === Self-upgrade (remplacement du binaire agent) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/nexus-agent.new /usr/local/bin/nexus-agent
 SUDOERS
 
 if visudo -cf "$SUDOERS_TEMP"; then

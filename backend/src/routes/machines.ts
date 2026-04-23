@@ -15,6 +15,7 @@ import {
   getAgentBackendUrl,
   type BootstrapArtifacts,
 } from "../services/agent-bootstrap.js";
+import { dispatchAgentUpgrade } from "../services/agent-upgrade.js";
 
 interface MachineForBootstrap {
   id: string;
@@ -324,6 +325,37 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const result = await regenerateEnrollmentToken(id);
 
       return reply.send(result);
+    }
+  );
+
+  // Mettre à jour l'agent (self-upgrade vers le dernier binaire du backend)
+  app.post(
+    "/api/machines/:id/agent/upgrade",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const user = getUserFromRequest(request);
+
+      const result = await dispatchAgentUpgrade(id, user?.sub);
+
+      if (!result.success) {
+        return reply.code(400).send({ error: result.error });
+      }
+
+      await logAudit({
+        action: "MACHINE_UPDATE",
+        resource: "machine",
+        resourceId: id,
+        userId: user?.sub,
+        ipAddress: request.ip,
+        details: { action: "agent_upgrade", previousVersion: result.currentVersion },
+      });
+
+      return reply.send({
+        success: true,
+        message: "Agent upgrade dispatched. Service will restart in ~2s.",
+        request_id: result.requestId,
+      });
     }
   );
 }
