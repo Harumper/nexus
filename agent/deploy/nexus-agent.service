@@ -35,8 +35,8 @@ LockPersonality=true
 AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
 
-# Limiter les syscalls aux essentiels
-SystemCallFilter=@system-service @file-system @network-io @process
+# SystemCallFilter retire : interfere avec sudo (audit syscalls) et apt-get
+# La protection reste via les autres directives (Protect*, capabilities, sudoers)
 SystemCallArchitectures=native
 
 # Répertoires accessibles
