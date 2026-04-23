@@ -6,6 +6,46 @@ import {
   verifyKeycloakToken,
   mapKeycloakRole,
 } from "../services/keycloak.js";
+import { prisma } from "../services/database.js";
+import crypto from "node:crypto";
+
+// Cache en memoire : userId Keycloak deja upserted dans la DB (evite un upsert a chaque requete)
+const keycloakUserCache = new Set<string>();
+
+// Upsert un User local pour un user Keycloak afin que les FK auditLog.userId fonctionnent
+async function upsertKeycloakUser(
+  sub: string,
+  username: string,
+  email: string | undefined,
+  role: "ADMIN" | "OPERATOR" | "READONLY"
+): Promise<void> {
+  if (keycloakUserCache.has(sub)) return;
+
+  try {
+    await prisma.user.upsert({
+      where: { id: sub },
+      create: {
+        id: sub,
+        username: `kc:${username}`,
+        email: email || `${sub}@keycloak.invalid`,
+        // Password random impossible a deviner, on ne peut pas login localement
+        password: crypto.randomBytes(32).toString("hex"),
+        role,
+        isActive: true,
+        lastLogin: new Date(),
+      },
+      update: {
+        username: `kc:${username}`,
+        email: email || `${sub}@keycloak.invalid`,
+        role,
+        lastLogin: new Date(),
+      },
+    });
+    keycloakUserCache.add(sub);
+  } catch (err) {
+    console.error("[Auth] Failed to upsert Keycloak user:", err);
+  }
+}
 
 // Extraire le token Bearer de la requête
 function extractBearerToken(request: FastifyRequest): string | null {
@@ -33,6 +73,13 @@ async function authenticate(
         provider: "keycloak",
         email: result.payload.email,
       };
+      // Upsert le user Keycloak en DB (pour les FK auditLog.userId)
+      await upsertKeycloakUser(
+        result.payload.sub,
+        result.payload.preferred_username,
+        result.payload.email,
+        role
+      );
       // Stocker dans request.user pour les handlers
       (request as any).user = jwtPayload;
       return jwtPayload;
