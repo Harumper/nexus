@@ -173,7 +173,11 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		client.SendSigned(transport.TypePong, "", map[string]interface{}{})
 
 	case transport.TypeError:
-		log.Printf("[Agent] Server error: %s", msg.Payload)
+		errMsg := msg.Error
+		if errMsg == "" {
+			errMsg = msg.Payload
+		}
+		log.Printf("[Agent] Server error: %s", errMsg)
 	}
 }
 
