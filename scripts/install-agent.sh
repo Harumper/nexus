@@ -123,7 +123,7 @@ info "Configuration des privilèges sudo pour '$AGENT_USER'..."
 
 SUDOERS_FILE="/etc/sudoers.d/nexus-agent"
 SUDOERS_BACKUP="/etc/sudoers.bak.$(date +%s)"
-AGENT_SCRIPT_DIR="/var/tmp/nexus-agent"
+AGENT_SCRIPT_DIR="/var/lib/nexus-agent"
 
 # Backup du sudoers principal (sécurité)
 cp /etc/sudoers "$SUDOERS_BACKUP"
@@ -168,7 +168,7 @@ nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
 # === Scripts Nexus (répertoire dédié, pas /tmp) ===
-nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/tmp/nexus-agent/nexus-script-*.sh
+nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.sh
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
@@ -290,10 +290,9 @@ Wants=network-online.target
 Type=simple
 User=nexus-agent
 Group=nexus-agent
-# Creer le repertoire avant ReadWritePaths (evite l'erreur namespace si absent)
-ExecStartPre=+/bin/mkdir -p /var/tmp/nexus-agent
-ExecStartPre=+/bin/chown nexus-agent:nexus-agent /var/tmp/nexus-agent
-ExecStartPre=+/bin/chmod 0700 /var/tmp/nexus-agent
+# systemd cree /var/lib/nexus-agent automatiquement (owner=nexus-agent, mode=0700)
+StateDirectory=nexus-agent
+StateDirectoryMode=0700
 ExecStart=/usr/local/bin/nexus-agent
 EnvironmentFile=/etc/nexus/agent.env
 Restart=always
@@ -323,7 +322,7 @@ SystemCallArchitectures=native
 
 # Répertoires accessibles
 ReadOnlyPaths=/proc /sys /etc/os-release
-ReadWritePaths=/var/lib/nexus/keys /var/log/nexus /var/tmp/nexus-agent
+ReadWritePaths=/var/lib/nexus/keys /var/log/nexus
 
 # Limites de ressources
 LimitNOFILE=65536

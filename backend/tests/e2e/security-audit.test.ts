@@ -105,9 +105,9 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("Rejected symlink");
   });
 
-  it("should use /var/tmp/nexus-agent for scripts instead of /tmp", () => {
+  it("should use /var/lib/nexus-agent (StateDirectory) for scripts instead of /tmp", () => {
     const content = readFileSync(resolve(agentDir, "internal/actions/script_execute.go"), "utf8");
-    expect(content).toContain("/var/tmp/nexus-agent");
+    expect(content).toContain("/var/lib/nexus-agent");
     expect(content).not.toMatch(/CreateTemp\("",/);
   });
 
@@ -120,7 +120,7 @@ describe("Security Audit — Agent Hardening", () => {
     // kill should use explicit signals
     expect(content).toContain("/bin/kill -SIGTERM");
     // Scripts in dedicated dir, not /tmp
-    expect(content).toContain("/var/tmp/nexus-agent/nexus-script");
+    expect(content).toContain("/var/lib/nexus-agent/nexus-script");
     // Uses mktemp instead of hardcoded /tmp path
     expect(content).toContain("mktemp");
   });
