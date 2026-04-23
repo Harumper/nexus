@@ -10,11 +10,17 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   // Si mode keycloak only, redirect automatiquement
+  // IMPORTANT : ne pas redirect si un code OIDC est dans l'URL (retour de Keycloak,
+  // l'AuthProvider est en train d'echanger le code) OU si l'auth charge encore.
   useEffect(() => {
+    if (authLoading) return;
+    const hasOidcCode =
+      window.location.hash.includes("code=") || window.location.search.includes("code=");
+    if (hasOidcCode) return;
     if (authConfig?.mode === "keycloak" && authConfig.keycloak) {
       loginKeycloak();
     }
-  }, [authConfig, loginKeycloak]);
+  }, [authConfig, loginKeycloak, authLoading]);
 
   const handleLocalLogin = async (e: FormEvent) => {
     e.preventDefault();
