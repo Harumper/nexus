@@ -32,8 +32,9 @@ RestrictRealtime=true
 LockPersonality=true
 
 # Capabilities Linux minimales pour le monitoring
+# Ambient: promues au non-root nexus-agent
+# Pas de CapabilityBoundingSet : apt/sudo ont besoin du full set (chown, fowner, etc.)
 AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-CapabilityBoundingSet=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
 
 # SystemCallFilter retire : interfere avec sudo (audit syscalls) et apt-get
 # La protection reste via les autres directives (Protect*, capabilities, sudoers)
