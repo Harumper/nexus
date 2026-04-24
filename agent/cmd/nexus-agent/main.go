@@ -43,6 +43,7 @@ var (
 		"network.status":            true,
 		"network.interfaces":        true,
 		"netplan.get":               true,
+		"package.holds_list":        true,
 	}
 )
 

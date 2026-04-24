@@ -9,6 +9,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -51,6 +53,8 @@ export default function UpdatePanel({
     message: string;
   } | null>(null);
   const [showAllPackages, setShowAllPackages] = useState(false);
+  const [holds, setHolds] = useState<Set<string>>(new Set());
+  const [togglingHold, setTogglingHold] = useState<string | null>(null);
 
   // WebSocket pour la progression des MAJ
   const handleWsMessage = useCallback(
@@ -75,23 +79,48 @@ export default function UpdatePanel({
 
   useWebSocket({ onMessage: handleWsMessage, enabled: updating });
 
-  // Charger la liste des packages (synchrone — attend la réponse de l'agent)
+  // Charger la liste des packages + les holds en parallele
   const checkUpdates = async () => {
     setLoadingList(true);
     setResult(null);
     setPackageData(null);
     try {
-      const resp = await api.dispatchActionSync<PackageListResult>(
-        machineId,
-        "system.package_list",
-        undefined,
-        60_000 // 60s timeout (apt-get update peut être lent)
-      );
+      const [resp, holdsResp] = await Promise.all([
+        api.dispatchActionSync<PackageListResult>(
+          machineId,
+          "system.package_list",
+          undefined,
+          60_000
+        ),
+        api.packageHoldsList(machineId).catch(() => null),
+      ]);
       setPackageData(resp.data);
+      setHolds(new Set(holdsResp?.data?.holds || []));
     } catch (err: any) {
       setResult({ success: false, message: err.message || "Erreur" });
     } finally {
       setLoadingList(false);
+    }
+  };
+
+  const toggleHold = async (pkgName: string) => {
+    setTogglingHold(pkgName);
+    try {
+      if (holds.has(pkgName)) {
+        await api.packageUnhold(machineId, pkgName);
+        setHolds((prev) => {
+          const next = new Set(prev);
+          next.delete(pkgName);
+          return next;
+        });
+      } else {
+        await api.packageHold(machineId, pkgName);
+        setHolds((prev) => new Set(prev).add(pkgName));
+      }
+    } catch (err: any) {
+      alert("Erreur: " + (err?.message || "hold toggle failed"));
+    } finally {
+      setTogglingHold(null);
     }
   };
 
@@ -208,30 +237,53 @@ export default function UpdatePanel({
                     <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
                       Sécu
                     </th>
+                    <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
+                      Hold
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedPackages.map((pkg, i) => (
-                    <tr
-                      key={i}
-                      className="border-b border-border/30 last:border-0"
-                    >
-                      <td className="px-3 py-1.5 text-xs font-mono text-foreground">
-                        {pkg.name}
-                      </td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground font-mono">
-                        {pkg.current_version || "—"}
-                      </td>
-                      <td className="px-3 py-1.5 text-xs text-primary font-mono">
-                        {pkg.new_version}
-                      </td>
-                      <td className="px-3 py-1.5 text-center">
-                        {pkg.security_update && (
-                          <Shield className="w-3 h-3 text-amber-400 mx-auto" />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {displayedPackages.map((pkg, i) => {
+                    const isHeld = holds.has(pkg.name);
+                    return (
+                      <tr
+                        key={i}
+                        className="border-b border-border/30 last:border-0"
+                        style={{ opacity: isHeld ? 0.5 : 1 }}
+                      >
+                        <td className="px-3 py-1.5 text-xs font-mono text-foreground">
+                          {pkg.name}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground font-mono">
+                          {pkg.current_version || "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs text-primary font-mono">
+                          {pkg.new_version}
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          {pkg.security_update && (
+                            <Shield className="w-3 h-3 text-amber-400 mx-auto" />
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          <button
+                            onClick={() => toggleHold(pkg.name)}
+                            disabled={togglingHold === pkg.name}
+                            title={isHeld ? "Retirer le hold (autoriser l'upgrade)" : "Hold (empêcher l'upgrade)"}
+                            className="inline-flex items-center justify-center p-1 rounded transition-colors hover:bg-muted"
+                          >
+                            {togglingHold === pkg.name ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : isHeld ? (
+                              <Lock className="w-3 h-3" style={{ color: "var(--nx-warning)" }} />
+                            ) : (
+                              <Unlock className="w-3 h-3" style={{ color: "var(--nx-text-weak)" }} />
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {(packageData.packages.length > 10) && (
