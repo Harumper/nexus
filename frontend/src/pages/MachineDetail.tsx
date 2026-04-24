@@ -263,36 +263,47 @@ export default function MachineDetail() {
         )}
       </div>
 
-      {/* ── Tabs groupés ─────────────────────────── */}
+      {/* ── Tabs groupés : groupe actif deplie, les autres plies ──── */}
       <div className="flex flex-wrap items-center gap-1 mb-4 rounded-lg p-1" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
         {tabGroups.map((group, gi) => {
           const visibleTabs = group.tabs.filter(t => t.show);
           if (visibleTabs.length === 0) return null;
+          const isActiveGroup = visibleTabs.some(t => t.id === activeTab);
           const isFirstGroup = gi === 0 || !tabGroups.slice(0, gi).some(g => g.tabs.some(t => t.show));
+
           return (
             <div key={group.label || "_"} className="flex items-center gap-1">
               {!isFirstGroup && (
                 <div className="w-px h-5 mx-1" style={{ background: "var(--nx-border)" }} />
               )}
-              {group.label && (
-                <span className="text-[10px] uppercase tracking-wider px-2" style={{ color: "var(--nx-text-weak)" }}>
-                  {group.label}
-                </span>
-              )}
-              {visibleTabs.map((tab) => (
+
+              {!group.label ? (
+                // Groupe sans label (Vue d'ensemble) : toujours affiche en pill
+                visibleTabs.map((tab) => (
+                  <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
+                ))
+              ) : isActiveGroup ? (
+                // Groupe actif : label + tous les sous-onglets deplies
+                <>
+                  <span className="text-[10px] uppercase tracking-wider px-2 font-semibold" style={{ color: "var(--nx-text-weak)" }}>
+                    {group.label}
+                  </span>
+                  {visibleTabs.map((tab) => (
+                    <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
+                  ))}
+                </>
+              ) : (
+                // Groupe plie : juste le nom clicable qui active le premier sous-onglet
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setActiveTab(visibleTabs[0].id)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                  style={{
-                    background: activeTab === tab.id ? "var(--nx-primary-subtle)" : "transparent",
-                    color: activeTab === tab.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
-                  }}
+                  style={{ color: "var(--nx-text-weak)" }}
+                  title={visibleTabs.map(t => t.label).join(" · ")}
                 >
-                  <tab.icon className="w-3.5 h-3.5" />
-                  {tab.label}
+                  {group.label}
+                  <span className="text-[10px] opacity-60">({visibleTabs.length})</span>
                 </button>
-              ))}
+              )}
             </div>
           );
         })}
@@ -497,6 +508,22 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
 /* ══════════════════════════════════════════════
    Subcomponents
    ══════════════════════════════════════════════ */
+function TabButton({ tab, active, onClick }: { tab: { id: Tab; label: string; icon: typeof Activity }; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+      style={{
+        background: active ? "var(--nx-primary-subtle)" : "transparent",
+        color: active ? "var(--nx-primary)" : "var(--nx-text-weak)",
+      }}
+    >
+      <tab.icon className="w-3.5 h-3.5" />
+      {tab.label}
+    </button>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
