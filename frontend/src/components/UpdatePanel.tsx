@@ -17,7 +17,6 @@ import type { WSDashboardMessage } from "../types";
 interface UpdatePanelProps {
   machineId: string;
   machineName: string;
-  capabilities: string[];
 }
 
 interface PendingPackage {
@@ -42,7 +41,6 @@ interface UpdateProgress {
 export default function UpdatePanel({
   machineId,
   machineName,
-  capabilities,
 }: UpdatePanelProps) {
   const [packageData, setPackageData] = useState<PackageListResult | null>(null);
   const [loadingList, setLoadingList] = useState(false);
@@ -53,8 +51,6 @@ export default function UpdatePanel({
     message: string;
   } | null>(null);
   const [showAllPackages, setShowAllPackages] = useState(false);
-
-  const hasUpdatesCap = capabilities.includes("updates");
 
   // WebSocket pour la progression des MAJ
   const handleWsMessage = useCallback(
@@ -115,24 +111,6 @@ export default function UpdatePanel({
       setResult({ success: false, message: err.message });
     }
   };
-
-  if (!hasUpdatesCap) {
-    return (
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Shield className="w-5 h-5" />
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              Mises à jour non disponibles
-            </p>
-            <p className="text-xs mt-0.5">
-              La capability "updates" n'est pas assignée à cette machine.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const securityPkgs =
     packageData?.packages.filter((p) => p.security_update) ?? [];

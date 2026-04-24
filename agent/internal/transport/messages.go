@@ -27,13 +27,6 @@ type ActionRequestPayload struct {
 	Params    map[string]interface{} `json:"params"`
 }
 
-// CapabilitiesUpdatePayload contient les nouvelles capabilities
-type CapabilitiesUpdatePayload struct {
-	Type         string   `json:"type"`
-	MachineID    string   `json:"machine_id"`
-	Capabilities []string `json:"capabilities"`
-}
-
 const (
 	TypeEnrollmentRequest  = "enrollment.request"
 	TypeEnrollmentComplete = "enrollment.complete"
@@ -43,7 +36,6 @@ const (
 	TypeActionRequest      = "action.request"
 	TypeActionConfirm      = "action.confirm"
 	TypeActionResponse     = "action.response"
-	TypeCapabilitiesUpdate = "capabilities.update"
 	TypeUpdateProgress     = "update.progress"
 	TypePing               = "ping"
 	TypePong               = "pong"

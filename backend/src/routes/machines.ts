@@ -75,13 +75,11 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           ipAddress: true,
           agentVersion: true,
           status: true,
+          type: true,
           lastHeartbeat: true,
           lastMetrics: true,
           enrolledAt: true,
           createdAt: true,
-          capabilities: {
-            include: { capability: { select: { name: true } } },
-          },
           tags: {
             include: { tag: true },
           },
@@ -91,7 +89,6 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       const result = machines.map((m) => ({
         ...m,
-        capabilities: m.capabilities.map((c) => c.capability.name),
         tags: m.tags.map((t) => t.tag),
       }));
 
@@ -118,15 +115,13 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           ipAddress: true,
           agentVersion: true,
           status: true,
+          type: true,
           boundIp: true,
           lastHeartbeat: true,
           lastMetrics: true,
           enrolledAt: true,
           createdAt: true,
           updatedAt: true,
-          capabilities: {
-            include: { capability: { select: { id: true, name: true, description: true } } },
-          },
           tags: {
             include: { tag: true },
           },
@@ -139,7 +134,6 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       return reply.send({
         ...machine,
-        capabilities: machine.capabilities.map((c) => c.capability),
         tags: machine.tags.map((t) => t.tag),
       });
     }
@@ -156,26 +150,19 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           required: ["name"],
           properties: {
             name: { type: "string", minLength: 1, maxLength: 100 },
-            capabilities: {
-              type: "array",
-              items: { type: "string" },
-              default: ["monitoring"],
-            },
+            type: { type: "string", enum: ["AGENT", "PROBE"], default: "AGENT" },
           },
         },
       },
     },
     async (request, reply) => {
-      const { name, capabilities } = request.body as {
+      const { name, type } = request.body as {
         name: string;
-        capabilities?: string[];
+        type?: "AGENT" | "PROBE";
       };
       const user = getUserFromRequest(request);
 
-      const result = await createMachineWithEnrollment(
-        name,
-        capabilities || ["monitoring"]
-      );
+      const result = await createMachineWithEnrollment(name, type || "AGENT");
 
       await logAudit({
         action: "MACHINE_CREATE",
@@ -183,7 +170,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         resourceId: result.id,
         userId: user?.sub,
         ipAddress: request.ip,
-        details: { name, capabilities },
+        details: { name, type: type || "AGENT" },
       });
 
       // Generer les artifacts d'installation (binaire + script + commandes)

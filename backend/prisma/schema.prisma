@@ -139,7 +139,6 @@ model Machine {
   archivedAt      DateTime?
 
   // Relations
-  capabilities MachineCapability[]
   metrics      Metric[]
   events       MachineEvent[]
   auditLogs    AuditLog[]
@@ -201,34 +200,6 @@ model AptPackage {
   @@unique([suite, component, arch, name])
   @@index([name])
   @@index([suite])
-}
-
-// ===================== CAPABILITIES =====================
-
-model Capability {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  actions     String[]
-  isBuiltin   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  machines MachineCapability[]
-}
-
-model MachineCapability {
-  id           String     @id @default(cuid())
-  machineId    String
-  machine      Machine    @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  capabilityId String
-  capability   Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
-  grantedAt    DateTime   @default(now())
-  grantedBy    String?
-
-  @@unique([machineId, capabilityId])
-  @@index([machineId])
-  @@index([capabilityId])
 }
 
 // ===================== METRICS =====================

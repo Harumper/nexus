@@ -17,7 +17,7 @@ type ReceiveFunc func(timeout time.Duration) ([]byte, error)
 
 // EnrollResult contient le résultat de l'enrollment
 type EnrollResult struct {
-	Capabilities []string
+	MachineType  string
 	SharedSecret []byte
 }
 
@@ -152,8 +152,8 @@ func Enroll(
 
 	// 9. Parser la réponse
 	var responseData struct {
-		Capabilities    []string `json:"capabilities"`
-		ServerPublicKey string   `json:"server_public_key"`
+		MachineType     string `json:"machine_type"`
+		ServerPublicKey string `json:"server_public_key"`
 	}
 	if err := json.Unmarshal([]byte(response.Payload), &responseData); err != nil {
 		return nil, fmt.Errorf("failed to parse enrollment response: %w", err)
@@ -174,14 +174,11 @@ func Enroll(
 	if err := keystore.SaveSharedSecret(sharedSecret); err != nil {
 		return nil, fmt.Errorf("failed to save shared secret: %w", err)
 	}
-	if err := keystore.SaveCapabilities(responseData.Capabilities); err != nil {
-		log.Printf("[Enrollment] Warning: failed to save capabilities: %v", err)
-	}
 
-	log.Printf("[Enrollment] Complete! Capabilities: %v", responseData.Capabilities)
+	log.Printf("[Enrollment] Complete! Machine type: %s", responseData.MachineType)
 
 	return &EnrollResult{
-		Capabilities: responseData.Capabilities,
+		MachineType:  responseData.MachineType,
 		SharedSecret: sharedSecret,
 	}, nil
 }

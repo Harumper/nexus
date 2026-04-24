@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,12 +21,20 @@ var (
 	Version   = "0.1.0"
 	agentType string
 
-	// probeAllowedActions is the whitelist of actions allowed in probe mode
+	// probeAllowedActions is the whitelist of actions allowed in probe mode.
+	// Doit correspondre a PROBE_ALLOWED_ACTIONS cote backend (machine-manager.ts).
 	probeAllowedActions = map[string]bool{
-		"system.info":         true,
-		"system.heartbeat":    true,
-		"system.metrics":      true,
-		"system.package_list": true,
+		"system.metrics":         true,
+		"system.info":            true,
+		"system.disk_usage":      true,
+		"system.process_list":    true,
+		"system.processes":       true,
+		"system.heartbeat":       true,
+		"system.logs":            true,
+		"system.services_list":   true,
+		"system.service_status":  true,
+		"system.package_list":    true,
+		"firewall.status":        true,
 	}
 )
 
@@ -84,7 +93,9 @@ func main() {
 			log.Fatalf("Enrollment failed: %v", err)
 		}
 
-		sandbox.SetCapabilities(result.Capabilities)
+		if result.MachineType != "" {
+			agentType = result.MachineType
+		}
 		client.SetKeys(keystore.GetPrivateKey(), result.SharedSecret)
 
 		// Après enrollment, se reconnecter pour un flux propre
@@ -106,16 +117,9 @@ func main() {
 			log.Fatalf("Failed to load shared secret: %v", err)
 		}
 		client.SetKeys(keystore.GetPrivateKey(), sharedSecret)
-
-		// Charger les capabilities (pas de fallback silencieux)
-		caps, err := keystore.LoadCapabilities()
-		if err != nil {
-			log.Fatalf("[Agent] Failed to load capabilities — refusing to start with unknown permissions: %v", err)
-		}
-		sandbox.SetCapabilities(caps)
 	}
 
-	log.Printf("[Agent] Authenticated. Capabilities: %v", sandbox.GetCapabilities())
+	log.Printf("[Agent] Authenticated (type=%s)", agentType)
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
 	// Connecter le callback de progression des mises à jour
@@ -161,18 +165,6 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		}
 		go handleActionRequest(msg, client, sandbox, keystore)
 
-	case transport.TypeCapabilitiesUpdate:
-		var update transport.CapabilitiesUpdatePayload
-		if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
-			data, _ := json.Marshal(msg)
-			json.Unmarshal(data, &update)
-		}
-		if len(update.Capabilities) > 0 {
-			sandbox.SetCapabilities(update.Capabilities)
-			keystore.SaveCapabilities(update.Capabilities)
-			log.Printf("[Agent] Capabilities updated: %v", update.Capabilities)
-		}
-
 	case transport.TypeActionConfirm:
 		// Confirmation d'une action firewall (ou autre watchdog-revert)
 		// RequestID est la cle du pending
@@ -212,7 +204,7 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 	log.Printf("[Agent] Action request: %s (request_id: %s)", request.ActionID, request.RequestID)
 
 	// In probe mode, only allow whitelisted actions
-	if agentType == "probe" {
+	if strings.EqualFold(agentType, "probe") {
 		if !probeAllowedActions[request.ActionID] {
 			sendActionResponse(client, request.RequestID, request.ActionID, false, nil, "action not allowed in probe mode")
 			return

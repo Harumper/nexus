@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Keystore gère le stockage des clés sur disque
@@ -119,28 +118,3 @@ func (ks *Keystore) HasSharedSecret() bool {
 	return err == nil
 }
 
-// SaveCapabilities sauvegarde les capabilities assignées
-func (ks *Keystore) SaveCapabilities(capabilities []string) error {
-	path := filepath.Join(ks.basePath, "capabilities")
-	data := ""
-	for _, c := range capabilities {
-		data += c + "\n"
-	}
-	return os.WriteFile(path, []byte(data), 0600)
-}
-
-// LoadCapabilities charge les capabilities
-func (ks *Keystore) LoadCapabilities() ([]string, error) {
-	path := filepath.Join(ks.basePath, "capabilities")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var caps []string
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-		if line != "" {
-			caps = append(caps, line)
-		}
-	}
-	return caps, nil
-}

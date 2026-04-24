@@ -76,10 +76,10 @@ class ApiClient {
     return this.request<import("../types").Machine>(`/machines/${id}`);
   }
 
-  async createMachine(name: string, capabilities: string[] = ["monitoring"]) {
+  async createMachine(name: string, type: "AGENT" | "PROBE" = "AGENT") {
     return this.request<import("../types").CreateMachineResponse>("/machines", {
       method: "POST",
-      body: JSON.stringify({ name, capabilities }),
+      body: JSON.stringify({ name, type }),
     });
   }
 
@@ -318,21 +318,6 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify({ action_id: actionId, params, timeout }),
-      }
-    );
-  }
-
-  // Capabilities
-  async getCapabilities() {
-    return this.request<import("../types").Capability[]>("/capabilities");
-  }
-
-  async assignCapability(machineId: string, capabilityName: string) {
-    return this.request<{ success: boolean }>(
-      `/machines/${machineId}/capabilities`,
-      {
-        method: "POST",
-        body: JSON.stringify({ capability_name: capabilityName }),
       }
     );
   }

@@ -24,7 +24,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
   } | null>(null);
 
   const onlineMachines = machines.filter(
-    (m) => m.status === "ONLINE" && (m.capabilities as string[])?.includes("updates")
+    (m) => m.status === "ONLINE" && m.type === "AGENT"
   );
 
   // WebSocket pour le streaming
@@ -120,7 +120,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
             <>
               <p className="text-sm text-muted-foreground">
                 {onlineMachines.length} machine{onlineMachines.length > 1 ? "s" : ""}{" "}
-                en ligne avec la capability "updates" :
+                en ligne de type AGENT :
               </p>
 
               <div className="space-y-2 max-h-48 overflow-y-auto">

@@ -32,11 +32,12 @@ describe("Admin Features — Reboot + Services", () => {
     expect(content).toContain('"nexus-agent"');
   });
 
-  it("should have system_control capability in seed", () => {
-    const content = readFileSync(resolve(backendSrc, "services/bootstrap-seed.ts"), "utf8");
-    expect(content).toContain('"system_control"');
-    expect(content).toContain('"system.reboot"');
-    expect(content).toContain('"system.service_restart"');
+  it("should have system.reboot in PROBE_ALLOWED_ACTIONS policy", () => {
+    // Avec le retrait du modele Capability, le controle d'acces est base sur Machine.type.
+    // system.reboot doit etre absent de la whitelist PROBE (mutation).
+    const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(content).toContain("PROBE_ALLOWED_ACTIONS");
+    expect(content).not.toContain("system.reboot");
   });
 
   it("should have sudoers for systemctl start/stop/restart", () => {
@@ -78,8 +79,8 @@ describe("Admin Features — Journalctl", () => {
     expect(content).toContain("usermod -a -G systemd-journal");
   });
 
-  it("should have system.logs action in monitoring capability", () => {
-    const content = readFileSync(resolve(backendSrc, "services/bootstrap-seed.ts"), "utf8");
+  it("should allow system.logs on PROBE machines (read-only)", () => {
+    const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
     expect(content).toContain('"system.logs"');
   });
 
@@ -111,10 +112,10 @@ describe("Admin Features — Firewall ufw with watchdog", () => {
     expect(content).toContain("iptables-restore");
   });
 
-  it("should have firewall capability in seed", () => {
-    const content = readFileSync(resolve(backendSrc, "services/bootstrap-seed.ts"), "utf8");
-    expect(content).toContain('"firewall"');
-    expect(content).toContain('"firewall.allow"');
+  it("should allow firewall.status (read) but not firewall.allow (mutation) on PROBE", () => {
+    const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(content).toContain('"firewall.status"');
+    expect(content).not.toContain('"firewall.allow"');
   });
 
   it("should have firewall sudoers entries", () => {
