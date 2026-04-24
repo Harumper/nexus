@@ -11,6 +11,9 @@ const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
   "UPDATES_AVAILABLE",
 ];
 
+// Conditions qui necessitent un scan SSL (moins frequent, plus lourd)
+const CERT_CHECK_CONDITIONS: AlertConditionType[] = ["CERT_EXPIRING"];
+
 // ===================== Évaluation des métriques entrantes =====================
 
 export async function evaluateMetrics(
@@ -221,6 +224,73 @@ function checkHealthCondition(
     }
     default:
       return { fired: false, details: {} };
+  }
+}
+
+// ===================== Cert expiration scan (toutes les 6h) =====================
+
+export async function evaluateCertAlerts(): Promise<void> {
+  const rules = await prisma.alertRule.findMany({
+    where: {
+      enabled: true,
+      conditionType: { in: CERT_CHECK_CONDITIONS },
+    },
+  });
+  if (rules.length === 0) return;
+
+  const needAllMachines = rules.some((r) => r.machineIds.length === 0);
+  const specificIds = new Set(rules.flatMap((r) => r.machineIds));
+
+  const machines = await prisma.machine.findMany({
+    where: {
+      status: "ONLINE",
+      type: "AGENT",
+      ...(needAllMachines ? {} : { id: { in: Array.from(specificIds) } }),
+    },
+    select: { id: true, name: true },
+  });
+
+  const concurrency = 5;
+  for (let i = 0; i < machines.length; i += concurrency) {
+    const batch = machines.slice(i, i + concurrency);
+    await Promise.all(
+      batch.map(async (machine) => {
+        try {
+          const scan: any = await dispatchActionSync(machine.id, "ssl.scan", {}, 30_000);
+          const minDays = scan?.min_days ?? 9999;
+          const expiring = scan?.expiring_soon || [];
+
+          const applicableRules = rules.filter(
+            (r) => r.machineIds.length === 0 || r.machineIds.includes(machine.id)
+          );
+
+          for (const rule of applicableRules) {
+            const threshold = rule.threshold ?? 30;
+            // Fire si au moins un cert expire dans <= threshold jours
+            const triggering = (scan?.certs || []).filter((c: any) => c.days_remaining <= threshold);
+            if (triggering.length > 0) {
+              await fireAlert(rule.id, machine.id, rule.severity, {
+                conditionType: "CERT_EXPIRING",
+                threshold,
+                minDays,
+                count: triggering.length,
+                certs: triggering.map((c: any) => ({
+                  path: c.path,
+                  subject: c.subject,
+                  days_remaining: c.days_remaining,
+                })),
+              });
+            } else {
+              await resolveAlert(rule.id, machine.id);
+            }
+            // expiring est utilise pour logging mais pas pour le trigger
+            void expiring;
+          }
+        } catch (err) {
+          // Ignore
+        }
+      })
+    );
   }
 }
 

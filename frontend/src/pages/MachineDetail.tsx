@@ -24,6 +24,7 @@ import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
+import SslCertsCard from "../components/SslCertsCard";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
@@ -462,6 +463,11 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated }: { machine: M
       {/* Settings éditables */}
       {isAdmin && (
         <EditableSettings machine={machine} onUpdated={onUpdated} />
+      )}
+
+      {/* SSL certs */}
+      {machine.type === "AGENT" && machine.status === "ONLINE" && (
+        <SslCertsCard machineId={machine.id} />
       )}
 
       {/* Network */}

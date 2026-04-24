@@ -19,7 +19,7 @@ import { settingsRoutes } from "./routes/settings.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { profileRoutes } from "./routes/profiles.js";
 import { initKeycloak } from "./services/keycloak.js";
-import { evaluateOfflineAlerts, evaluateHealthAlerts } from "./services/alert-engine.js";
+import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts } from "./services/alert-engine.js";
 import { initProfileScheduler } from "./services/profile-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
@@ -169,6 +169,14 @@ async function main() {
     5 * 60_000
   );
 
+  // Scanner les certs SSL toutes les 6h (plus lourd)
+  const certAlertInterval = setInterval(
+    () => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] Cert scan error:", err)),
+    6 * 60 * 60_000
+  );
+  // Premier scan 30s apres demarrage
+  setTimeout(() => evaluateCertAlerts().catch(() => {}), 30_000);
+
   // Vérifier le cycle de vie des machines toutes les heures
   const lifecycleInterval = setInterval(checkMachineLifecycle, 60 * 60 * 1000);
 
@@ -210,6 +218,7 @@ async function main() {
     clearInterval(offlineCheckInterval);
     clearInterval(offlineAlertInterval);
     clearInterval(healthAlertInterval);
+    clearInterval(certAlertInterval);
     clearInterval(lifecycleInterval);
     clearInterval(fleetMetricsInterval);
     clearInterval(cleanupInterval);

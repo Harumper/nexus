@@ -48,6 +48,7 @@ var (
 		"system.timers_failed":      true,
 		"system.updates_available":  true,
 		"system.health_summary":     true,
+		"ssl.scan":                  true,
 	}
 )
 
