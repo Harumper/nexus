@@ -114,6 +114,11 @@ export default function MachineDetail() {
     }
   };
 
+  const handleSshClick = () => {
+    if (!machine?.ipAddress) return;
+    navigator.clipboard.writeText(`ssh ${machine.ipAddress}`).catch(() => {});
+  };
+
   if (loading || !machine) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -175,6 +180,17 @@ export default function MachineDetail() {
 
           {isAdmin && (
             <div className="flex gap-2">
+              {machine.ipAddress && (
+                <a
+                  href={`ssh://${machine.ipAddress}`}
+                  onClick={handleSshClick}
+                  title="Ouvre le terminal local (Linux/macOS) ou copie la commande ssh (Windows)"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text)" }}
+                >
+                  <Terminal className="w-3.5 h-3.5" /> SSH
+                </a>
+              )}
               {isOnline && (
                 <button onClick={handleUpgradeAgent} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-info)", color: "var(--nx-info)" }}>
                   <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
