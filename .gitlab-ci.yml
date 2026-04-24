@@ -163,7 +163,9 @@ deploy-prod:
     - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose down || true"
     - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose up -d"
     - sleep 10
-    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker exec nexus-backend npx prisma db push --accept-data-loss || true"
+    # Utilise 'migrate deploy' (respecte les migrations SQL) au lieu de 'db push'
+    # qui tente de normaliser les colonnes GENERATED et casse le tsvector
+    - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker exec nexus-backend npx prisma migrate deploy || true"
     - echo "Nexus production deployment complete!"
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
