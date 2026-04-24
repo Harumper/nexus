@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -14,44 +15,59 @@ import {
   Palette,
   Zap,
   BookOpen,
+  Container,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { api } from "../services/api";
 
-const navSections = [
-  {
-    items: [
-      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/machines", icon: Server, label: "Machines" },
-    ],
-  },
-  {
-    label: "Gestion",
-    items: [
-      { to: "/tags", icon: Tag, label: "Tags" },
-      { to: "/profiles", icon: Zap, label: "Profils" },
-      { to: "/alerts", icon: Bell, label: "Alertes" },
-    ],
-  },
-  {
-    label: "Analyse",
-    items: [
-      { to: "/compare", icon: BarChart3, label: "Comparer" },
-      { to: "/audit", icon: ScrollText, label: "Audit Log" },
-    ],
-  },
-  {
-    label: "Système",
-    items: [
-      { to: "/settings", icon: Settings, label: "Paramètres" },
-      { to: "/docs", icon: BookOpen, label: "Documentation" },
-    ],
-  },
-];
+function buildNavSections(integrations: { nautilusEnabled: boolean }) {
+  return [
+    {
+      items: [
+        { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+        { to: "/machines", icon: Server, label: "Machines" },
+        ...(integrations.nautilusEnabled
+          ? [{ to: "/containers", icon: Container, label: "Containers" }]
+          : []),
+      ],
+    },
+    {
+      label: "Gestion",
+      items: [
+        { to: "/tags", icon: Tag, label: "Tags" },
+        { to: "/profiles", icon: Zap, label: "Profils" },
+        { to: "/alerts", icon: Bell, label: "Alertes" },
+      ],
+    },
+    {
+      label: "Analyse",
+      items: [
+        { to: "/compare", icon: BarChart3, label: "Comparer" },
+        { to: "/audit", icon: ScrollText, label: "Audit Log" },
+      ],
+    },
+    {
+      label: "Système",
+      items: [
+        { to: "/settings", icon: Settings, label: "Paramètres" },
+        { to: "/docs", icon: BookOpen, label: "Documentation" },
+      ],
+    },
+  ];
+}
 
 export default function Layout() {
   const { user, logout, provider } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const [nautilusEnabled, setNautilusEnabled] = useState(false);
+
+  useEffect(() => {
+    // Load integrations config once for menu visibility
+    api.getNautilusConfig().then((c) => setNautilusEnabled(c.enabled)).catch(() => {});
+  }, []);
+
+  const navSections = buildNavSections({ nautilusEnabled });
 
   const handleLogout = () => {
     logout();

@@ -8,6 +8,7 @@ import Machines from "./pages/Machines";
 import MachineDetail from "./pages/MachineDetail";
 import Alerts from "./pages/Alerts";
 import AuditLog from "./pages/AuditLog";
+import Containers from "./pages/Containers";
 import Tags from "./pages/Tags";
 import Settings from "./pages/Settings";
 import Profiles from "./pages/Profiles";
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/tags" element={<Tags />} />
         <Route path="/audit" element={<AuditLog />} />
+        <Route path="/containers" element={<Containers />} />
         <Route path="/profiles" element={<Profiles />} />
         <Route path="/compare" element={<Compare />} />
         <Route path="/settings" element={<Settings />} />

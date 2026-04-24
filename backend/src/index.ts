@@ -29,6 +29,7 @@ import { ensureBuiltinSeed } from "./services/bootstrap-seed.js";
 import { firewallRoutes } from "./routes/firewall.js";
 import { networkRoutes } from "./routes/network.js";
 import { bulkRoutes } from "./routes/bulk.js";
+import { integrationsRoutes } from "./routes/integrations.js";
 import { packagesRoutes } from "./routes/packages.js";
 import { refreshAptCatalog, initAptCatalogIfEmpty } from "./services/apt-catalog.js";
 
@@ -128,6 +129,7 @@ async function main() {
   await app.register(firewallRoutes);
   await app.register(networkRoutes);
   await app.register(bulkRoutes);
+  await app.register(integrationsRoutes);
   await app.register(packagesRoutes);
 
   // ===================== Database =====================

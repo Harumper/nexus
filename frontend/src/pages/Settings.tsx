@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import type { Setting } from "../types";
+import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
 
 interface SmtpConfig {
   host: string;
@@ -464,6 +465,9 @@ export default function Settings() {
             </button>
           </div>
         </section>
+
+        {/* Intégration Nautilus */}
+        <NautilusIntegrationCard />
       </div>
     </div>
   );

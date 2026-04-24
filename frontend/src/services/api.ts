@@ -648,6 +648,44 @@ class ApiClient {
     );
   }
 
+  // Integrations - Nautilus
+  async getNautilusConfig() {
+    return this.request<{ enabled: boolean; url: string; tokenConfigured: boolean }>(
+      "/integrations/nautilus/config"
+    );
+  }
+
+  async updateNautilusConfig(cfg: { enabled?: boolean; url?: string; token?: string | null }) {
+    return this.request<{ enabled: boolean; url: string; tokenConfigured: boolean }>(
+      "/integrations/nautilus/config",
+      {
+        method: "PUT",
+        body: JSON.stringify(cfg),
+      }
+    );
+  }
+
+  async testNautilus() {
+    return this.request<{
+      success: boolean;
+      servers?: number;
+      activeServers?: number;
+      containers?: number;
+      durationMs?: number;
+      error?: string;
+    }>("/integrations/nautilus/test", { method: "POST" });
+  }
+
+  async getNautilusSnapshot() {
+    return this.request<{
+      scrapedAt: string;
+      scrapeDurationMs: number;
+      servers: any[];
+      containers: any[];
+      meta: { totalServers: number; activeServers: number; scrapeSuccess: boolean };
+    }>("/integrations/nautilus/snapshot");
+  }
+
   // SSL scan
   async sslScan(id: string) {
     return this.request<{
