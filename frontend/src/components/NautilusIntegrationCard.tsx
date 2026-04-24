@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Container, Save, Check, RefreshCw, Zap, Loader2 } from "lucide-react";
+import { Container, Save, Check, RefreshCw, Zap, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "../services/api";
 
 export default function NautilusIntegrationCard() {
@@ -12,12 +12,15 @@ export default function NautilusIntegrationCard() {
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     api.getNautilusConfig().then((c) => {
       setEnabled(c.enabled);
       setUrl(c.url);
       setTokenConfigured(c.tokenConfigured);
+      // Ouvrir "Avancé" automatiquement si un token est déjà configuré
+      if (c.tokenConfigured) setShowAdvanced(true);
     }).catch(() => {});
   }, []);
 
@@ -112,20 +115,35 @@ export default function NautilusIntegrationCard() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Token d'authentification (optionnel)
-          </label>
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => { setToken(e.target.value); setTouched(true); }}
-            placeholder={tokenConfigured ? "•••••••• (configuré)" : "Laisser vide si l'endpoint est ouvert"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Correspond à <code>PROMETHEUS_SCRAPE_TOKEN</code> dans le <code>.env</code> de Nautilus.
-            {tokenConfigured && " Un token est actuellement configuré — laissez vide pour le conserver."}
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            Options avancées {tokenConfigured && !showAdvanced && <span className="text-[10px]">(token configuré)</span>}
+          </button>
+
+          {showAdvanced && (
+            <div className="mt-3 pl-4" style={{ borderLeft: "2px solid var(--nx-border)" }}>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Token d'authentification
+              </label>
+              <input
+                type="password"
+                value={token}
+                onChange={(e) => { setToken(e.target.value); setTouched(true); }}
+                placeholder={tokenConfigured ? "•••••••• (configuré)" : "Uniquement si Nautilus est exposé publiquement"}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Inutile si Nautilus tourne en local (non exposé sur internet). Correspond à
+                <code className="mx-1">PROMETHEUS_SCRAPE_TOKEN</code>
+                dans le <code>.env</code> de Nautilus.
+                {tokenConfigured && " Laissez vide pour conserver le token actuel."}
+              </p>
+            </div>
+          )}
         </div>
 
         {testResult && (
