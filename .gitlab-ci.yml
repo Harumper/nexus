@@ -99,6 +99,13 @@ build-frontend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
+    # Debug : vérifier que les nouveaux composants sont bien présents dans le checkout
+    - echo "=== Commit SHA ===" && echo "$CI_COMMIT_SHA"
+    - echo "=== Files in frontend/src/components/ ===" && ls -la frontend/src/components/
+    - echo "=== Expecting ServicesTab/FirewallTab/PackagesTab ==="
+    - test -f frontend/src/components/ServicesTab.tsx || (echo "ServicesTab.tsx MISSING!" && exit 1)
+    - test -f frontend/src/components/FirewallTab.tsx || (echo "FirewallTab.tsx MISSING!" && exit 1)
+    - test -f frontend/src/components/PackagesTab.tsx || (echo "PackagesTab.tsx MISSING!" && exit 1)
     - docker build --no-cache --pull -f frontend/Dockerfile -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/frontend:latest ./frontend
     - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/frontend:latest
