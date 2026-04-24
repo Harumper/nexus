@@ -212,6 +212,19 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/ne
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
+
+# === Users Linux + SSH keys ===
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash -c * *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/userdel -r *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -a * sudo
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -d * sudo
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /home/*/.ssh/authorized_keys
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /root/.ssh/authorized_keys
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -d -m 700 -o * -g * /home/*/.ssh
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -d -m 700 -o * -g * /root/.ssh
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexus-agent/sshkey-*.tmp /home/*/.ssh/authorized_keys
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexus-agent/sshkey-*.tmp /root/.ssh/authorized_keys
 SUDOERS
 
 # Valider la syntaxe AVANT d'appliquer

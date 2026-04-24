@@ -21,9 +21,10 @@ import FirewallTab from "../components/FirewallTab";
 import PackagesTab from "../components/PackagesTab";
 import StorageTab from "../components/StorageTab";
 import SchedulingTab from "../components/SchedulingTab";
+import UsersTab from "../components/UsersTab";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "services" | "firewall" | "packages" | "storage" | "scheduling";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -145,6 +146,7 @@ export default function MachineDetail() {
     { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent },
     { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline },
     { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline },
+    { id: "users", label: "Utilisateurs", icon: Server, show: isOnline },
     { id: "network", label: "Réseau", icon: Network, show: isOnline },
   ];
 
@@ -288,6 +290,10 @@ export default function MachineDetail() {
 
         {activeTab === "scheduling" && isOnline && (
           <SchedulingTab machineId={machine.id} canMutate={isAgent} />
+        )}
+
+        {activeTab === "users" && isOnline && (
+          <UsersTab machineId={machine.id} canMutate={isAgent} />
         )}
 
         {activeTab === "network" && isOnline && (

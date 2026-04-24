@@ -100,6 +100,8 @@ export const PROBE_ALLOWED_ACTIONS = [
   "storage.filesystem_usage",
   "cron.list",
   "timer.list",
+  "user.list",
+  "sshkey.list",
 ];
 
 export async function isActionAllowed(
