@@ -116,6 +116,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           agentVersion: true,
           status: true,
           type: true,
+          sshUser: true,
           boundIp: true,
           lastHeartbeat: true,
           lastMetrics: true,
@@ -176,6 +177,64 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       // Generer les artifacts d'installation (binaire + script + commandes)
       const bootstrap = await buildBootstrapArtifacts(result);
       return reply.code(201).send({ ...result, bootstrap });
+    }
+  );
+
+  // Mettre a jour les settings d'une machine (name, sshUser)
+  app.patch(
+    "/api/machines/:id",
+    {
+      preHandler: [requireAdmin],
+      schema: {
+        body: {
+          type: "object",
+          properties: {
+            name: { type: "string", minLength: 1, maxLength: 100 },
+            sshUser: { type: ["string", "null"], maxLength: 64 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = request.body as { name?: string; sshUser?: string | null };
+      const user = getUserFromRequest(request);
+
+      // Validation sshUser : POSIX login name
+      if (body.sshUser && !/^[a-z_][a-z0-9_-]{0,31}$/i.test(body.sshUser)) {
+        return reply.code(400).send({ error: "Invalid SSH username (POSIX login name required)" });
+      }
+
+      const data: Record<string, unknown> = {};
+      if (body.name !== undefined) data.name = body.name;
+      if (body.sshUser !== undefined) data.sshUser = body.sshUser || null;
+
+      if (Object.keys(data).length === 0) {
+        return reply.code(400).send({ error: "No fields to update" });
+      }
+
+      try {
+        const updated = await prisma.machine.update({
+          where: { id },
+          data,
+          select: { id: true, name: true, sshUser: true, type: true },
+        });
+        await logAudit({
+          action: "MACHINE_UPDATE",
+          resource: "machine",
+          resourceId: id,
+          userId: user?.sub,
+          ipAddress: request.ip,
+          details: { fields: Object.keys(data) },
+        });
+        return reply.send(updated);
+      } catch (err: any) {
+        if (err?.code === "P2025") {
+          return reply.code(404).send({ error: "Machine not found" });
+        }
+        return reply.code(500).send({ error: "Failed to update machine" });
+      }
     }
   );
 

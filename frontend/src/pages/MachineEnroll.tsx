@@ -119,6 +119,7 @@ export default function MachineEnroll() {
         agentVersion: null,
         status: "ENROLLMENT_PENDING",
         type: machineType,
+        sshUser: null,
         lastHeartbeat: null,
         lastMetrics: null,
         enrolledAt: null,

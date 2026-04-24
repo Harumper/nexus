@@ -361,7 +361,16 @@ export default function MachineDetail() {
       {/* ── Tab Content ────────────────────────── */}
       <div className="space-y-4">
         {activeTab === "overview" && (
-          <OverviewTab machine={machine} latestMetric={latestMetric} />
+          <OverviewTab
+            machine={machine}
+            latestMetric={latestMetric}
+            isAdmin={isAdmin}
+            onUpdated={async () => {
+              if (!id) return;
+              const m = await api.getMachine(id);
+              setMachine(m);
+            }}
+          />
         )}
 
         {activeTab === "metrics" && isOnline && (
@@ -423,6 +432,7 @@ export default function MachineDetail() {
       {showSshDialog && machine.ipAddress && (
         <SshConnectDialog
           ipAddress={machine.ipAddress}
+          defaultUser={machine.sshUser}
           onClose={() => setShowSshDialog(false)}
         />
       )}
@@ -433,7 +443,7 @@ export default function MachineDetail() {
 /* ══════════════════════════════════════════════
    Overview Tab
    ══════════════════════════════════════════════ */
-function OverviewTab({ machine, latestMetric }: { machine: Machine; latestMetric: Metric | null }) {
+function OverviewTab({ machine, latestMetric, isAdmin, onUpdated }: { machine: Machine; latestMetric: Metric | null; isAdmin: boolean; onUpdated: () => void | Promise<void> }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* System Info */}
@@ -448,6 +458,11 @@ function OverviewTab({ machine, latestMetric }: { machine: Machine; latestMetric
           <InfoRow label="Uptime" value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
         </div>
       </div>
+
+      {/* Settings éditables */}
+      {isAdmin && (
+        <EditableSettings machine={machine} onUpdated={onUpdated} />
+      )}
 
       {/* Network */}
       <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
@@ -564,6 +579,93 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
 /* ══════════════════════════════════════════════
    Subcomponents
    ══════════════════════════════════════════════ */
+function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated: () => void | Promise<void> }) {
+  const [name, setName] = useState(machine.name);
+  const [sshUser, setSshUser] = useState(machine.sshUser || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setName(machine.name);
+    setSshUser(machine.sshUser || "");
+  }, [machine.name, machine.sshUser]);
+
+  const isDirty = name !== machine.name || (sshUser || null) !== (machine.sshUser || null);
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await api.updateMachine(machine.id, {
+        name: name.trim(),
+        sshUser: sshUser.trim() || null,
+      });
+      await onUpdated();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setError(err?.message || "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+      <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>
+        Paramètres
+      </h3>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--nx-text-weak)" }}>
+            Nom
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded border border-input bg-background px-3 py-1.5 text-xs font-mono"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--nx-text-weak)" }}>
+            Utilisateur SSH
+          </label>
+          <input
+            type="text"
+            value={sshUser}
+            onChange={(e) => setSshUser(e.target.value)}
+            placeholder="root, admin, ubuntu…"
+            className="w-full rounded border border-input bg-background px-3 py-1.5 text-xs font-mono"
+          />
+          <p className="text-[10px] mt-1" style={{ color: "var(--nx-text-weak)" }}>
+            Pré-rempli dans le bouton SSH. Vide = utilise le user courant du terminal.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded px-2 py-1.5 text-[10px]" style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={save}
+          disabled={!isDirty || saving || !name.trim()}
+          className="w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-50 transition-colors"
+          style={{
+            background: saved ? "var(--nx-success)" : "var(--nx-primary)",
+            color: "var(--nx-bg-base)",
+          }}
+        >
+          {saving ? "Enregistrement..." : saved ? "Enregistré ✓" : "Enregistrer"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
