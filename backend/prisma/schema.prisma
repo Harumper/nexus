@@ -138,6 +138,9 @@ model Machine {
   rebootRequired  Boolean     @default(false)
   archivedAt      DateTime?
 
+  // Settings utilisateur (editable post-enrollment)
+  sshUser         String?     // Username par defaut pour le bouton SSH
+
   // Relations
   metrics      Metric[]
   events       MachineEvent[]

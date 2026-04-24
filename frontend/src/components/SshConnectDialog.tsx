@@ -3,6 +3,7 @@ import { X, Copy, Check, Terminal as TerminalIcon, ExternalLink, Info } from "lu
 
 interface Props {
   ipAddress: string;
+  defaultUser?: string | null;
   onClose: () => void;
 }
 
@@ -17,10 +18,11 @@ function detectOS(): OS {
   return "unknown";
 }
 
-export default function SshConnectDialog({ ipAddress, onClose }: Props) {
+export default function SshConnectDialog({ ipAddress, defaultUser, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [sshUser, setSshUser] = useState<string>(() => {
-    return localStorage.getItem("nexus.ssh.user") || "";
+    // Priorite : user configure sur la machine > user memorise globalement
+    return defaultUser || localStorage.getItem("nexus.ssh.user") || "";
   });
   const [os, setOs] = useState<OS>("unknown");
 

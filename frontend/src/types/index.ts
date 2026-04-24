@@ -18,6 +18,7 @@ export interface Machine {
   agentVersion: string | null;
   status: MachineStatus;
   type: "AGENT" | "PROBE";
+  sshUser: string | null;
   lastHeartbeat: string | null;
   lastMetrics: string | null;
   enrolledAt: string | null;
