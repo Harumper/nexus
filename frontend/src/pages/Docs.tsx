@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Book, Server, Shield, Terminal, Download, Tag, Zap, Bell, Settings, Network, ChevronRight } from "lucide-react";
 
-type Section = "start" | "agent" | "probe" | "machines" | "tags" | "profiles" | "alerts" | "updates" | "api" | "security";
+type Section = "start" | "agent" | "probe" | "machines" | "tags" | "profiles" | "alerts" | "updates" | "ssh" | "api" | "security";
 
 const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "start", label: "Démarrage rapide", icon: Book },
@@ -12,12 +12,19 @@ const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "profiles", label: "Profils", icon: Zap },
   { id: "alerts", label: "Alertes & Notifications", icon: Bell },
   { id: "updates", label: "Mises à jour", icon: Download },
+  { id: "ssh", label: "Configuration SSH", icon: Terminal },
   { id: "security", label: "Sécurité", icon: Shield },
   { id: "api", label: "API Reference", icon: Settings },
 ];
 
 export default function Docs() {
-  const [active, setActive] = useState<Section>("start");
+  const initial = (() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get("section") as Section | null;
+    const valid: Section[] = ["start", "agent", "probe", "machines", "tags", "profiles", "alerts", "updates", "ssh", "security", "api"];
+    return s && valid.includes(s) ? s : "start";
+  })();
+  const [active, setActive] = useState<Section>(initial);
 
   return (
     <div className="flex h-full">
@@ -58,6 +65,7 @@ function DocContent({ section }: { section: Section }) {
     case "profiles": return <ProfilesDoc />;
     case "alerts": return <AlertsDoc />;
     case "updates": return <UpdatesDoc />;
+    case "ssh": return <SshDoc />;
     case "security": return <SecurityDoc />;
     case "api": return <ApiDoc />;
   }
@@ -391,6 +399,70 @@ function UpdatesDoc() {
     <P>Depuis le Dashboard, le bouton "Tout mettre à jour" lance les mises à jour sur toutes les machines en ligne. Utilisez les Profils pour plus de contrôle (staggered delivery, ciblage par tags).</P>
 
     <Warn>Les mises à jour sont exécutées en root sur la machine cible. Un reboot peut être nécessaire après certaines mises à jour (kernel). L'indicateur "Reboot requis" apparaîtra sur la machine.</Warn>
+  </>);
+}
+
+function SshDoc() {
+  return (<>
+    <H1>Configuration SSH</H1>
+    <P>
+      Le bouton <strong>SSH</strong> dans la page d'une machine utilise le scheme <code>ssh://</code> pour ouvrir votre terminal local pré-connecté. Ce scheme n'est pas configuré par défaut sur les OS modernes. Voici comment l'activer.
+    </P>
+
+    <Tip>Vous pouvez toujours copier la commande <code>ssh user@ip</code> et la coller manuellement dans votre terminal, sans configuration.</Tip>
+
+    <H2>macOS</H2>
+    <P>
+      Terminal.app n'est plus enregistré comme handler <code>ssh://</code> par défaut depuis macOS 10.6. Le moyen le plus simple pour le réactiver :
+    </P>
+    <Code>{`brew install --cask swiftdefaultappsprefpane
+# Puis Réglages système → SwiftDefaultApps → URL Schemes
+# Associer "ssh" à Terminal.app (ou iTerm2, Warp...)`}</Code>
+
+    <H2>Linux (GNOME / KDE / Xfce)</H2>
+    <P>
+      Créer un fichier <code>.desktop</code> qui déclare le handler :
+    </P>
+    <Code>{`# ~/.local/share/applications/ssh-handler.desktop
+[Desktop Entry]
+Name=SSH Handler
+Exec=gnome-terminal -- ssh %u
+Type=Application
+Terminal=false
+MimeType=x-scheme-handler/ssh;
+NoDisplay=true`}</Code>
+    <P>Puis enregistrer le handler :</P>
+    <Code>{`update-desktop-database ~/.local/share/applications/
+xdg-mime default ssh-handler.desktop x-scheme-handler/ssh`}</Code>
+    <P>
+      Remplacez <code>gnome-terminal --</code> par votre émulateur si besoin :
+    </P>
+    <Code>{`# KDE
+Exec=konsole --new-tab -e ssh %u
+# Xfce
+Exec=xfce4-terminal -e "ssh %u"
+# Alacritty
+Exec=alacritty -e ssh %u`}</Code>
+
+    <H2>Windows 10/11</H2>
+    <P>
+      <strong>Option 1 — PuTTY</strong> : lors de l'installation, cocher « associer aux URL ssh:// ». C'est la méthode la plus simple.
+    </P>
+    <P>
+      <strong>Option 2 — Windows Terminal</strong> (plus moderne) : installer Windows Terminal 1.16+ depuis le Microsoft Store, puis créer un fichier <code>.reg</code> :
+    </P>
+    <Code>{`Windows Registry Editor Version 5.00
+[HKEY_CLASSES_ROOT\\ssh]
+"URL Protocol"=""
+@="URL:ssh"
+[HKEY_CLASSES_ROOT\\ssh\\shell\\open\\command]
+@="\\"C:\\\\Windows\\\\System32\\\\cmd.exe\\" /c start wt.exe ssh %1"`}</Code>
+    <P>Double-cliquer sur le fichier pour l'importer dans la base de registre, confirmer. C'est à faire une seule fois.</P>
+
+    <H2>Pré-remplir le nom d'utilisateur</H2>
+    <P>
+      Dans la page <strong>Vue d'ensemble</strong> d'une machine, la carte <em>Paramètres</em> permet de renseigner un utilisateur SSH par défaut (ex: <code>root</code>, <code>ubuntu</code>). Il sera pré-rempli automatiquement dans le bouton SSH pour cette machine.
+    </P>
   </>);
 }
 
