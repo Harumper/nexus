@@ -95,6 +95,11 @@ export const PROBE_ALLOWED_ACTIONS = [
   "system.service_status",
   "system.package_list",
   "firewall.status",
+  "storage.lvm_list",
+  "storage.block_devices",
+  "storage.filesystem_usage",
+  "cron.list",
+  "timer.list",
 ];
 
 export async function isActionAllowed(

@@ -24,17 +24,22 @@ var (
 	// probeAllowedActions is the whitelist of actions allowed in probe mode.
 	// Doit correspondre a PROBE_ALLOWED_ACTIONS cote backend (machine-manager.ts).
 	probeAllowedActions = map[string]bool{
-		"system.metrics":         true,
-		"system.info":            true,
-		"system.disk_usage":      true,
-		"system.process_list":    true,
-		"system.processes":       true,
-		"system.heartbeat":       true,
-		"system.logs":            true,
-		"system.services_list":   true,
-		"system.service_status":  true,
-		"system.package_list":    true,
-		"firewall.status":        true,
+		"system.metrics":            true,
+		"system.info":               true,
+		"system.disk_usage":         true,
+		"system.process_list":       true,
+		"system.processes":          true,
+		"system.heartbeat":          true,
+		"system.logs":               true,
+		"system.services_list":      true,
+		"system.service_status":     true,
+		"system.package_list":       true,
+		"firewall.status":           true,
+		"storage.lvm_list":          true,
+		"storage.block_devices":     true,
+		"storage.filesystem_usage":  true,
+		"cron.list":                 true,
+		"timer.list":                true,
 	}
 )
 
