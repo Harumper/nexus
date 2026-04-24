@@ -23,6 +23,7 @@ import StorageTab from "../components/StorageTab";
 import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
+import SshConnectDialog from "../components/SshConnectDialog";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
@@ -37,6 +38,7 @@ export default function MachineDetail() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [lastSubtab, setLastSubtab] = useState<Record<string, Tab>>({});
   const [logsService, setLogsService] = useState<string | null>(null);
+  const [showSshDialog, setShowSshDialog] = useState(false);
 
   // Load machine data
   useEffect(() => {
@@ -119,10 +121,6 @@ export default function MachineDetail() {
     }
   };
 
-  const handleSshClick = () => {
-    if (!machine?.ipAddress) return;
-    navigator.clipboard.writeText(`ssh ${machine.ipAddress}`).catch(() => {});
-  };
 
   if (loading || !machine) {
     return (
@@ -218,15 +216,14 @@ export default function MachineDetail() {
           {isAdmin && (
             <div className="flex gap-2">
               {machine.ipAddress && (
-                <a
-                  href={`ssh://${machine.ipAddress}`}
-                  onClick={handleSshClick}
-                  title="Ouvre le terminal local (Linux/macOS) ou copie la commande ssh (Windows)"
+                <button
+                  onClick={() => setShowSshDialog(true)}
+                  title="Connexion SSH : copie la commande + instructions par OS"
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
                   style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text)" }}
                 >
                   <Terminal className="w-3.5 h-3.5" /> SSH
-                </a>
+                </button>
               )}
               {isOnline && (
                 <button onClick={handleUpgradeAgent} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-info)", color: "var(--nx-info)" }}>
@@ -420,6 +417,13 @@ export default function MachineDetail() {
           machineId={machine.id}
           service={logsService}
           onClose={() => setLogsService(null)}
+        />
+      )}
+
+      {showSshDialog && machine.ipAddress && (
+        <SshConnectDialog
+          ipAddress={machine.ipAddress}
+          onClose={() => setShowSshDialog(false)}
         />
       )}
     </div>
