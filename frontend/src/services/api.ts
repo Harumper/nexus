@@ -648,6 +648,22 @@ class ApiClient {
     );
   }
 
+  // SSL scan
+  async sslScan(id: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        certs: any[];
+        count: number;
+        min_days: number;
+        expiring_soon: any[];
+      };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: "ssl.scan", params: {}, timeout: 30000 }),
+    });
+  }
+
   // Bulk dispatch
   async bulkDispatch(opts: {
     action_id: string;

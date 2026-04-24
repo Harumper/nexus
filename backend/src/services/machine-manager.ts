@@ -108,6 +108,7 @@ export const PROBE_ALLOWED_ACTIONS = [
   "system.timers_failed",
   "system.updates_available",
   "system.health_summary",
+  "ssl.scan",
 ];
 
 export async function isActionAllowed(

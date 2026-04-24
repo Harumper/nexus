@@ -213,6 +213,16 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --n
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 
+# === SSL cert scanning ===
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/private /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/private /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs *
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/*.pem
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/ssl/private/*.pem
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/nginx/ssl/*
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/apache2/ssl/*
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/haproxy/certs/*
+
 # === Package pinning (apt-mark) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark showhold
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark hold *
