@@ -81,22 +81,31 @@ export async function checkOfflineMachines(): Promise<void> {
   });
 }
 
-export async function getMachineCapabilities(
-  machineId: string
-): Promise<string[]> {
-  const caps = await prisma.machineCapability.findMany({
-    where: { machineId },
-    include: { capability: true },
-  });
-  return caps.map((mc) => mc.capability.name);
-}
+// Actions autorisees pour une machine de type PROBE (monitoring read-only).
+// Les machines AGENT peuvent tout faire.
+export const PROBE_ALLOWED_ACTIONS = [
+  "system.metrics",
+  "system.info",
+  "system.disk_usage",
+  "system.process_list",
+  "system.processes",
+  "system.heartbeat",
+  "system.logs",
+  "system.services_list",
+  "system.service_status",
+  "system.package_list",
+  "firewall.status",
+];
 
-export async function getMachineActions(
-  machineId: string
-): Promise<string[]> {
-  const caps = await prisma.machineCapability.findMany({
-    where: { machineId },
-    include: { capability: true },
+export async function isActionAllowed(
+  machineId: string,
+  actionId: string
+): Promise<boolean> {
+  const machine = await prisma.machine.findUnique({
+    where: { id: machineId },
+    select: { type: true },
   });
-  return caps.flatMap((mc) => mc.capability.actions);
+  if (!machine) return false;
+  if (machine.type === "AGENT") return true;
+  return PROBE_ALLOWED_ACTIONS.includes(actionId);
 }

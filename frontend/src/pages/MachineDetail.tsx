@@ -126,16 +126,16 @@ export default function MachineDetail() {
   const isAdmin = user?.role === "ADMIN";
   const isOnline = machine.status === "ONLINE";
   const isProbe = machine.type === "PROBE";
-  const caps = (machine.capabilities as any[])?.map((c: any) => typeof c === "string" ? c : c.name) || [];
+  const isAgent = machine.type === "AGENT";
 
   const tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean }[] = [
     { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true },
     { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline },
-    { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && caps.includes("updates") },
-    { id: "packages", label: "Paquets", icon: Download, show: isOnline && caps.includes("packages") },
+    { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent },
+    { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent },
     { id: "processes", label: "Processus", icon: ListTree, show: isOnline },
-    { id: "services", label: "Services", icon: Cog, show: isOnline && caps.includes("system_control") },
-    { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && caps.includes("firewall") },
+    { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent },
+    { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent },
     { id: "network", label: "Réseau", icon: Network, show: isOnline },
   ];
 
@@ -180,7 +180,7 @@ export default function MachineDetail() {
                   <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
                 </button>
               )}
-              {isOnline && caps.includes("system_control") && (
+              {isOnline && isAgent && (
                 <button onClick={handleReboot} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                   <Power className="w-3.5 h-3.5" /> Redémarrer
                 </button>
@@ -232,7 +232,7 @@ export default function MachineDetail() {
       {/* ── Tab Content ────────────────────────── */}
       <div className="space-y-4">
         {activeTab === "overview" && (
-          <OverviewTab machine={machine} latestMetric={latestMetric} caps={caps} />
+          <OverviewTab machine={machine} latestMetric={latestMetric} />
         )}
 
         {activeTab === "metrics" && isOnline && (
@@ -247,7 +247,7 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "updates" && isOnline && (
-          <UpdatePanel machineId={machine.id} machineName={machine.name} capabilities={caps} />
+          <UpdatePanel machineId={machine.id} machineName={machine.name} />
         )}
 
         {activeTab === "processes" && isOnline && (
@@ -281,7 +281,7 @@ export default function MachineDetail() {
 /* ══════════════════════════════════════════════
    Overview Tab
    ══════════════════════════════════════════════ */
-function OverviewTab({ machine, latestMetric, caps }: { machine: Machine; latestMetric: Metric | null; caps: string[] }) {
+function OverviewTab({ machine, latestMetric }: { machine: Machine; latestMetric: Metric | null }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* System Info */}
@@ -308,24 +308,8 @@ function OverviewTab({ machine, latestMetric, caps }: { machine: Machine; latest
         </div>
       </div>
 
-      {/* Capabilities + Tags */}
+      {/* Tags */}
       <div className="space-y-4">
-        <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Capabilities</h3>
-          <div className="flex flex-wrap gap-2">
-            {caps.map((name) => {
-              const icons: Record<string, typeof Shield> = { monitoring: Cpu, updates: RefreshCw, terminal: Terminal, packages: Download, scripts: ListTree };
-              const Icon = icons[name] || Shield;
-              return (
-                <div key={name} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text)" }}>
-                  <Icon className="w-3 h-3" style={{ color: "var(--nx-text-weak)" }} />
-                  {name}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {machine.tags && machine.tags.length > 0 && (
           <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Tags</h3>

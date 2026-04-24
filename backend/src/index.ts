@@ -10,7 +10,6 @@ import { authRoutes } from "./routes/auth.js";
 import { machineRoutes } from "./routes/machines.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { actionRoutes } from "./routes/actions.js";
-import { capabilityRoutes } from "./routes/capabilities.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { auditRoutes } from "./routes/audit.js";
 import { moduleRoutes } from "./routes/modules.js";
@@ -117,7 +116,6 @@ async function main() {
   await app.register(machineRoutes);
   await app.register(metricsRoutes);
   await app.register(actionRoutes);
-  await app.register(capabilityRoutes);
   await app.register(alertRoutes);
   await app.register(auditRoutes);
   await app.register(moduleRoutes);

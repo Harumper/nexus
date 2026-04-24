@@ -20,7 +20,7 @@ const ENROLLMENT_EXPIRY_HOURS = parseInt(
 
 export async function createMachineWithEnrollment(
   name: string,
-  capabilityNames: string[] = ["monitoring"]
+  type: "AGENT" | "PROBE" = "AGENT"
 ) {
   // Générer la paire ECDSA pour le backend (pour cette machine)
   const { publicKey, privateKey } = generateEcdsaKeypair();
@@ -33,6 +33,7 @@ export async function createMachineWithEnrollment(
   const machine = await prisma.machine.create({
     data: {
       name,
+      type,
       status: "ENROLLMENT_PENDING",
       enrollmentToken,
       enrollmentExpiry: expiresAt,
@@ -40,20 +41,6 @@ export async function createMachineWithEnrollment(
       backendPrivateKey: encryptPrivateKey(privateKey),
     },
   });
-
-  // Assigner les capabilities
-  const capabilities = await prisma.capability.findMany({
-    where: { name: { in: capabilityNames } },
-  });
-
-  for (const cap of capabilities) {
-    await prisma.machineCapability.create({
-      data: {
-        machineId: machine.id,
-        capabilityId: cap.id,
-      },
-    });
-  }
 
   return {
     id: machine.id,
@@ -76,9 +63,6 @@ export async function processEnrollment(
   // 1. Trouver la machine
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
-    include: {
-      capabilities: { include: { capability: true } },
-    },
   });
 
   if (!machine) {
@@ -117,11 +101,6 @@ export async function processEnrollment(
     request.agent_public_key
   );
 
-  // 7. Préparer les capabilities
-  const capabilityNames = machine.capabilities.map(
-    (mc) => mc.capability.name
-  );
-
   // 8. Mettre à jour la machine
   await prisma.machine.update({
     where: { id: machineId },
@@ -153,7 +132,7 @@ export async function processEnrollment(
       details: {
         hostname: request.system_info.hostname,
         os: request.system_info.os,
-        capabilities: capabilityNames,
+        type: machine.type,
       },
     },
   });
@@ -162,7 +141,7 @@ export async function processEnrollment(
   const nonce = generateNonce();
   const timestamp = new Date().toISOString();
   const responsePayload = JSON.stringify({
-    capabilities: capabilityNames,
+    machine_type: machine.type,
     server_public_key: machine.backendPublicKey,
   });
 

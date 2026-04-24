@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "./database.js";
-import { getMachineActions } from "./machine-manager.js";
+import { isActionAllowed } from "./machine-manager.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -18,12 +18,11 @@ export async function dispatchAction(
   action: DispatchActionBody,
   userId?: string
 ): Promise<{ success: boolean; error?: string; requestId?: string }> {
-  // 1. Vérifier que l'action est dans les capabilities de la machine
-  const allowedActions = await getMachineActions(machineId);
-  if (!allowedActions.includes(action.action_id)) {
+  // 1. Verifier que l'action est autorisee pour le type de machine (PROBE=readonly, AGENT=all)
+  if (!(await isActionAllowed(machineId, action.action_id))) {
     return {
       success: false,
-      error: `Action '${action.action_id}' is not allowed for this machine`,
+      error: `Action '${action.action_id}' is not allowed for this machine type`,
     };
   }
 

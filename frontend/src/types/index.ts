@@ -17,13 +17,12 @@ export interface Machine {
   ipAddress: string | null;
   agentVersion: string | null;
   status: MachineStatus;
+  type: "AGENT" | "PROBE";
   lastHeartbeat: string | null;
   lastMetrics: string | null;
   enrolledAt: string | null;
   createdAt: string;
-  capabilities: string[] | Capability[];
   tags?: { tag: Tag }[];
-  type?: "AGENT" | "PROBE";
   rebootRequired?: boolean;
 }
 
@@ -54,12 +53,6 @@ export interface CreateMachineResponse {
   backendPublicKey: string;
   expiresAt: string;
   bootstrap: BootstrapArtifacts | null;
-}
-
-export interface Capability {
-  id: string;
-  name: string;
-  description: string | null;
 }
 
 export interface Metric {
@@ -96,14 +89,6 @@ export interface MetricsResponse {
 export interface LoginResponse {
   token: string;
   user: User;
-}
-
-export interface CreateMachineResponse {
-  id: string;
-  name: string;
-  enrollmentToken: string;
-  backendPublicKey: string;
-  expiresAt: string;
 }
 
 export interface AuthState {

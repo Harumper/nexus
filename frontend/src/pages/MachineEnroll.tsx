@@ -27,7 +27,7 @@ export default function MachineEnroll() {
 
   const [step, setStep] = useState<Step>(isRegenerateMode ? 2 : 1);
   const [name, setName] = useState("");
-  const [capabilities, setCapabilities] = useState<string[]>(["monitoring"]);
+  const [machineType, setMachineType] = useState<"AGENT" | "PROBE">("AGENT");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,7 +104,7 @@ export default function MachineEnroll() {
     setError("");
     setLoading(true);
     try {
-      const res: CreateMachineResponse = await api.createMachine(name, capabilities);
+      const res: CreateMachineResponse = await api.createMachine(name, machineType);
       setMachineId(res.id);
       setEnrollmentToken(res.enrollmentToken);
       setBootstrap(res.bootstrap);
@@ -118,11 +118,11 @@ export default function MachineEnroll() {
         ipAddress: null,
         agentVersion: null,
         status: "ENROLLMENT_PENDING",
+        type: machineType,
         lastHeartbeat: null,
         lastMetrics: null,
         enrolledAt: null,
         createdAt: new Date().toISOString(),
-        capabilities: capabilities,
       });
       setStep(2);
     } catch (err: any) {
@@ -136,12 +136,6 @@ export default function MachineEnroll() {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
-  };
-
-  const toggleCapability = (cap: string) => {
-    setCapabilities((prev) =>
-      prev.includes(cap) ? prev.filter((c) => c !== cap) : [...prev, cap]
-    );
   };
 
   // ===== Derived UI state =====
@@ -207,23 +201,37 @@ export default function MachineEnroll() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Capabilities
+              Type de machine
             </label>
-            <div className="flex flex-wrap gap-2">
-              {["monitoring", "updates", "terminal"].map((cap) => (
-                <button
-                  key={cap}
-                  type="button"
-                  onClick={() => toggleCapability(cap)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    capabilities.includes(cap)
-                      ? "bg-primary/10 border-primary/30 text-primary"
-                      : "bg-muted border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {cap}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setMachineType("AGENT")}
+                className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors ${
+                  machineType === "AGENT"
+                    ? "bg-primary/10 border-primary/30"
+                    : "bg-muted border-border hover:bg-muted/80"
+                }`}
+              >
+                <span className="text-sm font-semibold text-foreground">Agent</span>
+                <span className="text-xs text-muted-foreground">
+                  Toutes les actions : metriques, updates, services, pare-feu, paquets, reboot.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMachineType("PROBE")}
+                className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors ${
+                  machineType === "PROBE"
+                    ? "bg-primary/10 border-primary/30"
+                    : "bg-muted border-border hover:bg-muted/80"
+                }`}
+              >
+                <span className="text-sm font-semibold text-foreground">Probe</span>
+                <span className="text-xs text-muted-foreground">
+                  Monitoring en lecture seule uniquement, aucune mutation.
+                </span>
+              </button>
             </div>
           </div>
 

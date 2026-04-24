@@ -78,18 +78,6 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      // Créer la capability correspondante si elle n'existe pas
-      await prisma.capability.upsert({
-        where: { name: body.capability },
-        update: { actions: body.actions },
-        create: {
-          name: body.capability,
-          description: `Fourni par le module ${body.name}`,
-          actions: body.actions,
-          isBuiltin: false,
-        },
-      });
-
       return reply.code(201).send(module);
     }
   );

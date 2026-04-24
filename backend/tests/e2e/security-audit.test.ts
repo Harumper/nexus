@@ -91,11 +91,12 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("IsTimestampValid");
   });
 
-  it("should refuse to start if capabilities cannot be loaded", () => {
+  it("should enforce PROBE whitelist cote agent", () => {
+    // Le modele Capability a ete retire : le controle d'acces repose sur Machine.type.
+    // L'agent doit filtrer les actions en mode probe via probeAllowedActions.
     const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(content).toContain("Fatalf");
-    expect(content).toContain("refusing to start");
-    expect(content).not.toMatch(/caps\s*=\s*\[\]string\{"monitoring"\}/);
+    expect(content).toContain("probeAllowedActions");
+    expect(content).toContain("action not allowed in probe mode");
   });
 
   it("should validate module sockets are not symlinks", () => {
