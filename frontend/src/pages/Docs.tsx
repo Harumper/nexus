@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Book, Server, Shield, Terminal, Download, Tag, Zap, Bell, Settings, Network, ChevronRight } from "lucide-react";
 
-type Section = "start" | "agent" | "probe" | "machines" | "tags" | "profiles" | "alerts" | "updates" | "ssh" | "api" | "security";
+type Section = "start" | "agent" | "probe" | "self" | "machines" | "tags" | "profiles" | "alerts" | "updates" | "ssh" | "api" | "security";
 
 const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "start", label: "Démarrage rapide", icon: Book },
   { id: "agent", label: "Installation Agent", icon: Terminal },
   { id: "probe", label: "Mode Probe", icon: Network },
+  { id: "self", label: "Self-monitoring", icon: Server },
   { id: "machines", label: "Gestion des machines", icon: Server },
   { id: "tags", label: "Tags & Groupes", icon: Tag },
   { id: "profiles", label: "Profils", icon: Zap },
@@ -21,7 +22,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "probe", "machines", "tags", "profiles", "alerts", "updates", "ssh", "security", "api"];
+    const valid: Section[] = ["start", "agent", "probe", "self", "machines", "tags", "profiles", "alerts", "updates", "ssh", "security", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -60,6 +61,7 @@ function DocContent({ section }: { section: Section }) {
     case "start": return <StartDoc />;
     case "agent": return <AgentDoc />;
     case "probe": return <ProbeDoc />;
+    case "self": return <SelfDoc />;
     case "machines": return <MachinesDoc />;
     case "tags": return <TagsDoc />;
     case "profiles": return <ProfilesDoc />;
@@ -272,6 +274,56 @@ docker compose --profile probe up -d`}</Code>
         </tbody>
       </table>
     </div>
+  </>);
+}
+
+function SelfDoc() {
+  return (<>
+    <H1>Self-monitoring — Installer l'agent sur le serveur Nexus</H1>
+    <P>
+      Pour surveiller le serveur Nexus lui-même (métriques, services, disk, updates), vous pouvez installer un agent Nexus sur la machine qui héberge Nexus. L'agent tourne en natif sur l'hôte (pas dans un container) et remonte vers l'instance Nexus locale.
+    </P>
+
+    <Tip>
+      Dogfooding : permet de détecter un serveur Nexus qui rame (CPU saturé, disk plein, container restart), et de recevoir des alertes. Si Nexus tombe complètement, vous ne verrez rien — c'est une limite attendue.
+    </Tip>
+
+    <H2>1. Créer la machine "nexus-server"</H2>
+    <P>
+      Dans l'UI Nexus → Machines → Ajouter une machine. Nom suggéré : <code>nexus-server</code>, type <strong>AGENT</strong>.
+    </P>
+
+    <H2>2. Exécuter la commande d'install sur l'hôte</H2>
+    <P>
+      Copier la commande fournie par l'UI et l'exécuter directement sur l'hôte (pas dans un container). L'agent se connecte à Nexus via <code>ws://localhost:3000/ws/agent</code> ou le nom de domaine public selon votre config.
+    </P>
+    <Warn>
+      <strong>Cas particulier Docker</strong> : si Nexus tourne derrière un reverse proxy (nginx/traefik), utilisez l'URL publique dans <code>--server-url</code>. Sinon, vérifiez que le backend est exposé sur localhost:3000.
+    </Warn>
+
+    <H2>3. Vérification</H2>
+    <P>
+      La machine <code>nexus-server</code> apparaît en <span className="text-emerald-400">ONLINE</span> dans quelques secondes. Vous voyez :
+    </P>
+    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mb-3 ml-2">
+      <li>CPU/RAM de l'hôte (pas du container Nexus)</li>
+      <li>Le disk du volume Docker</li>
+      <li>Les services systemd (docker.service, etc.)</li>
+      <li>Les timers cron/apt</li>
+      <li>Les certs SSL du reverse proxy</li>
+    </ul>
+
+    <H2>Alertes recommandées pour le serveur Nexus</H2>
+    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mb-3 ml-2">
+      <li><strong>DISK_ABOVE 85%</strong> sur nexus-server — évite que les logs Docker / volumes Postgres remplissent le disque</li>
+      <li><strong>MEMORY_ABOVE 90%</strong> — Nexus + Postgres consomment</li>
+      <li><strong>SERVICE_FAILED "docker"</strong> — si Docker tombe, tout Nexus tombe</li>
+      <li><strong>CERT_EXPIRING 14</strong> jours — pour le cert du reverse proxy public</li>
+      <li><strong>UPDATES_AVAILABLE threshold 50</strong> — rappel de patch</li>
+    </ul>
+    <P>
+      Ces alertes passent par webhook/email standard. En cas de panne Nexus complète, elles ne se déclencheront pas (d'où l'intérêt d'un monitoring externe type uptime-kuma en parallèle).
+    </P>
   </>);
 }
 
