@@ -137,19 +137,47 @@ export default function MachineDetail() {
   const isProbe = machine.type === "PROBE";
   const isAgent = machine.type === "AGENT";
 
-  const tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean }[] = [
-    { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true },
-    { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline },
-    { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent },
-    { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent },
-    { id: "processes", label: "Processus", icon: ListTree, show: isOnline },
-    { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent },
-    { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent },
-    { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline },
-    { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline },
-    { id: "users", label: "Utilisateurs", icon: Server, show: isOnline },
-    { id: "network", label: "Réseau", icon: Network, show: isOnline },
-    { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent },
+  const tabGroups: {
+    label: string;
+    tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean }[];
+  }[] = [
+    {
+      label: "",
+      tabs: [
+        { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true },
+      ],
+    },
+    {
+      label: "Monitoring",
+      tabs: [
+        { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline },
+        { id: "processes", label: "Processus", icon: ListTree, show: isOnline },
+        { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline },
+      ],
+    },
+    {
+      label: "Système",
+      tabs: [
+        { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent },
+        { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline },
+        { id: "users", label: "Utilisateurs", icon: Server, show: isOnline },
+      ],
+    },
+    {
+      label: "Réseau",
+      tabs: [
+        { id: "network", label: "Interfaces", icon: Network, show: isOnline },
+        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent },
+        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent },
+      ],
+    },
+    {
+      label: "Logiciels",
+      tabs: [
+        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent },
+        { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent },
+      ],
+    },
   ];
 
   return (
@@ -235,22 +263,39 @@ export default function MachineDetail() {
         )}
       </div>
 
-      {/* ── Tabs ───────────────────────────────── */}
-      <div className="flex gap-1 mb-4 rounded-lg p-1" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-        {tabs.filter(t => t.show).map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-medium transition-all"
-            style={{
-              background: activeTab === tab.id ? "var(--nx-primary-subtle)" : "transparent",
-              color: activeTab === tab.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
-            }}
-          >
-            <tab.icon className="w-3.5 h-3.5" />
-            {tab.label}
-          </button>
-        ))}
+      {/* ── Tabs groupés ─────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-1 mb-4 rounded-lg p-1" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+        {tabGroups.map((group, gi) => {
+          const visibleTabs = group.tabs.filter(t => t.show);
+          if (visibleTabs.length === 0) return null;
+          const isFirstGroup = gi === 0 || !tabGroups.slice(0, gi).some(g => g.tabs.some(t => t.show));
+          return (
+            <div key={group.label || "_"} className="flex items-center gap-1">
+              {!isFirstGroup && (
+                <div className="w-px h-5 mx-1" style={{ background: "var(--nx-border)" }} />
+              )}
+              {group.label && (
+                <span className="text-[10px] uppercase tracking-wider px-2" style={{ color: "var(--nx-text-weak)" }}>
+                  {group.label}
+                </span>
+              )}
+              {visibleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={{
+                    background: activeTab === tab.id ? "var(--nx-primary-subtle)" : "transparent",
+                    color: activeTab === tab.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                  }}
+                >
+                  <tab.icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Tab Content ────────────────────────── */}
