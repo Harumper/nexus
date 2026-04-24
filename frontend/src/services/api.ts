@@ -459,6 +459,37 @@ class ApiClient {
     );
   }
 
+  // Package holds (apt-mark)
+  async packageHoldsList(id: string) {
+    return this.request<{ success: boolean; data: { holds: string[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "package.holds_list", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async packageHold(id: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "package.hold", params: { name }, timeout: 15000 }),
+      }
+    );
+  }
+
+  async packageUnhold(id: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "package.unhold", params: { name }, timeout: 15000 }),
+      }
+    );
+  }
+
   // Packages catalog
   async searchPackages(q: string, suite = "noble", arch = "amd64", limit = 50) {
     const params = new URLSearchParams({ q, suite, arch, limit: String(limit) });

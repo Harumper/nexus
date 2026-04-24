@@ -213,6 +213,11 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --n
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 
+# === Package pinning (apt-mark) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark showhold
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark hold *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark unhold *
+
 # === Netplan (watchdog-revert) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/netplan apply
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/netplan/*.yaml
