@@ -7,7 +7,6 @@ import {
   Bell,
   Tag,
   ScrollText,
-  Puzzle,
   Settings,
   BarChart3,
   LogOut,
@@ -43,7 +42,6 @@ const navSections = [
   {
     label: "Système",
     items: [
-      { to: "/modules", icon: Puzzle, label: "Modules" },
       { to: "/settings", icon: Settings, label: "Paramètres" },
       { to: "/docs", icon: BookOpen, label: "Documentation" },
     ],
