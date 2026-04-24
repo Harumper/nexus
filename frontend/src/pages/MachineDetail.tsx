@@ -35,6 +35,7 @@ export default function MachineDetail() {
   const [latestMetric, setLatestMetric] = useState<Metric | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [lastSubtab, setLastSubtab] = useState<Record<string, Tab>>({});
   const [logsService, setLogsService] = useState<string | null>(null);
 
   // Load machine data
@@ -263,51 +264,102 @@ export default function MachineDetail() {
         )}
       </div>
 
-      {/* ── Tabs groupés : groupe actif deplie, les autres plies ──── */}
-      <div className="flex flex-wrap items-center gap-1 mb-4 rounded-lg p-1" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-        {tabGroups.map((group, gi) => {
-          const visibleTabs = group.tabs.filter(t => t.show);
-          if (visibleTabs.length === 0) return null;
-          const isActiveGroup = visibleTabs.some(t => t.id === activeTab);
-          const isFirstGroup = gi === 0 || !tabGroups.slice(0, gi).some(g => g.tabs.some(t => t.show));
+      {/* ── Two-row tabs : categories + sous-onglets ────────────────── */}
+      {(() => {
+        const activeGroupIdx = tabGroups.findIndex(g => g.tabs.some(t => t.id === activeTab && t.show));
+        const activeGroup = activeGroupIdx >= 0 ? tabGroups[activeGroupIdx] : null;
+        const activeSubtabs = activeGroup ? activeGroup.tabs.filter(t => t.show) : [];
+        const showSecondRow = activeGroup && activeGroup.label && activeSubtabs.length >= 2;
 
-          return (
-            <div key={group.label || "_"} className="flex items-center gap-1">
-              {!isFirstGroup && (
-                <div className="w-px h-5 mx-1" style={{ background: "var(--nx-border)" }} />
-              )}
+        const handleGroupClick = (group: typeof tabGroups[number]) => {
+          const visible = group.tabs.filter(t => t.show);
+          if (visible.length === 0) return;
+          // Si le groupe contient deja activeTab, on ne change rien
+          if (visible.some(t => t.id === activeTab)) return;
+          // Sinon : restaurer le dernier sous-onglet visite si toujours visible, ou premier
+          const remembered = group.label ? lastSubtab[group.label] : undefined;
+          const restore = remembered && visible.some(t => t.id === remembered) ? remembered : visible[0].id;
+          setActiveTab(restore);
+        };
 
-              {!group.label ? (
-                // Groupe sans label (Vue d'ensemble) : toujours affiche en pill
-                visibleTabs.map((tab) => (
-                  <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
-                ))
-              ) : isActiveGroup ? (
-                // Groupe actif : label + tous les sous-onglets deplies
-                <>
-                  <span className="text-[10px] uppercase tracking-wider px-2 font-semibold" style={{ color: "var(--nx-text-weak)" }}>
+        // Mettre a jour la memoire quand on change d'onglet
+        const selectSubtab = (group: typeof tabGroups[number], tabId: Tab) => {
+          setActiveTab(tabId);
+          if (group.label) {
+            setLastSubtab(prev => ({ ...prev, [group.label]: tabId }));
+          }
+        };
+
+        return (
+          <div className="mb-4 rounded-lg" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+            {/* Row 1 : categories */}
+            <div className="flex flex-wrap items-center gap-1 p-1">
+              {tabGroups.map((group, gi) => {
+                const visibleTabs = group.tabs.filter(t => t.show);
+                if (visibleTabs.length === 0) return null;
+                const isActive = gi === activeGroupIdx;
+
+                // Groupe sans label (Vue d'ensemble) = bouton direct du seul sous-onglet
+                if (!group.label && visibleTabs.length === 1) {
+                  const t = visibleTabs[0];
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveTab(t.id)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium transition-all"
+                      style={{
+                        background: activeTab === t.id ? "var(--nx-primary-subtle)" : "transparent",
+                        color: activeTab === t.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                      }}
+                    >
+                      <t.icon className="w-3.5 h-3.5" />
+                      {t.label}
+                    </button>
+                  );
+                }
+
+                return (
+                  <button
+                    key={group.label}
+                    onClick={() => handleGroupClick(group)}
+                    className="px-4 py-2 rounded-md text-xs font-medium transition-all"
+                    style={{
+                      background: isActive ? "var(--nx-primary-subtle)" : "transparent",
+                      color: isActive ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                    }}
+                  >
                     {group.label}
-                  </span>
-                  {visibleTabs.map((tab) => (
-                    <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
-                  ))}
-                </>
-              ) : (
-                // Groupe plie : juste le nom clicable qui active le premier sous-onglet
-                <button
-                  onClick={() => setActiveTab(visibleTabs[0].id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                  style={{ color: "var(--nx-text-weak)" }}
-                  title={visibleTabs.map(t => t.label).join(" · ")}
-                >
-                  {group.label}
-                  <span className="text-[10px] opacity-60">({visibleTabs.length})</span>
-                </button>
-              )}
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+
+            {/* Row 2 : sous-onglets du groupe actif */}
+            {showSecondRow && (
+              <div
+                className="flex flex-wrap items-center gap-1 px-3 py-2"
+                style={{ borderTop: "1px solid var(--nx-border)", background: "var(--nx-bg-base)" }}
+              >
+                {activeSubtabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => selectSubtab(activeGroup!, tab.id)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all"
+                    style={{
+                      background: activeTab === tab.id ? "var(--nx-bg-surface)" : "transparent",
+                      color: activeTab === tab.id ? "var(--nx-text)" : "var(--nx-text-weak)",
+                      border: activeTab === tab.id ? "1px solid var(--nx-border)" : "1px solid transparent",
+                    }}
+                  >
+                    <tab.icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Tab Content ────────────────────────── */}
       <div className="space-y-4">
@@ -508,22 +560,6 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
 /* ══════════════════════════════════════════════
    Subcomponents
    ══════════════════════════════════════════════ */
-function TabButton({ tab, active, onClick }: { tab: { id: Tab; label: string; icon: typeof Activity }; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-      style={{
-        background: active ? "var(--nx-primary-subtle)" : "transparent",
-        color: active ? "var(--nx-primary)" : "var(--nx-text-weak)",
-      }}
-    >
-      <tab.icon className="w-3.5 h-3.5" />
-      {tab.label}
-    </button>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
