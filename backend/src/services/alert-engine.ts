@@ -1,6 +1,15 @@
 import { prisma } from "./database.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
+import { dispatchActionSync } from "./action-sync.js";
 import type { AlertConditionType, AlertSeverity } from "@prisma/client";
+
+// Conditions qui necessitent un poll actif (dispatch action vers l'agent)
+const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
+  "SERVICE_FAILED",
+  "TIMER_FAILED",
+  "CRON_FAILED",
+  "UPDATES_AVAILABLE",
+];
 
 // ===================== Évaluation des métriques entrantes =====================
 
@@ -89,6 +98,129 @@ export async function evaluateOfflineAlerts(): Promise<void> {
     for (const machine of onlineMachineIds) {
       await resolveAlert(rule.id, machine.id);
     }
+  }
+}
+
+// ===================== Health checks periodique (services/timers/updates) =====================
+
+/**
+ * Pour chaque machine ONLINE avec au moins une regle SERVICE_FAILED/TIMER_FAILED/
+ * UPDATES_AVAILABLE active, dispatche system.health_summary et evalue les regles.
+ */
+export async function evaluateHealthAlerts(): Promise<void> {
+  const rules = await prisma.alertRule.findMany({
+    where: {
+      enabled: true,
+      conditionType: { in: HEALTH_CHECK_CONDITIONS },
+    },
+  });
+  if (rules.length === 0) return;
+
+  // Collecter les machineIds concernees (si machineIds vide = toutes)
+  const needAllMachines = rules.some((r) => r.machineIds.length === 0);
+  const specificIds = new Set(rules.flatMap((r) => r.machineIds));
+
+  const machines = await prisma.machine.findMany({
+    where: {
+      status: "ONLINE",
+      type: "AGENT", // Les probes n'ont pas ces actions
+      ...(needAllMachines ? {} : { id: { in: Array.from(specificIds) } }),
+    },
+    select: { id: true, name: true },
+  });
+
+  // Dispatcher en parallele avec concurrence limitee (10 machines a la fois)
+  const concurrency = 10;
+  for (let i = 0; i < machines.length; i += concurrency) {
+    const batch = machines.slice(i, i + concurrency);
+    await Promise.all(
+      batch.map(async (machine) => {
+        try {
+          const summary: any = await dispatchActionSync(
+            machine.id,
+            "system.health_summary",
+            {},
+            20_000
+          );
+          await evaluateHealthForMachine(machine.id, summary, rules);
+        } catch (err) {
+          // Ignore silently : la machine peut etre offline entre temps
+        }
+      })
+    );
+  }
+}
+
+async function evaluateHealthForMachine(
+  machineId: string,
+  summary: any,
+  rules: any[]
+): Promise<void> {
+  const applicableRules = rules.filter(
+    (r) => r.machineIds.length === 0 || r.machineIds.includes(machineId)
+  );
+
+  for (const rule of applicableRules) {
+    const triggered = checkHealthCondition(rule, summary);
+    if (triggered.fired) {
+      await fireAlert(rule.id, machineId, rule.severity, triggered.details);
+    } else {
+      await resolveAlert(rule.id, machineId);
+    }
+  }
+}
+
+function checkHealthCondition(
+  rule: any,
+  summary: any
+): { fired: boolean; details: Record<string, any> } {
+  switch (rule.conditionType) {
+    case "SERVICE_FAILED": {
+      const failed = summary?.services?.failed || [];
+      // Filtre optionnel par pattern (nom de service)
+      const matching = rule.targetPattern
+        ? failed.filter((f: any) => String(f.unit || "").includes(rule.targetPattern))
+        : failed;
+      return {
+        fired: matching.length > 0,
+        details: {
+          conditionType: "SERVICE_FAILED",
+          failedServices: matching.map((f: any) => f.unit),
+          count: matching.length,
+        },
+      };
+    }
+    case "TIMER_FAILED": {
+      const failed = summary?.timers?.failed || [];
+      const matching = rule.targetPattern
+        ? failed.filter((f: any) => String(f.timer || "").includes(rule.targetPattern))
+        : failed;
+      return {
+        fired: matching.length > 0,
+        details: {
+          conditionType: "TIMER_FAILED",
+          failedTimers: matching.map((f: any) => f.timer),
+          count: matching.length,
+        },
+      };
+    }
+    case "UPDATES_AVAILABLE": {
+      const count = summary?.updates?.count || 0;
+      const security = summary?.updates?.security || 0;
+      const threshold = rule.threshold ?? 0;
+      // Fire si count > threshold (ex: threshold=0 -> au moindre update)
+      return {
+        fired: count > threshold,
+        details: {
+          conditionType: "UPDATES_AVAILABLE",
+          count,
+          security,
+          threshold,
+        },
+      };
+    }
+    default:
+      return { fired: false, details: {} };
   }
 }
 

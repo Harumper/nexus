@@ -22,6 +22,7 @@ interface AlertRule {
   severity: "INFO" | "WARNING" | "CRITICAL";
   conditionType: string;
   threshold: number | null;
+  targetPattern: string | null;
   durationSeconds: number;
   machineIds: string[];
   cooldownSeconds: number;
@@ -54,7 +55,35 @@ const CONDITION_LABELS: Record<string, string> = {
   DISK_ABOVE: "Disque supérieur à",
   MACHINE_OFFLINE: "Machine hors ligne depuis",
   LOAD_ABOVE: "Load average supérieur à",
+  SERVICE_FAILED: "Service systemd en échec",
+  TIMER_FAILED: "Timer systemd en échec",
+  CRON_FAILED: "Cron job en échec",
+  UPDATES_AVAILABLE: "Mises à jour disponibles",
+  CERT_EXPIRING: "Certificat SSL expirant dans",
 };
+
+// Unite du threshold selon conditionType
+function thresholdUnit(conditionType: string): string {
+  switch (conditionType) {
+    case "MACHINE_OFFLINE": return "secondes";
+    case "CERT_EXPIRING": return "jours";
+    case "UPDATES_AVAILABLE": return "updates";
+    case "SERVICE_FAILED":
+    case "TIMER_FAILED":
+    case "CRON_FAILED":
+      return ""; // Pas de threshold, juste filtre optionnel
+    default:
+      return "%";
+  }
+}
+
+function needsThreshold(conditionType: string): boolean {
+  return !["SERVICE_FAILED", "TIMER_FAILED", "CRON_FAILED"].includes(conditionType);
+}
+
+function needsTargetPattern(conditionType: string): boolean {
+  return ["SERVICE_FAILED", "TIMER_FAILED", "CRON_FAILED"].includes(conditionType);
+}
 
 export default function Alerts() {
   const { user } = useAuth();
@@ -307,7 +336,8 @@ export default function Alerts() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {CONDITION_LABELS[rule.conditionType] || rule.conditionType}
-                    {rule.threshold != null && ` ${rule.threshold}${rule.conditionType === "MACHINE_OFFLINE" ? "s" : "%"}`}
+                    {needsThreshold(rule.conditionType) && rule.threshold != null && ` ${rule.threshold} ${thresholdUnit(rule.conditionType)}`}
+                    {rule.targetPattern && ` "${rule.targetPattern}"`}
                     {rule.machineIds.length > 0 && ` · ${rule.machineIds.length} machine(s)`}
                     {rule.machineIds.length === 0 && " · Toutes les machines"}
                   </p>
@@ -394,6 +424,7 @@ function CreateRuleDialog({
     name: "",
     conditionType: "CPU_ABOVE",
     threshold: 90,
+    targetPattern: "",
     severity: "WARNING",
     durationSeconds: 0,
     cooldownSeconds: 300,
@@ -406,13 +437,23 @@ function CreateRuleDialog({
     setLoading(true);
     setError("");
     try {
+      // Nettoyer le payload selon le type de condition
+      const payload: any = { ...form };
+      if (!needsThreshold(form.conditionType)) {
+        delete payload.threshold;
+      }
+      if (!needsTargetPattern(form.conditionType)) {
+        delete payload.targetPattern;
+      } else if (!payload.targetPattern) {
+        delete payload.targetPattern;
+      }
       const res = await fetch("/api/alerts/rules", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -445,20 +486,50 @@ function CreateRuleDialog({
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Condition</label>
             <select value={form.conditionType} onChange={(e) => setForm({ ...form, conditionType: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="CPU_ABOVE">CPU supérieur à</option>
-              <option value="MEMORY_ABOVE">Mémoire supérieure à</option>
-              <option value="DISK_ABOVE">Disque supérieur à</option>
-              <option value="LOAD_ABOVE">Load average supérieur à</option>
-              <option value="MACHINE_OFFLINE">Machine hors ligne depuis</option>
+              <optgroup label="Métriques">
+                <option value="CPU_ABOVE">CPU supérieur à</option>
+                <option value="MEMORY_ABOVE">Mémoire supérieure à</option>
+                <option value="DISK_ABOVE">Disque supérieur à</option>
+                <option value="LOAD_ABOVE">Load average supérieur à</option>
+              </optgroup>
+              <optgroup label="Connexion">
+                <option value="MACHINE_OFFLINE">Machine hors ligne depuis</option>
+              </optgroup>
+              <optgroup label="Santé système">
+                <option value="SERVICE_FAILED">Service systemd en échec</option>
+                <option value="TIMER_FAILED">Timer systemd en échec</option>
+                <option value="UPDATES_AVAILABLE">Mises à jour disponibles</option>
+                <option value="CERT_EXPIRING">Certificat SSL expirant dans</option>
+              </optgroup>
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Seuil {form.conditionType === "MACHINE_OFFLINE" ? "(secondes)" : "(%)"}
-            </label>
-            <input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" min={0} />
-          </div>
+          {needsThreshold(form.conditionType) && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Seuil ({thresholdUnit(form.conditionType)})
+              </label>
+              <input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" min={0} />
+            </div>
+          )}
+
+          {needsTargetPattern(form.conditionType) && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Filtre (optionnel)
+              </label>
+              <input
+                type="text"
+                value={form.targetPattern}
+                onChange={(e) => setForm({ ...form, targetPattern: e.target.value })}
+                placeholder={form.conditionType === "SERVICE_FAILED" ? "nginx, postgresql (laissez vide pour tous)" : "pattern"}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Substring matching. Vide = n'importe quel service en échec déclenche.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Sévérité</label>

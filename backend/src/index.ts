@@ -19,7 +19,7 @@ import { settingsRoutes } from "./routes/settings.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { profileRoutes } from "./routes/profiles.js";
 import { initKeycloak } from "./services/keycloak.js";
-import { evaluateOfflineAlerts } from "./services/alert-engine.js";
+import { evaluateOfflineAlerts, evaluateHealthAlerts } from "./services/alert-engine.js";
 import { initProfileScheduler } from "./services/profile-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
@@ -161,6 +161,12 @@ async function main() {
   // Évaluer les alertes offline toutes les 60s
   const offlineAlertInterval = setInterval(evaluateOfflineAlerts, 60_000);
 
+  // Évaluer les health alerts (services/timers/updates) toutes les 5 min
+  const healthAlertInterval = setInterval(
+    () => evaluateHealthAlerts().catch((err) => console.error("[AlertEngine] Health check error:", err)),
+    5 * 60_000
+  );
+
   // Vérifier le cycle de vie des machines toutes les heures
   const lifecycleInterval = setInterval(checkMachineLifecycle, 60 * 60 * 1000);
 
@@ -201,6 +207,7 @@ async function main() {
     console.log("\n[Nexus] Shutting down...");
     clearInterval(offlineCheckInterval);
     clearInterval(offlineAlertInterval);
+    clearInterval(healthAlertInterval);
     clearInterval(lifecycleInterval);
     clearInterval(fleetMetricsInterval);
     clearInterval(cleanupInterval);

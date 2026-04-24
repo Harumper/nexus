@@ -104,6 +104,10 @@ export const PROBE_ALLOWED_ACTIONS = [
   "network.interfaces",
   "netplan.get",
   "package.holds_list",
+  "system.services_failed",
+  "system.timers_failed",
+  "system.updates_available",
+  "system.health_summary",
 ];
 
 export async function isActionAllowed(

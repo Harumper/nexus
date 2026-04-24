@@ -70,6 +70,11 @@ enum AlertConditionType {
   DISK_ABOVE
   MACHINE_OFFLINE
   LOAD_ABOVE
+  SERVICE_FAILED
+  TIMER_FAILED
+  CRON_FAILED
+  UPDATES_AVAILABLE
+  CERT_EXPIRING
   CUSTOM
 }
 
@@ -280,7 +285,8 @@ model AlertRule {
   enabled         Boolean            @default(true)
   severity        AlertSeverity      @default(WARNING)
   conditionType   AlertConditionType
-  threshold       Float?             // Seuil (ex: 90 pour CPU > 90%)
+  threshold       Float?             // Seuil (ex: 90 pour CPU > 90%, ou 30 pour CERT_EXPIRING en jours)
+  targetPattern   String?            // Filtre (ex: nom de service pour SERVICE_FAILED, pattern cron)
   durationSeconds Int                @default(0)  // Durée avant déclenchement (0 = immédiat)
   machineIds      String[]           // Vide = toutes les machines
   cooldownSeconds Int                @default(300) // Anti-spam (5 min par défaut)
