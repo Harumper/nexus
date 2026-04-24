@@ -22,9 +22,10 @@ import PackagesTab from "../components/PackagesTab";
 import StorageTab from "../components/StorageTab";
 import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
+import NetworkConfigTab from "../components/NetworkConfigTab";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -148,6 +149,7 @@ export default function MachineDetail() {
     { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline },
     { id: "users", label: "Utilisateurs", icon: Server, show: isOnline },
     { id: "network", label: "Réseau", icon: Network, show: isOnline },
+    { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent },
   ];
 
   return (
@@ -294,6 +296,10 @@ export default function MachineDetail() {
 
         {activeTab === "users" && isOnline && (
           <UsersTab machineId={machine.id} canMutate={isAgent} />
+        )}
+
+        {activeTab === "netplan" && isOnline && (
+          <NetworkConfigTab machineId={machine.id} canMutate={isAgent} />
         )}
 
         {activeTab === "network" && isOnline && (
