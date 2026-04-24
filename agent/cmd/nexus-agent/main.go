@@ -40,6 +40,8 @@ var (
 		"storage.filesystem_usage":  true,
 		"cron.list":                 true,
 		"timer.list":                true,
+		"user.list":                 true,
+		"sshkey.list":               true,
 	}
 )
 

@@ -299,6 +299,101 @@ class ApiClient {
     );
   }
 
+  // Users Linux
+  async listUsers(id: string) {
+    return this.request<{ success: boolean; data: { users: any[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "user.list", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async createUser(id: string, username: string, opts: { gecos?: string; sudo?: boolean } = {}) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "user.create",
+          params: { username, gecos: opts.gecos, sudo: opts.sudo || false },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async deleteUser(id: string, username: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "user.delete",
+          params: { username },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async updateUserSudo(id: string, username: string, sudo: boolean) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "user.update_sudo",
+          params: { username, sudo },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async listSshKeys(id: string, username: string) {
+    return this.request<{ success: boolean; data: { keys: any[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "sshkey.list",
+          params: { username },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async addSshKey(id: string, username: string, key: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "sshkey.add",
+          params: { username, key },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async removeSshKey(id: string, username: string, fingerprint: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "sshkey.remove",
+          params: { username, fingerprint },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
   // Packages catalog
   async searchPackages(q: string, suite = "noble", arch = "amd64", limit = 50) {
     const params = new URLSearchParams({ q, suite, arch, limit: String(limit) });
