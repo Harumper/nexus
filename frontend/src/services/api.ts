@@ -227,6 +227,78 @@ class ApiClient {
     );
   }
 
+  // Storage
+  async storageLvmList(id: string) {
+    return this.request<{
+      success: boolean;
+      data: { pvs: any[]; vgs: any[]; lvs: any[]; available: boolean };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: "storage.lvm_list", params: {}, timeout: 15000 }),
+    });
+  }
+
+  async storageBlockDevices(id: string) {
+    return this.request<{ success: boolean; data: { devices: any[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "storage.block_devices", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async storageFilesystemUsage(id: string) {
+    return this.request<{ success: boolean; data: { filesystems: any[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "storage.filesystem_usage", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  // Scheduling (cron + timers)
+  async cronList(id: string) {
+    return this.request<{ success: boolean; data: { jobs: any[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "cron.list", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async timerList(id: string) {
+    return this.request<{ success: boolean; data: { timers: any[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "timer.list", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async timerEnable(id: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "timer.enable", params: { name }, timeout: 15000 }),
+      }
+    );
+  }
+
+  async timerDisable(id: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "timer.disable", params: { name }, timeout: 15000 }),
+      }
+    );
+  }
+
   // Packages catalog
   async searchPackages(q: string, suite = "noble", arch = "amd64", limit = 50) {
     const params = new URLSearchParams({ q, suite, arch, limit: String(limit) });

@@ -207,6 +207,11 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-restore
 
 # === Self-upgrade (remplacement du binaire agent) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/nexus-agent.new /usr/local/bin/nexus-agent
+
+# === LVM report (storage overview) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --nosuffix -o *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 SUDOERS
 
 # Valider la syntaxe AVANT d'appliquer
