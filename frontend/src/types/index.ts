@@ -19,6 +19,7 @@ export interface Machine {
   status: MachineStatus;
   type: "AGENT" | "PROBE";
   sshUser: string | null;
+  isCritical: boolean;
   lastHeartbeat: string | null;
   lastMetrics: string | null;
   enrolledAt: string | null;

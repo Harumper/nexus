@@ -76,6 +76,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           agentVersion: true,
           status: true,
           type: true,
+          isCritical: true,
           lastHeartbeat: true,
           lastMetrics: true,
           enrolledAt: true,
@@ -117,6 +118,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           status: true,
           type: true,
           sshUser: true,
+          isCritical: true,
           boundIp: true,
           lastHeartbeat: true,
           lastMetrics: true,
@@ -191,6 +193,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             name: { type: "string", minLength: 1, maxLength: 100 },
             sshUser: { type: ["string", "null"], maxLength: 64 },
+            isCritical: { type: "boolean" },
           },
           additionalProperties: false,
         },
@@ -198,7 +201,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const body = request.body as { name?: string; sshUser?: string | null };
+      const body = request.body as { name?: string; sshUser?: string | null; isCritical?: boolean };
       const user = getUserFromRequest(request);
 
       // Validation sshUser : POSIX login name
@@ -209,6 +212,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const data: Record<string, unknown> = {};
       if (body.name !== undefined) data.name = body.name;
       if (body.sshUser !== undefined) data.sshUser = body.sshUser || null;
+      if (body.isCritical !== undefined) data.isCritical = body.isCritical;
 
       if (Object.keys(data).length === 0) {
         return reply.code(400).send({ error: "No fields to update" });
@@ -218,7 +222,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         const updated = await prisma.machine.update({
           where: { id },
           data,
-          select: { id: true, name: true, sshUser: true, type: true },
+          select: { id: true, name: true, sshUser: true, isCritical: true, type: true },
         });
         await logAudit({
           action: "MACHINE_UPDATE",
