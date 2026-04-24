@@ -26,8 +26,6 @@ var (
 	probeAllowedActions = map[string]bool{
 		"system.metrics":            true,
 		"system.info":               true,
-		"system.disk_usage":         true,
-		"system.process_list":       true,
 		"system.processes":          true,
 		"system.heartbeat":          true,
 		"system.logs":               true,

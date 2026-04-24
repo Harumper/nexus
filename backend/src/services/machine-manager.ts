@@ -86,8 +86,6 @@ export async function checkOfflineMachines(): Promise<void> {
 export const PROBE_ALLOWED_ACTIONS = [
   "system.metrics",
   "system.info",
-  "system.disk_usage",
-  "system.process_list",
   "system.processes",
   "system.heartbeat",
   "system.logs",
