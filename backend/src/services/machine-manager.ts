@@ -102,6 +102,9 @@ export const PROBE_ALLOWED_ACTIONS = [
   "timer.list",
   "user.list",
   "sshkey.list",
+  "network.status",
+  "network.interfaces",
+  "netplan.get",
 ];
 
 export async function isActionAllowed(

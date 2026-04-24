@@ -213,6 +213,12 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --n
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 
+# === Netplan (watchdog-revert) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/netplan apply
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/netplan/*.yaml
+nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/netplan/*.yaml
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o root -g root /var/lib/nexus-agent/* /etc/netplan/*.yaml
+
 # === Users Linux + SSH keys ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash -c * *

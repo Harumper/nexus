@@ -42,6 +42,9 @@ var (
 		"timer.list":                true,
 		"user.list":                 true,
 		"sshkey.list":               true,
+		"network.status":            true,
+		"network.interfaces":        true,
+		"netplan.get":               true,
 	}
 )
 
@@ -62,9 +65,10 @@ func main() {
 	}
 	log.Printf("%s Version %s starting...", logPrefix, Version)
 
-	// Dead man's switch : si l'agent a crash pendant une modif firewall,
+	// Dead man's switch : si l'agent a crash pendant une modif (firewall/netplan),
 	// revert tous les snapshots pending au demarrage
 	actions.RecoverPendingSnapshots()
+	actions.RecoverPendingNetplan()
 
 	// Initialiser le keystore
 	keystore := security.NewKeystore(cfg.KeyPath)
@@ -173,9 +177,13 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		go handleActionRequest(msg, client, sandbox, keystore)
 
 	case transport.TypeActionConfirm:
-		// Confirmation d'une action firewall (ou autre watchdog-revert)
-		// RequestID est la cle du pending
-		actions.HandleConfirm(msg.RequestID)
+		// Confirmation d'une action firewall/netplan (watchdog-revert)
+		// On dispatch selon le prefix du request_id
+		if strings.HasPrefix(msg.RequestID, "netplan-") {
+			actions.HandleNetplanConfirm(msg.RequestID)
+		} else {
+			actions.HandleConfirm(msg.RequestID)
+		}
 
 	case transport.TypePing:
 		client.SendSigned(transport.TypePong, "", map[string]interface{}{})

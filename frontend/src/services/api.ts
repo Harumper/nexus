@@ -394,6 +394,61 @@ class ApiClient {
     );
   }
 
+  // Network / netplan
+  async networkStatus(id: string) {
+    return this.request<{ success: boolean; data: { addresses: any[]; routes: any[]; pending: any[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "network.status", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async networkInterfaces(id: string) {
+    return this.request<{ success: boolean; data: { interfaces: any[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "network.interfaces", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async netplanGet(id: string) {
+    return this.request<{ success: boolean; data: { dir: string; files: any[]; target_file: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "netplan.get", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async netplanApply(id: string, content: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "netplan.apply",
+          params: { content },
+          timeout: 30000,
+        }),
+      }
+    );
+  }
+
+  async netplanConfirm(id: string, requestId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/machines/${id}/netplan/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ request_id: requestId }),
+      }
+    );
+  }
+
   // Packages catalog
   async searchPackages(q: string, suite = "noble", arch = "amd64", limit = 50) {
     const params = new URLSearchParams({ q, suite, arch, limit: String(limit) });
