@@ -41,6 +41,7 @@ const (
 	TypeHeartbeat          = "heartbeat"
 	TypeMetricsReport      = "metrics.report"
 	TypeActionRequest      = "action.request"
+	TypeActionConfirm      = "action.confirm"
 	TypeActionResponse     = "action.response"
 	TypeCapabilitiesUpdate = "capabilities.update"
 	TypeUpdateProgress     = "update.progress"

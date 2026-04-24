@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download, Radio, AlertTriangle,
-  RotateCcw, ArrowUpCircle,
+  RotateCcw, ArrowUpCircle, Cog, Power,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -15,9 +15,13 @@ import {
 import MetricsChart from "../components/MetricsChart";
 import UpdatePanel from "../components/UpdatePanel";
 import ProcessList from "../components/ProcessList";
+import ServicesTab from "../components/ServicesTab";
+import LogsDrawer from "../components/LogsDrawer";
+import FirewallTab from "../components/FirewallTab";
+import PackagesTab from "../components/PackagesTab";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "services" | "firewall" | "packages";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +31,7 @@ export default function MachineDetail() {
   const [latestMetric, setLatestMetric] = useState<Metric | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [logsService, setLogsService] = useState<string | null>(null);
 
   // Load machine data
   useEffect(() => {
@@ -97,6 +102,18 @@ export default function MachineDetail() {
     }
   };
 
+  const handleReboot = async () => {
+    if (!id) return;
+    const confirmWord = prompt("⚠️ Redémarrer la machine ?\n\nTaper REBOOT pour confirmer :");
+    if (confirmWord !== "REBOOT") return;
+    try {
+      await api.rebootMachine(id);
+      alert("Redémarrage déclenché. La machine reviendra en ~60s.");
+    } catch (err: any) {
+      alert("Erreur : " + (err.message || "échec du redémarrage"));
+    }
+  };
+
   if (loading || !machine) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -115,7 +132,10 @@ export default function MachineDetail() {
     { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true },
     { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline },
     { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && caps.includes("updates") },
+    { id: "packages", label: "Paquets", icon: Download, show: isOnline && caps.includes("packages") },
     { id: "processes", label: "Processus", icon: ListTree, show: isOnline },
+    { id: "services", label: "Services", icon: Cog, show: isOnline && caps.includes("system_control") },
+    { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && caps.includes("firewall") },
     { id: "network", label: "Réseau", icon: Network, show: isOnline },
   ];
 
@@ -158,6 +178,11 @@ export default function MachineDetail() {
               {isOnline && (
                 <button onClick={handleUpgradeAgent} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-info)", color: "var(--nx-info)" }}>
                   <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
+                </button>
+              )}
+              {isOnline && caps.includes("system_control") && (
+                <button onClick={handleReboot} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
+                  <Power className="w-3.5 h-3.5" /> Redémarrer
                 </button>
               )}
               {machine.status !== "REVOKED" && (
@@ -217,6 +242,10 @@ export default function MachineDetail() {
           </div>
         )}
 
+        {activeTab === "packages" && isOnline && (
+          <PackagesTab machineId={machine.id} />
+        )}
+
         {activeTab === "updates" && isOnline && (
           <UpdatePanel machineId={machine.id} machineName={machine.name} capabilities={caps} />
         )}
@@ -225,10 +254,26 @@ export default function MachineDetail() {
           <ProcessList machineId={machine.id} />
         )}
 
+        {activeTab === "services" && isOnline && (
+          <ServicesTab machineId={machine.id} onViewLogs={setLogsService} />
+        )}
+
+        {activeTab === "firewall" && isOnline && (
+          <FirewallTab machineId={machine.id} />
+        )}
+
         {activeTab === "network" && isOnline && (
           <NetworkTab latestMetric={latestMetric} />
         )}
       </div>
+
+      {logsService && (
+        <LogsDrawer
+          machineId={machine.id}
+          service={logsService}
+          onClose={() => setLogsService(null)}
+        />
+      )}
     </div>
   );
 }

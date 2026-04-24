@@ -177,6 +177,32 @@ model BootstrapToken {
   @@index([expiresAt])
 }
 
+// ===================== APT PACKAGE CATALOG =====================
+// Catalogue des paquets disponibles dans les repos Ubuntu.
+// Ingere depuis archive.ubuntu.com/<dists>/<suite>/<component>/binary-<arch>/Packages.xz
+// Recherche full-text via tsvector GIN index (searchVector, genere par trigger SQL).
+
+model AptPackage {
+  id          String   @id @default(cuid())
+  suite       String   // "noble", "jammy"
+  component   String   // "main", "universe", "restricted", "multiverse"
+  arch        String   // "amd64", "arm64", "all"
+  name        String
+  version     String
+  description String   @db.Text
+  section     String?
+  size        Int?     // Installed-Size en KB
+
+  searchVector Unsupported("tsvector")?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([suite, component, arch, name])
+  @@index([name])
+  @@index([suite])
+}
+
 // ===================== CAPABILITIES =====================
 
 model Capability {

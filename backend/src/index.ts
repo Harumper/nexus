@@ -28,6 +28,9 @@ import { runMetricsCleanup } from "./services/metrics-cleanup.js";
 import { agentDownloadRoutes } from "./routes/agent-download.js";
 import { cleanupExpiredTokens } from "./services/bootstrap.js";
 import { ensureBuiltinSeed } from "./services/bootstrap-seed.js";
+import { firewallRoutes } from "./routes/firewall.js";
+import { packagesRoutes } from "./routes/packages.js";
+import { refreshAptCatalog, initAptCatalogIfEmpty } from "./services/apt-catalog.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -124,6 +127,8 @@ async function main() {
   await app.register(fleetRoutes);
   await app.register(profileRoutes);
   await app.register(agentDownloadRoutes);
+  await app.register(firewallRoutes);
+  await app.register(packagesRoutes);
 
   // ===================== Database =====================
 
@@ -172,6 +177,13 @@ async function main() {
     24 * 60 * 60 * 1000
   );
 
+  // Apt catalog : ingestion initiale si vide, puis refresh quotidien
+  initAptCatalogIfEmpty().catch((err) => console.error("[AptCatalog] Init error:", err));
+  const aptRefreshInterval = setInterval(
+    () => refreshAptCatalog().catch((err) => console.error("[AptCatalog] Refresh error:", err)),
+    24 * 60 * 60 * 1000
+  );
+
   // ===================== Start =====================
 
   try {
@@ -193,6 +205,7 @@ async function main() {
     clearInterval(fleetMetricsInterval);
     clearInterval(cleanupInterval);
     clearInterval(bootstrapCleanupInterval);
+    clearInterval(aptRefreshInterval);
     await app.close();
     await disconnectDatabase();
     process.exit(0);

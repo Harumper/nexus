@@ -13,6 +13,7 @@ export const MSG_TYPES = {
   ENROLLMENT_COMPLETE: "enrollment.complete",
   ENROLLMENT_REJECTED: "enrollment.rejected",
   ACTION_REQUEST: "action.request",
+  ACTION_CONFIRM: "action.confirm",
   CAPABILITIES_UPDATE: "capabilities.update",
   PING: "ping",
   PONG: "pong",

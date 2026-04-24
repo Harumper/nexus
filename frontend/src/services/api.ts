@@ -101,6 +101,168 @@ class ApiClient {
     );
   }
 
+  // System control (reboot, services)
+  async rebootMachine(id: string) {
+    return this.request<{ success: boolean; request_id: string }>(
+      `/machines/${id}/actions`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "system.reboot", params: {} }),
+      }
+    );
+  }
+
+  async listServices(id: string) {
+    return this.request<{ success: boolean; data: { services: any[]; count: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "system.services_list",
+          params: {},
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async serviceAction(id: string, service: string, action: "start" | "stop" | "restart" | "status") {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: `system.service_${action}`,
+          params: { service },
+          timeout: 15000,
+        }),
+      }
+    );
+  }
+
+  async getServiceLogs(id: string, service: string, lines = 100, since?: string) {
+    const params: Record<string, unknown> = { service, lines };
+    if (since) params.since = since;
+    return this.request<{ success: boolean; data: { lines: string[]; count: number; truncated: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "system.logs",
+          params,
+          timeout: 20000,
+        }),
+      }
+    );
+  }
+
+  // Firewall
+  async firewallStatus(id: string) {
+    return this.request<{ success: boolean; data: { enabled: boolean; raw: string; pending: any[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.status", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  async firewallAllow(id: string, rule: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.allow", params: { rule }, timeout: 20000 }),
+      }
+    );
+  }
+
+  async firewallDeny(id: string, rule: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.deny", params: { rule }, timeout: 20000 }),
+      }
+    );
+  }
+
+  async firewallRuleRemove(id: string, number: number) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.rule_remove", params: { number }, timeout: 20000 }),
+      }
+    );
+  }
+
+  async firewallEnable(id: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.enable", params: {}, timeout: 20000 }),
+      }
+    );
+  }
+
+  async firewallDisable(id: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.disable", params: {}, timeout: 20000 }),
+      }
+    );
+  }
+
+  async firewallConfirm(id: string, requestId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/machines/${id}/firewall/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ request_id: requestId }),
+      }
+    );
+  }
+
+  // Packages catalog
+  async searchPackages(q: string, suite = "noble", arch = "amd64", limit = 50) {
+    const params = new URLSearchParams({ q, suite, arch, limit: String(limit) });
+    return this.request<{ query: string; count: number; results: any[] }>(
+      `/packages/search?${params}`
+    );
+  }
+
+  async installPackage(machineId: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${machineId}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "package.install",
+          params: { packages: [name] },
+          timeout: 120000,
+        }),
+      }
+    );
+  }
+
+  async removePackage(machineId: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/machines/${machineId}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action_id: "package.remove",
+          params: { packages: [name] },
+          timeout: 60000,
+        }),
+      }
+    );
+  }
+
   async revokeMachine(id: string, reason?: string) {
     return this.request<{ success: boolean }>(`/machines/${id}/revoke`, {
       method: "POST",
