@@ -444,12 +444,27 @@ Exec=xfce4-terminal -e "ssh %u"
 # Alacritty
 Exec=alacritty -e ssh %u`}</Code>
 
-    <H2>Windows 10/11</H2>
+    <H2>Windows 10/11 avec WSL</H2>
     <P>
-      <strong>Option 1 — PuTTY</strong> : lors de l'installation, cocher « associer aux URL ssh:// ». C'est la méthode la plus simple.
+      Si vous utilisez <strong>WSL</strong> (Windows Subsystem for Linux), le plus simple est de rediriger <code>ssh://</code> vers <code>wsl ssh</code>. Créez un fichier <code>nexus-ssh-wsl.reg</code> :
     </P>
+    <Code>{`Windows Registry Editor Version 5.00
+[HKEY_CLASSES_ROOT\\ssh]
+"URL Protocol"=""
+@="URL:ssh"
+[HKEY_CLASSES_ROOT\\ssh\\shell\\open\\command]
+@="\\"C:\\\\Windows\\\\System32\\\\wsl.exe\\" ssh %1"`}</Code>
     <P>
-      <strong>Option 2 — Windows Terminal</strong> (plus moderne) : installer Windows Terminal 1.16+ depuis le Microsoft Store, puis créer un fichier <code>.reg</code> :
+      Double-cliquer sur le fichier, confirmer l'import. Le terminal WSL s'ouvrira désormais avec la connexion SSH pré-établie.
+    </P>
+    <Tip>
+      Pour un meilleur rendu dans <strong>Windows Terminal</strong> (profil WSL par défaut) :
+      <code className="block mt-2 font-mono">@="\"C:\\Windows\\System32\\cmd.exe\" /c start wt.exe wsl ssh %1"</code>
+    </Tip>
+
+    <H2>Windows 10/11 sans WSL</H2>
+    <P>
+      <strong>OpenSSH natif</strong> (inclus dans Windows 10+). Créez un <code>.reg</code> utilisant <code>wt.exe</code> :
     </P>
     <Code>{`Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\\ssh]
@@ -457,7 +472,14 @@ Exec=alacritty -e ssh %u`}</Code>
 @="URL:ssh"
 [HKEY_CLASSES_ROOT\\ssh\\shell\\open\\command]
 @="\\"C:\\\\Windows\\\\System32\\\\cmd.exe\\" /c start wt.exe ssh %1"`}</Code>
-    <P>Double-cliquer sur le fichier pour l'importer dans la base de registre, confirmer. C'est à faire une seule fois.</P>
+    <P>
+      Nécessite Windows Terminal 1.16+ et <code>Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0</code> si le client SSH n'est pas installé.
+    </P>
+
+    <H2>Windows — PuTTY (legacy)</H2>
+    <P>
+      Lors de l'installation de PuTTY, cocher « associer aux URL ssh:// ». Simple mais rendu visuel moins bon que WSL/Windows Terminal.
+    </P>
 
     <H2>Pré-remplir le nom d'utilisateur</H2>
     <P>
