@@ -44,6 +44,10 @@ var (
 		"network.interfaces":        true,
 		"netplan.get":               true,
 		"package.holds_list":        true,
+		"system.services_failed":    true,
+		"system.timers_failed":      true,
+		"system.updates_available":  true,
+		"system.health_summary":     true,
 	}
 )
 
