@@ -46,6 +46,10 @@ func main() {
 	}
 	log.Printf("%s Version %s starting...", logPrefix, Version)
 
+	// Dead man's switch : si l'agent a crash pendant une modif firewall,
+	// revert tous les snapshots pending au demarrage
+	actions.RecoverPendingSnapshots()
+
 	// Initialiser le keystore
 	keystore := security.NewKeystore(cfg.KeyPath)
 	sandbox := security.NewSandbox()
@@ -168,6 +172,11 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			keystore.SaveCapabilities(update.Capabilities)
 			log.Printf("[Agent] Capabilities updated: %v", update.Capabilities)
 		}
+
+	case transport.TypeActionConfirm:
+		// Confirmation d'une action firewall (ou autre watchdog-revert)
+		// RequestID est la cle du pending
+		actions.HandleConfirm(msg.RequestID)
 
 	case transport.TypePing:
 		client.SendSigned(transport.TypePong, "", map[string]interface{}{})

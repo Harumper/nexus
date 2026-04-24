@@ -125,6 +125,13 @@ else
     ok "Utilisateur '$AGENT_USER' créé."
 fi
 
+# Ajouter au groupe systemd-journal pour la lecture des logs via journalctl
+# (evite d'avoir a whitelister journalctl dans sudoers)
+if getent group systemd-journal > /dev/null; then
+    usermod -a -G systemd-journal "$AGENT_USER"
+    ok "Ajoute au groupe systemd-journal pour la lecture des logs."
+fi
+
 # ===================== 2. Configurer sudoers (commandes privilégiées) =====================
 
 info "Configuration des privilèges sudo pour '$AGENT_USER'..."
@@ -180,6 +187,23 @@ nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.s
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+
+# === Services systemd (start/stop/restart/reload) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl stop *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart *
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reload *
+
+# === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw allow *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw deny *
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw --force delete [0-9]*
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw --force enable
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw disable
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-save
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-restore
 
 # === Self-upgrade (remplacement du binaire agent) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/nexus-agent.new /usr/local/bin/nexus-agent

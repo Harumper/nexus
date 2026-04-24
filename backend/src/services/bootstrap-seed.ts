@@ -7,7 +7,7 @@ export async function ensureBuiltinSeed(): Promise<void> {
   const capabilities = [
     {
       name: "monitoring",
-      description: "Lecture seule : metriques CPU/RAM/disk, infos systeme, processus",
+      description: "Lecture seule : metriques CPU/RAM/disk, infos systeme, processus, logs",
       actions: [
         "system.metrics",
         "system.info",
@@ -15,6 +15,7 @@ export async function ensureBuiltinSeed(): Promise<void> {
         "system.process_list",
         "system.processes",
         "system.heartbeat",
+        "system.logs",
         "agent.upgrade",
       ],
       isBuiltin: true,
@@ -41,6 +42,32 @@ export async function ensureBuiltinSeed(): Promise<void> {
       name: "terminal",
       description: "Acces terminal web interactif (PTY)",
       actions: ["terminal.open", "terminal.resize", "terminal.close"],
+      isBuiltin: true,
+    },
+    {
+      name: "system_control",
+      description: "Controle systeme : redemarrage, gestion des services systemd",
+      actions: [
+        "system.reboot",
+        "system.services_list",
+        "system.service_status",
+        "system.service_start",
+        "system.service_stop",
+        "system.service_restart",
+      ],
+      isBuiltin: true,
+    },
+    {
+      name: "firewall",
+      description: "Gestion du pare-feu (ufw) avec watchdog-revert 60s",
+      actions: [
+        "firewall.status",
+        "firewall.allow",
+        "firewall.deny",
+        "firewall.rule_remove",
+        "firewall.enable",
+        "firewall.disable",
+      ],
       isBuiltin: true,
     },
   ];
