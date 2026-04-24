@@ -83,8 +83,8 @@ class ApiClient {
     });
   }
 
-  async updateMachine(id: string, fields: { name?: string; sshUser?: string | null }) {
-    return this.request<{ id: string; name: string; sshUser: string | null; type: string }>(
+  async updateMachine(id: string, fields: { name?: string; sshUser?: string | null; isCritical?: boolean }) {
+    return this.request<{ id: string; name: string; sshUser: string | null; isCritical: boolean; type: string }>(
       `/machines/${id}`,
       {
         method: "PATCH",

@@ -86,7 +86,7 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
       // Filtrer les machines offline
       const machines = await prisma.machine.findMany({
         where: { id: { in: targetIds } },
-        select: { id: true, name: true, status: true, type: true },
+        select: { id: true, name: true, status: true, type: true, isCritical: true },
       });
 
       const mode = body.mode || "sync";

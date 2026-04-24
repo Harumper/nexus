@@ -203,6 +203,15 @@ export default function MachineDetail() {
                   {statusLabel(machine.status)}
                 </span>
                 {isProbe && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>Probe</span>}
+                {machine.isCritical && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1"
+                    style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
+                    title="Machine critique : reboot et stop de services critiques bloqués"
+                  >
+                    ⚠ Critique
+                  </span>
+                )}
                 {machine.rebootRequired && <span title="Reboot requis"><RotateCcw className="w-4 h-4" style={{ color: "var(--nx-warning)" }} /></span>}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--nx-text-weak)" }}>
@@ -231,7 +240,7 @@ export default function MachineDetail() {
                   <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
                 </button>
               )}
-              {isOnline && isAgent && (
+              {isOnline && isAgent && !machine.isCritical && (
                 <button onClick={handleReboot} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                   <Power className="w-3.5 h-3.5" /> Redémarrer
                 </button>
@@ -588,6 +597,7 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
 function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated: () => void | Promise<void> }) {
   const [name, setName] = useState(machine.name);
   const [sshUser, setSshUser] = useState(machine.sshUser || "");
+  const [isCritical, setIsCritical] = useState(machine.isCritical);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -595,9 +605,12 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
   useEffect(() => {
     setName(machine.name);
     setSshUser(machine.sshUser || "");
-  }, [machine.name, machine.sshUser]);
+    setIsCritical(machine.isCritical);
+  }, [machine.name, machine.sshUser, machine.isCritical]);
 
-  const isDirty = name !== machine.name || (sshUser || null) !== (machine.sshUser || null);
+  const isDirty = name !== machine.name
+    || (sshUser || null) !== (machine.sshUser || null)
+    || isCritical !== machine.isCritical;
 
   const save = async () => {
     setSaving(true);
@@ -606,6 +619,7 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
       await api.updateMachine(machine.id, {
         name: name.trim(),
         sshUser: sshUser.trim() || null,
+        isCritical,
       });
       await onUpdated();
       setSaved(true);
@@ -649,6 +663,26 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
             Pré-rempli dans le bouton SSH. Vide = utilise le user courant du terminal.
           </p>
         </div>
+
+        <label className="flex items-start gap-2 cursor-pointer py-2 px-2 rounded"
+          style={{ background: isCritical ? "var(--nx-warning-subtle)" : "var(--nx-bg-elevated)" }}
+        >
+          <input
+            type="checkbox"
+            checked={isCritical}
+            onChange={(e) => setIsCritical(e.target.checked)}
+            className="mt-0.5"
+          />
+          <div className="flex-1">
+            <div className="text-xs font-semibold" style={{ color: isCritical ? "var(--nx-warning)" : "var(--nx-text)" }}>
+              ⚠ Machine critique
+            </div>
+            <p className="text-[10px] mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
+              Si activé, bloque <code>reboot</code>, <code>service_stop</code> sur services critiques (docker, nginx, ssh, postgres…) et <code>package.remove</code> sur paquets critiques.
+              À activer pour le serveur Nexus lui-même et les machines prod.
+            </p>
+          </div>
+        </label>
 
         {error && (
           <div className="rounded px-2 py-1.5 text-[10px]" style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}>

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "./database.js";
 import { isActionAllowed } from "./machine-manager.js";
+import { checkCriticalProtection } from "./machine-protection.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -32,14 +33,20 @@ export async function dispatchAction(
     return { success: false, error: "Agent is not connected" };
   }
 
-  // 3. Récupérer les clés de la machine
+  // 3. Récupérer les clés de la machine + flag critique
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
-    select: { backendPrivateKey: true, sharedSecret: true },
+    select: { backendPrivateKey: true, sharedSecret: true, isCritical: true },
   });
 
   if (!machine?.backendPrivateKey || !machine?.sharedSecret) {
     return { success: false, error: "Machine keys not found" };
+  }
+
+  // 3b. Protection machines critiques
+  const protection = checkCriticalProtection(machine.isCritical, action.action_id, action.params);
+  if (!protection.allowed) {
+    return { success: false, error: protection.reason };
   }
 
   const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey);

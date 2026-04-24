@@ -135,6 +135,15 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
                   Probe
                 </span>
               )}
+              {machine.isCritical && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+                  style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
+                  title="Machine critique"
+                >
+                  ⚠ Critique
+                </span>
+              )}
               {machine.rebootRequired && (
                 <span title="Reboot requis">
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />

@@ -120,6 +120,7 @@ export default function MachineEnroll() {
         status: "ENROLLMENT_PENDING",
         type: machineType,
         sshUser: null,
+        isCritical: false,
         lastHeartbeat: null,
         lastMetrics: null,
         enrolledAt: null,

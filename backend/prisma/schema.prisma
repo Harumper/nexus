@@ -145,6 +145,7 @@ model Machine {
 
   // Settings utilisateur (editable post-enrollment)
   sshUser         String?     // Username par defaut pour le bouton SSH
+  isCritical      Boolean     @default(false) // Machine critique : reboot/service_stop/package.remove bloques
 
   // Relations
   metrics      Metric[]

@@ -45,6 +45,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
 
   const onlineMachines = machines.filter((m) => m.status === "ONLINE");
   const nonAgent = machines.filter((m) => m.type !== "AGENT");
+  const critical = machines.filter((m) => m.isCritical);
 
   const handleRun = async () => {
     if (!action) return;
@@ -115,6 +116,15 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <div>
                     {nonAgent.length} machine{nonAgent.length > 1 ? "s" : ""} de type PROBE : les actions de mutation seront refusées.
+                  </div>
+                </div>
+              )}
+
+              {critical.length > 0 && (
+                <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}>
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>{critical.length} machine{critical.length > 1 ? "s" : ""} marquée{critical.length > 1 ? "s" : ""} critique{critical.length > 1 ? "s" : ""}</strong> ({critical.map(m => m.name).join(", ")}) : reboot, stop de services critiques (docker, nginx, ssh…) et suppression de paquets critiques seront refusés pour ces machines.
                   </div>
                 </div>
               )}
