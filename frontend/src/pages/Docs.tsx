@@ -157,7 +157,7 @@ function AgentDoc() {
     <P>L'agent Nexus est un binaire Go léger qui s'installe comme service systemd sur chaque machine à gérer.</P>
 
     <H2>1. Créer la machine dans Nexus</H2>
-    <P>Depuis l'interface web, allez dans Machines → Ajouter une machine. Choisissez un nom et les capabilities souhaitées. Nexus vous donne :</P>
+    <P>Depuis l'interface web, allez dans Machines → Ajouter une machine. Choisissez un nom et un type (<strong>AGENT</strong> complet ou <strong>PROBE</strong> monitoring read-only). Nexus vous donne :</P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">Machine ID</strong> — Identifiant unique</li>
       <li><strong className="text-foreground">Enrollment Token</strong> — Token d'authentification (valable 24h)</li>
@@ -216,13 +216,20 @@ sudo journalctl -u nexus-agent -f`}</Code>
 
     <Tip>L'enrollment est automatique au premier démarrage. Les clés sont stockées dans /opt/nexus/keys/ et réutilisées aux démarrages suivants.</Tip>
 
-    <H2>Capabilities</H2>
-    <P>Les capabilities déterminent ce que l'agent peut faire :</P>
+    <H2>Type de machine</H2>
+    <P>Le type détermine ce que l'agent peut faire :</P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">monitoring</strong> — Métriques CPU/RAM/Disk, processus, infos système</li>
-      <li><strong className="text-foreground">updates</strong> — Vérification et installation des mises à jour apt</li>
-      <li><strong className="text-foreground">packages</strong> — Installation/suppression de packages</li>
-      <li><strong className="text-foreground">scripts</strong> — Exécution de scripts, kill de processus</li>
+      <li><strong className="text-foreground">AGENT</strong> — Accès complet : métriques, mises à jour, services, firewall, netplan, users, paquets, reboot, etc.</li>
+      <li><strong className="text-foreground">PROBE</strong> — Monitoring en lecture seule uniquement (métriques, logs, statuts). Aucune mutation possible.</li>
+    </ul>
+    <P>Le type est défini à la création de la machine et peut être changé dans la section <em>Paramètres</em> de la vue d'ensemble.</P>
+
+    <H2>Flag "Machine critique"</H2>
+    <P>Dans <em>Paramètres</em>, cochez <strong>⚠ Machine critique</strong> pour les machines sensibles (serveur Nexus, prod DB, etc.). Cela bloque :</P>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
+      <li><code>system.reboot</code></li>
+      <li><code>service_stop/restart</code> sur docker, nginx, ssh, postgresql, traefik, keycloak</li>
+      <li><code>package.remove</code> sur docker-ce, nginx, postgresql, openssh-*, systemd, sudo, apt</li>
     </ul>
   </>);
 }
@@ -346,15 +353,26 @@ function MachinesDoc() {
     <P>Les machines inactives suivent un cycle automatique (délais configurables dans Paramètres) :</P>
     <Code>{`OFFLINE → (7 jours) → STALE → (30 jours) → ARCHIVED → (90 jours) → Supprimée`}</Code>
 
-    <H2>Actions</H2>
-    <P>Depuis la page détail d'une machine (cliquez sur une carte) :</P>
+    <H2>Onglets par machine</H2>
+    <P>Depuis la page détail d'une machine (cliquez sur une carte), 11 onglets regroupés en 5 catégories :</P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Vue d'ensemble</strong> — Infos système, réseau, capabilities, stockage</li>
-      <li><strong className="text-foreground">Métriques</strong> — Graphiques CPU/RAM/Disk/Load/Réseau avec historique</li>
-      <li><strong className="text-foreground">Mises à jour</strong> — Vérifier et installer les MAJ système</li>
-      <li><strong className="text-foreground">Processus</strong> — Liste des processus en cours, possibilité de kill</li>
-      <li><strong className="text-foreground">Réseau</strong> — Détail des interfaces réseau et débit</li>
+      <li><strong className="text-foreground">Vue d'ensemble</strong> — Infos système, réseau, paramètres éditables, SSL certs</li>
+      <li><strong className="text-foreground">Monitoring</strong> — Métriques (CPU/RAM/Disk/Load historique), Processus, Stockage (LVM/FS/block)</li>
+      <li><strong className="text-foreground">Système</strong> — Services systemd (list + logs + start/stop/restart), Tâches (timers + cron + toggle), Utilisateurs (CRUD + clés SSH)</li>
+      <li><strong className="text-foreground">Réseau</strong> — Interfaces, Netplan (éditeur YAML + watchdog 120s), Pare-feu ufw (allow/deny + watchdog 60s)</li>
+      <li><strong className="text-foreground">Logiciels</strong> — Mises à jour (apt upgrade + package hold/unhold), Paquets (recherche FTS + install/remove)</li>
     </ul>
+
+    <H2>Actions groupées (bulk)</H2>
+    <P>Sur la page Machines, cochez plusieurs machines pour faire apparaître le bouton <strong>Action groupée (N)</strong>. Vous pouvez lancer en parallèle sur jusqu'à 100 machines :</P>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
+      <li>Mise à jour système / sécurité</li>
+      <li>Redémarrage (avec confirmation textuelle "REBOOT")</li>
+      <li>Upgrade de l'agent</li>
+      <li>Start/Stop/Restart d'un service</li>
+      <li>Install/Remove/Hold/Unhold d'un paquet</li>
+    </ul>
+    <P>Les actions watchdog-revert (netplan, firewall) restent individuelles par machine (confirmation obligatoire).</P>
 
     <H2>Suppression / Révocation</H2>
     <P>Le menu contextuel (⋮) sur chaque carte machine permet de révoquer ou supprimer. La révocation invalide les clés de l'agent — il ne pourra plus se reconnecter sans un re-enrollment.</P>
@@ -407,12 +425,27 @@ function AlertsDoc() {
     <P>Configurez des règles d'alerte pour être notifié quand une machine dépasse un seuil ou devient inaccessible.</P>
 
     <H2>Types de conditions</H2>
+    <p className="text-sm font-semibold text-foreground mb-2">Métriques (évaluées à chaque heartbeat, ~30s)</p>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">CPU_ABOVE</strong> — CPU dépasse X%</li>
       <li><strong className="text-foreground">MEMORY_ABOVE</strong> — RAM dépasse X%</li>
-      <li><strong className="text-foreground">DISK_ABOVE</strong> — Disque dépasse X%</li>
+      <li><strong className="text-foreground">DISK_ABOVE</strong> — Un disque dépasse X%</li>
       <li><strong className="text-foreground">LOAD_ABOVE</strong> — Load average dépasse X</li>
+    </ul>
+    <p className="text-sm font-semibold text-foreground mb-2">Connexion (évalué toutes les 60s)</p>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">MACHINE_OFFLINE</strong> — Machine hors ligne depuis X secondes</li>
+    </ul>
+    <p className="text-sm font-semibold text-foreground mb-2">Santé système (évalué toutes les 5 min, polls l'agent)</p>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
+      <li><strong className="text-foreground">SERVICE_FAILED</strong> — Service systemd en échec. Filtre optionnel par nom (ex: "nginx", "postgres").</li>
+      <li><strong className="text-foreground">TIMER_FAILED</strong> — Timer systemd dont le service active a échoué.</li>
+      <li><strong className="text-foreground">CRON_FAILED</strong> — Cron job en échec (préparation).</li>
+      <li><strong className="text-foreground">UPDATES_AVAILABLE</strong> — Plus de N mises à jour apt disponibles (threshold = N).</li>
+    </ul>
+    <p className="text-sm font-semibold text-foreground mb-2">Sécurité (évalué toutes les 6h)</p>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
+      <li><strong className="text-foreground">CERT_EXPIRING</strong> — Au moins un cert SSL expire dans ≤ N jours (threshold = N).</li>
     </ul>
 
     <H2>Notifications</H2>
@@ -448,7 +481,16 @@ function UpdatesDoc() {
     </ul>
 
     <H2>Mise à jour en masse</H2>
-    <P>Depuis le Dashboard, le bouton "Tout mettre à jour" lance les mises à jour sur toutes les machines en ligne. Utilisez les Profils pour plus de contrôle (staggered delivery, ciblage par tags).</P>
+    <P>Depuis la page Machines, sélectionnez plusieurs machines via les checkboxes puis cliquez <strong>Action groupée → Mise à jour système</strong>. Dispatch en parallèle avec concurrence limitée à 10 machines. Les résultats sont consolidés dans une table (OK / Échec / Skipped).</P>
+    <P>Alternative : les Profils permettent de planifier les mises à jour avec staggered delivery et ciblage par tags.</P>
+
+    <H2>Package pinning (apt-mark hold)</H2>
+    <P>Dans l'onglet <strong>Logiciels → Mises à jour</strong>, chaque paquet à upgrader a une icône cadenas dans la colonne Hold :</P>
+    <ul className="list-disc list-inside text-sm text-muted-foreground mb-3 space-y-1">
+      <li><strong>Cadenas ouvert</strong> (gris) : le paquet suivra le prochain upgrade.</li>
+      <li><strong>Cadenas fermé</strong> (orange) : paquet "held" via <code>apt-mark hold</code>, ne sera PAS upgradé.</li>
+    </ul>
+    <P>Cas d'usage : bloquer un kernel précis en attendant de valider un reboot, ou figer postgresql sur une version LTS.</P>
 
     <Warn>Les mises à jour sont exécutées en root sur la machine cible. Un reboot peut être nécessaire après certaines mises à jour (kernel). L'indicateur "Reboot requis" apparaîtra sur la machine.</Warn>
   </>);
@@ -583,12 +625,15 @@ GET  /api/auth/me         → User
 GET  /api/auth/config     → { mode, local, keycloak }`}</Code>
 
     <H2>Machines</H2>
-    <Code>{`GET    /api/machines              → Machine[]
-GET    /api/machines/:id          → Machine
-POST   /api/machines              { name, capabilities } → Machine (ADMIN)
-DELETE /api/machines/:id          (ADMIN)
-POST   /api/machines/:id/revoke   { reason } (ADMIN)
-POST   /api/machines/:id/re-enroll (ADMIN)`}</Code>
+    <Code>{`GET    /api/machines                   → Machine[]
+GET    /api/machines/:id               → Machine
+POST   /api/machines                   { name, type? } → Machine (ADMIN)
+PATCH  /api/machines/:id               { name?, sshUser?, isCritical? } (ADMIN)
+DELETE /api/machines/:id               (ADMIN)
+POST   /api/machines/:id/revoke        { reason } (ADMIN)
+POST   /api/machines/:id/re-enroll     (ADMIN)
+POST   /api/machines/:id/agent/upgrade (ADMIN) — self-upgrade agent
+POST   /api/bulk/dispatch              { action_id, machineIds[], params?, mode? } (ADMIN)`}</Code>
 
     <H2>Actions</H2>
     <Code>{`POST /api/machines/:id/actions/sync  { action_id, params?, timeout? } → { success, data }
