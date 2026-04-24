@@ -648,6 +648,35 @@ class ApiClient {
     );
   }
 
+  // Bulk dispatch
+  async bulkDispatch(opts: {
+    action_id: string;
+    params?: Record<string, unknown>;
+    machineIds?: string[];
+    groupId?: string;
+    mode?: "sync" | "fire";
+    timeout?: number;
+  }) {
+    return this.request<{
+      success: boolean;
+      action_id: string;
+      mode: string;
+      summary: { total: number; success: number; failed: number; skipped: number };
+      results: Array<{
+        machineId: string;
+        machineName: string;
+        success: boolean;
+        error?: string;
+        data?: any;
+        skipped?: boolean;
+        async?: boolean;
+      }>;
+    }>("/bulk/dispatch", {
+      method: "POST",
+      body: JSON.stringify(opts),
+    });
+  }
+
   // Fleet
   async getFleetSummary() {
     return this.request<any>("/fleet/summary");
