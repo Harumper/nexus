@@ -12,7 +12,6 @@ import { metricsRoutes } from "./routes/metrics.js";
 import { actionRoutes } from "./routes/actions.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { auditRoutes } from "./routes/audit.js";
-import { moduleRoutes } from "./routes/modules.js";
 import { tagRoutes } from "./routes/tags.js";
 import { groupRoutes } from "./routes/groups.js";
 import { settingsRoutes } from "./routes/settings.js";
@@ -120,7 +119,6 @@ async function main() {
   await app.register(actionRoutes);
   await app.register(alertRoutes);
   await app.register(auditRoutes);
-  await app.register(moduleRoutes);
   await app.register(tagRoutes);
   await app.register(groupRoutes);
   await app.register(settingsRoutes);

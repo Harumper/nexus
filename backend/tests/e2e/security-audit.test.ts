@@ -63,7 +63,6 @@ describe("Security Audit — Critical Fixes", () => {
       "hooks/useWebSocket.tsx",
       "pages/Alerts.tsx",
       "pages/AuditLog.tsx",
-      "pages/Modules.tsx",
       "components/BatchUpdateDialog.tsx",
     ];
     for (const file of files) {
@@ -97,13 +96,6 @@ describe("Security Audit — Agent Hardening", () => {
     const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
     expect(content).toContain("probeAllowedActions");
     expect(content).toContain("action not allowed in probe mode");
-  });
-
-  it("should validate module sockets are not symlinks", () => {
-    const content = readFileSync(resolve(agentDir, "internal/modules/loader.go"), "utf8");
-    expect(content).toContain("ModeSymlink");
-    expect(content).toContain("ModeSocket");
-    expect(content).toContain("Rejected symlink");
   });
 
   it("should use /var/lib/nexus-agent (StateDirectory) for scripts instead of /tmp", () => {
