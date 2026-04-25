@@ -16,6 +16,7 @@ import {
 import { api } from "../services/api";
 import type { Setting } from "../types";
 import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
+import { PageLoader } from "../components/ui";
 
 type Section = "smtp" | "webhook" | "health" | "lifecycle" | "nautilus";
 
@@ -142,11 +143,7 @@ export default function Settings() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

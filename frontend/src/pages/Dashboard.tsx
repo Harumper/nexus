@@ -24,6 +24,7 @@ import { api } from "../services/api";
 import MachineCard from "../components/MachineCard";
 import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
+import { PageLoader } from "../components/ui";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
 interface FleetSummary {
@@ -153,11 +154,7 @@ export default function Dashboard() {
         : "linear-gradient(90deg, #f43f5e, #fb7185)";
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
