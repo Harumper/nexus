@@ -25,10 +25,21 @@
   --color-destructive: var(--nx-danger);
   --color-destructive-foreground: #ffffff;
   --color-success: var(--nx-success);
+  --color-success-subtle: var(--nx-success-subtle);
   --color-warning: var(--nx-warning);
+  --color-warning-subtle: var(--nx-warning-subtle);
+  --color-danger: var(--nx-danger);
+  --color-danger-subtle: var(--nx-danger-subtle);
+  --color-info: var(--nx-info);
+  --color-info-subtle: var(--nx-info-subtle);
+  --color-primary-subtle: var(--nx-primary-subtle);
   --color-border: var(--nx-border);
   --color-input: var(--nx-border);
   --color-ring: var(--nx-primary);
+  --color-elevated: var(--nx-bg-elevated);
+  --color-sidebar: var(--nx-bg-sidebar);
+  --color-text-strong: var(--nx-text-strong);
+  --color-text-weak: var(--nx-text-weak);
   --radius: 0.625rem;
 }
 
