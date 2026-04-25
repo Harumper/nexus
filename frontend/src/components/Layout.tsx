@@ -6,14 +6,12 @@ import {
   LayoutDashboard,
   Server,
   Bell,
-  Tag,
   ScrollText,
   Settings,
   BarChart3,
   LogOut,
   User,
   Palette,
-  Zap,
   BookOpen,
   Container,
 } from "lucide-react";
@@ -34,8 +32,6 @@ function buildNavSections(integrations: { nautilusEnabled: boolean }) {
     {
       label: "Gestion",
       items: [
-        { to: "/tags", icon: Tag, label: "Tags" },
-        { to: "/profiles", icon: Zap, label: "Profils" },
         { to: "/alerts", icon: Bell, label: "Alertes" },
       ],
     },

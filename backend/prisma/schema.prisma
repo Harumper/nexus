@@ -99,7 +99,6 @@ model User {
 
   auditLogs  AuditLog[]
   alertRules AlertRule[]
-  profiles   Profile[]
 
   @@index([email])
   @@index([username])
@@ -154,7 +153,6 @@ model Machine {
   alertStates  AlertState[]
   tags              MachineTag[]
   groupMembers      MachineGroupMember[]
-  profileExecutions ProfileExecution[]
   bootstrapTokens   BootstrapToken[]
 
   createdAt DateTime @default(now())
@@ -387,44 +385,3 @@ model MachineGroupMember {
   @@index([machineId])
 }
 
-// ===================== PROFILES =====================
-
-enum ProfileType {
-  UPGRADE
-  REBOOT
-  SCRIPT
-  PACKAGE
-}
-
-model Profile {
-  id          String             @id @default(cuid())
-  name        String             @unique
-  type        ProfileType
-  description String?
-  config      Json               // Structure dépend du type
-  enabled     Boolean            @default(true)
-  tagFilters  String[]           // Noms de tags pour résoudre les machines cibles
-  createdBy   String?
-  creator     User?              @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  executions  ProfileExecution[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-
-  @@index([enabled])
-  @@index([type])
-}
-
-model ProfileExecution {
-  id          String    @id @default(cuid())
-  profileId   String
-  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  machineId   String
-  machine     Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  status      String    // PENDING, RUNNING, COMPLETED, FAILED, SKIPPED
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-  output      Json?
-
-  @@index([profileId, startedAt])
-  @@index([machineId])
-}

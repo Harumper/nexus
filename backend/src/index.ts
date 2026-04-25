@@ -16,10 +16,8 @@ import { tagRoutes } from "./routes/tags.js";
 import { groupRoutes } from "./routes/groups.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { fleetRoutes } from "./routes/fleet.js";
-import { profileRoutes } from "./routes/profiles.js";
 import { initKeycloak } from "./services/keycloak.js";
 import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts } from "./services/alert-engine.js";
-import { initProfileScheduler } from "./services/profile-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
@@ -124,7 +122,6 @@ async function main() {
   await app.register(groupRoutes);
   await app.register(settingsRoutes);
   await app.register(fleetRoutes);
-  await app.register(profileRoutes);
   await app.register(agentDownloadRoutes);
   await app.register(firewallRoutes);
   await app.register(networkRoutes);
@@ -151,9 +148,6 @@ async function main() {
 
   setupWebSocketServer(app);
 
-  // ===================== Profile Scheduler =====================
-
-  initProfileScheduler();
 
   // ===================== Background Tasks =====================
 

@@ -751,56 +751,6 @@ class ApiClient {
     return this.request<{ buckets: any[] }>(`/fleet/trends?range=${range}`);
   }
 
-  // Profiles
-  async getProfiles() {
-    return this.request<import("../types").Profile[]>("/profiles");
-  }
-
-  async getProfile(id: string) {
-    return this.request<
-      import("../types").Profile & {
-        executions: import("../types").ProfileExecution[];
-      }
-    >(`/profiles/${id}`);
-  }
-
-  async createProfile(data: {
-    name: string;
-    type: string;
-    description?: string;
-    config: any;
-    tagFilters?: string[];
-  }) {
-    return this.request<import("../types").Profile>("/profiles", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateProfile(id: string, data: Partial<import("../types").Profile>) {
-    return this.request<import("../types").Profile>(`/profiles/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteProfile(id: string) {
-    return this.request<void>(`/profiles/${id}`, { method: "DELETE" });
-  }
-
-  async executeProfile(id: string) {
-    return this.request<{ executed: number }>(`/profiles/${id}/execute`, {
-      method: "POST",
-    });
-  }
-
-  async getProfileExecutions(id: string, page = 1) {
-    return this.request<{
-      executions: import("../types").ProfileExecution[];
-      total: number;
-    }>(`/profiles/${id}/executions?page=${page}&limit=20`);
-  }
-
   // Settings
   async getSettings() {
     return this.request<import("../types").Setting[]>("/settings");

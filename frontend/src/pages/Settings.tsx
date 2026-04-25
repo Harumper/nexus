@@ -12,19 +12,22 @@ import {
   EyeOff,
   Check,
   Container,
+  Tag as TagIcon,
 } from "lucide-react";
 import { api } from "../services/api";
 import type { Setting } from "../types";
 import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
+import TagsManagementCard from "../components/TagsManagementCard";
 import { PageLoader } from "../components/ui";
 
-type Section = "smtp" | "webhook" | "health" | "lifecycle" | "nautilus";
+type Section = "smtp" | "webhook" | "health" | "lifecycle" | "tags" | "nautilus";
 
 const SECTIONS: { id: Section; label: string; icon: typeof Mail }[] = [
   { id: "smtp", label: "Email (SMTP)", icon: Mail },
   { id: "webhook", label: "Webhook", icon: Webhook },
   { id: "health", label: "Seuils santé", icon: Heart },
   { id: "lifecycle", label: "Cycle de vie", icon: Clock },
+  { id: "tags", label: "Tags", icon: TagIcon },
   { id: "nautilus", label: "Intégration Nautilus", icon: Container },
 ];
 
@@ -506,6 +509,8 @@ export default function Settings() {
           </div>
         </section>
         )}
+
+        {activeSection === "tags" && <TagsManagementCard />}
 
         {activeSection === "nautilus" && (
           /* Intégration Nautilus */
