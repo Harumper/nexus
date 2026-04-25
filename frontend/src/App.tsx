@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./hooks/useAuth";
 import Layout from "./components/Layout";
@@ -39,6 +40,17 @@ export default function App() {
 
   return (
     <ThemeProvider>
+    <Toaster
+      position="top-right"
+      theme="system"
+      richColors
+      closeButton
+      toastOptions={{
+        classNames: {
+          toast: "!bg-card !border-border !text-foreground",
+        },
+      }}
+    />
     <Routes>
       <Route
         path="/login"
