@@ -6,16 +6,17 @@ import {
   CheckCircle2,
   Eye,
   Trash2,
-  X,
   Zap,
-  Loader2,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { timeAgo } from "../lib/utils";
 import type { WSDashboardMessage } from "../types";
 import AlertChannelEditor, { type NotificationChannel } from "../components/AlertChannelEditor";
+import { Button, Dialog, ConfirmDialog, PageLoader } from "../components/ui";
 
 interface AlertRule {
   id: string;
@@ -173,13 +174,20 @@ export default function Alerts() {
     fetchData();
   };
 
-  const deleteRule = async (id: string) => {
-    if (!confirm("Supprimer cette règle d'alerte ?")) return;
-    await fetch(`/api/alerts/rules/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
-    });
-    fetchData();
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const performDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/alerts/rules/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
+      });
+      if (!res.ok) throw new Error("Échec de la suppression");
+      toast.success("Règle supprimée");
+      fetchData();
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur");
+    }
   };
 
   const toggleRule = async (id: string, enabled: boolean) => {
@@ -200,23 +208,27 @@ export default function Alerts() {
     setTestingRule(id);
     try {
       const r = await api.testAlertRule(id);
-      const lines = r.results.map((res) =>
-        res.success ? `✓ ${res.type}` : `✗ ${res.type}: ${res.error}`
-      );
-      alert(`Test "${name}" : ${r.ok}/${r.total} OK\n\n${lines.join("\n")}`);
+      const failed = r.results.filter((res) => !res.success);
+      if (failed.length === 0) {
+        toast.success(`Test "${name}" : ${r.ok}/${r.total} canaux OK`, { duration: 4000 });
+      } else {
+        toast.error(
+          `Test "${name}" : ${r.ok}/${r.total} OK · ${failed.length} échec(s)`,
+          {
+            description: failed.map((f) => `${f.type}: ${f.error}`).join(" · "),
+            duration: 8000,
+          }
+        );
+      }
     } catch (err: any) {
-      alert("Erreur test : " + (err?.message || "unknown"));
+      toast.error("Erreur test : " + (err?.message || "unknown"));
     } finally {
       setTestingRule(null);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -375,31 +387,36 @@ export default function Alerts() {
               </div>
               {user?.role === "ADMIN" && (
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => testRule(rule.id, rule.name)}
-                    disabled={testingRule === rule.id}
+                    loading={testingRule === rule.id}
+                    icon={<Zap />}
                     title="Envoyer un événement de test sur tous les canaux configurés"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-50"
                   >
-                    {testingRule === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                     Tester
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={rule.enabled ? "outline" : "outline"}
                     onClick={() => toggleRule(rule.id, !rule.enabled)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    className={
                       rule.enabled
-                        ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                        : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                    }`}
+                        ? "!border-warning !text-warning hover:!bg-warning-subtle"
+                        : "!border-success !text-success hover:!bg-success-subtle"
+                    }
                   >
                     {rule.enabled ? "Désactiver" : "Activer"}
-                  </button>
-                  <button
-                    onClick={() => deleteRule(rule.id)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPendingDelete({ id: rule.id, name: rule.name })}
+                    icon={<Trash2 />}
+                    aria-label="Supprimer la règle"
+                    className="!text-muted-foreground hover:!text-destructive"
+                  />
                 </div>
               )}
             </div>
@@ -448,6 +465,26 @@ export default function Alerts() {
           }}
         />
       )}
+
+      {/* Confirm delete */}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) await performDelete(pendingDelete.id);
+        }}
+        title="Supprimer cette règle d'alerte ?"
+        description={
+          pendingDelete && (
+            <>
+              La règle <strong>{pendingDelete.name}</strong> sera supprimée définitivement.
+              L'historique des alertes déclenchées par cette règle sera conservé.
+            </>
+          )
+        }
+        confirmLabel="Supprimer"
+        variant="danger"
+      />
     </div>
   );
 }
