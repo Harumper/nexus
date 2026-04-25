@@ -1,9 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { statusColor, statusLabel, timeAgo } from "../lib/utils";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirm } from "./ui";
 import type { Machine, Metric } from "../types";
 
 interface MachineCardProps {
@@ -22,36 +24,55 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
   const isAdmin = user?.role === "ADMIN";
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Supprimer la machine "${machine.name}" ?`)) return;
+    setMenuOpen(false);
+    if (
+      !(await confirm({
+        title: `Supprimer la machine "${machine.name}" ?`,
+        description: "Cette action est irréversible.",
+        confirmLabel: "Supprimer",
+        variant: "danger",
+      }))
+    )
+      return;
     setActionLoading(true);
     try {
       await api.deleteMachine(machine.id);
+      toast.success("Machine supprimée");
       onDeleted?.();
     } catch {
-      alert("Erreur lors de la suppression");
+      toast.error("Erreur lors de la suppression");
     } finally {
       setActionLoading(false);
-      setMenuOpen(false);
     }
   };
 
   const handleRevoke = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Révoquer la machine "${machine.name}" ?`)) return;
+    setMenuOpen(false);
+    if (
+      !(await confirm({
+        title: `Révoquer la machine "${machine.name}" ?`,
+        description: "L'agent sera déconnecté immédiatement.",
+        confirmLabel: "Révoquer",
+        variant: "warning",
+      }))
+    )
+      return;
     setActionLoading(true);
     try {
       await api.revokeMachine(machine.id, "Revoked from machine list");
+      toast.success("Machine révoquée");
       onDeleted?.();
     } catch {
-      alert("Erreur lors de la révocation");
+      toast.error("Erreur lors de la révocation");
     } finally {
       setActionLoading(false);
-      setMenuOpen(false);
     }
   };
 
@@ -199,6 +220,7 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
         </div>
       )}
       </div>
+      {ConfirmDialogElement}
     </div>
   );
 }

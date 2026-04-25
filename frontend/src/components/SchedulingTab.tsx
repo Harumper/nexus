@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Clock, CalendarClock, RefreshCw, Loader2, Power, PowerOff } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { useConfirm } from "./ui";
 
 interface Props {
   machineId: string;
@@ -14,6 +16,7 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
   const [error, setError] = useState("");
   const [acting, setActing] = useState<string | null>(null);
   const [tab, setTab] = useState<"timers" | "cron">("timers");
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const load = async () => {
     setLoading(true);
@@ -37,14 +40,16 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
   const toggle = async (name: string, enabled: boolean) => {
     if (!canMutate) return;
     const verb = enabled ? "disable" : "enable";
-    if (!confirm(`${verb === "enable" ? "Activer" : "Désactiver"} le timer ${name} ?`)) return;
+    const label = verb === "enable" ? "Activer" : "Désactiver";
+    if (!(await confirm({ title: `${label} le timer ${name} ?`, confirmLabel: label, variant: "primary" }))) return;
     setActing(name);
     try {
       if (verb === "enable") await api.timerEnable(machineId, name);
       else await api.timerDisable(machineId, name);
+      toast.success(`${name} : ${label.toLowerCase()}`);
       await load();
     } catch (err: any) {
-      alert("Erreur: " + (err?.message || "action failed"));
+      toast.error(err?.message || "Action échouée");
     } finally {
       setActing(null);
     }
@@ -177,6 +182,7 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
           </div>
         )
       )}
+      {ConfirmDialogElement}
     </div>
   );
 }

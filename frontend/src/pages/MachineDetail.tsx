@@ -25,6 +25,8 @@ import UsersTab from "../components/UsersTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import SslCertsCard from "../components/SslCertsCard";
+import { useConfirm, PageLoader } from "../components/ui";
+import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
@@ -40,6 +42,7 @@ export default function MachineDetail() {
   const [lastSubtab, setLastSubtab] = useState<Record<string, Tab>>({});
   const [logsService, setLogsService] = useState<string | null>(null);
   const [showSshDialog, setShowSshDialog] = useState(false);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   // Load machine data
   useEffect(() => {
@@ -88,47 +91,89 @@ export default function MachineDetail() {
   useWebSocket({ onMessage: handleWsMessage });
 
   const handleRevoke = async () => {
-    if (!id || !confirm("Révoquer cette machine ? L'agent sera déconnecté.")) return;
-    await api.revokeMachine(id, "Revoked from UI");
-    setMachine(await api.getMachine(id));
+    if (!id) return;
+    if (
+      !(await confirm({
+        title: "Révoquer cette machine ?",
+        description: "L'agent sera déconnecté immédiatement et ne pourra plus communiquer avec Nexus tant qu'il n'est pas ré-enrôlé.",
+        confirmLabel: "Révoquer",
+        variant: "warning",
+      }))
+    )
+      return;
+    try {
+      await api.revokeMachine(id, "Revoked from UI");
+      setMachine(await api.getMachine(id));
+      toast.success("Machine révoquée");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur");
+    }
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm("Supprimer définitivement cette machine ?")) return;
-    await api.deleteMachine(id);
-    navigate("/machines");
+    if (!id) return;
+    if (
+      !(await confirm({
+        title: "Supprimer définitivement cette machine ?",
+        description: "Cette action est irréversible. Toutes les métriques et l'historique d'audit liés à cette machine seront supprimés.",
+        confirmLabel: "Supprimer",
+        variant: "danger",
+      }))
+    )
+      return;
+    try {
+      await api.deleteMachine(id);
+      toast.success("Machine supprimée");
+      navigate("/machines");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur");
+    }
   };
 
   const handleUpgradeAgent = async () => {
     if (!id) return;
-    if (!confirm("Mettre à jour le binaire de l'agent ?\n\nL'agent va télécharger la dernière version et se redémarrer automatiquement (~5s d'interruption).")) return;
+    if (
+      !(await confirm({
+        title: "Mettre à jour l'agent ?",
+        description:
+          "L'agent va télécharger la dernière version et se redémarrer automatiquement (~5s d'interruption).",
+        confirmLabel: "Mettre à jour",
+        variant: "primary",
+      }))
+    )
+      return;
     try {
       const res = await api.upgradeAgent(id);
-      alert(res.message || "Mise à jour déclenchée");
+      toast.success(res.message || "Mise à jour déclenchée");
     } catch (err: any) {
-      alert("Erreur : " + (err.message || "échec de la mise à jour"));
+      toast.error(err?.message || "Échec de la mise à jour");
     }
   };
 
   const handleReboot = async () => {
     if (!id) return;
-    const confirmWord = prompt("⚠️ Redémarrer la machine ?\n\nTaper REBOOT pour confirmer :");
-    if (confirmWord !== "REBOOT") return;
+    if (
+      !(await confirm({
+        title: "Redémarrer la machine ?",
+        description:
+          "La machine sera coupée puis reviendra en environ 60s. Confirmez en tapant REBOOT.",
+        confirmWord: "REBOOT",
+        confirmLabel: "Redémarrer",
+        variant: "danger",
+      }))
+    )
+      return;
     try {
       await api.rebootMachine(id);
-      alert("Redémarrage déclenché. La machine reviendra en ~60s.");
+      toast.success("Redémarrage déclenché. Retour dans ~60s.");
     } catch (err: any) {
-      alert("Erreur : " + (err.message || "échec du redémarrage"));
+      toast.error(err?.message || "Échec du redémarrage");
     }
   };
 
 
   if (loading || !machine) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const status = statusColor(machine.status);
@@ -446,6 +491,8 @@ export default function MachineDetail() {
           onClose={() => setShowSshDialog(false)}
         />
       )}
+
+      {ConfirmDialogElement}
     </div>
   );
 }

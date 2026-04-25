@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Shield, ShieldOff, Plus, Trash2, Check, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { useConfirm } from "./ui";
 
 interface FirewallTabProps {
   machineId: string;
@@ -49,6 +51,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
   const [countdown, setCountdown] = useState(0);
   const [adding, setAdding] = useState(false);
   const [newRule, setNewRule] = useState({ action: "allow", rule: "" });
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,7 +136,12 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
   };
 
   const handleRemove = async (n: number, rule: string) => {
-    if (!confirm(`Supprimer la règle #${n} : ${rule} ?`)) return;
+    if (!(await confirm({
+      title: `Supprimer la règle #${n} ?`,
+      description: rule,
+      confirmLabel: "Supprimer",
+      variant: "danger",
+    }))) return;
     await applyAction(() => api.firewallRuleRemove(machineId, n), `supprimer règle #${n}`);
   };
 
@@ -316,6 +324,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
         ⚡ <b>Watchdog-revert</b> : chaque modification est appliquée mais sera annulée automatiquement après 60s si vous ne confirmez pas.
         Protection contre les règles qui vous coupent l'accès au serveur.
       </p>
+      {ConfirmDialogElement}
     </div>
   );
 }

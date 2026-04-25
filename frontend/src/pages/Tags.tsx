@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Tag as TagIcon, Plus, Trash2, Edit2, X } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirm, PageLoader } from "../components/ui";
 import type { Tag } from "../types";
 
 const PRESET_COLORS = [
@@ -23,6 +25,7 @@ export default function Tags() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const fetchTags = useCallback(async () => {
     try {
@@ -39,19 +42,22 @@ export default function Tags() {
   }, [fetchTags]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer ce tag ?")) return;
+    if (!(await confirm({
+      title: "Supprimer ce tag ?",
+      confirmLabel: "Supprimer",
+      variant: "danger",
+    }))) return;
     try {
       await api.deleteTag(id);
+      toast.success("Tag supprimé");
       fetchTags();
-    } catch {}
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur");
+    }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -148,6 +154,7 @@ export default function Tags() {
           }}
         />
       )}
+      {ConfirmDialogElement}
     </div>
   );
 }
