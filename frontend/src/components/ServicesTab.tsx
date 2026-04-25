@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Play, Square, RotateCcw, FileText, Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { useConfirm } from "./ui";
 
 interface SystemdUnit {
   unit: string;
@@ -24,6 +26,7 @@ export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps)
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | "active" | "inactive" | "failed">("all");
   const [actingOn, setActingOn] = useState<{ service: string; action: ActionKind } | null>(null);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,13 +48,14 @@ export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps)
 
   const handleAction = async (service: string, action: ActionKind) => {
     const verb = action === "start" ? "Démarrer" : action === "stop" ? "Arrêter" : "Redémarrer";
-    if (!confirm(`${verb} ${service} ?`)) return;
+    if (!(await confirm({ title: `${verb} ${service} ?`, confirmLabel: verb, variant: action === "stop" ? "danger" : "primary" }))) return;
     setActingOn({ service, action });
     try {
       await api.serviceAction(machineId, service, action);
+      toast.success(`${service} : ${verb.toLowerCase()} OK`);
       await load();
     } catch (err: any) {
-      alert(`Erreur : ${err?.message || "action échouée"}`);
+      toast.error(err?.message || "Action échouée");
     } finally {
       setActingOn(null);
     }
@@ -221,6 +225,7 @@ export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps)
           </tbody>
         </table>
       </div>
+      {ConfirmDialogElement}
     </div>
   );
 }

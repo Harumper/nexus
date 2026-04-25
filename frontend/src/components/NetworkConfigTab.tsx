@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Network, Save, RefreshCw, Loader2, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { useConfirm } from "./ui";
 
 interface Props {
   machineId: string;
@@ -22,6 +24,7 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState<{ requestId: string; expiresAt: number } | null>(null);
   const [remaining, setRemaining] = useState(0);
+  const { confirm, ConfirmDialogElement } = useConfirm();
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
@@ -88,11 +91,13 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
 
   const handleApply = async () => {
     if (!canMutate) return;
-    if (!confirm(
-      "⚠️ Appliquer cette configuration réseau ?\n\n" +
-      "Si vous perdez la connexion ou ne confirmez pas dans les 120s, " +
-      "la configuration précédente sera restaurée automatiquement."
-    )) return;
+    if (!(await confirm({
+      title: "Appliquer cette configuration réseau ?",
+      description:
+        "Si vous perdez la connexion ou ne confirmez pas dans les 120s, la configuration précédente sera restaurée automatiquement.",
+      confirmLabel: "Appliquer",
+      variant: "danger",
+    }))) return;
     setApplying(true);
     setError("");
     try {
@@ -103,7 +108,9 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
         expiresAt: Date.now() + 120_000,
       });
       setOriginalContent(editorContent);
+      toast.success("Configuration appliquée — confirmez avant 120s");
     } catch (err: any) {
+      toast.error(err?.message || "Apply failed");
       setError(err?.message || "Apply failed");
     } finally {
       setApplying(false);
@@ -238,6 +245,7 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
           </div>
         </div>
       </div>
+      {ConfirmDialogElement}
     </div>
   );
 }

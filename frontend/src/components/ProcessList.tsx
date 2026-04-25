@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
 import { RefreshCw, Skull, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirm } from "./ui";
 
 interface ProcessInfo {
   pid: number;
@@ -24,6 +26,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
   const [killing, setKilling] = useState<number | null>(null);
   const [tab, setTab] = useState<"cpu" | "memory">("cpu");
   const [error, setError] = useState<string | null>(null);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   // Auto-pull au montage du composant
   useEffect(() => {
@@ -48,14 +51,18 @@ export default function ProcessList({ machineId }: ProcessListProps) {
   }, [machineId]);
 
   const killProcess = async (pid: number) => {
-    if (!confirm(`Envoyer SIGTERM au processus ${pid} ?`)) return;
+    if (!(await confirm({
+      title: `Envoyer SIGTERM au processus ${pid} ?`,
+      confirmLabel: "Tuer",
+      variant: "danger",
+    }))) return;
     setKilling(pid);
     try {
       await api.dispatchActionSync(machineId, "process.kill", { pid, signal: "SIGTERM" }, 10000);
-      // Refresh after kill
+      toast.success(`SIGTERM envoyé à PID ${pid}`);
       setTimeout(fetchProcesses, 1000);
-    } catch {
-      // ignore
+    } catch (err: any) {
+      toast.error(err?.message || "Échec");
     } finally {
       setKilling(null);
     }
@@ -154,6 +161,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
           </div>
         </>
       )}
+      {ConfirmDialogElement}
     </div>
   );
 }

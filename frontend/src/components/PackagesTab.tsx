@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Package, Download, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { useConfirm } from "./ui";
 
 interface PackagesTabProps {
   machineId: string;
@@ -39,6 +41,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
   const [error, setError] = useState("");
   const [acting, setActing] = useState<{ name: string; kind: "install" | "remove" } | null>(null);
   const [suite, setSuite] = useState("noble");
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   // Extract description title (first line before the full description)
   const getTitle = (desc: string) => desc.split("\n")[0] || "";
@@ -64,26 +67,26 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
   useEffect(() => { doSearch(); }, [doSearch]);
 
   const handleInstall = async (name: string) => {
-    if (!confirm(`Installer le paquet "${name}" ?`)) return;
+    if (!(await confirm({ title: `Installer "${name}" ?`, confirmLabel: "Installer", variant: "primary" }))) return;
     setActing({ name, kind: "install" });
     try {
       await api.installPackage(machineId, name);
-      alert(`"${name}" installé avec succès.`);
+      toast.success(`"${name}" installé`);
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "install failed"));
+      toast.error(err?.message || "Install échouée");
     } finally {
       setActing(null);
     }
   };
 
   const handleRemove = async (name: string) => {
-    if (!confirm(`Désinstaller le paquet "${name}" ?`)) return;
+    if (!(await confirm({ title: `Désinstaller "${name}" ?`, confirmLabel: "Désinstaller", variant: "danger" }))) return;
     setActing({ name, kind: "remove" });
     try {
       await api.removePackage(machineId, name);
-      alert(`"${name}" désinstallé.`);
+      toast.success(`"${name}" désinstallé`);
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "remove failed"));
+      toast.error(err?.message || "Suppression échouée");
     } finally {
       setActing(null);
     }
@@ -222,6 +225,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
           </div>
         </div>
       )}
+      {ConfirmDialogElement}
     </div>
   );
 }

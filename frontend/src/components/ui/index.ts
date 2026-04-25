@@ -11,3 +11,4 @@ export { Spinner, PageLoader, Skeleton } from "./Spinner";
 export { Input, Textarea } from "./Input";
 export { Dialog, Drawer } from "./Dialog";
 export { ConfirmDialog } from "./ConfirmDialog";
+export { useConfirm } from "./useConfirm";

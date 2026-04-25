@@ -11,8 +11,10 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirm } from "../components/ui";
 import { timeAgo } from "../lib/utils";
 import type { Profile, ProfileExecution } from "../types";
 
@@ -69,6 +71,7 @@ export default function Profiles() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [executions, setExecutions] = useState<ProfileExecution[]>([]);
   const [loadingExecs, setLoadingExecs] = useState(false);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const fetchProfiles = useCallback(async () => {
     try {
@@ -85,11 +88,19 @@ export default function Profiles() {
   }, [fetchProfiles]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer ce profil ?")) return;
+    if (!(await confirm({
+      title: "Supprimer ce profil ?",
+      description: "L'historique d'exécutions sera conservé.",
+      confirmLabel: "Supprimer",
+      variant: "danger",
+    }))) return;
     try {
       await api.deleteProfile(id);
+      toast.success("Profil supprimé");
       fetchProfiles();
-    } catch {}
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur");
+    }
   };
 
   const handleToggle = async (profile: Profile) => {
@@ -402,6 +413,7 @@ export default function Profiles() {
           </div>
         </div>
       )}
+      {ConfirmDialogElement}
     </div>
   );
 }
