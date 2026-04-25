@@ -238,6 +238,78 @@ sudo journalctl -u nexus-agent -f`}</Code>
       <li><code>service_stop/restart</code> sur docker, nginx, ssh, postgresql, traefik, keycloak</li>
       <li><code>package.remove</code> sur docker-ce, nginx, postgresql, openssh-*, systemd, sudo, apt</li>
     </ul>
+
+    <H2>Réinstallation (sudoers obsolètes)</H2>
+    <P>
+      Quand une nouvelle version de Nexus ajoute des règles sudo (nouvelles actions agent),
+      les agents existants gardent leurs anciens sudoers et les nouvelles actions échouent.
+      Un badge <strong className="text-foreground">⚠ Sudoers obsolètes</strong> apparaît
+      sur la machine. Pour resynchroniser :
+    </P>
+    <Code>{`# 1. SSH sur la machine concernée
+ssh user@machine-ip
+
+# 2. Re-télécharge le script depuis Nexus et le relance avec les mêmes paramètres
+#    qu'à l'install initiale (l'enrollment token n'est plus nécessaire si l'agent
+#    a déjà ses clés ECDSA dans /var/lib/nexus-agent/)
+sudo bash install-agent.sh \\
+  --server-url wss://nexus.example.com/ws/agent \\
+  --machine-id <machine-id> \\
+  --reinstall
+
+# 3. Redémarre le service pour que l'agent recharge le hash sudoers
+sudo systemctl restart nexus-agent`}</Code>
+    <P>
+      Au prochain heartbeat (~30s), le badge disparaît automatiquement.
+    </P>
+
+    <H2>Désinstallation complète</H2>
+    <P>
+      Pour retirer entièrement l'agent d'une machine (avant suppression de la machine
+      dans Nexus, ou avant un ré-enrôlement propre depuis zéro) :
+    </P>
+    <Code>{`# Sur la machine cible, en root
+sudo systemctl stop nexus-agent 2>/dev/null
+sudo systemctl disable nexus-agent 2>/dev/null
+
+# Service unit + binaire
+sudo rm -f /etc/systemd/system/nexus-agent.service
+sudo rm -f /usr/local/bin/nexus-agent
+
+# State + clés ECDSA + config
+sudo rm -rf /var/lib/nexus-agent /etc/nexus-agent
+
+# Sudoers
+sudo rm -f /etc/sudoers.d/nexus-agent
+
+# Groupes systemd-journal
+sudo gpasswd -d nexus-agent systemd-journal 2>/dev/null
+
+# Utilisateur
+sudo userdel nexus-agent 2>/dev/null
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+echo "Cleanup done"`}</Code>
+    <Warn>
+      Cette commande supprime aussi les <strong>clés ECDSA</strong> et le shared secret. Si
+      tu veux ré-enrôler la machine ensuite, tu devras créer une nouvelle entrée dans
+      l'UI (les anciennes clés ne sont plus valables).
+    </Warn>
+
+    <H2>Ré-enrôlement propre</H2>
+    <P>
+      Si tu veux repartir de zéro (clés régénérées, statut remis à <em>ENROLLMENT_PENDING</em>) :
+    </P>
+    <ol className="list-decimal list-inside text-sm text-muted-foreground mb-4 space-y-1 ml-2">
+      <li>Désinstalle l'agent (script ci-dessus)</li>
+      <li>Dans l'UI Nexus → la machine → bouton <strong>Re-enroll</strong> (régénère un token + nouvelle paire ECDSA)</li>
+      <li>Copie la nouvelle commande d'install et exécute-la sur la machine</li>
+    </ol>
+    <P>
+      Alternative : supprime entièrement la machine dans Nexus et recrée-en une nouvelle. Plus propre si la machine a été remise à zéro.
+    </P>
   </>);
 }
 
