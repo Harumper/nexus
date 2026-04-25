@@ -4,19 +4,25 @@ import { prisma } from "./database.js";
 export async function sendWebhook(
   url: string,
   payload: object,
+  customSecret?: string,
 ): Promise<void> {
-  // Get or generate webhook secret
-  let secretSetting = await prisma.setting.findUnique({ where: { key: "webhook_secret" } });
-  if (!secretSetting) {
-    const { randomBytes } = await import("node:crypto");
-    const secret = randomBytes(32).toString("hex");
-    secretSetting = await prisma.setting.upsert({
-      where: { key: "webhook_secret" },
-      update: { value: secret },
-      create: { key: "webhook_secret", value: secret },
-    });
+  let secret: string;
+  if (customSecret) {
+    secret = customSecret;
+  } else {
+    // Get or generate webhook secret global
+    let secretSetting = await prisma.setting.findUnique({ where: { key: "webhook_secret" } });
+    if (!secretSetting) {
+      const { randomBytes } = await import("node:crypto");
+      const generated = randomBytes(32).toString("hex");
+      secretSetting = await prisma.setting.upsert({
+        where: { key: "webhook_secret" },
+        update: { value: generated },
+        create: { key: "webhook_secret", value: generated },
+      });
+    }
+    secret = typeof secretSetting.value === "string" ? secretSetting.value : String(secretSetting.value);
   }
-  const secret = typeof secretSetting.value === "string" ? secretSetting.value : String(secretSetting.value);
 
   const body = JSON.stringify(payload);
   const timestamp = new Date().toISOString();

@@ -2,6 +2,39 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
 import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/auth.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
+import { testAlertRule, ChannelType } from "../services/notifications.js";
+
+const ALLOWED_CHANNEL_TYPES: ChannelType[] = ["DISCORD", "SLACK", "TEAMS", "EMAIL", "WEBHOOK"];
+
+function validateChannels(channels: unknown): { ok: boolean; error?: string } {
+  if (channels === null || channels === undefined) return { ok: true };
+  if (!Array.isArray(channels)) return { ok: false, error: "channels must be an array" };
+  for (const c of channels) {
+    if (!c || typeof c !== "object") return { ok: false, error: "invalid channel entry" };
+    const ch = c as { type?: string; config?: any };
+    if (!ch.type || !ALLOWED_CHANNEL_TYPES.includes(ch.type as ChannelType)) {
+      return { ok: false, error: `invalid channel type: ${ch.type}` };
+    }
+    if (!ch.config || typeof ch.config !== "object") {
+      return { ok: false, error: `channel ${ch.type} missing config` };
+    }
+    // Validation par type
+    if (ch.type === "DISCORD" || ch.type === "SLACK" || ch.type === "TEAMS") {
+      if (typeof ch.config.webhookUrl !== "string" || !ch.config.webhookUrl.startsWith("http")) {
+        return { ok: false, error: `${ch.type} requires webhookUrl (http/https)` };
+      }
+    } else if (ch.type === "WEBHOOK") {
+      if (typeof ch.config.url !== "string" || !ch.config.url.startsWith("http")) {
+        return { ok: false, error: "WEBHOOK requires url (http/https)" };
+      }
+    } else if (ch.type === "EMAIL") {
+      if (!Array.isArray(ch.config.recipients) || ch.config.recipients.length === 0) {
+        return { ok: false, error: "EMAIL requires recipients[]" };
+      }
+    }
+  }
+  return { ok: true };
+}
 
 export async function alertRoutes(app: FastifyInstance): Promise<void> {
   // List alert rules
@@ -56,6 +89,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
             cooldownSeconds: { type: "number", minimum: 0 },
             notifyEmail: { type: "boolean" },
             notifyWebhook: { type: "string" },
+            channels: { type: "array" },
           },
         },
       },
@@ -63,6 +97,11 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const body = request.body as any;
       const user = getUserFromRequest(request);
+
+      const channelsCheck = validateChannels(body.channels);
+      if (!channelsCheck.ok) {
+        return reply.code(400).send({ error: channelsCheck.error });
+      }
 
       const rule = await prisma.alertRule.create({
         data: {
@@ -77,6 +116,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
           cooldownSeconds: body.cooldownSeconds || 300,
           notifyEmail: body.notifyEmail || false,
           notifyWebhook: body.notifyWebhook,
+          channels: body.channels || null,
           createdBy: user?.sub,
         },
       });
@@ -105,6 +145,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
             cooldownSeconds: { type: "number" },
             notifyEmail: { type: "boolean" },
             notifyWebhook: { type: "string" },
+            channels: { type: "array" },
           },
         },
       },
@@ -113,12 +154,40 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const body = request.body as any;
 
+      if (body.channels !== undefined) {
+        const c = validateChannels(body.channels);
+        if (!c.ok) return reply.code(400).send({ error: c.error });
+      }
+
       const rule = await prisma.alertRule.update({
         where: { id },
         data: body,
       });
 
       return reply.send(rule);
+    }
+  );
+
+  // Test une regle (envoie un evenement de test sur tous ses channels)
+  app.post(
+    "/api/alerts/rules/:id/test",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const results = await testAlertRule(id);
+        const ok = results.filter((r) => r.success).length;
+        const failed = results.filter((r) => !r.success);
+        return reply.send({
+          success: failed.length === 0,
+          total: results.length,
+          ok,
+          failed: failed.length,
+          results,
+        });
+      } catch (err: any) {
+        return reply.code(500).send({ error: err?.message || "test failed" });
+      }
     }
   );
 

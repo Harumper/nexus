@@ -175,11 +175,23 @@ describe("Phase 7 — Email", () => {
 });
 
 describe("Phase 7 — Alert Engine Integration", () => {
-  it("should have webhook and email notifications in alert-engine", () => {
+  it("should dispatch notifications via the dispatcher (multi-channel)", () => {
     const content = readFileSync(resolve(backendSrc, "services/alert-engine.ts"), "utf8");
+    // Le dispatcher gere webhook/email + Discord/Slack/Teams via channels JSON
+    expect(content).toContain("dispatchNotifications");
+    // Les champs legacy doivent toujours etre passes au dispatcher
     expect(content).toContain("notifyWebhook");
     expect(content).toContain("notifyEmail");
-    expect(content).toContain("sendWebhook");
-    expect(content).toContain("sendAlertEmail");
+  });
+
+  it("should have multi-channel notifications service", () => {
+    const path = resolve(backendSrc, "services/notifications.ts");
+    expect(existsSync(path)).toBe(true);
+    const content = readFileSync(path, "utf8");
+    expect(content).toContain("dispatchNotifications");
+    expect(content).toContain("DISCORD");
+    expect(content).toContain("SLACK");
+    expect(content).toContain("TEAMS");
+    expect(content).toContain("testAlertRule");
   });
 });

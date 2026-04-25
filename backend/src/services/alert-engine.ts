@@ -1,6 +1,7 @@
 import { prisma } from "./database.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 import { dispatchActionSync } from "./action-sync.js";
+import { dispatchNotifications } from "./notifications.js";
 import type { AlertConditionType, AlertSeverity } from "@prisma/client";
 
 // Conditions qui necessitent un poll actif (dispatch action vers l'agent)
@@ -371,42 +372,36 @@ async function fireAlert(
     },
   });
 
-  // Webhook notification
-  if (alertState.rule.notifyWebhook) {
-    import("./webhook.js").then(({ sendWebhook }) => {
-      sendWebhook(alertState.rule.notifyWebhook!, {
-        event: "alert.fired",
-        alert: {
-          id: alertState.id,
-          ruleName: alertState.rule.name,
-          severity,
-          machineName: alertState.machine.name,
-          details,
-          firedAt: alertState.firedAt.toISOString(),
-        },
-        timestamp: new Date().toISOString(),
-      }).catch(() => {});
-    });
-  }
-
-  // Email notification
-  if (alertState.rule.notifyEmail) {
-    import("./email.js").then(({ sendAlertEmail }) => {
-      // Get email from settings or rule
-      prisma.setting.findUnique({ where: { key: "alert_email" } }).then(setting => {
-        const email = typeof setting?.value === "string" ? setting.value : (setting?.value as any)?.value;
-        if (email) {
-          sendAlertEmail(email, {
-            ruleName: alertState.rule.name,
-            severity: String(severity),
-            machineName: alertState.machine.name,
-            details,
-            firedAt: alertState.firedAt.toISOString(),
-          }).catch(() => {});
-        }
-      });
-    });
-  }
+  // Multi-channel notifications (Discord, Slack, Teams, Email, Webhook)
+  // Dispatcher gere les channels modernes (rule.channels JSON) + legacy
+  // (notifyEmail, notifyWebhook). Fire-and-forget pour ne pas bloquer le
+  // pipeline d'alertes — les erreurs sont loggees par le dispatcher.
+  dispatchNotifications(
+    {
+      id: alertState.rule.id,
+      notifyEmail: alertState.rule.notifyEmail,
+      notifyWebhook: alertState.rule.notifyWebhook,
+      channels: alertState.rule.channels,
+    },
+    {
+      ruleId: alertState.rule.id,
+      ruleName: alertState.rule.name,
+      severity: String(severity) as any,
+      machineName: alertState.machine.name,
+      machineId,
+      conditionType: String(alertState.rule.conditionType),
+      details,
+      firedAt: alertState.firedAt.toISOString(),
+    }
+  ).then((results) => {
+    const failed = results.filter((r) => !r.success);
+    if (failed.length > 0) {
+      console.warn(
+        `[AlertEngine] ${failed.length}/${results.length} channels failed for ${alertState.rule.name}:`,
+        failed.map((f) => `${f.type}=${f.error}`).join(", ")
+      );
+    }
+  });
 }
 
 async function resolveAlert(
