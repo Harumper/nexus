@@ -1,6 +1,26 @@
 import { useState, useEffect } from "react";
-import { Users, UserPlus, Key, Trash2, Shield, Loader2, RefreshCw, X, ShieldCheck } from "lucide-react";
+import {
+  Users,
+  UserPlus,
+  Key,
+  Trash2,
+  Shield,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import {
+  Button,
+  Dialog,
+  Drawer,
+  ConfirmDialog,
+  EmptyState,
+  Input,
+  Textarea,
+  Spinner,
+  Badge,
+} from "./ui";
 
 interface Props {
   machineId: string;
@@ -21,47 +41,51 @@ interface LinuxUser {
 export default function UsersTab({ machineId, canMutate }: Props) {
   const [users, setUsers] = useState<LinuxUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [acting, setActing] = useState<string | null>(null);
   const [selected, setSelected] = useState<LinuxUser | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    setError("");
     try {
       const res = await api.listUsers(machineId);
       setUsers(res?.data?.users || []);
     } catch (err: any) {
-      setError(err?.message || "Erreur");
+      toast.error(err?.message || "Erreur de chargement");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [machineId]);
+  useEffect(() => {
+    load();
+    /* eslint-disable-next-line */
+  }, [machineId]);
 
-  const handleDelete = async (username: string) => {
-    if (!confirm(`Supprimer l'utilisateur "${username}" ? Son home dir sera supprimé.`)) return;
+  const performDelete = async (username: string) => {
     setActing(username);
     try {
       await api.deleteUser(machineId, username);
+      toast.success(`Utilisateur "${username}" supprimé`);
       await load();
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "delete failed"));
+      toast.error(err?.message || "Suppression échouée");
     } finally {
       setActing(null);
     }
   };
 
   const handleToggleSudo = async (username: string, currentSudo: boolean) => {
-    if (!confirm(`${currentSudo ? "Retirer" : "Ajouter"} les droits sudo à "${username}" ?`)) return;
     setActing(username);
     try {
       await api.updateUserSudo(machineId, username, !currentSudo);
+      toast.success(
+        currentSudo ? `Sudo retiré à ${username}` : `Sudo ajouté à ${username}`
+      );
       await load();
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "update failed"));
+      toast.error(err?.message || "Erreur");
     } finally {
       setActing(null);
     }
@@ -70,47 +94,40 @@ export default function UsersTab({ machineId, canMutate }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
+        <div className="text-xs text-muted-foreground">
           {users.length} utilisateur{users.length > 1 ? "s" : ""}
         </div>
         <div className="flex items-center gap-2">
           {canMutate && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-              style={{ border: "1px solid var(--nx-success)", color: "var(--nx-success)" }}
+              icon={<UserPlus />}
+              className="!border-success !text-success hover:!bg-success-subtle"
             >
-              <UserPlus className="w-3.5 h-3.5" />
               Créer utilisateur
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={load}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-            style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+            loading={loading}
+            icon={<RefreshCw />}
           >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
             Rafraîchir
-          </button>
+          </Button>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}>
-          {error}
-        </div>
-      )}
-
       {users.length === 0 ? (
-        <div className="rounded-xl border border-border p-8 text-center text-xs" style={{ background: "var(--nx-bg-surface)", color: "var(--nx-text-weak)" }}>
-          Aucun utilisateur détecté
-        </div>
+        <EmptyState icon={Users} title="Aucun utilisateur détecté" />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
+        <div className="rounded-xl border border-border overflow-hidden bg-card">
           <table className="w-full text-xs">
-            <thead style={{ background: "var(--nx-bg-elevated)" }}>
-              <tr className="text-left" style={{ color: "var(--nx-text-weak)" }}>
+            <thead className="bg-elevated">
+              <tr className="text-left text-muted-foreground">
                 <Th>Username</Th>
                 <Th>UID</Th>
                 <Th>Nom complet</Th>
@@ -122,15 +139,18 @@ export default function UsersTab({ machineId, canMutate }: Props) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.username} className="border-t" style={{ borderColor: "var(--nx-border)" }}>
+                <tr key={u.username} className="border-t border-border">
                   <Td className="font-mono font-semibold">{u.username}</Td>
-                  <Td style={{ color: "var(--nx-text-weak)" }}>{u.uid}</Td>
+                  <Td className="text-muted-foreground">{u.uid}</Td>
                   <Td className="truncate max-w-xs">{u.gecos || "—"}</Td>
-                  <Td className="font-mono" style={{ color: "var(--nx-text-weak)" }}>{u.shell}</Td>
+                  <Td className="font-mono text-muted-foreground">{u.shell}</Td>
                   <Td>
                     <div className="flex flex-wrap gap-1 max-w-xs">
                       {(u.groups || []).slice(0, 5).map((g) => (
-                        <span key={g} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
+                        <span
+                          key={g}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-elevated text-muted-foreground"
+                        >
                           {g}
                         </span>
                       ))}
@@ -138,42 +158,45 @@ export default function UsersTab({ machineId, canMutate }: Props) {
                   </Td>
                   <Td>
                     {u.sudo ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}>
+                      <Badge tone="warning" uppercase>
                         <ShieldCheck className="w-3 h-3" /> sudo
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="text-[10px]" style={{ color: "var(--nx-text-weak)" }}>—</span>
+                      <span className="text-[10px] text-muted-foreground">—</span>
                     )}
                   </Td>
                   <Td>
                     <div className="flex gap-1">
-                      <button
+                      <Button
+                        size="xs"
+                        variant="outline"
                         onClick={() => setSelected(u)}
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
-                        style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+                        icon={<Key />}
                         title="Voir les clés SSH"
                       >
-                        <Key className="w-3 h-3" /> Clés
-                      </button>
+                        Clés
+                      </Button>
                       {canMutate && u.username !== "root" && (
                         <>
-                          <button
+                          <Button
+                            size="xs"
+                            variant="outline"
                             onClick={() => handleToggleSudo(u.username, u.sudo)}
-                            disabled={acting === u.username}
-                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
-                            style={{ border: `1px solid var(--nx-warning)`, color: "var(--nx-warning)" }}
+                            loading={acting === u.username}
+                            icon={<Shield />}
+                            className="!border-warning !text-warning hover:!bg-warning-subtle"
                           >
-                            {acting === u.username ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
                             {u.sudo ? "-sudo" : "+sudo"}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.username)}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => setPendingDelete(u.username)}
                             disabled={acting === u.username}
-                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
-                            style={{ border: `1px solid var(--nx-danger)`, color: "var(--nx-danger)" }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                            icon={<Trash2 />}
+                            aria-label={`Supprimer ${u.username}`}
+                            className="!border-destructive !text-destructive hover:!bg-danger-subtle"
+                          />
                         </>
                       )}
                     </div>
@@ -198,19 +221,51 @@ export default function UsersTab({ machineId, canMutate }: Props) {
         <CreateUserDialog
           machineId={machineId}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => {
+            setShowCreate(false);
+            load();
+          }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) await performDelete(pendingDelete);
+        }}
+        title="Supprimer cet utilisateur ?"
+        description={
+          pendingDelete && (
+            <>
+              L'utilisateur <strong>{pendingDelete}</strong> sera supprimé avec son home
+              directory (<code>userdel -r</code>). Cette action est irréversible.
+            </>
+          )
+        }
+        confirmLabel="Supprimer"
+        variant="danger"
+      />
     </div>
   );
 }
 
-function SshKeysDrawer({ machineId, user, canMutate, onClose }: { machineId: string; user: LinuxUser; canMutate: boolean; onClose: () => void }) {
+function SshKeysDrawer({
+  machineId,
+  user,
+  canMutate,
+  onClose,
+}: {
+  machineId: string;
+  user: LinuxUser;
+  canMutate: boolean;
+  onClose: () => void;
+}) {
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [acting, setActing] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [pendingFp, setPendingFp] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -218,128 +273,122 @@ function SshKeysDrawer({ machineId, user, canMutate, onClose }: { machineId: str
       const res = await api.listSshKeys(machineId, user.username);
       setKeys(res?.data?.keys || []);
     } catch (err: any) {
-      setError(err?.message || "");
+      toast.error(err?.message || "Erreur");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user.username]);
+  useEffect(() => {
+    load();
+    /* eslint-disable-next-line */
+  }, [user.username]);
 
   const add = async () => {
     const k = newKey.trim();
     if (!k) return;
     setActing("add");
-    setError("");
     try {
       await api.addSshKey(machineId, user.username, k);
       setNewKey("");
+      toast.success("Clé SSH ajoutée");
       await load();
     } catch (err: any) {
-      setError(err?.message || "add failed");
+      toast.error(err?.message || "Ajout échoué");
     } finally {
       setActing(null);
     }
   };
 
-  const remove = async (fingerprint: string) => {
-    if (!confirm(`Supprimer la clé ${fingerprint} ?`)) return;
+  const performRemove = async (fingerprint: string) => {
     setActing(fingerprint);
     try {
       await api.removeSshKey(machineId, user.username, fingerprint);
+      toast.success("Clé SSH supprimée");
       await load();
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "remove failed"));
+      toast.error(err?.message || "Suppression échouée");
     } finally {
       setActing(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
-      <div className="w-full max-w-2xl h-full overflow-y-auto" style={{ background: "var(--nx-bg-surface)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--nx-border)" }}>
-          <div>
-            <div className="flex items-center gap-2">
-              <Key className="w-4 h-4" style={{ color: "var(--nx-info)" }} />
-              <h2 className="text-sm font-semibold">Clés SSH — {user.username}</h2>
-            </div>
-            <p className="text-xs mt-1" style={{ color: "var(--nx-text-weak)" }}>
-              {user.home}/.ssh/authorized_keys
-            </p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
+    <>
+      <Drawer
+        open
+        onClose={onClose}
+        title={
+          <span className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-info" /> Clés SSH — {user.username}
+          </span>
+        }
+        description={`${user.home}/.ssh/authorized_keys`}
+      >
         <div className="p-6 space-y-4">
           {canMutate && (
             <div className="space-y-2">
               <label className="block text-xs font-medium">Ajouter une clé publique</label>
-              <textarea
+              <Textarea
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder="ssh-ed25519 AAAAC3... user@host"
                 rows={3}
-                className="w-full rounded border border-input bg-background px-3 py-2 text-xs font-mono"
+                className="text-xs"
               />
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={add}
-                disabled={!newKey.trim() || acting === "add"}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-                style={{ border: "1px solid var(--nx-success)", color: "var(--nx-success)" }}
+                disabled={!newKey.trim()}
+                loading={acting === "add"}
+                icon={<UserPlus />}
+                className="!border-success !text-success hover:!bg-success-subtle"
               >
-                {acting === "add" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                 Ajouter
-              </button>
-              {error && (
-                <div className="text-xs" style={{ color: "var(--nx-danger)" }}>{error}</div>
-              )}
+              </Button>
             </div>
           )}
 
           {loading ? (
-            <div className="text-center py-8 text-xs" style={{ color: "var(--nx-text-weak)" }}>
-              <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+            <div className="text-center py-8">
+              <Spinner size="sm" />
             </div>
           ) : keys.length === 0 ? (
-            <div className="rounded-xl border border-border p-6 text-center text-xs" style={{ color: "var(--nx-text-weak)" }}>
-              Aucune clé SSH pour {user.username}
-            </div>
+            <EmptyState icon={Key} title={`Aucune clé SSH pour ${user.username}`} />
           ) : (
             <div className="space-y-2">
               {keys.map((k) => (
                 <div
                   key={k.fingerprint}
-                  className="rounded-lg border border-border p-3"
-                  style={{ background: "var(--nx-bg-elevated)" }}
+                  className="rounded-lg border border-border p-3 bg-elevated"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: "var(--nx-bg-surface)" }}>
+                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-card">
                           {k.type}
                         </span>
                         {k.comment && (
-                          <span className="text-xs font-mono truncate" style={{ color: "var(--nx-text-weak)" }}>
+                          <span className="text-xs font-mono truncate text-muted-foreground">
                             {k.comment}
                           </span>
                         )}
                       </div>
-                      <code className="text-[10px] font-mono break-all" style={{ color: "var(--nx-text-weak)" }}>
+                      <code className="text-[10px] font-mono break-all text-muted-foreground">
                         {k.fingerprint}
                       </code>
                     </div>
                     {canMutate && (
-                      <button
-                        onClick={() => remove(k.fingerprint)}
-                        disabled={acting === k.fingerprint}
-                        className="shrink-0 p-1.5 rounded"
-                        style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}
-                      >
-                        {acting === k.fingerprint ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                      </button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setPendingFp(k.fingerprint)}
+                        loading={acting === k.fingerprint}
+                        icon={<Trash2 />}
+                        aria-label="Supprimer la clé"
+                        className="!border-destructive !text-destructive hover:!bg-danger-subtle"
+                      />
                     )}
                   </div>
                 </div>
@@ -347,100 +396,113 @@ function SshKeysDrawer({ machineId, user, canMutate, onClose }: { machineId: str
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </Drawer>
+
+      <ConfirmDialog
+        open={!!pendingFp}
+        onClose={() => setPendingFp(null)}
+        onConfirm={async () => {
+          if (pendingFp) await performRemove(pendingFp);
+        }}
+        title="Supprimer cette clé SSH ?"
+        description="L'utilisateur ne pourra plus se connecter avec cette clé."
+        confirmLabel="Supprimer"
+        variant="danger"
+      />
+    </>
   );
 }
 
-function CreateUserDialog({ machineId, onClose, onCreated }: { machineId: string; onClose: () => void; onCreated: () => void }) {
+function CreateUserDialog({
+  machineId,
+  onClose,
+  onCreated,
+}: {
+  machineId: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [username, setUsername] = useState("");
   const [gecos, setGecos] = useState("");
   const [sudo, setSudo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
 
   const submit = async () => {
     setSubmitting(true);
-    setError("");
     try {
-      await api.createUser(machineId, username.trim(), { gecos: gecos.trim() || undefined, sudo });
+      await api.createUser(machineId, username.trim(), {
+        gecos: gecos.trim() || undefined,
+        sudo,
+      });
+      toast.success(`Utilisateur "${username.trim()}" créé`);
       onCreated();
     } catch (err: any) {
-      setError(err?.message || "create failed");
+      toast.error(err?.message || "Création échouée");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--nx-border)" }}>
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4" style={{ color: "var(--nx-success)" }} />
-            <h2 className="text-sm font-semibold">Créer un utilisateur</h2>
-          </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-5 space-y-3">
-          <div>
-            <label className="block text-xs font-medium mb-1">Username</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="jdupont"
-              className="w-full rounded border border-input bg-background px-3 py-2 text-sm font-mono"
-              autoFocus
-            />
-            <p className="text-[10px] mt-1" style={{ color: "var(--nx-text-weak)" }}>
-              Lettres minuscules, chiffres, _ et - (POSIX).
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1">Nom complet (optionnel)</label>
-            <input
-              value={gecos}
-              onChange={(e) => setGecos(e.target.value)}
-              placeholder="Jean Dupont"
-              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={sudo}
-              onChange={(e) => setSudo(e.target.checked)}
-            />
-            <span className="text-xs">Ajouter au groupe sudo</span>
-          </label>
-          {error && (
-            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}>
-              {error}
-            </div>
-          )}
-        </div>
-        <div className="px-5 py-4 border-t flex justify-end gap-2" style={{ borderColor: "var(--nx-border)" }}>
-          <button
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium"
-            style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
-          >
+    <Dialog
+      open
+      onClose={onClose}
+      size="md"
+      title={
+        <span className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-success" /> Créer un utilisateur
+        </span>
+      }
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
             Annuler
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="success"
+            size="sm"
             onClick={submit}
-            disabled={submitting || !username.trim()}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-            style={{ background: "var(--nx-success)", color: "var(--nx-bg-base)" }}
+            disabled={!username.trim()}
+            loading={submitting}
           >
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
             Créer
-          </button>
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">Username</label>
+          <Input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="jdupont"
+            className="font-mono"
+            autoFocus
+          />
+          <p className="text-[10px] mt-1 text-muted-foreground">
+            Lettres minuscules, chiffres, _ et - (POSIX).
+          </p>
         </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Nom complet (optionnel)</label>
+          <Input
+            value={gecos}
+            onChange={(e) => setGecos(e.target.value)}
+            placeholder="Jean Dupont"
+          />
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={sudo}
+            onChange={(e) => setSudo(e.target.checked)}
+            className="accent-primary"
+          />
+          <span className="text-xs">Ajouter au groupe sudo</span>
+        </label>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -449,5 +511,9 @@ function Th({ children }: { children?: React.ReactNode }) {
 }
 
 function Td({ children, className = "", ...rest }: any) {
-  return <td className={`px-3 py-2 ${className}`} {...rest}>{children}</td>;
+  return (
+    <td className={`px-3 py-2 ${className}`} {...rest}>
+      {children}
+    </td>
+  );
 }
