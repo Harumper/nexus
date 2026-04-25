@@ -28,30 +28,39 @@ export default function Docs() {
   const [active, setActive] = useState<Section>(initial);
 
   return (
-    <div className="flex h-full">
-      {/* Doc sidebar */}
-      <nav className="w-56 shrink-0 py-4 overflow-y-auto" style={{ borderRight: "1px solid var(--nx-border)" }}>
-        {sections.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setActive(s.id)}
-            className="flex items-center gap-2 w-full px-4 py-2 text-xs transition-colors text-left"
-            style={{
-              color: active === s.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
-              background: active === s.id ? "var(--nx-primary-subtle)" : "transparent",
-              fontWeight: active === s.id ? 600 : 400,
-            }}
-          >
-            <s.icon className="w-3.5 h-3.5 shrink-0" />
-            {s.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8 max-w-3xl">
-        <DocContent section={active} />
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <Book className="w-6 h-6" /> Documentation
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Guide d'utilisation de Nexus
+        </p>
       </div>
+
+      {/* Horizontal tabs */}
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-border">
+        {sections.map((s) => {
+          const Icon = s.icon;
+          const isActive = active === s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => setActive(s.id)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors -mb-px"
+              style={{
+                color: isActive ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                borderBottom: isActive ? "2px solid var(--nx-primary)" : "2px solid transparent",
+              }}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <DocContent section={active} />
     </div>
   );
 }
