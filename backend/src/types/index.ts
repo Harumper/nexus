@@ -26,6 +26,9 @@ export interface EnrollmentComplete {
 export interface HeartbeatData {
   uptime: number;
   agent_version: string;
+  agent_type?: string;
+  reboot_required?: boolean;
+  sudoers_hash?: string;
 }
 
 export interface MetricsReport {

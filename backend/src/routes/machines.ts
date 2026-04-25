@@ -16,6 +16,7 @@ import {
   type BootstrapArtifacts,
 } from "../services/agent-bootstrap.js";
 import { dispatchAgentUpgrade } from "../services/agent-upgrade.js";
+import { isSudoersOutdated, getExpectedSudoersHash } from "../services/sudoers-version.js";
 
 interface MachineForBootstrap {
   id: string;
@@ -77,6 +78,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           status: true,
           type: true,
           isCritical: true,
+          sudoersHash: true,
           lastHeartbeat: true,
           lastMetrics: true,
           enrolledAt: true,
@@ -91,6 +93,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const result = machines.map((m) => ({
         ...m,
         tags: m.tags.map((t) => t.tag),
+        sudoersOutdated: isSudoersOutdated(m.sudoersHash),
       }));
 
       return reply.send(result);
@@ -119,6 +122,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           type: true,
           sshUser: true,
           isCritical: true,
+          sudoersHash: true,
           boundIp: true,
           lastHeartbeat: true,
           lastMetrics: true,
@@ -137,6 +141,8 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       return reply.send({
         ...machine,
+        sudoersOutdated: isSudoersOutdated(machine.sudoersHash),
+        expectedSudoersHash: getExpectedSudoersHash(),
         tags: machine.tags.map((t) => t.tag),
       });
     }

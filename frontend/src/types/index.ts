@@ -20,6 +20,9 @@ export interface Machine {
   type: "AGENT" | "PROBE";
   sshUser: string | null;
   isCritical: boolean;
+  sudoersHash?: string | null;
+  sudoersOutdated?: boolean;
+  expectedSudoersHash?: string;
   lastHeartbeat: string | null;
   lastMetrics: string | null;
   enrolledAt: string | null;

@@ -159,6 +159,10 @@ cat > "$SUDOERS_TEMP" << 'SUDOERS'
 # Généré par install-agent.sh — NE PAS MODIFIER MANUELLEMENT
 
 # === Package management (APT) ===
+# === Self-introspection (lecture sudoers pour detecter drift) ===
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
+
+# === APT ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get update
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade -y *
 nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get install -y -qq *
