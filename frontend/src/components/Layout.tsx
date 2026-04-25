@@ -75,7 +75,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <aside
         className="w-[220px] flex flex-col shrink-0"
