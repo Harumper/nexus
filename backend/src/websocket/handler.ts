@@ -126,13 +126,11 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
   ws.on("close", () => {
     if (machineId) {
       removeSession(machineId);
-      prisma.machine
-        .update({
-          where: { id: machineId },
-          data: { status: "OFFLINE" },
-        })
-        .catch(() => {});
-
+      // Ne PAS marquer OFFLINE immediatement : laisse checkOfflineMachines
+      // (tourne toutes les 30s, tolere 90s sans heartbeat) faire le travail.
+      // Marquer instantanement causait du flapping ONLINE/OFFLINE quand le WS
+      // se fermait brievement (timeout proxy, network glitch) avant que
+      // l'agent reconnecte. Le grace period 90s absorbe ces blips.
       prisma.machineEvent
         .create({
           data: { machineId, type: "disconnection" },
