@@ -142,8 +142,11 @@ describe("B4 — Extended alerting (services/timers/updates/certs)", () => {
     expect(content).toContain("checkHealthCondition");
   });
 
-  it("should have grouped conditions in Alerts.tsx UI", () => {
-    const content = readFileSync(resolve(frontendSrc, "pages/Alerts.tsx"), "utf8");
+  it("should have grouped conditions in AlertCreate.tsx UI", () => {
+    // Le formulaire de creation/edition a ete sorti dans une page dediee
+    // pour donner plus de place aux channels multi-canaux et aux selecteurs
+    // de machines. Alerts.tsx ne fait que lister les regles.
+    const content = readFileSync(resolve(frontendSrc, "pages/AlertCreate.tsx"), "utf8");
     expect(content).toContain("SERVICE_FAILED");
     expect(content).toContain("CERT_EXPIRING");
     expect(content).toContain("needsTargetPattern");

@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Machines from "./pages/Machines";
 import MachineDetail from "./pages/MachineDetail";
 import Alerts from "./pages/Alerts";
+import AlertCreate from "./pages/AlertCreate";
 import AuditLog from "./pages/AuditLog";
 import Containers from "./pages/Containers";
 import Tags from "./pages/Tags";
@@ -71,6 +72,8 @@ export default function App() {
         <Route path="/machines/:id/enroll" element={<MachineEnroll />} />
         <Route path="/machines/:id" element={<MachineDetail />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/alerts/new" element={<AlertCreate />} />
+        <Route path="/alerts/:id/edit" element={<AlertCreate />} />
         <Route path="/tags" element={<Tags />} />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/containers" element={<Containers />} />

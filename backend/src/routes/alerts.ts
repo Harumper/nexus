@@ -62,6 +62,20 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  // Get single alert rule
+  app.get(
+    "/api/alerts/rules/:id",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const rule = await prisma.alertRule.findUnique({ where: { id } });
+      if (!rule) {
+        return reply.code(404).send({ error: "Rule not found" });
+      }
+      return reply.send(rule);
+    }
+  );
+
   // Create alert rule
   app.post(
     "/api/alerts/rules",

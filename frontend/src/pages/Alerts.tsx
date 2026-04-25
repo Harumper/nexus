@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
   Bell,
   Plus,
@@ -7,7 +8,7 @@ import {
   Eye,
   Trash2,
   Zap,
-  X,
+  Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
@@ -15,8 +16,8 @@ import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { timeAgo } from "../lib/utils";
 import type { WSDashboardMessage } from "../types";
-import AlertChannelEditor, { type NotificationChannel } from "../components/AlertChannelEditor";
-import { Button, Dialog, ConfirmDialog, PageLoader } from "../components/ui";
+import type { NotificationChannel } from "../components/AlertChannelEditor";
+import { Button, ConfirmDialog, PageLoader } from "../components/ui";
 
 interface AlertRule {
   id: string;
@@ -97,7 +98,6 @@ export default function Alerts() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [history, setHistory] = useState<AlertState[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateRule, setShowCreateRule] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -242,13 +242,13 @@ export default function Alerts() {
           </p>
         </div>
         {user?.role === "ADMIN" && (
-          <button
-            onClick={() => setShowCreateRule(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          <Link
+            to="/alerts/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="w-4 h-4" />
             Nouvelle règle
-          </button>
+          </Link>
         )}
       </div>
 
@@ -387,6 +387,13 @@ export default function Alerts() {
               </div>
               {user?.role === "ADMIN" && (
                 <div className="flex items-center gap-2">
+                  <Link
+                    to={`/alerts/${rule.id}/edit`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Modifier
+                  </Link>
                   <Button
                     size="sm"
                     variant="outline"
@@ -455,17 +462,6 @@ export default function Alerts() {
         </div>
       )}
 
-      {/* Create Rule Dialog */}
-      {showCreateRule && (
-        <CreateRuleDialog
-          onClose={() => setShowCreateRule(false)}
-          onCreated={() => {
-            setShowCreateRule(false);
-            fetchData();
-          }}
-        />
-      )}
-
       {/* Confirm delete */}
       <ConfirmDialog
         open={!!pendingDelete}
@@ -489,153 +485,3 @@ export default function Alerts() {
   );
 }
 
-function CreateRuleDialog({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [form, setForm] = useState({
-    name: "",
-    conditionType: "CPU_ABOVE",
-    threshold: 90,
-    targetPattern: "",
-    severity: "WARNING",
-    durationSeconds: 0,
-    cooldownSeconds: 300,
-  });
-  const [channels, setChannels] = useState<NotificationChannel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      // Nettoyer le payload selon le type de condition
-      const payload: any = { ...form };
-      if (!needsThreshold(form.conditionType)) {
-        delete payload.threshold;
-      }
-      if (!needsTargetPattern(form.conditionType)) {
-        delete payload.targetPattern;
-      } else if (!payload.targetPattern) {
-        delete payload.targetPattern;
-      }
-      if (channels.length > 0) {
-        payload.channels = channels;
-      }
-      const res = await fetch("/api/alerts/rules", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed");
-      }
-      onCreated();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-card border border-border rounded-xl shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">Nouvelle règle d'alerte</h2>
-          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">{error}</div>}
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Nom</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="CPU critique" required />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Condition</label>
-            <select value={form.conditionType} onChange={(e) => setForm({ ...form, conditionType: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              <optgroup label="Métriques">
-                <option value="CPU_ABOVE">CPU supérieur à</option>
-                <option value="MEMORY_ABOVE">Mémoire supérieure à</option>
-                <option value="DISK_ABOVE">Disque supérieur à</option>
-                <option value="LOAD_ABOVE">Load average supérieur à</option>
-              </optgroup>
-              <optgroup label="Connexion">
-                <option value="MACHINE_OFFLINE">Machine hors ligne depuis</option>
-              </optgroup>
-              <optgroup label="Santé système">
-                <option value="SERVICE_FAILED">Service systemd en échec</option>
-                <option value="TIMER_FAILED">Timer systemd en échec</option>
-                <option value="UPDATES_AVAILABLE">Mises à jour disponibles</option>
-                <option value="CERT_EXPIRING">Certificat SSL expirant dans</option>
-              </optgroup>
-            </select>
-          </div>
-
-          {needsThreshold(form.conditionType) && (
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Seuil ({thresholdUnit(form.conditionType)})
-              </label>
-              <input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" min={0} />
-            </div>
-          )}
-
-          {needsTargetPattern(form.conditionType) && (
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Filtre (optionnel)
-              </label>
-              <input
-                type="text"
-                value={form.targetPattern}
-                onChange={(e) => setForm({ ...form, targetPattern: e.target.value })}
-                placeholder={form.conditionType === "SERVICE_FAILED" ? "nginx, postgresql (laissez vide pour tous)" : "pattern"}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Substring matching. Vide = n'importe quel service en échec déclenche.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Sévérité</label>
-            <div className="flex gap-2">
-              {(["INFO", "WARNING", "CRITICAL"] as const).map((s) => (
-                <button key={s} type="button" onClick={() => setForm({ ...form, severity: s })} className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.severity === s ? `${SEVERITY_STYLES[s].bg} ${SEVERITY_STYLES[s].border} ${SEVERITY_STYLES[s].text}` : "border-border text-muted-foreground"}`}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Canaux de notification</label>
-            <p className="text-[11px] text-muted-foreground mb-2">
-              Discord, Slack, Microsoft Teams, Email ou Webhook personnalisé. Aucun = pas de notification (visible uniquement dans l'UI/dashboard).
-            </p>
-            <AlertChannelEditor value={channels} onChange={setChannels} />
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">Annuler</button>
-            <button type="submit" disabled={loading || !form.name} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">{loading ? "Création..." : "Créer"}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
