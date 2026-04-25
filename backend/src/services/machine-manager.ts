@@ -15,6 +15,7 @@ export async function processHeartbeat(
     data: {
       lastHeartbeat: new Date(),
       agentVersion: data.agent_version || undefined,
+      sudoersHash: data.sudoers_hash || undefined,
       status: "ONLINE",
     },
   });
@@ -109,6 +110,7 @@ export const PROBE_ALLOWED_ACTIONS = [
   "system.updates_available",
   "system.health_summary",
   "ssl.scan",
+  "agent.sudoers_check",
 ];
 
 export async function isActionAllowed(

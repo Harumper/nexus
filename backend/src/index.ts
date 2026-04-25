@@ -30,6 +30,7 @@ import { bulkRoutes } from "./routes/bulk.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { packagesRoutes } from "./routes/packages.js";
 import { refreshAptCatalog, initAptCatalogIfEmpty } from "./services/apt-catalog.js";
+import { initSudoersVersion } from "./services/sudoers-version.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -139,6 +140,9 @@ async function main() {
   } catch (err) {
     console.error("[Seed] Failed to seed builtin data:", err);
   }
+
+  // Calculer le hash sudoers de reference pour la detection drift
+  initSudoersVersion();
 
   // ===================== Keycloak =====================
 

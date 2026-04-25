@@ -165,6 +165,14 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
                   ⚠ Critique
                 </span>
               )}
+              {machine.sudoersOutdated && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-warning-subtle text-warning"
+                  title="Sudoers obsolètes — ré-installer l'agent"
+                >
+                  ⚠ Sudoers
+                </span>
+              )}
               {machine.rebootRequired && (
                 <span title="Reboot requis">
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />

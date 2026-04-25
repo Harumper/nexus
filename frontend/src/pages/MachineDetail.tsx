@@ -257,6 +257,14 @@ export default function MachineDetail() {
                     ⚠ Critique
                   </span>
                 )}
+                {machine.sudoersOutdated && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1 bg-warning-subtle text-warning"
+                    title="Les sudoers de cet agent diffèrent de la version attendue. Ré-installez l'agent avec install-agent.sh pour bénéficier des nouvelles actions."
+                  >
+                    ⚠ Sudoers obsolètes
+                  </span>
+                )}
                 {machine.rebootRequired && <span title="Reboot requis"><RotateCcw className="w-4 h-4" style={{ color: "var(--nx-warning)" }} /></span>}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--nx-text-weak)" }}>

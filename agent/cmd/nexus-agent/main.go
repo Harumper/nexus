@@ -49,6 +49,7 @@ var (
 		"system.updates_available":  true,
 		"system.health_summary":     true,
 		"ssl.scan":                  true,
+		"agent.sudoers_check":       true,
 	}
 )
 
@@ -296,6 +297,7 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 		"agent_version":   cfg.Version,
 		"agent_type":      cfg.AgentType,
 		"reboot_required": rebootRequired,
+		"sudoers_hash":    actions.GetSudoersHash(),
 	}
 	if err := client.SendSigned(transport.TypeHeartbeat, "", data); err != nil {
 		log.Printf("[Agent] Failed to send heartbeat: %v", err)
