@@ -150,7 +150,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -161,33 +161,29 @@ export default function Settings() {
         </p>
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar navigation */}
-        <nav className="w-56 shrink-0 sticky top-6 self-start">
-          <div className="rounded-xl border border-border bg-card p-2">
-            {SECTIONS.map((s) => {
-              const Icon = s.icon;
-              const active = activeSection === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveSection(s.id)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left"
-                  style={{
-                    background: active ? "var(--nx-primary-subtle)" : "transparent",
-                    color: active ? "var(--nx-primary)" : "var(--nx-text-weak)",
-                  }}
-                >
-                  <Icon className="w-3.5 h-3.5 shrink-0" />
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+      {/* Horizontal tabs */}
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-border">
+        {SECTIONS.map((s) => {
+          const Icon = s.icon;
+          const active = activeSection === s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors -mb-px"
+              style={{
+                color: active ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                borderBottom: active ? "2px solid var(--nx-primary)" : "2px solid transparent",
+              }}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 space-y-6">
+      <div className="space-y-6">
         {activeSection === "smtp" && (
         /* SMTP Configuration */
         <section className="rounded-xl border border-border bg-card p-6">
@@ -518,7 +514,6 @@ export default function Settings() {
           /* Intégration Nautilus */
           <NautilusIntegrationCard />
         )}
-        </div>
       </div>
     </div>
   );
