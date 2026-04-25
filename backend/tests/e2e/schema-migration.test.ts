@@ -76,9 +76,6 @@ describe("Prisma Schema - Phase 2 Models", () => {
       expect(schema).toMatch(/groupMembers\s+MachineGroupMember\[\]/);
     });
 
-    it("should have profileExecutions relation", () => {
-      expect(schema).toContain("profileExecutions ProfileExecution[]");
-    });
   });
 
   describe("Metric model updates", () => {
@@ -86,31 +83,15 @@ describe("Prisma Schema - Phase 2 Models", () => {
       expect(schema).toContain("processes Json?");
     });
   });
-
-  describe("Profile models (prepared for Phase 5)", () => {
-    it("should have Profile model", () => {
-      expect(schema).toContain("model Profile {");
-      expect(schema).toContain("enum ProfileType {");
-      expect(schema).toContain("tagFilters  String[]");
-    });
-
-    it("should have ProfileExecution model", () => {
-      expect(schema).toContain("model ProfileExecution {");
-      expect(schema).toContain("status      String");
-    });
-
-    it("should have User profiles relation", () => {
-      expect(schema).toContain("profiles   Profile[]");
-    });
-  });
 });
 
 describe("Frontend - Phase 2 Files", () => {
   const frontendDir = resolve(__dirname, "../../../frontend/src");
 
-  it("should have Tags page", () => {
-    const content = readFileSync(resolve(frontendDir, "pages/Tags.tsx"), "utf8");
-    expect(content).toContain("Tags");
+  it("should have Tags management card (integrated in Settings)", () => {
+    // La page /tags dediee a ete supprimee : la gestion des tags est
+    // maintenant integree dans Settings via TagsManagementCard.
+    const content = readFileSync(resolve(frontendDir, "components/TagsManagementCard.tsx"), "utf8");
     expect(content).toContain("createTag");
     expect(content).toContain("deleteTag");
   });
@@ -132,16 +113,12 @@ describe("Frontend - Phase 2 Files", () => {
     expect(content).toContain("getSettings");
   });
 
-  it("should have Tags route in App", () => {
-    const content = readFileSync(resolve(frontendDir, "App.tsx"), "utf8");
-    expect(content).toContain("Tags");
-    expect(content).toContain("/tags");
-  });
-
-  it("should have Tags nav item in Layout", () => {
-    const content = readFileSync(resolve(frontendDir, "components/Layout.tsx"), "utf8");
-    expect(content).toContain("/tags");
-    expect(content).toContain("Tag");
+  it("should integrate Tags in Settings page (no dedicated /tags route)", () => {
+    const settings = readFileSync(resolve(frontendDir, "pages/Settings.tsx"), "utf8");
+    expect(settings).toContain("TagsManagementCard");
+    // Plus de route /tags dans App.tsx
+    const app = readFileSync(resolve(frontendDir, "App.tsx"), "utf8");
+    expect(app).not.toMatch(/path="\/tags"/);
   });
 
   it("should display tags in MachineCard", () => {

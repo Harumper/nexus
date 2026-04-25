@@ -12,9 +12,7 @@ import Alerts from "./pages/Alerts";
 import AlertCreate from "./pages/AlertCreate";
 import AuditLog from "./pages/AuditLog";
 import Containers from "./pages/Containers";
-import Tags from "./pages/Tags";
 import Settings from "./pages/Settings";
-import Profiles from "./pages/Profiles";
 import Compare from "./pages/Compare";
 import Docs from "./pages/Docs";
 import MachineEnroll from "./pages/MachineEnroll";
@@ -71,10 +69,8 @@ export default function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/alerts/new" element={<AlertCreate />} />
         <Route path="/alerts/:id/edit" element={<AlertCreate />} />
-        <Route path="/tags" element={<Tags />} />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/containers" element={<Containers />} />
-        <Route path="/profiles" element={<Profiles />} />
         <Route path="/compare" element={<Compare />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/docs" element={<Docs />} />

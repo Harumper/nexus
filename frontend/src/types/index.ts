@@ -134,32 +134,6 @@ export interface Setting {
   updatedAt: string;
 }
 
-export interface Profile {
-  id: string;
-  name: string;
-  type: "UPGRADE" | "REBOOT" | "SCRIPT" | "PACKAGE";
-  description: string | null;
-  config: any;
-  enabled: boolean;
-  tagFilters: string[];
-  createdBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-  _count?: { executions: number };
-  lastExecution?: string | null;
-}
-
-export interface ProfileExecution {
-  id: string;
-  profileId: string;
-  machineId: string;
-  machine?: { name: string };
-  status: string;
-  startedAt: string;
-  completedAt: string | null;
-  output: any;
-}
-
 // WebSocket dashboard messages
 export interface WSDashboardMessage {
   type: string;

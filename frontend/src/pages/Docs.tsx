@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Book, Server, Shield, Terminal, Download, Tag, Zap, Bell, Settings, Network, ChevronRight } from "lucide-react";
+import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight } from "lucide-react";
 
-type Section = "start" | "agent" | "probe" | "self" | "machines" | "tags" | "profiles" | "alerts" | "updates" | "ssh" | "api" | "security";
+type Section = "start" | "agent" | "probe" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security";
 
 const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "start", label: "Démarrage rapide", icon: Book },
@@ -10,7 +10,6 @@ const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "self", label: "Self-monitoring", icon: Server },
   { id: "machines", label: "Gestion des machines", icon: Server },
   { id: "tags", label: "Tags & Groupes", icon: Tag },
-  { id: "profiles", label: "Profils", icon: Zap },
   { id: "alerts", label: "Alertes & Notifications", icon: Bell },
   { id: "updates", label: "Mises à jour", icon: Download },
   { id: "ssh", label: "Configuration SSH", icon: Terminal },
@@ -22,7 +21,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "probe", "self", "machines", "tags", "profiles", "alerts", "updates", "ssh", "security", "api"];
+    const valid: Section[] = ["start", "agent", "probe", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -73,7 +72,6 @@ function DocContent({ section }: { section: Section }) {
     case "self": return <SelfDoc />;
     case "machines": return <MachinesDoc />;
     case "tags": return <TagsDoc />;
-    case "profiles": return <ProfilesDoc />;
     case "alerts": return <AlertsDoc />;
     case "updates": return <UpdatesDoc />;
     case "ssh": return <SshDoc />;
@@ -406,28 +404,6 @@ function TagsDoc() {
   </>);
 }
 
-function ProfilesDoc() {
-  return (<>
-    <H1>Profils</H1>
-    <P>Les profils automatisent des actions sur vos machines. Ils ciblent les machines via des tags.</P>
-
-    <H2>Types de profils</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-blue-400">UPGRADE</strong> — Mises à jour système (toutes ou sécurité uniquement)</li>
-      <li><strong className="text-amber-400">REBOOT</strong> — Reboot planifié (jours/heure configurables)</li>
-      <li><strong className="text-purple-400">SCRIPT</strong> — Exécution d'un script bash sur les machines cibles</li>
-      <li><strong className="text-emerald-400">PACKAGE</strong> — Installation ou suppression de packages</li>
-    </ul>
-
-    <H2>Staggered delivery</H2>
-    <P>Pour les profils UPGRADE, vous pouvez définir une fenêtre de délivrance (en minutes). Les actions seront envoyées aux machines de manière échelonnée dans cette fenêtre pour éviter de surcharger le réseau.</P>
-
-    <H2>Exécution</H2>
-    <P>Les profils peuvent être exécutés manuellement depuis l'interface (bouton "Exécuter"). L'historique des exécutions est visible pour chaque profil.</P>
-    <Warn>Les profils SCRIPT exécutent du code arbitraire sur vos machines. Seuls les admins peuvent créer et exécuter des profils.</Warn>
-  </>);
-}
-
 function AlertsDoc() {
   return (<>
     <H1>Alertes & Notifications</H1>
@@ -661,12 +637,6 @@ PUT/DELETE      /api/tags/:id          (ADMIN)
 POST/DELETE     /api/machines/:id/tags (ADMIN)
 GET/POST        /api/groups            (ADMIN)
 GET             /api/groups/:id/machines`}</Code>
-
-    <H2>Profils</H2>
-    <Code>{`GET/POST        /api/profiles          (ADMIN)
-PUT/DELETE      /api/profiles/:id      (ADMIN)
-POST            /api/profiles/:id/execute (ADMIN)
-GET             /api/profiles/:id/executions`}</Code>
 
     <H2>Alertes</H2>
     <Code>{`GET/POST        /api/alerts/rules
