@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirm } from "../components/ui";
+import { useConfirm, PageLoader } from "../components/ui";
 import { timeAgo } from "../lib/utils";
 import type { Profile, ProfileExecution } from "../types";
 
@@ -142,11 +142,7 @@ export default function Profiles() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

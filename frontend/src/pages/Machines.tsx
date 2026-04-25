@@ -4,6 +4,7 @@ import { Server, Plus, Search, Zap, CheckSquare, Square } from "lucide-react";
 import { useMachines } from "../hooks/useMachines";
 import MachineCard from "../components/MachineCard";
 import BulkActionDialog from "../components/BulkActionDialog";
+import { PageLoader } from "../components/ui";
 
 export default function Machines() {
   const navigate = useNavigate();
@@ -54,11 +55,7 @@ export default function Machines() {
   const selectedMachines = machines.filter((m) => selected.has(m.id));
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { timeAgo } from "../lib/utils";
+import { Spinner } from "../components/ui";
 
 interface AuditEntry {
   id: string;
@@ -136,7 +137,7 @@ export default function AuditLog() {
       {/* Table */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <Spinner size="lg" className="text-primary" />
         </div>
       ) : logs.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
