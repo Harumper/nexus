@@ -11,10 +11,21 @@ import {
   Eye,
   EyeOff,
   Check,
+  Container,
 } from "lucide-react";
 import { api } from "../services/api";
 import type { Setting } from "../types";
 import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
+
+type Section = "smtp" | "webhook" | "health" | "lifecycle" | "nautilus";
+
+const SECTIONS: { id: Section; label: string; icon: typeof Mail }[] = [
+  { id: "smtp", label: "Email (SMTP)", icon: Mail },
+  { id: "webhook", label: "Webhook", icon: Webhook },
+  { id: "health", label: "Seuils santé", icon: Heart },
+  { id: "lifecycle", label: "Cycle de vie", icon: Clock },
+  { id: "nautilus", label: "Intégration Nautilus", icon: Container },
+];
 
 interface SmtpConfig {
   host: string;
@@ -42,6 +53,7 @@ export default function Settings() {
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeSection, setActiveSection] = useState<Section>("smtp");
 
   // SMTP
   const [smtp, setSmtp] = useState<SmtpConfig>({
@@ -138,17 +150,46 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Paramètres</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <SettingsIcon className="w-6 h-6" /> Paramètres
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Configuration du système Nexus
         </p>
       </div>
 
-      <div className="space-y-6">
-        {/* SMTP Configuration */}
+      <div className="flex gap-6">
+        {/* Sidebar navigation */}
+        <nav className="w-56 shrink-0 sticky top-6 self-start">
+          <div className="rounded-xl border border-border bg-card p-2">
+            {SECTIONS.map((s) => {
+              const Icon = s.icon;
+              const active = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left"
+                  style={{
+                    background: active ? "var(--nx-primary-subtle)" : "transparent",
+                    color: active ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                  }}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 space-y-6">
+        {activeSection === "smtp" && (
+        /* SMTP Configuration */
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Mail className="w-4 h-4 text-primary" />
@@ -264,8 +305,10 @@ export default function Settings() {
             </button>
           </div>
         </section>
+        )}
 
-        {/* Webhook */}
+        {activeSection === "webhook" && (
+        /* Webhook */
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Webhook className="w-4 h-4 text-primary" />
@@ -300,8 +343,10 @@ export default function Settings() {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Health Thresholds */}
+        {activeSection === "health" && (
+        /* Health Thresholds */
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Heart className="w-4 h-4 text-primary" />
@@ -384,8 +429,10 @@ export default function Settings() {
             </button>
           </div>
         </section>
+        )}
 
-        {/* Machine Lifecycle */}
+        {activeSection === "lifecycle" && (
+        /* Machine Lifecycle */
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Clock className="w-4 h-4 text-primary" />
@@ -465,9 +512,13 @@ export default function Settings() {
             </button>
           </div>
         </section>
+        )}
 
-        {/* Intégration Nautilus */}
-        <NautilusIntegrationCard />
+        {activeSection === "nautilus" && (
+          /* Intégration Nautilus */
+          <NautilusIntegrationCard />
+        )}
+        </div>
       </div>
     </div>
   );
