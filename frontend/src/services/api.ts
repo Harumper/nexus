@@ -648,6 +648,17 @@ class ApiClient {
     );
   }
 
+  // Alerts - test rule
+  async testAlertRule(ruleId: string) {
+    return this.request<{
+      success: boolean;
+      total: number;
+      ok: number;
+      failed: number;
+      results: Array<{ type: string; success: boolean; error?: string }>;
+    }>(`/alerts/rules/${ruleId}/test`, { method: "POST" });
+  }
+
   // Integrations - Nautilus
   async getNautilusConfig() {
     return this.request<{ enabled: boolean; url: string; tokenConfigured: boolean }>(

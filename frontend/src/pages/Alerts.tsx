@@ -7,12 +7,15 @@ import {
   Eye,
   Trash2,
   X,
+  Zap,
+  Loader2,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { timeAgo } from "../lib/utils";
 import type { WSDashboardMessage } from "../types";
+import AlertChannelEditor, { type NotificationChannel } from "../components/AlertChannelEditor";
 
 interface AlertRule {
   id: string;
@@ -27,6 +30,7 @@ interface AlertRule {
   machineIds: string[];
   cooldownSeconds: number;
   firingCount: number;
+  channels: NotificationChannel[] | null;
   createdAt: string;
 }
 
@@ -190,6 +194,23 @@ export default function Alerts() {
     fetchData();
   };
 
+  const [testingRule, setTestingRule] = useState<string | null>(null);
+
+  const testRule = async (id: string, name: string) => {
+    setTestingRule(id);
+    try {
+      const r = await api.testAlertRule(id);
+      const lines = r.results.map((res) =>
+        res.success ? `✓ ${res.type}` : `✗ ${res.type}: ${res.error}`
+      );
+      alert(`Test "${name}" : ${r.ok}/${r.total} OK\n\n${lines.join("\n")}`);
+    } catch (err: any) {
+      alert("Erreur test : " + (err?.message || "unknown"));
+    } finally {
+      setTestingRule(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -341,10 +362,28 @@ export default function Alerts() {
                     {rule.machineIds.length > 0 && ` · ${rule.machineIds.length} machine(s)`}
                     {rule.machineIds.length === 0 && " · Toutes les machines"}
                   </p>
+                  {Array.isArray(rule.channels) && rule.channels.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {rule.channels.map((c, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded uppercase font-mono" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
+                          {c.type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               {user?.role === "ADMIN" && (
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => testRule(rule.id, rule.name)}
+                    disabled={testingRule === rule.id}
+                    title="Envoyer un événement de test sur tous les canaux configurés"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {testingRule === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                    Tester
+                  </button>
                   <button
                     onClick={() => toggleRule(rule.id, !rule.enabled)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
@@ -429,6 +468,7 @@ function CreateRuleDialog({
     durationSeconds: 0,
     cooldownSeconds: 300,
   });
+  const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -446,6 +486,9 @@ function CreateRuleDialog({
         delete payload.targetPattern;
       } else if (!payload.targetPattern) {
         delete payload.targetPattern;
+      }
+      if (channels.length > 0) {
+        payload.channels = channels;
       }
       const res = await fetch("/api/alerts/rules", {
         method: "POST",
@@ -540,6 +583,14 @@ function CreateRuleDialog({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Canaux de notification</label>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Discord, Slack, Microsoft Teams, Email ou Webhook personnalisé. Aucun = pas de notification (visible uniquement dans l'UI/dashboard).
+            </p>
+            <AlertChannelEditor value={channels} onChange={setChannels} />
           </div>
 
           <div className="flex gap-3 pt-2">

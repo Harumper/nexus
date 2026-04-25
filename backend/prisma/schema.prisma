@@ -291,8 +291,9 @@ model AlertRule {
   durationSeconds Int                @default(0)  // Durée avant déclenchement (0 = immédiat)
   machineIds      String[]           // Vide = toutes les machines
   cooldownSeconds Int                @default(300) // Anti-spam (5 min par défaut)
-  notifyEmail     Boolean            @default(false)
-  notifyWebhook   String?
+  notifyEmail     Boolean            @default(false) // legacy, utilise alert_email setting
+  notifyWebhook   String?            // legacy, webhook unique HMAC-signe
+  channels        Json?              // [{type: "DISCORD"|"SLACK"|"TEAMS"|"EMAIL"|"WEBHOOK", config: {...}}]
 
   createdBy String?
   creator   User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
