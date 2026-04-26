@@ -47,7 +47,7 @@ describe("Prometheus /metrics Endpoint", () => {
   it("should have fleet metrics refresh interval", () => {
     const content = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
     expect(content).toContain("refreshFleetMetrics");
-    expect(content).toContain("fleetMetricsInterval");
+    expect(content).toContain("stopFleetMetrics");
   });
 
   it("should export all required gauges and counters", async () => {
@@ -79,7 +79,7 @@ describe("Metrics Retention & Cleanup", () => {
   it("should have cleanup interval in index.ts", () => {
     const content = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
     expect(content).toContain("runMetricsCleanup");
-    expect(content).toContain("cleanupInterval");
+    expect(content).toContain("stopMetricsCleanup");
   });
 
   it("should support retention = 0 (no DB storage)", () => {

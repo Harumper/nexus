@@ -11,6 +11,12 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
   const [connected, setConnected] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Stocker onMessage dans une ref pour éviter que le hook se reconnecte
+  // chaque fois que le parent re-render (onMessage = nouvelle référence à
+  // chaque render → useEffect retrigger → close + reopen WS = flapping).
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
+
   const connect = useCallback(() => {
     if (!enabled) return;
 
@@ -35,7 +41,7 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
       ws.onmessage = (event) => {
         try {
           const msg: WSDashboardMessage = JSON.parse(event.data);
-          onMessage?.(msg);
+          onMessageRef.current?.(msg);
         } catch {
           // ignore malformed messages
         }
@@ -54,7 +60,7 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
       // Retry
       reconnectTimer.current = setTimeout(connect, 3000);
     }
-  }, [enabled, onMessage]);
+  }, [enabled]);
 
   useEffect(() => {
     connect();
