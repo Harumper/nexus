@@ -251,7 +251,7 @@ ssh user@machine-ip
 
 # 2. Re-télécharge le script depuis Nexus et le relance avec les mêmes paramètres
 #    qu'à l'install initiale (l'enrollment token n'est plus nécessaire si l'agent
-#    a déjà ses clés ECDSA dans /var/lib/nexus-agent/)
+#    a déjà ses clés ECDSA dans /var/lib/nexus/keys/)
 sudo bash install-agent.sh \\
   --server-url wss://nexus.example.com/ws/agent \\
   --machine-id <machine-id> \\
@@ -276,8 +276,12 @@ sudo systemctl disable nexus-agent 2>/dev/null
 sudo rm -f /etc/systemd/system/nexus-agent.service
 sudo rm -f /usr/local/bin/nexus-agent
 
-# State + clés ECDSA + config
-sudo rm -rf /var/lib/nexus-agent /etc/nexus-agent
+# Clés ECDSA (CRITIQUE pour ré-enrôlement propre — sans -agent dans le path)
+sudo rm -rf /var/lib/nexus
+# Configuration agent (sans -agent dans le path)
+sudo rm -rf /etc/nexus
+# Scripts/snapshots watchdog (avec -agent)
+sudo rm -rf /var/lib/nexus-agent
 
 # Sudoers
 sudo rm -f /etc/sudoers.d/nexus-agent
