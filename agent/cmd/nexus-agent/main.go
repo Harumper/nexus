@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"log"
 	"os"
@@ -20,6 +21,10 @@ import (
 var (
 	Version   = "0.1.0"
 	agentType string
+
+	// serverPublicKey est la cle publique ECDSA du backend, parsee une fois
+	// au boot et utilisee pour verifier les messages serveur (action.confirm).
+	serverPublicKey *ecdsa.PublicKey
 
 	// probeAllowedActions is the whitelist of actions allowed in probe mode.
 	// Doit correspondre a PROBE_ALLOWED_ACTIONS cote backend (machine-manager.ts).
@@ -69,6 +74,18 @@ func main() {
 		logPrefix = "[Nexus Probe]"
 	}
 	log.Printf("%s Version %s starting...", logPrefix, Version)
+
+	// Parser la cle publique du serveur une fois au boot. Utilisee pour
+	// verifier les messages action.confirm (annulation watchdog firewall/netplan).
+	if cfg.ServerPublicKey != "" {
+		parsed, err := security.ParsePublicKeyPEM(cfg.ServerPublicKey)
+		if err != nil {
+			log.Fatalf("Failed to parse server public key: %v", err)
+		}
+		serverPublicKey = parsed
+	} else {
+		log.Println("[Agent] WARNING: no server public key configured — action.confirm will be rejected")
+	}
 
 	// Dead man's switch : si l'agent a crash pendant une modif (firewall/netplan),
 	// revert tous les snapshots pending au demarrage
@@ -182,7 +199,26 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		go handleActionRequest(msg, client, sandbox, keystore)
 
 	case transport.TypeActionConfirm:
-		// Confirmation d'une action firewall/netplan (watchdog-revert)
+		// Confirmation d'une action firewall/netplan (watchdog-revert).
+		// SECURITE CRITIQUE : verifier signature + timestamp + nonce avant de
+		// dispatcher, sinon un attaquant reseau pourrait forger un confirm
+		// pour annuler le watchdog et laisser une regle dangereuse appliquee.
+		if serverPublicKey == nil {
+			log.Printf("[Agent] Rejected action.confirm: server public key not configured")
+			return
+		}
+		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			Type:      msg.Type,
+			RequestID: msg.RequestID,
+			MachineID: msg.MachineID,
+			Timestamp: msg.Timestamp,
+			Nonce:     msg.Nonce,
+			Payload:   msg.Payload,
+			Signature: msg.Signature,
+		}, serverPublicKey); err != nil {
+			log.Printf("[Agent] Rejected action.confirm (request_id=%s): %v", msg.RequestID, err)
+			return
+		}
 		// On dispatch selon le prefix du request_id
 		if strings.HasPrefix(msg.RequestID, "netplan-") {
 			actions.HandleNetplanConfirm(msg.RequestID)

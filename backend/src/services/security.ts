@@ -8,12 +8,13 @@ import {
 import type { WSMessage } from "../types/index.js";
 import { LRUCache } from "lru-cache";
 
-// Cache LRU de nonces avec TTL de 5 minutes pour détecter les replays.
-// Chaque nonce expire automatiquement après 5 min (aligné sur la fenêtre de timestamp).
-// Max 10 000 entrées = largement suffisant pour ~20 agents (200 nonces actifs max).
+// Cache LRU de nonces aligné sur la fenêtre timestamp (5 min) pour bloquer les replays.
+// Le TTL DOIT correspondre à isTimestampValid (5 min). Si plus court, un attaquant peut
+// rejouer un message dans la fenêtre [TTL, 5min] après éviction du nonce.
+// 50 000 entrées = capacité pour ~100 agents × 5 msg/min × 5 min (worst case).
 const recentNonces = new LRUCache<string, true>({
-  max: 10_000,
-  ttl: 60 * 1000, // 60 secondes — fenetre de replay reduite
+  max: 50_000,
+  ttl: 5 * 60 * 1000,
 });
 
 export async function verifyAgentMessage(
