@@ -42,8 +42,11 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      // Si 401 sur un endpoint protégé (pas login), forcer la déconnexion
-      if (response.status === 401 && !path.includes("/auth/login")) {
+      // 401 sur un endpoint protégé = session expirée → forcer déconnexion.
+      // On exempte /auth/* (login, me, logout) pour éviter une boucle :
+      // au boot, /me peut renvoyer 401 si pas connecté, c'est légitime
+      // (le hook useAuth gère ce cas en restant simplement non-authentifié).
+      if (response.status === 401 && !path.startsWith("/auth/")) {
         this.onUnauthorized?.();
       }
       const error = await response.json().catch(() => ({ error: response.statusText }));
