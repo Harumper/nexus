@@ -12,6 +12,7 @@ import {
   Lock,
   Unlock,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
 import type { WSDashboardMessage } from "../types";
@@ -118,7 +119,7 @@ export default function UpdatePanel({
         setHolds((prev) => new Set(prev).add(pkgName));
       }
     } catch (err: any) {
-      alert("Erreur: " + (err?.message || "hold toggle failed"));
+      toast.error("Erreur : " + (err?.message || "hold toggle failed"));
     } finally {
       setTogglingHold(null);
     }

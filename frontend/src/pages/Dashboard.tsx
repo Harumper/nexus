@@ -83,11 +83,11 @@ export default function Dashboard() {
       api
         .getFleetSummary()
         .then(setFleetSummary)
-        .catch(() => {});
+        .catch((err) => console.warn("[Dashboard] fleet summary failed:", err));
       api
         .getFleetTrends("1h")
         .then((r) => setFleetTrends(r.buckets))
-        .catch(() => {});
+        .catch((err) => console.warn("[Dashboard] fleet trends failed:", err));
     };
     loadFleet();
     const interval = setInterval(loadFleet, 30_000);

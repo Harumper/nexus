@@ -60,7 +60,7 @@ export default function Layout() {
 
   useEffect(() => {
     // Load integrations config once for menu visibility
-    api.getNautilusConfig().then((c) => setNautilusEnabled(c.enabled)).catch(() => {});
+    api.getNautilusConfig().then((c) => setNautilusEnabled(c.enabled)).catch((err) => console.warn("[Layout] nautilus config failed:", err));
   }, []);
 
   const navSections = buildNavSections({ nautilusEnabled });

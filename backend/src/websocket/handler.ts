@@ -135,7 +135,7 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         .create({
           data: { machineId, type: "disconnection" },
         })
-        .catch(() => {});
+        .catch((err) => console.error("[WS] disconnection event create failed:", err));
     }
   });
 

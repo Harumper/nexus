@@ -123,7 +123,7 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
       await api.netplanConfirm(machineId, pending.requestId);
       setPending(null);
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "confirm failed"));
+      toast.error("Erreur : " + (err?.message || "confirm failed"));
     }
   };
 

@@ -76,7 +76,12 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
         // Si token est null ou vide, on supprime le setting
         if (body.token === null || body.token === "") {
           updates.push(
-            prisma.setting.delete({ where: { key: NAUTILUS_SETTINGS_KEYS.TOKEN } }).catch(() => {})
+            prisma.setting
+              .delete({ where: { key: NAUTILUS_SETTINGS_KEYS.TOKEN } })
+              .catch((err) => {
+                // P2025 = record not found, légitime quand on supprime un token absent
+                if (err?.code !== "P2025") console.error("[Nautilus] token delete failed:", err);
+              })
           );
         } else {
           updates.push(

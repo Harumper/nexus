@@ -1,9 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type TdHTMLAttributes, type ComponentType } from "react";
 import { HardDrive, Layers, Database, Loader2, RefreshCw } from "lucide-react";
 import { api } from "../services/api";
 
 interface Props {
   machineId: string;
+}
+
+interface LvmPv { pv_name: string; pv_size: string | number }
+interface LvmVg { vg_name: string; vg_size: string | number; lv_count: number | string }
+interface LvmLv { vg_name: string; lv_name: string; lv_path: string; lv_size: string | number }
+interface LvmState { pvs: LvmPv[]; vgs: LvmVg[]; lvs: LvmLv[]; available: boolean }
+
+interface BlockDevice {
+  name: string;
+  type?: string;
+  fstype?: string;
+  size: number | string;
+  mountpoint?: string;
+  children?: BlockDevice[];
+}
+
+interface FilesystemUsage {
+  mountpoint: string;
+  device: string;
+  fstype: string;
+  size: number | string;
+  used: number | string;
+  available: number | string;
+  percent: string | number;
 }
 
 function formatBytes(n: number | string): string {
@@ -17,9 +41,9 @@ function formatBytes(n: number | string): string {
 }
 
 export default function StorageTab({ machineId }: Props) {
-  const [lvm, setLvm] = useState<{ pvs: any[]; vgs: any[]; lvs: any[]; available: boolean } | null>(null);
-  const [blocks, setBlocks] = useState<any[]>([]);
-  const [fsList, setFsList] = useState<any[]>([]);
+  const [lvm, setLvm] = useState<LvmState | null>(null);
+  const [blocks, setBlocks] = useState<BlockDevice[]>([]);
+  const [fsList, setFsList] = useState<FilesystemUsage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,15 +52,15 @@ export default function StorageTab({ machineId }: Props) {
     setError("");
     try {
       const [lvmRes, blkRes, fsRes] = await Promise.all([
-        api.storageLvmList(machineId).catch(() => null),
-        api.storageBlockDevices(machineId).catch(() => null),
-        api.storageFilesystemUsage(machineId).catch(() => null),
+        api.storageLvmList(machineId).catch((err) => { console.warn("[Storage] lvm:", err); return null; }),
+        api.storageBlockDevices(machineId).catch((err) => { console.warn("[Storage] blocks:", err); return null; }),
+        api.storageFilesystemUsage(machineId).catch((err) => { console.warn("[Storage] fs:", err); return null; }),
       ]);
-      setLvm(lvmRes?.data || null);
-      setBlocks(blkRes?.data?.devices || []);
-      setFsList(fsRes?.data?.filesystems || []);
-    } catch (err: any) {
-      setError(err?.message || "Erreur de chargement");
+      setLvm((lvmRes?.data as LvmState) || null);
+      setBlocks((blkRes?.data?.devices as BlockDevice[]) || []);
+      setFsList((fsRes?.data?.filesystems as FilesystemUsage[]) || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement");
     } finally {
       setLoading(false);
     }
@@ -84,7 +108,7 @@ export default function StorageTab({ machineId }: Props) {
               </thead>
               <tbody>
                 {fsList.map((fs, i) => {
-                  const pct = parseInt(fs.percent, 10) || 0;
+                  const pct = parseInt(String(fs.percent), 10) || 0;
                   const color = pct > 90 ? "var(--nx-danger)" : pct > 75 ? "var(--nx-warning)" : "var(--nx-success)";
                   return (
                     <tr key={i} className="border-t" style={{ borderColor: "var(--nx-border)" }}>
@@ -159,7 +183,7 @@ export default function StorageTab({ machineId }: Props) {
   );
 }
 
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function Section({ icon: Icon, title, children }: { icon: ComponentType<{ className?: string; style?: React.CSSProperties }>; title: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
@@ -191,7 +215,7 @@ function LvmCard({ title, count, children }: { title: string; count: number; chi
   );
 }
 
-function BlockTree({ devices, depth = 0 }: { devices: any[]; depth?: number }) {
+function BlockTree({ devices, depth = 0 }: { devices: BlockDevice[]; depth?: number }) {
   return (
     <div>
       {devices.map((d, i) => (
@@ -236,6 +260,6 @@ function Th({ children }: { children: React.ReactNode }) {
   return <th className="px-3 py-2 font-medium text-xs">{children}</th>;
 }
 
-function Td({ children, className = "", ...rest }: any) {
+function Td({ children, className = "", ...rest }: TdHTMLAttributes<HTMLTableCellElement>) {
   return <td className={`px-3 py-2 ${className}`} {...rest}>{children}</td>;
 }

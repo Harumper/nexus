@@ -24,7 +24,7 @@ export default function NautilusIntegrationCard() {
         setTokenConfigured(c.tokenConfigured);
         if (c.tokenConfigured) setShowAdvanced(true);
       })
-      .catch(() => {});
+      .catch((err) => console.warn("[Nautilus] config fetch failed:", err));
   }, []);
 
   const save = async () => {
