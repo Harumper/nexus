@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Package, Download, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
 
 interface PackagesTabProps {
@@ -56,8 +57,8 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
     try {
       const res = await api.searchPackages(debouncedQuery, suite);
       setResults(res?.results || []);
-    } catch (err: any) {
-      setError(err?.message || "Erreur de recherche");
+    } catch (err) {
+      setError(getErrorMessage(err));
       setResults([]);
     } finally {
       setSearching(false);
@@ -72,8 +73,8 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
     try {
       await api.installPackage(machineId, name);
       toast.success(`"${name}" installé`);
-    } catch (err: any) {
-      toast.error(err?.message || "Install échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setActing(null);
     }
@@ -85,8 +86,8 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
     try {
       await api.removePackage(machineId, name);
       toast.success(`"${name}" désinstallé`);
-    } catch (err: any) {
-      toast.error(err?.message || "Suppression échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setActing(null);
     }
