@@ -60,7 +60,7 @@ export default function MachineDetail() {
   useEffect(() => {
     if (!id || !machine || machine.status !== "ONLINE") return;
     const interval = setInterval(() => {
-      api.getLatestMetrics(id).then(setLatestMetric).catch(() => {});
+      api.getLatestMetrics(id).then(setLatestMetric).catch((err) => console.warn("[MachineDetail] latest metrics failed:", err));
     }, 15_000);
     return () => clearInterval(interval);
   }, [id, machine]);

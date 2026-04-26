@@ -207,7 +207,7 @@ async function main() {
     6 * 60 * 60_000
   );
   // Premier scan 30s apres demarrage
-  setTimeout(() => evaluateCertAlerts().catch(() => {}), 30_000);
+  setTimeout(() => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] initial cert scan failed:", err)), 30_000);
 
   const stopLifecycle = jitteredInterval(checkMachineLifecycle, 60 * 60 * 1000);
 

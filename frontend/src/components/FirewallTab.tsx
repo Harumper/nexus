@@ -110,7 +110,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       }
       await load();
     } catch (err: any) {
-      alert("Erreur : " + (err?.message || "action échouée"));
+      toast.error("Erreur : " + (err?.message || "action échouée"));
     }
   };
 
@@ -121,7 +121,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       setPending(null);
       await load();
     } catch (err: any) {
-      alert("Erreur confirmation : " + (err?.message || "échec"));
+      toast.error("Erreur confirmation : " + (err?.message || "échec"));
     }
   };
 

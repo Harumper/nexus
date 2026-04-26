@@ -20,7 +20,7 @@ export default function Compare() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.getMachines().then(setMachines).catch(() => {});
+    api.getMachines().then(setMachines).catch((err) => console.warn("[Compare] getMachines failed:", err));
   }, []);
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function Compare() {
       }
 
       setChartData(Array.from(timeMap.values()));
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => console.warn("[Compare] load metrics failed:", err)).finally(() => setLoading(false));
   }, [selectedIds, metric, range, machines]);
 
   const toggleMachine = (id: string) => {

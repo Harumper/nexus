@@ -27,13 +27,13 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
     setLoading(true);
     api.getMetrics(machineId, range)
       .then((res) => { if (!cancelled) setMetrics(res.metrics); })
-      .catch(() => {})
+      .catch((err) => console.warn("[MetricsChart] initial fetch failed:", err))
       .finally(() => { if (!cancelled) setLoading(false); });
 
     const interval = setInterval(() => {
       api.getMetrics(machineId, range)
         .then((res) => { if (!cancelled) setMetrics(res.metrics); })
-        .catch(() => {});
+        .catch((err) => console.warn("[MetricsChart] poll failed:", err));
     }, 60_000);
 
     return () => { cancelled = true; clearInterval(interval); };
@@ -150,7 +150,7 @@ function RechartCard({
 }: {
   title: string;
   currentValue: string;
-  data: any[];
+  data: Array<{ time: string; [key: string]: number | string }>;
   dataKey: string;
   color: string;
   unit: string;
@@ -197,7 +197,7 @@ function RechartCard({
                 color: "var(--foreground)",
               }}
               labelStyle={{ color: "var(--muted-foreground)" }}
-              formatter={(value: any) => [`${Number(value).toFixed(1)}${unit}`, title]}
+              formatter={(value) => [`${Number(value).toFixed(1)}${unit}`, title]}
             />
             <Area
               type="monotone"

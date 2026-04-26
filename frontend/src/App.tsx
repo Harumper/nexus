@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./hooks/useAuth";
@@ -7,15 +8,18 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Machines from "./pages/Machines";
-import MachineDetail from "./pages/MachineDetail";
-import Alerts from "./pages/Alerts";
-import AlertCreate from "./pages/AlertCreate";
-import AuditLog from "./pages/AuditLog";
-import Containers from "./pages/Containers";
-import Settings from "./pages/Settings";
-import Compare from "./pages/Compare";
-import Docs from "./pages/Docs";
 import MachineEnroll from "./pages/MachineEnroll";
+
+// Lazy : pages lourdes (>500 LOC ou Recharts/diagrammes) — bénéficient le plus
+// du code-split et ne sont pas sur le chemin critique du premier rendu.
+const MachineDetail = lazy(() => import("./pages/MachineDetail"));
+const Docs = lazy(() => import("./pages/Docs"));
+const AlertCreate = lazy(() => import("./pages/AlertCreate"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const Containers = lazy(() => import("./pages/Containers"));
+const Compare = lazy(() => import("./pages/Compare"));
+const Alerts = lazy(() => import("./pages/Alerts"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -61,19 +65,24 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        {/* Routes eager : critiques au premier rendu */}
         <Route path="/" element={<Dashboard />} />
         <Route path="/machines" element={<Machines />} />
         <Route path="/machines/new" element={<MachineEnroll />} />
         <Route path="/machines/:id/enroll" element={<MachineEnroll />} />
-        <Route path="/machines/:id" element={<MachineDetail />} />
-        <Route path="/alerts" element={<Alerts />} />
-        <Route path="/alerts/new" element={<AlertCreate />} />
-        <Route path="/alerts/:id/edit" element={<AlertCreate />} />
-        <Route path="/audit" element={<AuditLog />} />
-        <Route path="/containers" element={<Containers />} />
-        <Route path="/compare" element={<Compare />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/docs" element={<Docs />} />
+
+        {/* Routes lazy : un seul <Suspense> via Outlet pour partager le fallback */}
+        <Route element={<Suspense fallback={<PageLoader />}><Outlet /></Suspense>}>
+          <Route path="/machines/:id" element={<MachineDetail />} />
+          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/alerts/new" element={<AlertCreate />} />
+          <Route path="/alerts/:id/edit" element={<AlertCreate />} />
+          <Route path="/audit" element={<AuditLog />} />
+          <Route path="/containers" element={<Containers />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/docs" element={<Docs />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
