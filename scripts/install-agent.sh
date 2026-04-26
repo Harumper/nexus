@@ -193,10 +193,23 @@ nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.s
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
 
 # === Services systemd (start/stop/restart/reload) ===
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl stop *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reload *
+# Services protégés : ssh/sshd (lock-out admin) et nexus-agent (self-DoS).
+# La protection est en couches : sudoers ici (ligne de défense ultime), puis
+# isCritical côté backend (machine-protection.ts) qui bloque docker/postgres/etc.
+Cmnd_Alias NEXUS_BLOCKED_SVC = /usr/bin/systemctl stop ssh*, \
+                                /usr/bin/systemctl stop sshd*, \
+                                /usr/bin/systemctl restart ssh*, \
+                                /usr/bin/systemctl restart sshd*, \
+                                /usr/bin/systemctl reload ssh*, \
+                                /usr/bin/systemctl reload sshd*, \
+                                /usr/bin/systemctl disable ssh*, \
+                                /usr/bin/systemctl disable sshd*, \
+                                /usr/bin/systemctl stop nexus-agent*, \
+                                /usr/bin/systemctl restart nexus-agent*, \
+                                /usr/bin/systemctl reload nexus-agent*, \
+                                /usr/bin/systemctl disable nexus-agent*
+
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *, /usr/bin/systemctl reload *, !NEXUS_BLOCKED_SVC
 
 # === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
