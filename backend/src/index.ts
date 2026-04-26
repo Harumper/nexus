@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
+import compress from "@fastify/compress";
 import { connectDatabase, disconnectDatabase } from "./services/database.js";
 import { setupWebSocketServer } from "./websocket/server.js";
 import { checkOfflineMachines } from "./services/machine-manager.js";
@@ -35,7 +36,35 @@ import { initSudoersVersion } from "./services/sudoers-version.js";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 
+// Validation des env vars critiques au boot — fail-fast plutôt que crash
+// silencieux à la première utilisation.
+function requireEnv(key: string): void {
+  if (!process.env[key]) {
+    throw new Error(`${key} environment variable is required. Set it before starting the server.`);
+  }
+}
+
+// Démarre un setInterval avec un offset aléatoire initial (jitter) pour
+// éviter le thundering herd : sans jitter, tous les intervals fixes démarrent
+// au même tick et créent des spikes CPU/DB synchronisés.
+function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () => void {
+  const offset = Math.floor(Math.random() * baseMs * jitterPct);
+  let intervalId: NodeJS.Timeout | null = null;
+  const timeoutId = setTimeout(() => {
+    intervalId = setInterval(fn, baseMs);
+  }, offset);
+  return () => {
+    clearTimeout(timeoutId);
+    if (intervalId) clearInterval(intervalId);
+  };
+}
+
 async function main() {
+  // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
+  requireEnv("JWT_SECRET");
+  requireEnv("ECDSA_MASTER_SECRET");
+  requireEnv("DATABASE_URL");
+
   const app = Fastify({
     logger: {
       level: process.env.NODE_ENV === "development" ? "debug" : "info",
@@ -68,11 +97,17 @@ async function main() {
     credentials: true,
   });
 
-  if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET environment variable is required. Set it before starting the server.");
-  }
+  // Compression HTTP (gzip/br) — gain ~10x sur les payloads JSON volumineux
+  // (machines list, metrics, audit logs). threshold 1KB pour éviter la
+  // surcharge sur petits payloads.
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ["br", "gzip", "deflate"],
+  });
+
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET,
+    secret: process.env.JWT_SECRET!,
   });
 
   await app.register(rateLimit, {
@@ -154,46 +189,42 @@ async function main() {
 
 
   // ===================== Background Tasks =====================
+  // Tous les intervals utilisent jitteredInterval pour décaler leur démarrage
+  // de 0-30 % de leur période et éviter le thundering herd (tous les setInterval
+  // se déclenchaient au même tick avant, créant des spikes CPU/DB synchronisés).
 
-  // Vérifier les machines offline toutes les 30s
-  const offlineCheckInterval = setInterval(checkOfflineMachines, 30_000);
+  const stopOfflineCheck = jitteredInterval(checkOfflineMachines, 30_000);
 
-  // Évaluer les alertes offline toutes les 60s
-  const offlineAlertInterval = setInterval(evaluateOfflineAlerts, 60_000);
+  const stopOfflineAlert = jitteredInterval(evaluateOfflineAlerts, 60_000);
 
-  // Évaluer les health alerts (services/timers/updates) toutes les 5 min
-  const healthAlertInterval = setInterval(
+  const stopHealthAlert = jitteredInterval(
     () => evaluateHealthAlerts().catch((err) => console.error("[AlertEngine] Health check error:", err)),
     5 * 60_000
   );
 
-  // Scanner les certs SSL toutes les 6h (plus lourd)
-  const certAlertInterval = setInterval(
+  const stopCertAlert = jitteredInterval(
     () => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] Cert scan error:", err)),
     6 * 60 * 60_000
   );
   // Premier scan 30s apres demarrage
   setTimeout(() => evaluateCertAlerts().catch(() => {}), 30_000);
 
-  // Vérifier le cycle de vie des machines toutes les heures
-  const lifecycleInterval = setInterval(checkMachineLifecycle, 60 * 60 * 1000);
+  const stopLifecycle = jitteredInterval(checkMachineLifecycle, 60 * 60 * 1000);
 
   // Rafraichir les metriques fleet pour Prometheus toutes les 30s
-  const fleetMetricsInterval = setInterval(refreshFleetMetrics, 30_000);
+  const stopFleetMetrics = jitteredInterval(refreshFleetMetrics, 30_000);
   refreshFleetMetrics();
 
-  // Cleanup des metriques en DB toutes les 6h
-  const cleanupInterval = setInterval(runMetricsCleanup, 6 * 60 * 60 * 1000);
+  const stopMetricsCleanup = jitteredInterval(runMetricsCleanup, 6 * 60 * 60 * 1000);
 
-  // Cleanup des bootstrap tokens expires toutes les 24h
-  const bootstrapCleanupInterval = setInterval(
+  const stopBootstrapCleanup = jitteredInterval(
     () => cleanupExpiredTokens().catch((err) => console.error("[Bootstrap] Cleanup error:", err)),
     24 * 60 * 60 * 1000
   );
 
   // Apt catalog : ingestion initiale si vide, puis refresh quotidien
   initAptCatalogIfEmpty().catch((err) => console.error("[AptCatalog] Init error:", err));
-  const aptRefreshInterval = setInterval(
+  const stopAptRefresh = jitteredInterval(
     () => refreshAptCatalog().catch((err) => console.error("[AptCatalog] Refresh error:", err)),
     24 * 60 * 60 * 1000
   );
@@ -213,15 +244,15 @@ async function main() {
 
   const shutdown = async () => {
     console.log("\n[Nexus] Shutting down...");
-    clearInterval(offlineCheckInterval);
-    clearInterval(offlineAlertInterval);
-    clearInterval(healthAlertInterval);
-    clearInterval(certAlertInterval);
-    clearInterval(lifecycleInterval);
-    clearInterval(fleetMetricsInterval);
-    clearInterval(cleanupInterval);
-    clearInterval(bootstrapCleanupInterval);
-    clearInterval(aptRefreshInterval);
+    stopOfflineCheck();
+    stopOfflineAlert();
+    stopHealthAlert();
+    stopCertAlert();
+    stopLifecycle();
+    stopFleetMetrics();
+    stopMetricsCleanup();
+    stopBootstrapCleanup();
+    stopAptRefresh();
     await app.close();
     await disconnectDatabase();
     process.exit(0);

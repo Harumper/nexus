@@ -57,7 +57,7 @@ describe("Tags & Groups API - File Structure", () => {
     expect(content).toContain("groupRoutes");
     expect(content).toContain("settingsRoutes");
     expect(content).toContain("checkMachineLifecycle");
-    expect(content).toContain("lifecycleInterval");
+    expect(content).toContain("stopLifecycle");
   });
 
   it("should include tags in machines route response", () => {

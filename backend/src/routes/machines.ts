@@ -60,11 +60,18 @@ async function buildBootstrapArtifacts(
 }
 
 export async function machineRoutes(app: FastifyInstance): Promise<void> {
-  // List all machines
+  // List machines (pagination optionnelle via ?limit=N&offset=M)
+  // Cap de sécurité à 500 même sans pagination explicite pour éviter de
+  // ramener 10 000 lignes si la fleet grossit.
   app.get(
     "/api/machines",
     { preHandler: [requireAuth] },
-    async (_request, reply) => {
+    async (request, reply) => {
+      const { limit, offset } = request.query as { limit?: string; offset?: string };
+      const isPaginated = limit !== undefined;
+      const take = Math.min(parseInt(limit ?? "500", 10) || 500, 500);
+      const skip = parseInt(offset ?? "0", 10) || 0;
+
       const machines = await prisma.machine.findMany({
         select: {
           id: true,
@@ -87,6 +94,8 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
             include: { tag: true },
           },
         },
+        take,
+        skip,
         orderBy: { createdAt: "desc" },
       });
 
@@ -96,6 +105,10 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         sudoersOutdated: isSudoersOutdated(m.sudoersHash),
       }));
 
+      if (isPaginated) {
+        const total = await prisma.machine.count();
+        return reply.send({ machines: result, total, limit: take, offset: skip });
+      }
       return reply.send(result);
     }
   );
