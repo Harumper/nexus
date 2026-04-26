@@ -3,6 +3,7 @@ import { Container, Save, Check, Zap, ChevronDown, ChevronRight } from "lucide-r
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { Card, CardHeader, CardTitle, Button, Input } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 export default function NautilusIntegrationCard() {
   const [enabled, setEnabled] = useState(false);
@@ -43,8 +44,8 @@ export default function NautilusIntegrationCard() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       toast.success("Configuration Nautilus enregistrée");
-    } catch (err: any) {
-      toast.error("Erreur : " + (err?.message || "save failed"));
+    } catch (err) {
+      toast.error("Erreur : " + (getErrorMessage(err, "save failed")));
     } finally {
       setSaving(false);
     }
@@ -62,8 +63,8 @@ export default function NautilusIntegrationCard() {
       } else {
         toast.error(r.error || "Connexion impossible");
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur de connexion");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur de connexion"));
     } finally {
       setTesting(false);
     }

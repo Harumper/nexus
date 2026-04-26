@@ -15,6 +15,9 @@ import {
  * Extraire le token JWT depuis les sous-protocoles WebSocket.
  * Le frontend envoie : new WebSocket(url, ['nexus-auth', '<token>'])
  * Le header Sec-WebSocket-Protocol contient : "nexus-auth, <token>"
+ *
+ * Utilisé pour Keycloak (le SDK garde le token côté JS) et en fallback
+ * pour les anciens clients pré-cookie.
  */
 function extractTokenFromProtocol(request: IncomingMessage): string | null {
   const protocols = request.headers["sec-websocket-protocol"];
@@ -25,6 +28,18 @@ function extractTokenFromProtocol(request: IncomingMessage): string | null {
     return parts[1];
   }
   return null;
+}
+
+/**
+ * Extraire le token JWT depuis le cookie httpOnly nexus_token.
+ * Le navigateur envoie automatiquement les cookies same-origin sur
+ * l'upgrade WebSocket — pas besoin que le frontend les transmette.
+ */
+function extractTokenFromCookie(request: IncomingMessage): string | null {
+  const cookieHeader = request.headers.cookie;
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/(?:^|;\s*)nexus_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /**
@@ -78,8 +93,10 @@ export function setupWebSocketServer(app: FastifyInstance): void {
         handleAgentConnection(ws, ip);
       });
     } else if (pathname === "/ws/dashboard") {
-      // Extraire et vérifier le token avant d'accepter la connexion
-      const token = extractTokenFromProtocol(request);
+      // Cookie httpOnly d'abord (auth locale post-migration), puis Sec-WebSocket-Protocol
+      // (Keycloak SDK ou anciens clients).
+      const token =
+        extractTokenFromCookie(request) || extractTokenFromProtocol(request);
 
       if (!token) {
         console.warn("[WS] Dashboard connection rejected: no token provided");

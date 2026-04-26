@@ -3,6 +3,7 @@ import { Clock, CalendarClock, RefreshCw, Loader2, Power, PowerOff } from "lucid
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machineId: string;
@@ -28,8 +29,8 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
       ]);
       setCronJobs(cron?.data?.jobs || []);
       setTimers(t?.data?.timers || []);
-    } catch (err: any) {
-      setError(err?.message || "Erreur");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }
@@ -48,8 +49,8 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
       else await api.timerDisable(machineId, name);
       toast.success(`${name} : ${label.toLowerCase()}`);
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Action échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Action échouée"));
     } finally {
       setActing(null);
     }

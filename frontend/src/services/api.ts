@@ -27,6 +27,9 @@ class ApiClient {
       headers["Content-Type"] = "application/json";
     }
 
+    // Token explicite (Keycloak SDK fournit le token via setToken). Pour
+    // l'auth locale, le cookie httpOnly est envoyé automatiquement via
+    // credentials: "include" et ce header reste vide.
     if (this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
@@ -34,6 +37,8 @@ class ApiClient {
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
+      // Inclut les cookies (notamment nexus_token httpOnly post-login local).
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -65,6 +70,10 @@ class ApiClient {
 
   async me() {
     return this.request<import("../types").User>("/auth/me");
+  }
+
+  async logout() {
+    return this.request<{ success: boolean }>("/auth/logout", { method: "POST" });
   }
 
   // Machines

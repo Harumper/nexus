@@ -3,6 +3,7 @@ import { Network, Save, RefreshCw, Loader2, AlertTriangle, CheckCircle2, FileTex
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machineId: string;
@@ -40,8 +41,8 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
       const content = current?.content || defaultNetplan();
       setEditorContent(content);
       setOriginalContent(content);
-    } catch (err: any) {
-      setError(err?.message || "Erreur");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }
@@ -109,9 +110,9 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
       });
       setOriginalContent(editorContent);
       toast.success("Configuration appliquée — confirmez avant 120s");
-    } catch (err: any) {
-      toast.error(err?.message || "Apply failed");
-      setError(err?.message || "Apply failed");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Apply failed"));
+      setError(getErrorMessage(err, "Apply failed"));
     } finally {
       setApplying(false);
     }
@@ -122,8 +123,8 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
     try {
       await api.netplanConfirm(machineId, pending.requestId);
       setPending(null);
-    } catch (err: any) {
-      toast.error("Erreur : " + (err?.message || "confirm failed"));
+    } catch (err) {
+      toast.error("Erreur : " + (getErrorMessage(err, "confirm failed")));
     }
   };
 

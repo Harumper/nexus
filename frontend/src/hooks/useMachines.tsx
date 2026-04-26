@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import type { Machine } from "../types";
 
 export function useMachines() {
@@ -12,8 +13,8 @@ export function useMachines() {
       setError(null);
       const data = await api.getMachines();
       setMachines(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch machines");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to fetch machines"));
     } finally {
       setLoading(false);
     }

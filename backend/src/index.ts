@@ -4,6 +4,7 @@ import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
+import cookie from "@fastify/cookie";
 import { connectDatabase, disconnectDatabase } from "./services/database.js";
 import { setupWebSocketServer } from "./websocket/server.js";
 import { checkOfflineMachines } from "./services/machine-manager.js";
@@ -106,8 +107,20 @@ async function main() {
     encodings: ["br", "gzip", "deflate"],
   });
 
+  // Cookie parsing — doit être enregistré AVANT @fastify/jwt pour que la
+  // config cookie de jwt puisse lire les cookies parsés.
+  await app.register(cookie, {
+    secret: process.env.JWT_SECRET!, // pour les cookies signés (non utilisé ici, mais requis)
+  });
+
   await app.register(jwt, {
     secret: process.env.JWT_SECRET!,
+    // Lire le JWT depuis le cookie httpOnly en plus du header Authorization.
+    // Le cookie est défini par /api/auth/login après auth locale réussie.
+    cookie: {
+      cookieName: "nexus_token",
+      signed: false,
+    },
   });
 
   await app.register(rateLimit, {

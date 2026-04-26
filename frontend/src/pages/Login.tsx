@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { Shield, KeyRound, LogIn } from "lucide-react";
+import { getErrorMessage } from "../services/errors";
 
 export default function Login() {
   const { login, loginKeycloak, authConfig, loading: authLoading } = useAuth();
@@ -32,11 +33,11 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username.trim(), password);
-    } catch (err: any) {
-      if (err.status === 429) {
+    } catch (err) {
+      if ((err as { status?: number })?.status === 429) {
         setError("Trop de tentatives. Réessayez dans une minute.");
       } else {
-        setError(err.message || "Identifiants invalides");
+        setError(getErrorMessage(err, "Identifiants invalides"));
       }
     } finally {
       setLoading(false);

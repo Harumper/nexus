@@ -28,6 +28,7 @@ import SslCertsCard from "../components/SslCertsCard";
 import { useConfirm, PageLoader } from "../components/ui";
 import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
+import { getErrorMessage } from "../services/errors";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
 
@@ -105,8 +106,8 @@ export default function MachineDetail() {
       await api.revokeMachine(id, "Revoked from UI");
       setMachine(await api.getMachine(id));
       toast.success("Machine révoquée");
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     }
   };
 
@@ -125,8 +126,8 @@ export default function MachineDetail() {
       await api.deleteMachine(id);
       toast.success("Machine supprimée");
       navigate("/machines");
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     }
   };
 
@@ -145,8 +146,8 @@ export default function MachineDetail() {
     try {
       const res = await api.upgradeAgent(id);
       toast.success(res.message || "Mise à jour déclenchée");
-    } catch (err: any) {
-      toast.error(err?.message || "Échec de la mise à jour");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de la mise à jour"));
     }
   };
 
@@ -166,8 +167,8 @@ export default function MachineDetail() {
     try {
       await api.rebootMachine(id);
       toast.success("Redémarrage déclenché. Retour dans ~60s.");
-    } catch (err: any) {
-      toast.error(err?.message || "Échec du redémarrage");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec du redémarrage"));
     }
   };
 
@@ -679,8 +680,8 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
       await onUpdated();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err: any) {
-      setError(err?.message || "Erreur");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur"));
     } finally {
       setSaving(false);
     }

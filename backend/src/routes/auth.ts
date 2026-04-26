@@ -95,7 +95,21 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         details: { provider: "local" },
       });
 
+      // JWT en cookie httpOnly : protégé du JS (XSS), envoyé automatiquement
+      // par le navigateur sur chaque requête same-origin. SameSite=Strict bloque
+      // les attaques CSRF cross-site. Secure activé en prod (HTTPS only).
+      reply.setCookie("nexus_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 4 * 60 * 60, // 4h en secondes (aligné sur expiresIn JWT)
+      });
+
       return reply.send({
+        // Token retourné aussi pour rétro-compat (clients existants qui le lisent
+        // via sessionStorage). Les nouveaux clients ignorent ce champ et lisent
+        // le cookie httpOnly.
         token,
         user: {
           id: user.id,
@@ -104,6 +118,27 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           role: user.role,
         },
       });
+    }
+  );
+
+  // Logout : clear le cookie httpOnly. Pas de side-effect côté DB (le JWT
+  // reste valide jusqu'à expiration mais le navigateur l'oublie).
+  app.post(
+    "/api/auth/logout",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      reply.clearCookie("nexus_token", { path: "/" });
+      const user = (request as { user?: { sub: string } }).user;
+      if (user?.sub) {
+        await logAudit({
+          action: "LOGOUT",
+          resource: "user",
+          resourceId: user.sub,
+          userId: user.sub,
+          ipAddress: request.ip,
+        });
+      }
+      return reply.send({ success: true });
     }
   );
 

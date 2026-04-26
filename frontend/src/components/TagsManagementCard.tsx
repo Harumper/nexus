@@ -15,6 +15,7 @@ import {
   useConfirm,
 } from "./ui";
 import type { Tag } from "../types";
+import { getErrorMessage } from "../services/errors";
 
 const PRESET_COLORS = [
   "#ef4444",
@@ -41,8 +42,8 @@ export default function TagsManagementCard() {
     try {
       const data = await api.getTags();
       setTags(data);
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }
@@ -65,8 +66,8 @@ export default function TagsManagementCard() {
       await api.deleteTag(id);
       toast.success("Tag supprimé");
       fetchTags();
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     }
   };
 
@@ -194,8 +195,8 @@ function TagDialog({
         toast.success("Tag créé");
       }
       onSaved();
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }

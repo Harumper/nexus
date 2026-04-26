@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button, Card, CardHeader, CardTitle, Input, PageHeader, PageLoader } from "../components/ui";
 import AlertChannelEditor, { type NotificationChannel } from "../components/AlertChannelEditor";
 import { useMachines } from "../hooks/useMachines";
+import { getErrorMessage } from "../services/errors";
 
 const SEVERITY_OPTS = [
   { value: "INFO", label: "Info", className: "bg-info-subtle text-info border-info" },
@@ -142,8 +143,8 @@ export default function AlertCreate() {
       }
       toast.success(isEdit ? "Règle modifiée" : "Règle créée");
       navigate("/alerts");
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setSubmitting(false);
     }
