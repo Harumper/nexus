@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Shield, ShieldOff, Plus, Trash2, Check, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
 
 interface FirewallTabProps {
@@ -70,8 +71,8 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
           description: "Modification en attente de confirmation",
         });
       }
-    } catch (err: any) {
-      setError(err?.message || "Erreur de chargement");
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -109,8 +110,8 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
         });
       }
       await load();
-    } catch (err: any) {
-      toast.error("Erreur : " + (err?.message || "action échouée"));
+    } catch (err) {
+      toast.error("Erreur : " + getErrorMessage(err));
     }
   };
 
@@ -120,8 +121,8 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       await api.firewallConfirm(machineId, pending.requestId);
       setPending(null);
       await load();
-    } catch (err: any) {
-      toast.error("Erreur confirmation : " + (err?.message || "échec"));
+    } catch (err) {
+      toast.error("Erreur confirmation : " + getErrorMessage(err));
     }
   };
 

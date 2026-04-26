@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import { useWebSocket } from "../hooks/useWebSocket";
 import type { WSDashboardMessage } from "../types";
 
@@ -118,8 +119,8 @@ export default function UpdatePanel({
         await api.packageHold(machineId, pkgName);
         setHolds((prev) => new Set(prev).add(pkgName));
       }
-    } catch (err: any) {
-      toast.error("Erreur : " + (err?.message || "hold toggle failed"));
+    } catch (err) {
+      toast.error("Erreur : " + getErrorMessage(err));
     } finally {
       setTogglingHold(null);
     }
