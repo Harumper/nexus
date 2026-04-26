@@ -18,6 +18,7 @@ import { timeAgo } from "../lib/utils";
 import type { WSDashboardMessage } from "../types";
 import type { NotificationChannel } from "../components/AlertChannelEditor";
 import { Button, ConfirmDialog, PageLoader } from "../components/ui";
+import { getErrorMessage } from "../services/errors";
 
 interface AlertRule {
   id: string;
@@ -185,8 +186,8 @@ export default function Alerts() {
       if (!res.ok) throw new Error("Échec de la suppression");
       toast.success("Règle supprimée");
       fetchData();
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     }
   };
 
@@ -220,8 +221,8 @@ export default function Alerts() {
           }
         );
       }
-    } catch (err: any) {
-      toast.error("Erreur test : " + (err?.message || "unknown"));
+    } catch (err) {
+      toast.error("Erreur test : " + (getErrorMessage(err, "unknown")));
     } finally {
       setTestingRule(null);
     }

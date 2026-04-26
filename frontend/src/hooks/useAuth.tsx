@@ -163,38 +163,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 10_000); // vérifier toutes les 10s
   };
 
-  // Restaurer session locale
+  // Restaurer session locale via cookie httpOnly : on appelle simplement
+  // /me, le cookie est envoyé automatiquement par le navigateur (credentials).
+  // Si 200 → session active. Si 401 → pas connecté, retour à login.
   const restoreLocalSession = async () => {
-    const token = sessionStorage.getItem(TOKEN_KEY);
     const provider = sessionStorage.getItem(PROVIDER_KEY);
+    if (provider === "keycloak") return; // géré par initKeycloak
 
-    if (token && provider !== "keycloak") {
-      api.setToken(token);
-      try {
-        const user = await api.me();
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          provider: "local",
-        });
-      } catch {
-        sessionStorage.removeItem(TOKEN_KEY);
-        sessionStorage.removeItem(PROVIDER_KEY);
-        api.setToken(null);
-      }
+    try {
+      const user = await api.me();
+      setState({
+        user,
+        token: null, // plus jamais stocké côté JS pour l'auth locale
+        isAuthenticated: true,
+        provider: "local",
+      });
+    } catch {
+      // Pas de session active : OK, l'utilisateur ira vers /login
+      sessionStorage.removeItem(PROVIDER_KEY);
     }
   };
 
-  // Login local
+  // Login local : le backend pose un cookie httpOnly, on n'a rien à
+  // stocker côté JS. On marque juste le provider pour que le boot suivant
+  // sache quoi tenter.
   const login = useCallback(async (username: string, password: string) => {
     const response = await api.login(username, password);
-    sessionStorage.setItem(TOKEN_KEY, response.token);
     sessionStorage.setItem(PROVIDER_KEY, "local");
-    api.setToken(response.token);
     setState({
       user: response.user,
-      token: response.token,
+      token: null,
       isAuthenticated: true,
       provider: "local",
     });
@@ -212,7 +210,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     kc.login({ redirectUri: window.location.origin + "/login" });
   }, []);
 
-  // Logout
+  // Logout : pour l'auth locale, appelle /api/auth/logout qui clear le
+  // cookie httpOnly côté serveur. Pour Keycloak, redirige vers le logout
+  // OIDC qui invalide la session côté IdP.
   const logout = useCallback(() => {
     const provider = sessionStorage.getItem(PROVIDER_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
@@ -225,11 +225,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: null,
     });
 
-    // Si Keycloak, aussi logout côté Keycloak
     if (provider === "keycloak" && keycloakRef.current) {
       keycloakRef.current.logout({
         redirectUri: window.location.origin + "/login",
       });
+    } else {
+      // Auth locale : invalider le cookie côté backend (best effort)
+      api.logout().catch((err) => console.warn("[Auth] logout call failed:", err));
     }
   }, []);
 

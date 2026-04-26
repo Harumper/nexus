@@ -86,7 +86,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
           }));
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       setResult({ dispatched: 0, failed: onlineMachines.length });
     }
   };

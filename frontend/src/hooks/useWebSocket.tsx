@@ -23,15 +23,16 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
+    // Auth locale (post-migration) : cookie httpOnly envoyé automatiquement
+    // par le navigateur sur l'upgrade WebSocket — pas de token côté JS.
+    // Auth Keycloak : token côté JS (kc.token), passé via Sec-WebSocket-Protocol
+    // pour éviter qu'il apparaisse dans les logs/URL.
     const token = sessionStorage.getItem("nexus_token");
-    if (!token) {
-      // Pas de token = pas de connexion WS dashboard
-      return;
-    }
 
     try {
-      // Envoyer le token via Sec-WebSocket-Protocol pour éviter qu'il apparaisse dans les logs/URL
-      const ws = new WebSocket(wsUrl, ["nexus-auth", token]);
+      const ws = token
+        ? new WebSocket(wsUrl, ["nexus-auth", token])
+        : new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {

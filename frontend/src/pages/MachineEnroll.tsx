@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getErrorMessage } from "../services/errors";
 import {
   ArrowLeft,
   Check,
@@ -54,8 +55,8 @@ export default function MachineEnroll() {
         const artifacts = await api.regenerateBootstrap(paramId);
         if (cancelled) return;
         setBootstrap(artifacts);
-      } catch (err: any) {
-        if (!cancelled) setError(err.message || "Erreur lors du chargement");
+      } catch (err) {
+        if (!cancelled) setError(getErrorMessage(err, "Erreur lors du chargement"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -127,8 +128,8 @@ export default function MachineEnroll() {
         createdAt: new Date().toISOString(),
       });
       setStep(2);
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de la création");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur lors de la création"));
     } finally {
       setLoading(false);
     }

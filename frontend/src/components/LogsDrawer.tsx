@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { api } from "../services/api";
 import { Drawer, Button, Spinner } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface LogsDrawerProps {
   machineId: string;
@@ -24,8 +25,8 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
       const res = await api.getServiceLogs(machineId, service, lineCount, since || undefined);
       setLines(res?.data?.lines || []);
       setTruncated(res?.data?.truncated || false);
-    } catch (err: any) {
-      setError(err?.message || "Erreur de chargement des logs");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur de chargement des logs"));
     } finally {
       setLoading(false);
     }

@@ -98,8 +98,8 @@ export default function UpdatePanel({
       ]);
       setPackageData(resp.data);
       setHolds(new Set(holdsResp?.data?.holds || []));
-    } catch (err: any) {
-      setResult({ success: false, message: err.message || "Erreur" });
+    } catch (err) {
+      setResult({ success: false, message: getErrorMessage(err, "Erreur") });
     } finally {
       setLoadingList(false);
     }
@@ -136,10 +136,10 @@ export default function UpdatePanel({
         ? "system.update_security"
         : "system.update";
       await api.dispatchAction(machineId, actionId);
-    } catch (err: any) {
+    } catch (err) {
       setUpdating(false);
       setProgress(null);
-      setResult({ success: false, message: err.message });
+      setResult({ success: false, message: getErrorMessage(err) });
     }
   };
 

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import {
   Button,
   Dialog,
@@ -51,8 +52,8 @@ export default function UsersTab({ machineId, canMutate }: Props) {
     try {
       const res = await api.listUsers(machineId);
       setUsers(res?.data?.users || []);
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur de chargement");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur de chargement"));
     } finally {
       setLoading(false);
     }
@@ -69,8 +70,8 @@ export default function UsersTab({ machineId, canMutate }: Props) {
       await api.deleteUser(machineId, username);
       toast.success(`Utilisateur "${username}" supprimé`);
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Suppression échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Suppression échouée"));
     } finally {
       setActing(null);
     }
@@ -84,8 +85,8 @@ export default function UsersTab({ machineId, canMutate }: Props) {
         currentSudo ? `Sudo retiré à ${username}` : `Sudo ajouté à ${username}`
       );
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setActing(null);
     }
@@ -272,8 +273,8 @@ function SshKeysDrawer({
     try {
       const res = await api.listSshKeys(machineId, user.username);
       setKeys(res?.data?.keys || []);
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }
@@ -293,8 +294,8 @@ function SshKeysDrawer({
       setNewKey("");
       toast.success("Clé SSH ajoutée");
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Ajout échoué");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Ajout échoué"));
     } finally {
       setActing(null);
     }
@@ -306,8 +307,8 @@ function SshKeysDrawer({
       await api.removeSshKey(machineId, user.username, fingerprint);
       toast.success("Clé SSH supprimée");
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Suppression échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Suppression échouée"));
     } finally {
       setActing(null);
     }
@@ -436,8 +437,8 @@ function CreateUserDialog({
       });
       toast.success(`Utilisateur "${username.trim()}" créé`);
       onCreated();
-    } catch (err: any) {
-      toast.error(err?.message || "Création échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Création échouée"));
     } finally {
       setSubmitting(false);
     }

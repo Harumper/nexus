@@ -3,6 +3,7 @@ import { RefreshCw, Play, Square, RotateCcw, FileText, Loader2, Search } from "l
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface SystemdUnit {
   unit: string;
@@ -37,8 +38,8 @@ export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps)
       // Ne garder que les .service
       const filtered = list.filter(u => (u.unit || "").endsWith(".service"));
       setServices(filtered);
-    } catch (err: any) {
-      setError(err?.message || "Erreur de chargement");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur de chargement"));
     } finally {
       setLoading(false);
     }
@@ -54,8 +55,8 @@ export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps)
       await api.serviceAction(machineId, service, action);
       toast.success(`${service} : ${verb.toLowerCase()} OK`);
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "Action échouée");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Action échouée"));
     } finally {
       setActingOn(null);
     }

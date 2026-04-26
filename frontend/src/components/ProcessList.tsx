@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useConfirm } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface ProcessInfo {
   pid: number;
@@ -61,8 +62,8 @@ export default function ProcessList({ machineId }: ProcessListProps) {
       await api.dispatchActionSync(machineId, "process.kill", { pid, signal: "SIGTERM" }, 10000);
       toast.success(`SIGTERM envoyé à PID ${pid}`);
       setTimeout(fetchProcesses, 1000);
-    } catch (err: any) {
-      toast.error(err?.message || "Échec");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec"));
     } finally {
       setKilling(null);
     }

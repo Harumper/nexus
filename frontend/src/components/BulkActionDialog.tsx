@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api } from "../services/api";
 import type { Machine } from "../types";
 import { Dialog, Button, Input } from "./ui";
+import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machines: Machine[];
@@ -78,8 +79,8 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
         toast.error(`${res.summary.failed} échec(s) sur ${res.summary.total}`);
       }
       if (onCompleted) onCompleted();
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Erreur"));
     } finally {
       setRunning(false);
     }

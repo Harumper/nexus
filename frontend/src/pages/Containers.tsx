@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Container, RefreshCw, Loader2, Server, AlertTriangle, Cpu, MemoryStick, ExternalLink } from "lucide-react";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 
 interface NautilusServer {
   id: string;
@@ -64,8 +65,8 @@ export default function Containers() {
     try {
       const res = await api.getNautilusSnapshot();
       setSnapshot(res);
-    } catch (err: any) {
-      setError(err?.message || "Erreur");
+    } catch (err) {
+      setError(getErrorMessage(err, "Erreur"));
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, AlertTriangle, RefreshCw, Loader2, Lock } from "lucide-react";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machineId: string;
@@ -19,8 +20,8 @@ export default function SslCertsCard({ machineId }: Props) {
       const res = await api.sslScan(machineId);
       setCerts(res?.data?.certs || []);
       setMinDays(res?.data?.min_days ?? null);
-    } catch (err: any) {
-      setError(err?.message || "scan failed");
+    } catch (err) {
+      setError(getErrorMessage(err, "scan failed"));
     } finally {
       setLoading(false);
     }
