@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw } from "lucide-react";
+import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { statusColor, statusLabel, timeAgo } from "../lib/utils";
@@ -11,10 +11,11 @@ import type { Machine, Metric } from "../types";
 interface MachineCardProps {
   machine: Machine;
   latestMetric?: Metric | null;
+  alertCount?: number;
   onDeleted?: () => void;
 }
 
-export default function MachineCard({ machine, latestMetric, onDeleted }: MachineCardProps) {
+export default function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: MachineCardProps) {
   const navigate = useNavigate();
   const status = statusColor(machine.status);
   const isOnline = machine.status === "ONLINE";
@@ -176,6 +177,16 @@ export default function MachineCard({ machine, latestMetric, onDeleted }: Machin
               {machine.rebootRequired && (
                 <span title="Reboot requis">
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />
+                </span>
+              )}
+              {alertCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+                  style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}
+                  title={`${alertCount} alerte${alertCount > 1 ? "s" : ""} en cours sur cette machine`}
+                >
+                  <Bell className="w-2.5 h-2.5" />
+                  {alertCount}
                 </span>
               )}
             </div>
