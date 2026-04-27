@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Shield,
   LayoutDashboard,
   Server,
   Bell,
@@ -85,12 +84,11 @@ export default function Layout() {
           className="h-14 flex items-center gap-2.5 px-4"
           style={{ borderBottom: "1px solid var(--nx-border)" }}
         >
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "var(--nx-primary-subtle)" }}
-          >
-            <Shield className="w-4 h-4 text-primary" />
-          </div>
+          <img
+            src="/nexus-icon.png"
+            alt="Nexus"
+            className="w-8 h-8 object-contain shrink-0"
+          />
           <span className="text-[15px] font-bold text-foreground tracking-tight">Nexus</span>
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto uppercase tracking-wider"
