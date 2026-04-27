@@ -1,30 +1,19 @@
-import { useState, useEffect } from "react";
 import {
   AlertTriangle, Bell, Download, Lock, RefreshCw, ShieldCheck,
   XCircle, Loader2, ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { api } from "../services/api";
-import { getErrorMessage } from "../services/errors";
+import type { MachineAttentionData } from "../hooks/useMachineAttention";
 
 interface Props {
-  machineId: string;
+  data: MachineAttentionData;
   onTabChange?: (tab: string) => void;
-}
-
-interface SslCert { subject?: string; path: string; days_remaining: number }
-interface FailedService { unit?: string; description?: string }
-interface ActiveAlert {
-  id: string;
-  status: "FIRING" | "ACKNOWLEDGED";
-  rule: { name: string; severity: string };
-  details: { value?: number; threshold?: number } | null;
 }
 
 /**
  * Panneau "Attention requise" : agrège les signaux critiques pour une
- * machine en un seul endroit auto-loaded au mount. Évite à l'utilisateur
- * de passer en revue 4-5 onglets pour savoir ce qui ne va pas.
+ * machine en un seul endroit. Reçoit les données déjà chargées via
+ * useMachineAttention (factorisé avec le header pour un seul fetch).
  *
  * - Alerts firing / acknowledged
  * - Services systemd failed
@@ -33,51 +22,8 @@ interface ActiveAlert {
  *
  * Quand tout va bien : message rassurant, pas de bruit.
  */
-export default function AttentionPanel({ machineId, onTabChange }: Props) {
-  const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
-  const [failedServices, setFailedServices] = useState<FailedService[]>([]);
-  const [updatesCount, setUpdatesCount] = useState(0);
-  const [securityUpdates, setSecurityUpdates] = useState(0);
-  const [certs, setCerts] = useState<SslCert[]>([]);
-  const [minCertDays, setMinCertDays] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [alertsRes, healthRes, sslRes] = await Promise.all([
-        api.getActiveAlerts().catch((err) => { console.warn("[Attention] alerts:", err); return []; }),
-        api
-          .dispatchActionSync<{ services: { failed: FailedService[]; count: number }; updates: { count: number; security: number } }>(
-            machineId,
-            "system.health_summary",
-            undefined,
-            20_000
-          )
-          .catch((err) => { console.warn("[Attention] health:", err); return null; }),
-        api.sslScan(machineId).catch((err) => { console.warn("[Attention] ssl:", err); return null; }),
-      ]);
-
-      setAlerts(alertsRes.filter((a) => a.machineId === machineId) as ActiveAlert[]);
-      setFailedServices(healthRes?.data?.services?.failed ?? []);
-      setUpdatesCount(healthRes?.data?.updates?.count ?? 0);
-      setSecurityUpdates(healthRes?.data?.updates?.security ?? 0);
-      setCerts(sslRes?.data?.certs ?? []);
-      setMinCertDays(sslRes?.data?.min_days ?? null);
-    } catch (err) {
-      setError(getErrorMessage(err, "load failed"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [machineId]);
-
+export default function AttentionPanel({ data, onTabChange }: Props) {
+  const { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, error, reload } = data;
   const expiringCerts = certs.filter((c) => c.days_remaining < 30);
   const totalIssues = alerts.length + failedServices.length + (updatesCount > 0 ? 1 : 0) + expiringCerts.length;
 
@@ -88,11 +34,11 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
           <AlertTriangle className="w-3 h-3" /> Attention requise
         </h3>
         <button
-          onClick={load}
+          onClick={reload}
           disabled={loading}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
-          title="Recharger l'état"
+          title="Recharger"
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
         </button>
@@ -112,7 +58,6 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
       )}
 
       <div className="space-y-2">
-        {/* Alerts firing */}
         {alerts.map((a) => (
           <Row
             key={a.id}
@@ -128,7 +73,6 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
           />
         ))}
 
-        {/* Services failed */}
         {failedServices.length > 0 && (
           <Row
             icon={<XCircle className="w-3.5 h-3.5" />}
@@ -139,7 +83,6 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
           />
         )}
 
-        {/* Updates */}
         {updatesCount > 0 && (
           <Row
             icon={<Download className="w-3.5 h-3.5" />}
@@ -150,7 +93,6 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
           />
         )}
 
-        {/* Certs expiring */}
         {expiringCerts.map((c, i) => (
           <Row
             key={`cert-${i}`}
@@ -161,7 +103,6 @@ export default function AttentionPanel({ machineId, onTabChange }: Props) {
           />
         ))}
 
-        {/* Si pas d'expiring mais on a scanné des certs : indicateur positif compact */}
         {!loading && expiringCerts.length === 0 && certs.length > 0 && minCertDays !== null && (
           <div className="text-[11px] flex items-center gap-1.5 pt-1" style={{ color: "var(--nx-text-weak)" }}>
             <Lock className="w-3 h-3" />
@@ -198,16 +139,7 @@ function Row({
       {(href || onClick) && <ChevronRight className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--nx-text-weak)" }} />}
     </div>
   );
-
-  if (href) {
-    return <Link to={href} className="block hover:bg-muted/30 rounded px-1 -mx-1">{content}</Link>;
-  }
-  if (onClick) {
-    return (
-      <button onClick={onClick} className="block w-full text-left hover:bg-muted/30 rounded px-1 -mx-1">
-        {content}
-      </button>
-    );
-  }
+  if (href) return <Link to={href} className="block hover:bg-muted/30 rounded px-1 -mx-1">{content}</Link>;
+  if (onClick) return <button onClick={onClick} className="block w-full text-left hover:bg-muted/30 rounded px-1 -mx-1">{content}</button>;
   return <div className="px-1 -mx-1">{content}</div>;
 }
