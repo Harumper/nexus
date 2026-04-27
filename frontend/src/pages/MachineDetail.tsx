@@ -194,43 +194,43 @@ export default function MachineDetail() {
 
   const tabGroups: {
     label: string;
-    tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean }[];
+    tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean; tooltip?: string }[];
   }[] = [
     {
       label: "",
       tabs: [
-        { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true },
+        { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true, tooltip: "Statut global : alertes, services failed, updates pending, certs expirant" },
       ],
     },
     {
       label: "Monitoring",
       tabs: [
-        { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline },
-        { id: "processes", label: "Processus", icon: ListTree, show: isOnline },
-        { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline },
+        { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline, tooltip: "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h" },
+        { id: "processes", label: "Processus", icon: ListTree, show: isOnline, tooltip: "Top 10 processus par CPU et RAM, kill possible" },
+        { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline, tooltip: "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
       ],
     },
     {
       label: "Système",
       tabs: [
-        { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent },
-        { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline },
-        { id: "users", label: "Utilisateurs", icon: Server, show: isOnline },
+        { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent, tooltip: "systemd : start/stop/restart, lien vers logs journalctl" },
+        { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline, tooltip: "Cron jobs (lecture) + systemd timers (enable/disable)" },
+        { id: "users", label: "Utilisateurs", icon: Server, show: isOnline, tooltip: "Linux users UID≥1000, sudo membership, clés SSH" },
       ],
     },
     {
       label: "Réseau",
       tabs: [
-        { id: "network", label: "Interfaces", icon: Network, show: isOnline },
-        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent },
-        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent },
+        { id: "network", label: "Interfaces", icon: Network, show: isOnline, tooltip: "ip addr / routes / DNS (lecture seule)" },
+        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent, tooltip: "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
+        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent, tooltip: "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
       ],
     },
     {
       label: "Logiciels",
       tabs: [
-        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent },
-        { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent },
+        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent, tooltip: "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
+        { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent, tooltip: "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
       ],
     },
   ];
@@ -290,6 +290,28 @@ export default function MachineDetail() {
 
           {isAdmin && (
             <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (!id) return;
+                  attention.reload();
+                  try {
+                    const [m, lm] = await Promise.all([
+                      api.getMachine(id),
+                      api.getLatestMetrics(id).catch(() => null),
+                    ]);
+                    setMachine(m);
+                    if (lm) setLatestMetric(lm);
+                  } catch (err) {
+                    console.warn("[MachineDetail] refresh failed:", err);
+                  }
+                }}
+                title="Recharger toutes les données (machine, métriques, attention)"
+                disabled={attention.loading}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${attention.loading ? "animate-spin" : ""}`} />
+              </button>
               {machine.ipAddress && (
                 <button
                   onClick={() => setShowSshDialog(true)}
@@ -378,6 +400,7 @@ export default function MachineDetail() {
                     <button
                       key={t.id}
                       onClick={() => setActiveTab(t.id)}
+                      title={t.tooltip}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium transition-all"
                       style={{
                         background: activeTab === t.id ? "var(--nx-primary-subtle)" : "transparent",
@@ -416,6 +439,7 @@ export default function MachineDetail() {
                   <button
                     key={tab.id}
                     onClick={() => selectSubtab(activeGroup!, tab.id)}
+                    title={tab.tooltip}
                     className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all"
                     style={{
                       background: activeTab === tab.id ? "var(--nx-bg-surface)" : "transparent",

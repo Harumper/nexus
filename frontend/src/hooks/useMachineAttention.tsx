@@ -74,7 +74,14 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
   }, [machineId, enabled]);
 
   useEffect(() => {
-    if (enabled) reload();
+    if (!enabled) return;
+    reload();
+    // Polling auto toutes les 60s — la fenêtre de détection backend est de
+    // 5 min (evaluateHealthAlerts), donc 60s côté UI capte les changements
+    // dans les 60s qui suivent un nouvel état détecté serveur. Plus court
+    // serait du sur-polling.
+    const interval = setInterval(reload, 60_000);
+    return () => clearInterval(interval);
   }, [reload, enabled]);
 
   return { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, error, reload };

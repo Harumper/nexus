@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [showBatchUpdate, setShowBatchUpdate] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetSummary | null>(null);
   const [fleetTrends, setFleetTrends] = useState<TrendBucket[]>([]);
+  const [alertCounts, setAlertCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"cpu" | "memory" | "disk">("cpu");
 
   // Charger les métriques récentes pour les machines en ligne
@@ -89,6 +90,15 @@ export default function Dashboard() {
         .getFleetTrends("1h")
         .then((r) => setFleetTrends(r.buckets))
         .catch((err) => console.warn("[Dashboard] fleet trends failed:", err));
+      // Compte des alertes actives par machine — affiché en badge sur MachineCard
+      api
+        .getActiveAlerts()
+        .then((alerts) => {
+          const counts: Record<string, number> = {};
+          for (const a of alerts) counts[a.machineId] = (counts[a.machineId] || 0) + 1;
+          setAlertCounts(counts);
+        })
+        .catch((err) => console.warn("[Dashboard] active alerts failed:", err));
     };
     loadFleet();
     const interval = setInterval(loadFleet, 30_000);
@@ -289,7 +299,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {machines.map((machine) => (
-              <MachineCard key={machine.id} machine={machine} latestMetric={latestMetrics[machine.id]} onDeleted={refresh} />
+              <MachineCard key={machine.id} machine={machine} latestMetric={latestMetrics[machine.id]} alertCount={alertCounts[machine.id] || 0} onDeleted={refresh} />
             ))}
           </div>
         </div>
