@@ -65,8 +65,11 @@ export default function Layout() {
 
   const navSections = buildNavSections({ nautilusEnabled });
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    // await impératif : logout est désormais async (attend que le backend
+    // clear le cookie httpOnly avant de vider le state local). Sans await,
+    // le navigate() partait avant le clear et le cookie persistait.
+    await logout();
     navigate("/login");
   };
 
