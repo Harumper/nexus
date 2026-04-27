@@ -3,6 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { api } from "../services/api";
+import { niceYDomain } from "../lib/utils";
 import type { Metric } from "../types";
 
 interface MetricsChartProps {
@@ -156,6 +157,14 @@ function RechartCard({
   unit: string;
   max?: number;
 }) {
+  // Échelle Y adaptative : floor 10 pour les % (CPU/mem/disk), pas de cap
+  // pour load/network. Le pic reste à l'échelle tant qu'il est dans la
+  // fenêtre temporelle, puis l'axe redescend automatiquement.
+  const yValues = data
+    .map((d) => d[dataKey])
+    .filter((v): v is number => typeof v === "number");
+  const yDomain = niceYDomain(yValues, { floor: 10, cap: max });
+
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
@@ -185,7 +194,7 @@ function RechartCard({
               tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
               tickLine={false}
               axisLine={false}
-              domain={max ? [0, max] : ["auto", "auto"]}
+              domain={yDomain}
               width={35}
             />
             <Tooltip

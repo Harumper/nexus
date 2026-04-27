@@ -88,3 +88,36 @@ export function statusLabel(status: string): string {
   };
   return labels[status] || status;
 }
+
+// ───────────────────────────────────────────────────────────────────────
+// Échelle Y adaptative pour les graphs : on évite de zoomer sur du bruit
+// quand toutes les valeurs sont basses, mais on étend si un pic apparaît.
+// L'hystérèse se fait naturellement via la fenêtre temporelle des données :
+// le pic reste affiché tant qu'il est dans la range, puis l'échelle redescend
+// quand il sort.
+//
+// floor : minimum garanti (ex: 10 pour CPU% — évite de voir 0-1.5 quand
+//   la machine est calme).
+// cap : plafond absolu (ex: 100 pour %, undefined pour load/network).
+// headroom : marge au-dessus du max réel (15 % par défaut).
+// ───────────────────────────────────────────────────────────────────────
+export function niceYDomain(
+  values: number[],
+  opts: { floor?: number; cap?: number; headroom?: number } = {}
+): [number, number] {
+  const { floor = 10, cap, headroom = 0.15 } = opts;
+  const finite = values.filter((v) => Number.isFinite(v));
+  if (finite.length === 0) return [0, floor];
+
+  const peak = Math.max(...finite);
+  const target = peak * (1 + headroom);
+
+  // Paliers visuellement agréables (lecture humaine + ticks Recharts propres)
+  const niceSteps = [10, 20, 25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
+  let top = niceSteps.find((s) => s >= target) ?? Math.ceil(target / 100) * 100;
+
+  if (top < floor) top = floor;
+  if (cap !== undefined && top > cap) top = cap;
+
+  return [0, top];
+}
