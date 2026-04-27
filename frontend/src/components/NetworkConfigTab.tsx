@@ -18,6 +18,7 @@ interface NetplanFile {
 export default function NetworkConfigTab({ machineId, canMutate }: Props) {
   const [files, setFiles] = useState<NetplanFile[]>([]);
   const [targetFile, setTargetFile] = useState("99-nexus.yaml");
+  const [selectedFile, setSelectedFile] = useState("99-nexus.yaml");
   const [editorContent, setEditorContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,16 +29,22 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
   const { confirm, ConfirmDialogElement } = useConfirm();
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Le fichier en cours d'affichage est-il celui géré par Nexus (=> éditable) ?
+  const isEditable = selectedFile === targetFile;
+
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const res = await api.netplanGet(machineId);
       const data = res?.data;
-      setFiles(data?.files || []);
+      const allFiles: NetplanFile[] = data?.files || [];
+      setFiles(allFiles);
       const tgt = data?.target_file || "99-nexus.yaml";
       setTargetFile(tgt);
-      const current = data?.files?.find((f: NetplanFile) => f.filename === tgt);
+      // Garder la sélection courante si elle existe encore, sinon target
+      setSelectedFile((cur) => allFiles.some((f) => f.filename === cur) ? cur : tgt);
+      const current = allFiles.find((f) => f.filename === (allFiles.some((f) => f.filename === selectedFile) ? selectedFile : tgt));
       const content = current?.content || defaultNetplan();
       setEditorContent(content);
       setOriginalContent(content);
@@ -49,6 +56,14 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [machineId]);
+
+  // Quand on change de fichier sélectionné, recharger le contenu depuis files cache
+  useEffect(() => {
+    const f = files.find((x) => x.filename === selectedFile);
+    if (!f) return;
+    setEditorContent(f.content);
+    setOriginalContent(f.content);
+  }, [selectedFile, files]);
 
   // Poll status for pending watchdogs (au cas où un autre admin aurait lancé un apply)
   useEffect(() => {
@@ -168,10 +183,16 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4" style={{ color: "var(--nx-text-weak)" }} />
-              <span className="text-xs font-semibold">/etc/netplan/{targetFile}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
-                Géré par Nexus
-              </span>
+              <span className="text-xs font-semibold">/etc/netplan/{selectedFile}</span>
+              {isEditable ? (
+                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-primary-subtle)", color: "var(--nx-primary)" }}>
+                  Géré par Nexus
+                </span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
+                  Lecture seule
+                </span>
+              )}
             </div>
             <button
               onClick={load}
@@ -186,14 +207,25 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
           <textarea
             value={editorContent}
             onChange={(e) => setEditorContent(e.target.value)}
-            disabled={!canMutate || !!pending}
+            disabled={!isEditable || !canMutate || !!pending}
             spellCheck={false}
             rows={18}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono resize-y"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono resize-y disabled:opacity-90"
             placeholder="network:&#10;  version: 2&#10;  ethernets:&#10;    eth0:&#10;      dhcp4: true"
           />
 
-          {canMutate && (
+          {!isEditable && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
+              <FileText className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                Ce fichier n'est pas géré par Nexus. Pour modifier la configuration réseau,
+                sélectionnez <code className="font-mono">{targetFile}</code> dans la sidebar
+                ou éditez directement via SSH.
+              </span>
+            </div>
+          )}
+
+          {canMutate && isEditable && (
             <div className="flex items-center justify-between">
               <div className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
                 {isDirty ? "Modifications non appliquées" : "Synchronisé"}
@@ -215,21 +247,42 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
           <div className="rounded-xl border border-border p-4" style={{ background: "var(--nx-bg-surface)" }}>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>
               <Network className="w-3.5 h-3.5 inline mr-1" />
-              Autres fichiers netplan
+              Fichiers netplan
             </h3>
-            {files.filter((f) => f.filename !== targetFile).length === 0 ? (
+            {files.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
-                Aucun autre fichier. Nexus ne touche qu'à <code>{targetFile}</code>.
+                Aucun fichier détecté.
               </p>
             ) : (
               <div className="space-y-1">
-                {files.filter((f) => f.filename !== targetFile).map((f) => (
-                  <div key={f.filename} className="text-xs font-mono" style={{ color: "var(--nx-text-weak)" }}>
-                    {f.filename}
-                  </div>
-                ))}
+                {files.map((f) => {
+                  const isTarget = f.filename === targetFile;
+                  const isActive = f.filename === selectedFile;
+                  return (
+                    <button
+                      key={f.filename}
+                      onClick={() => setSelectedFile(f.filename)}
+                      className="w-full flex items-center gap-2 text-left rounded px-2 py-1.5 text-xs transition-colors"
+                      style={{
+                        background: isActive ? "var(--nx-primary-subtle)" : "transparent",
+                        color: isActive ? "var(--nx-primary)" : "var(--nx-text)",
+                      }}
+                    >
+                      <FileText className="w-3 h-3 shrink-0" />
+                      <span className="font-mono truncate flex-1">{f.filename}</span>
+                      {isTarget && (
+                        <span className="text-[9px] px-1 py-0.5 rounded shrink-0" style={{ background: "var(--nx-primary)", color: "var(--nx-bg-base)" }}>
+                          Nexus
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
+            <p className="text-[10px] mt-3" style={{ color: "var(--nx-text-weak)" }}>
+              Nexus ne modifie que <code>{targetFile}</code>. Les autres fichiers sont lisibles ici mais à éditer via SSH.
+            </p>
           </div>
 
           <div className="rounded-xl border border-border p-4 text-xs space-y-2" style={{ background: "var(--nx-bg-surface)" }}>
