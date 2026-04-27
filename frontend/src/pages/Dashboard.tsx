@@ -21,6 +21,7 @@ import {
 import { useMachines } from "../hooks/useMachines";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { api } from "../services/api";
+import { niceYDomain } from "../lib/utils";
 import MachineCard from "../components/MachineCard";
 import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
@@ -345,6 +346,10 @@ function AvgBar({ label, value, color }: { label: string; value: number; color: 
 function TrendChart({ data, dataKey, label, color, gradientId }: {
   data: any[]; dataKey: string; label: string; color: string; gradientId: string;
 }) {
+  // Floor 10 % évite de zoomer sur du bruit quand la fleet est calme.
+  // Cap 100 % car ces graphs trace toujours des pourcentages.
+  const yValues = data.map((d) => d?.[dataKey]).filter((v): v is number => typeof v === "number");
+  const yDomain = niceYDomain(yValues, { floor: 10, cap: 100 });
   return (
     <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
       <SectionTitle>{label}</SectionTitle>
@@ -359,7 +364,7 @@ function TrendChart({ data, dataKey, label, color, gradientId }: {
             </defs>
             <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false}
               tickFormatter={(v) => new Date(v).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
+            <YAxis domain={yDomain} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
             <Tooltip
               contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
               labelFormatter={(v) => new Date(v as string).toLocaleTimeString("fr-FR")}
