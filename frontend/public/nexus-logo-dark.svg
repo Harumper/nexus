@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" fill="none">
+  <g stroke="#06B6D4" stroke-width="4.5" stroke-linecap="round" fill="#06B6D4">
+    <line x1="50" y1="50" x2="88" y2="50"/>
+    <line x1="50" y1="50" x2="76.87" y2="76.87"/>
+    <line x1="50" y1="50" x2="50" y2="88"/>
+    <line x1="50" y1="50" x2="23.13" y2="76.87"/>
+    <line x1="50" y1="50" x2="12" y2="50"/>
+    <line x1="50" y1="50" x2="23.13" y2="23.13"/>
+    <line x1="50" y1="50" x2="50" y2="12"/>
+    <line x1="50" y1="50" x2="76.87" y2="23.13"/>
+    <circle cx="88" cy="50" r="5"/>
+    <circle cx="76.87" cy="76.87" r="5"/>
+    <circle cx="50" cy="88" r="5"/>
+    <circle cx="23.13" cy="76.87" r="5"/>
+    <circle cx="12" cy="50" r="5"/>
+    <circle cx="23.13" cy="23.13" r="5"/>
+    <circle cx="50" cy="12" r="5"/>
+    <circle cx="76.87" cy="23.13" r="5"/>
+    <circle cx="50" cy="50" r="6.5"/>
+  </g>
+  <text x="115" y="72" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="900" font-size="58" letter-spacing="-1" fill="#F1F5F9">NEXUS</text>
+</svg>
