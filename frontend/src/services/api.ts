@@ -660,6 +660,20 @@ class ApiClient {
     );
   }
 
+  // Alerts actives (FIRING/ACKNOWLEDGED) — pour badges machine/fleet
+  async getActiveAlerts() {
+    return this.request<Array<{
+      id: string;
+      ruleId: string;
+      machineId: string;
+      status: "FIRING" | "ACKNOWLEDGED";
+      firedAt: string;
+      details: { value?: number; threshold?: number } | null;
+      rule: { name: string; severity: string; conditionType: string };
+      machine: { id: string; name: string; hostname: string | null };
+    }>>("/alerts/active");
+  }
+
   // Alerts - test rule
   async testAlertRule(ruleId: string) {
     return this.request<{

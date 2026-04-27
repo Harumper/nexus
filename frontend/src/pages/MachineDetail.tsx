@@ -24,7 +24,7 @@ import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
-import SslCertsCard from "../components/SslCertsCard";
+import AttentionPanel from "../components/AttentionPanel";
 import { useConfirm, PageLoader } from "../components/ui";
 import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
@@ -429,6 +429,7 @@ export default function MachineDetail() {
             machine={machine}
             latestMetric={latestMetric}
             isAdmin={isAdmin}
+            onTabChange={(t) => setActiveTab(t as Tab)}
             onUpdated={async () => {
               if (!id) return;
               const m = await api.getMachine(id);
@@ -507,66 +508,30 @@ export default function MachineDetail() {
 }
 
 /* ══════════════════════════════════════════════
-   Overview Tab
+   Overview Tab — refonte hiérarchisée :
+   1. Attention requise (alerts/services/updates/certs) — top priority
+   2. Stockage live (visuel utile)
+   3. Inventaire compact (statique, en bas)
    ══════════════════════════════════════════════ */
-function OverviewTab({ machine, latestMetric, isAdmin, onUpdated }: { machine: Machine; latestMetric: Metric | null; isAdmin: boolean; onUpdated: () => void | Promise<void> }) {
+function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange }: {
+  machine: Machine;
+  latestMetric: Metric | null;
+  isAdmin: boolean;
+  onUpdated: () => void | Promise<void>;
+  onTabChange?: (tab: string) => void;
+}) {
+  const isOnlineAgent = machine.type === "AGENT" && machine.status === "ONLINE";
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* System Info */}
-      <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Système</h3>
-        <div className="space-y-2.5">
-          <InfoRow label="OS" value={`${machine.os || "?"} ${machine.osVersion || ""}`} />
-          <InfoRow label="Architecture" value={machine.arch || "?"} />
-          <InfoRow label="Hostname" value={machine.hostname || "?"} />
-          <InfoRow label="Agent" value={machine.agentVersion || "?"} />
-          <InfoRow label="Type" value={machine.type === "PROBE" ? "Probe (monitoring)" : "Agent (complet)"} />
-          <InfoRow label="Uptime" value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
-        </div>
-      </div>
-
-      {/* Settings éditables */}
-      {isAdmin && (
-        <EditableSettings machine={machine} onUpdated={onUpdated} />
+    <div className="space-y-4">
+      {/* 1. Attention requise — auto-load alerts + services failed + updates + certs */}
+      {isOnlineAgent && (
+        <AttentionPanel machineId={machine.id} onTabChange={onTabChange} />
       )}
 
-      {/* SSL certs */}
-      {machine.type === "AGENT" && machine.status === "ONLINE" && (
-        <SslCertsCard machineId={machine.id} />
-      )}
-
-      {/* Network */}
-      <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Réseau</h3>
-        <div className="space-y-2.5">
-          <InfoRow label="IP" value={machine.ipAddress || "?"} />
-          <InfoRow label="Dernier signal" value={timeAgo(machine.lastHeartbeat)} />
-          <InfoRow label="Enregistré" value={machine.enrolledAt ? new Date(machine.enrolledAt).toLocaleDateString("fr-FR") : "Non"} />
-          <InfoRow label="Créé" value={new Date(machine.createdAt).toLocaleDateString("fr-FR")} />
-        </div>
-      </div>
-
-      {/* Tags */}
-      <div className="space-y-4">
-        {machine.tags && machine.tags.length > 0 && (
-          <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Tags</h3>
-            <div className="flex flex-wrap gap-2">
-              {machine.tags.map((mt: any) => (
-                <span key={mt.tag?.id || mt.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: `${(mt.tag?.color || mt.color)}18`, color: mt.tag?.color || mt.color }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mt.tag?.color || mt.color }} />
-                  {mt.tag?.name || mt.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Disk usage — full width */}
+      {/* 2. Stockage live — info visuelle utile pour repérer un disque qui sature */}
       {latestMetric && latestMetric.disks && latestMetric.disks.length > 0 && (
-        <div className="lg:col-span-3 rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+        <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Stockage</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {latestMetric.disks.map((disk, i) => (
@@ -587,6 +552,51 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated }: { machine: M
                   {formatBytes(disk.used)} / {formatBytes(disk.total)} — {formatBytes(disk.free)} libre
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Inventaire compact — info statique en bas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Système</h3>
+          <div className="space-y-2.5">
+            <InfoRow label="OS" value={`${machine.os || "?"} ${machine.osVersion || ""}`} />
+            <InfoRow label="Architecture" value={machine.arch || "?"} />
+            <InfoRow label="Hostname" value={machine.hostname || "?"} />
+            <InfoRow label="Agent" value={machine.agentVersion || "?"} />
+            <InfoRow label="Type" value={machine.type === "PROBE" ? "Probe (monitoring)" : "Agent (complet)"} />
+            <InfoRow label="Uptime" value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
+          </div>
+        </div>
+
+        <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Réseau</h3>
+          <div className="space-y-2.5">
+            <InfoRow label="IP" value={machine.ipAddress || "?"} />
+            <InfoRow label="Dernier signal" value={timeAgo(machine.lastHeartbeat)} />
+            <InfoRow label="Enregistré" value={machine.enrolledAt ? new Date(machine.enrolledAt).toLocaleDateString("fr-FR") : "Non"} />
+            <InfoRow label="Créé" value={new Date(machine.createdAt).toLocaleDateString("fr-FR")} />
+          </div>
+        </div>
+
+        {isAdmin && (
+          <EditableSettings machine={machine} onUpdated={onUpdated} />
+        )}
+      </div>
+
+      {/* Tags si présents */}
+      {machine.tags && machine.tags.length > 0 && (
+        <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Tags</h3>
+          <div className="flex flex-wrap gap-2">
+            {machine.tags.map((mt: any) => (
+              <span key={mt.tag?.id || mt.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                style={{ backgroundColor: `${(mt.tag?.color || mt.color)}18`, color: mt.tag?.color || mt.color }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mt.tag?.color || mt.color }} />
+                {mt.tag?.name || mt.name}
+              </span>
             ))}
           </div>
         </div>
