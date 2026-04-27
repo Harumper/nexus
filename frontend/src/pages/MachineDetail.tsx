@@ -25,6 +25,8 @@ import UsersTab from "../components/UsersTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import AttentionPanel from "../components/AttentionPanel";
+import HeaderBadges from "../components/HeaderBadges";
+import { useMachineAttention } from "../hooks/useMachineAttention";
 import { useConfirm, PageLoader } from "../components/ui";
 import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
@@ -44,6 +46,13 @@ export default function MachineDetail() {
   const [logsService, setLogsService] = useState<string | null>(null);
   const [showSshDialog, setShowSshDialog] = useState(false);
   const { confirm, ConfirmDialogElement } = useConfirm();
+  // Charge les signaux critiques (alerts/services/updates/certs) une seule
+  // fois ici, partagé entre HeaderBadges (sous le nom) et AttentionPanel
+  // (dans la Vue d'ensemble) via prop drilling — évite le double fetch.
+  const attention = useMachineAttention(
+    id ?? "",
+    Boolean(id && machine?.type === "AGENT" && machine.status === "ONLINE")
+  );
 
   // Load machine data
   useEffect(() => {
@@ -274,6 +283,8 @@ export default function MachineDetail() {
                 {machine.os && <span>· {machine.os} {machine.osVersion}</span>}
                 {machine.arch && <span>· {machine.arch}</span>}
               </div>
+              {/* Badges critiques — visibles dès le header, cliquables vers l'onglet concerné */}
+              <HeaderBadges data={attention} onTabChange={(t) => setActiveTab(t as Tab)} />
             </div>
           </div>
 
@@ -429,6 +440,7 @@ export default function MachineDetail() {
             machine={machine}
             latestMetric={latestMetric}
             isAdmin={isAdmin}
+            attention={attention}
             onTabChange={(t) => setActiveTab(t as Tab)}
             onUpdated={async () => {
               if (!id) return;
@@ -513,20 +525,21 @@ export default function MachineDetail() {
    2. Stockage live (visuel utile)
    3. Inventaire compact (statique, en bas)
    ══════════════════════════════════════════════ */
-function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange }: {
+function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, attention }: {
   machine: Machine;
   latestMetric: Metric | null;
   isAdmin: boolean;
   onUpdated: () => void | Promise<void>;
   onTabChange?: (tab: string) => void;
+  attention: ReturnType<typeof useMachineAttention>;
 }) {
   const isOnlineAgent = machine.type === "AGENT" && machine.status === "ONLINE";
 
   return (
     <div className="space-y-4">
-      {/* 1. Attention requise — auto-load alerts + services failed + updates + certs */}
+      {/* 1. Attention requise — données chargées une seule fois au niveau parent */}
       {isOnlineAgent && (
-        <AttentionPanel machineId={machine.id} onTabChange={onTabChange} />
+        <AttentionPanel data={attention} onTabChange={onTabChange} />
       )}
 
       {/* 2. Stockage live — info visuelle utile pour repérer un disque qui sature */}
