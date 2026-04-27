@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { Shield, KeyRound, LogIn } from "lucide-react";
+import { KeyRound, LogIn } from "lucide-react";
 import { getErrorMessage } from "../services/errors";
 
 export default function Login() {
@@ -64,10 +64,16 @@ export default function Login() {
       <div className="w-full max-w-sm mx-auto">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
-            <Shield className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Nexus</h1>
+          <img
+            src="/nexus-logo.png"
+            alt="Nexus"
+            className="h-12 mx-auto mb-4 dark:hidden"
+          />
+          <img
+            src="/nexus-logo-dark.png"
+            alt="Nexus"
+            className="h-12 mx-auto mb-4 hidden dark:block"
+          />
           <p className="text-muted-foreground mt-1">
             Infrastructure Management
           </p>
