@@ -65,12 +65,12 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <img
-            src="/nexus-logo.png"
+            src="/nexus-logo.svg"
             alt="Nexus"
             className="h-12 mx-auto mb-4 dark:hidden"
           />
           <img
-            src="/nexus-logo-dark.png"
+            src="/nexus-logo-dark.svg"
             alt="Nexus"
             className="h-12 mx-auto mb-4 hidden dark:block"
           />

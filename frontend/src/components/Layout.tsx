@@ -85,7 +85,7 @@ export default function Layout() {
           style={{ borderBottom: "1px solid var(--nx-border)" }}
         >
           <img
-            src="/nexus-icon.png"
+            src="/nexus-icon.svg"
             alt="Nexus"
             className="w-8 h-8 object-contain shrink-0"
           />
