@@ -14,7 +14,7 @@ import type { User, AuthState, AuthConfig } from "../types";
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<void>;
   loginKeycloak: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
   authConfig: AuthConfig | null;
 }
@@ -211,10 +211,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Logout : pour l'auth locale, appelle /api/auth/logout qui clear le
-  // cookie httpOnly côté serveur. Pour Keycloak, redirige vers le logout
-  // OIDC qui invalide la session côté IdP.
-  const logout = useCallback(() => {
+  // cookie httpOnly côté serveur AVANT de vider le state. Sinon un re-mount
+  // (StrictMode dev, F5, ou re-render) voyait le cookie encore valide,
+  // restoreLocalSession appelait /me avec succès et l'utilisateur revenait
+  // sur le dashboard "tout seul".
+  // Pour Keycloak, redirige vers le logout OIDC qui invalide la session côté IdP.
+  const logout = useCallback(async () => {
     const provider = sessionStorage.getItem(PROVIDER_KEY);
+
+    if (provider === "keycloak" && keycloakRef.current) {
+      // Keycloak gère son propre flow de logout via redirect — pas de cookie
+      // local à clear, on vide le state puis on lance la redirection.
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(PROVIDER_KEY);
+      api.setToken(null);
+      setState({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        provider: null,
+      });
+      keycloakRef.current.logout({
+        redirectUri: window.location.origin + "/login",
+      });
+      return;
+    }
+
+    // Auth locale : await impérativement le clear cookie backend, sinon le
+    // navigateur garde le cookie et /me re-authentifie au prochain render.
+    try {
+      await api.logout();
+    } catch (err) {
+      console.warn("[Auth] logout call failed (cookie may persist):", err);
+    }
+
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(PROVIDER_KEY);
     api.setToken(null);
@@ -224,15 +254,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: false,
       provider: null,
     });
-
-    if (provider === "keycloak" && keycloakRef.current) {
-      keycloakRef.current.logout({
-        redirectUri: window.location.origin + "/login",
-      });
-    } else {
-      // Auth locale : invalider le cookie côté backend (best effort)
-      api.logout().catch((err) => console.warn("[Auth] logout call failed:", err));
-    }
   }, []);
 
   // Enregistrer le callback 401 sur l'API client
