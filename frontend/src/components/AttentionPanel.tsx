@@ -8,6 +8,7 @@ import type { MachineAttentionData } from "../hooks/useMachineAttention";
 interface Props {
   data: MachineAttentionData;
   onTabChange?: (tab: string) => void;
+  onShowFailedServices?: () => void;
 }
 
 /**
@@ -22,7 +23,7 @@ interface Props {
  *
  * Quand tout va bien : message rassurant, pas de bruit.
  */
-export default function AttentionPanel({ data, onTabChange }: Props) {
+export default function AttentionPanel({ data, onTabChange, onShowFailedServices }: Props) {
   const { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, error, reload } = data;
   const expiringCerts = certs.filter((c) => c.days_remaining < 30);
   const totalIssues = alerts.length + failedServices.length + (updatesCount > 0 ? 1 : 0) + expiringCerts.length;
@@ -79,7 +80,7 @@ export default function AttentionPanel({ data, onTabChange }: Props) {
             color="var(--nx-danger)"
             label={`${failedServices.length} service${failedServices.length > 1 ? "s" : ""} en échec`}
             detail={failedServices.slice(0, 3).map((s) => s.unit).filter(Boolean).join(", ")}
-            onClick={() => onTabChange?.("services")}
+            onClick={() => (onShowFailedServices ?? (() => onTabChange?.("services")))()}
           />
         )}
 

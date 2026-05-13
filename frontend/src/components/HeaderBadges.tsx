@@ -4,6 +4,7 @@ import type { MachineAttentionData } from "../hooks/useMachineAttention";
 interface Props {
   data: MachineAttentionData;
   onTabChange?: (tab: string) => void;
+  onShowFailedServices?: () => void;
 }
 
 /**
@@ -13,7 +14,7 @@ interface Props {
  *
  * "The bad news at the top" — pattern Datadog/Cockpit.
  */
-export default function HeaderBadges({ data, onTabChange }: Props) {
+export default function HeaderBadges({ data, onTabChange, onShowFailedServices }: Props) {
   const { alerts, failedServices, updatesCount, securityUpdates, certs } = data;
   const expiringCerts = certs.filter((c) => c.days_remaining < 30);
   const minDays = expiringCerts.length > 0
@@ -42,7 +43,7 @@ export default function HeaderBadges({ data, onTabChange }: Props) {
           icon={<XCircle className="w-3 h-3" />}
           color="var(--nx-danger)"
           bg="var(--nx-danger-subtle)"
-          onClick={() => onTabChange?.("services")}
+          onClick={() => (onShowFailedServices ?? (() => onTabChange?.("services")))()}
         >
           {failedServices.length} service{failedServices.length > 1 ? "s failed" : " failed"}
         </Badge>
