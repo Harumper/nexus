@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download, Radio, AlertTriangle,
-  RotateCcw, ArrowUpCircle, Cog, Power,
+  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen,
 } from "lucide-react";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -22,6 +22,7 @@ import PackagesTab from "../components/PackagesTab";
 import StorageTab from "../components/StorageTab";
 import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
+import FilesTab from "../components/FilesTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import AttentionPanel from "../components/AttentionPanel";
@@ -32,7 +33,7 @@ import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 import { getErrorMessage } from "../services/errors";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -225,6 +226,7 @@ export default function MachineDetail() {
         { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent, tooltip: "systemd : start/stop/restart, lien vers logs journalctl" },
         { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline, tooltip: "Cron jobs (lecture) + systemd timers (enable/disable)" },
         { id: "users", label: "Utilisateurs", icon: Server, show: isOnline, tooltip: "Linux users UID≥1000, sudo membership, clés SSH" },
+        { id: "files", label: "Fichiers", icon: FolderOpen, show: isOnline, tooltip: "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées" },
       ],
     },
     {
@@ -544,6 +546,10 @@ export default function MachineDetail() {
 
         {activeTab === "users" && isOnline && (
           <UsersTab machineId={machine.id} canMutate={isAgent} />
+        )}
+
+        {activeTab === "files" && isOnline && (
+          <FilesTab machine={machine} canUpload={isAgent} />
         )}
 
         {activeTab === "netplan" && isOnline && (

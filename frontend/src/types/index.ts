@@ -41,6 +41,16 @@ export type MachineStatus =
   | "DEGRADED"
   | "REVOKED";
 
+export interface FsEntry {
+  name: string;
+  kind: "file" | "dir" | "symlink" | "device" | "pipe" | "socket" | "other";
+  size: number;
+  mode: string;
+  mtime: string;
+  denied?: boolean;
+  symlink?: string;
+}
+
 export interface InstallStep {
   id: string;
   title: string;
