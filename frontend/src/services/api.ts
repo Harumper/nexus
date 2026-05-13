@@ -739,6 +739,56 @@ class ApiClient {
     });
   }
 
+  // ── Files (browser) ──────────────────────────────────────
+  async fsList(id: string, path: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        path: string;
+        entries: import("../types").FsEntry[];
+        count: number;
+        truncated: boolean;
+        inbox: string;
+      };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: "fs.list", params: { path }, timeout: 15000 }),
+    });
+  }
+
+  async fsRead(id: string, path: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        path: string;
+        size: number;
+        mtime: string;
+        sha256: string;
+        content_base64: string;
+      };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      // Timeout généreux : 50 MB en base64 ≈ 67 MB JSON sur le wire
+      body: JSON.stringify({ action_id: "fs.read", params: { path }, timeout: 60000 }),
+    });
+  }
+
+  async fsUpload(id: string, filename: string, content_base64: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        path: string;
+        filename: string;
+        size: number;
+        sha256: string;
+        inbox: string;
+      };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: "fs.upload", params: { filename, content_base64 }, timeout: 60000 }),
+    });
+  }
+
   // Bulk dispatch
   async bulkDispatch(opts: {
     action_id: string;

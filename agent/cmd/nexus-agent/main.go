@@ -55,6 +55,9 @@ var (
 		"system.health_summary":     true,
 		"ssl.scan":                  true,
 		"agent.sudoers_check":       true,
+		"fs.list":                   true,
+		"fs.read":                   true,
+		// fs.upload volontairement absent : interdit en mode probe
 	}
 )
 
@@ -91,6 +94,20 @@ func main() {
 	// revert tous les snapshots pending au demarrage
 	actions.RecoverPendingSnapshots()
 	actions.RecoverPendingNetplan()
+
+	// Cleanup périodique de l'inbox fs.upload (fichiers > 7j). Une fois au boot
+	// puis toutes les 24h. Pas critique si rate (les fichiers seront pris au
+	// prochain tick), donc goroutine non bloquante.
+	go func() {
+		for {
+			if n, err := actions.CleanupInbox(); err != nil {
+				log.Printf("[Agent] inbox cleanup error: %v", err)
+			} else if n > 0 {
+				log.Printf("[Agent] inbox cleanup: %d expired files removed", n)
+			}
+			time.Sleep(24 * time.Hour)
+		}
+	}()
 
 	// Initialiser le keystore
 	keystore := security.NewKeystore(cfg.KeyPath)

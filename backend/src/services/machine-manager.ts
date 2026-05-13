@@ -111,6 +111,10 @@ export const PROBE_ALLOWED_ACTIONS = [
   "system.health_summary",
   "ssl.scan",
   "agent.sudoers_check",
+  // File browser : list/read en lecture seule autorisés en mode PROBE.
+  // L'upload (fs.upload) reste réservé aux machines AGENT.
+  "fs.list",
+  "fs.read",
 ];
 
 export async function isActionAllowed(

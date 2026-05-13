@@ -149,6 +149,13 @@ mkdir -p "$AGENT_SCRIPT_DIR"
 chown "$AGENT_USER":"$AGENT_GROUP" "$AGENT_SCRIPT_DIR"
 chmod 0700 "$AGENT_SCRIPT_DIR"
 
+# Inbox pour les uploads via fs.upload (file browser). Owner agent, 0750 :
+# l'utilisateur final passera en SSH + sudo pour déplacer ailleurs. Les
+# fichiers sont écrits en 0640 et auto-supprimés après 7 jours par l'agent.
+mkdir -p "$AGENT_SCRIPT_DIR/inbox"
+chown "$AGENT_USER":"$AGENT_GROUP" "$AGENT_SCRIPT_DIR/inbox"
+chmod 0750 "$AGENT_SCRIPT_DIR/inbox"
+
 # Créer le fichier sudoers dans un temp sécurisé
 SUDOERS_TEMP=$(mktemp -t nexus-agent-sudoers.XXXXXX)
 trap "rm -f '$SUDOERS_TEMP'" EXIT
