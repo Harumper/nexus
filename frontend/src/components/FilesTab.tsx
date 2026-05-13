@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   RefreshCw, Folder, File as FileIcon, FileText, Image, Link2, ChevronRight,
-  Download, Upload, Copy, Check, Search, Lock, AlertTriangle, Loader2, Home,
+  Download, Upload, Copy, Check, Search, Lock, AlertTriangle, Loader2, Home, Eye, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
@@ -16,6 +16,49 @@ interface FilesTabProps {
 
 // Cap aligné avec l'agent (files.go: fsMaxSize). Au-delà → on propose scp/rsync.
 const FS_MAX_SIZE = 50 * 1024 * 1024;
+
+// Caps de preview — plus bas que le cap de download pour éviter de faire
+// ramer le browser sur 50 MB d'image. Au-delà → download direct.
+const PREVIEW_IMAGE_MAX = 8 * 1024 * 1024;   // 8 MB : couvre la majorité des PNG/JPG
+const PREVIEW_TEXT_MAX = 512 * 1024;          // 512 KB : large pour un fichier de conf/log
+
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "avif"]);
+const TEXT_EXTS = new Set([
+  "txt", "log", "conf", "cfg", "ini", "yaml", "yml", "json", "toml", "md",
+  "csv", "tsv", "xml", "html", "htm", "sh", "bash", "py", "js", "ts", "tsx",
+  "jsx", "css", "scss", "go", "rs", "rb", "java", "c", "cpp", "h", "hpp",
+  "service", "timer", "socket", "rules", "list", "sources", "env",
+]);
+
+type PreviewKind = "image" | "text" | null;
+
+function previewKindFor(entry: FsEntry): PreviewKind {
+  if (entry.kind !== "file" || entry.denied) return null;
+  const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
+  if (IMAGE_EXTS.has(ext)) return entry.size <= PREVIEW_IMAGE_MAX ? "image" : null;
+  if (TEXT_EXTS.has(ext)) return entry.size <= PREVIEW_TEXT_MAX ? "text" : null;
+  // Heuristique fichiers sans extension : si petit (<= 256 KB), on tente texte
+  if (!entry.name.includes(".") && entry.size > 0 && entry.size <= 256 * 1024) return "text";
+  return null;
+}
+
+// MIME basique par extension pour le data: URL. Servir une image SVG en
+// "image/svg+xml" évite un fallback en text/plain.
+function mimeFor(name: string): string {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  switch (ext) {
+    case "png": return "image/png";
+    case "jpg":
+    case "jpeg": return "image/jpeg";
+    case "gif": return "image/gif";
+    case "svg": return "image/svg+xml";
+    case "webp": return "image/webp";
+    case "ico": return "image/x-icon";
+    case "bmp": return "image/bmp";
+    case "avif": return "image/avif";
+    default: return "application/octet-stream";
+  }
+}
 
 // Chemins de raccourci proposés dans une barre latérale. Pure UX, pas
 // d'allow-list backend : la denylist côté agent reste l'autorité.
@@ -106,6 +149,8 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
   const [uploading, setUploading] = useState(false);
   const [tooLargeFile, setTooLargeFile] = useState<{ name: string; size: number; path: string } | null>(null);
   const [pathInput, setPathInput] = useState<string>("/");
+  const [preview, setPreview] = useState<{ entry: FsEntry; fullPath: string; kind: "image" | "text"; data: string; sha256: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (target: string) => {
@@ -150,9 +195,40 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
     if (e.kind === "dir") {
       load(joinPath(cwd, e.name));
     } else if (e.kind === "file") {
-      handleDownload(e);
+      // Comportement par défaut : preview si le type s'y prête, sinon download.
+      // Le bouton "DL" reste disponible pour forcer le téléchargement direct.
+      if (previewKindFor(e)) {
+        handlePreview(e);
+      } else {
+        handleDownload(e);
+      }
     } else if (e.kind === "symlink") {
       toast.message(`Symlink → ${e.symlink ?? "?"} (non suivi)`);
+    }
+  };
+
+  const handlePreview = async (e: FsEntry) => {
+    const kind = previewKindFor(e);
+    if (!kind) return;
+    const fullPath = joinPath(cwd, e.name);
+    setPreviewLoading(true);
+    try {
+      const res = await api.fsRead(machine.id, fullPath);
+      let data: string;
+      if (kind === "image") {
+        data = `data:${mimeFor(e.name)};base64,${res.data.content_base64}`;
+      } else {
+        // Décodage UTF-8 du base64. Pour ~500 KB ça reste instantané.
+        const bin = atob(res.data.content_base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        data = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      }
+      setPreview({ entry: e, fullPath, kind, data, sha256: res.data.sha256 });
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Preview impossible"));
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -420,6 +496,17 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
                       <div className="flex gap-1 justify-end">
                         {e.kind === "file" && !e.denied && (
                           <>
+                            {previewKindFor(e) && (
+                              <button
+                                onClick={() => handlePreview(e)}
+                                disabled={previewLoading}
+                                className="p-1.5 rounded hover:bg-muted transition-colors"
+                                title="Aperçu"
+                                style={{ color: "var(--nx-text-weak)" }}
+                              >
+                                {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDownload(e)}
                               disabled={downloadingFor === e.name}
@@ -458,6 +545,150 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
           onClose={() => setTooLargeFile(null)}
         />
       )}
+
+      {/* Modal preview image / texte */}
+      {preview && (
+        <PreviewModal
+          entry={preview.entry}
+          fullPath={preview.fullPath}
+          kind={preview.kind}
+          data={preview.data}
+          sha256={preview.sha256}
+          machine={machine}
+          onClose={() => setPreview(null)}
+          onDownload={() => {
+            handleDownload(preview.entry);
+            setPreview(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PreviewModal({
+  entry,
+  fullPath,
+  kind,
+  data,
+  sha256,
+  machine,
+  onClose,
+  onDownload,
+}: {
+  entry: FsEntry;
+  fullPath: string;
+  kind: "image" | "text";
+  data: string;
+  sha256: string;
+  machine: Machine;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  const [copiedCmd, setCopiedCmd] = useState(false);
+  const [copiedContent, setCopiedContent] = useState(false);
+  const scpCmd = scpDownloadCmd(machine, fullPath);
+
+  const copyCmd = async () => {
+    try {
+      await navigator.clipboard.writeText(scpCmd);
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 1500);
+    } catch {
+      toast.error("Clipboard refusé");
+    }
+  };
+
+  const copyTextContent = async () => {
+    try {
+      await navigator.clipboard.writeText(data);
+      setCopiedContent(true);
+      setTimeout(() => setCopiedContent(false), 1500);
+    } catch {
+      toast.error("Clipboard refusé");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-xl max-w-5xl w-full max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-border shrink-0">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              {kind === "image" ? <Image className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+              <span className="font-mono text-xs truncate">{entry.name}</span>
+            </div>
+            <div className="text-[10px] mt-0.5 font-mono truncate" style={{ color: "var(--nx-text-weak)" }}>
+              {fullPath} · {formatBytes(entry.size)} · sha256 {sha256.slice(0, 12)}…
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            aria-label="Fermer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-auto" style={{ background: kind === "image" ? "var(--nx-bg-elevated)" : "var(--nx-bg-surface)" }}>
+          {kind === "image" ? (
+            <div className="flex items-center justify-center p-4 min-h-full">
+              <img
+                src={data}
+                alt={entry.name}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+                style={{ background: "repeating-conic-gradient(#444 0% 25%, transparent 0% 50%) 50% / 16px 16px" }}
+              />
+            </div>
+          ) : (
+            <pre
+              className="p-4 text-xs font-mono whitespace-pre-wrap break-words"
+              style={{ color: "var(--nx-text)" }}
+            >
+              {data}
+            </pre>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border shrink-0 flex-wrap">
+          <code className="text-[10px] font-mono truncate flex-1 min-w-[200px] px-2 py-1 rounded" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
+            {scpCmd}
+          </code>
+          <div className="flex gap-2 shrink-0">
+            {kind === "text" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={copyTextContent}
+                icon={copiedContent ? <Check /> : <Copy />}
+              >
+                {copiedContent ? "Copié" : "Copier"}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={copyCmd}
+              icon={copiedCmd ? <Check /> : <Copy />}
+            >
+              {copiedCmd ? "Copié scp" : "Copier scp"}
+            </Button>
+            <Button variant="primary" size="sm" onClick={onDownload} icon={<Download />}>
+              Télécharger
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

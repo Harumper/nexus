@@ -290,5 +290,21 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain('activeTab === "files"');
       expect(content).toContain('canUpload={isAgent}');
     });
+
+    it("should preview images and text in-place before downloading", () => {
+      const content = readFileSync(tabPath, "utf8");
+      // Sélection d'extension
+      expect(content).toContain("IMAGE_EXTS");
+      expect(content).toContain("TEXT_EXTS");
+      // Caps de preview indépendants du cap de DL
+      expect(content).toContain("PREVIEW_IMAGE_MAX");
+      expect(content).toContain("PREVIEW_TEXT_MAX");
+      // Modal de preview avec actions DL/scp
+      expect(content).toContain("PreviewModal");
+      expect(content).toContain('kind === "image"');
+      // Image servie via data: URL (pas de blob temporaire qui fuite)
+      expect(content).toContain("data:");
+      expect(content).toContain("mimeFor");
+    });
   });
 });
