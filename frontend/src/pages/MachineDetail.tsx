@@ -45,6 +45,15 @@ export default function MachineDetail() {
   const [lastSubtab, setLastSubtab] = useState<Record<string, Tab>>({});
   const [logsService, setLogsService] = useState<string | null>(null);
   const [showSshDialog, setShowSshDialog] = useState(false);
+  // Demande "one-shot" de filtrer Services sur l'état "failed" — émise par
+  // HeaderBadges / AttentionPanel quand l'utilisateur clique sur le badge
+  // "services en échec". Consommée par ServicesTab à la réception.
+  const [pendingServiceFilter, setPendingServiceFilter] = useState<"failed" | null>(null);
+  const showFailedServices = useCallback(() => {
+    setPendingServiceFilter("failed");
+    setActiveTab("services");
+  }, []);
+  const consumePendingServiceFilter = useCallback(() => setPendingServiceFilter(null), []);
   const { confirm, ConfirmDialogElement } = useConfirm();
   // Charge les signaux critiques (alerts/services/updates/certs) une seule
   // fois ici, partagé entre HeaderBadges (sous le nom) et AttentionPanel
@@ -257,6 +266,20 @@ export default function MachineDetail() {
                   <span className={`w-2 h-2 rounded-full ${status.dot} ${isOnline ? "animate-pulse" : ""}`} />
                   {statusLabel(machine.status)}
                 </span>
+                {/* Agent en reconnexion : status BDD encore ONLINE (grâce 90s) mais
+                    WS coupé. Distingue clairement de "vraiment en ligne" pour éviter
+                    que l'utilisateur déclenche une action qui va échouer en "Agent
+                    is not connected". */}
+                {isOnline && machine.isConnected === false && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
+                    title="WebSocket coupé. La machine reste marquée ONLINE pendant ~90s après une déconnexion pour absorber les blips réseau ; les actions échoueront tant que l'agent ne s'est pas reconnecté."
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--nx-warning)" }} />
+                    Reconnexion
+                  </span>
+                )}
                 {isProbe && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>Probe</span>}
                 {machine.isCritical && (
                   <span
@@ -284,7 +307,11 @@ export default function MachineDetail() {
                 {machine.arch && <span>· {machine.arch}</span>}
               </div>
               {/* Badges critiques — visibles dès le header, cliquables vers l'onglet concerné */}
-              <HeaderBadges data={attention} onTabChange={(t) => setActiveTab(t as Tab)} />
+              <HeaderBadges
+                data={attention}
+                onTabChange={(t) => setActiveTab(t as Tab)}
+                onShowFailedServices={showFailedServices}
+              />
             </div>
           </div>
 
@@ -466,6 +493,7 @@ export default function MachineDetail() {
             isAdmin={isAdmin}
             attention={attention}
             onTabChange={(t) => setActiveTab(t as Tab)}
+            onShowFailedServices={showFailedServices}
             onUpdated={async () => {
               if (!id) return;
               const m = await api.getMachine(id);
@@ -494,7 +522,12 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "services" && isOnline && (
-          <ServicesTab machineId={machine.id} onViewLogs={setLogsService} />
+          <ServicesTab
+            machineId={machine.id}
+            onViewLogs={setLogsService}
+            pendingFilter={pendingServiceFilter}
+            onPendingFilterConsumed={consumePendingServiceFilter}
+          />
         )}
 
         {activeTab === "firewall" && isOnline && (
@@ -549,12 +582,13 @@ export default function MachineDetail() {
    2. Stockage live (visuel utile)
    3. Inventaire compact (statique, en bas)
    ══════════════════════════════════════════════ */
-function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, attention }: {
+function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, onShowFailedServices, attention }: {
   machine: Machine;
   latestMetric: Metric | null;
   isAdmin: boolean;
   onUpdated: () => void | Promise<void>;
   onTabChange?: (tab: string) => void;
+  onShowFailedServices?: () => void;
   attention: ReturnType<typeof useMachineAttention>;
 }) {
   const isOnlineAgent = machine.type === "AGENT" && machine.status === "ONLINE";
@@ -563,7 +597,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, a
     <div className="space-y-4">
       {/* 1. Attention requise — données chargées une seule fois au niveau parent */}
       {isOnlineAgent && (
-        <AttentionPanel data={attention} onTabChange={onTabChange} />
+        <AttentionPanel data={attention} onTabChange={onTabChange} onShowFailedServices={onShowFailedServices} />
       )}
 
       {/* 2. Stockage live — info visuelle utile pour repérer un disque qui sature */}

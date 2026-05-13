@@ -13,19 +13,35 @@ interface SystemdUnit {
   description: string;
 }
 
+type StateFilter = "all" | "active" | "inactive" | "failed";
+
 interface ServicesTabProps {
   machineId: string;
   onViewLogs?: (service: string) => void;
+  /** Filtre demandé depuis l'extérieur (ex. clic sur "services en échec" dans
+   * AttentionPanel). One-shot : on l'applique à la réception et on appelle
+   * onPendingFilterConsumed pour le rendre nul, afin que l'utilisateur puisse
+   * ensuite changer le filtre librement. */
+  pendingFilter?: StateFilter | null;
+  onPendingFilterConsumed?: () => void;
 }
 
 type ActionKind = "start" | "stop" | "restart";
 
-export default function ServicesTab({ machineId, onViewLogs }: ServicesTabProps) {
+export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPendingFilterConsumed }: ServicesTabProps) {
   const [services, setServices] = useState<SystemdUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState<"all" | "active" | "inactive" | "failed">("all");
+  const [stateFilter, setStateFilter] = useState<StateFilter>(pendingFilter ?? "all");
+
+  useEffect(() => {
+    if (pendingFilter) {
+      setStateFilter(pendingFilter);
+      onPendingFilterConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFilter]);
   const [actingOn, setActingOn] = useState<{ service: string; action: ActionKind } | null>(null);
   const { confirm, ConfirmDialogElement } = useConfirm();
 

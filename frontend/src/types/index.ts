@@ -29,6 +29,9 @@ export interface Machine {
   createdAt: string;
   tags?: { tag: Tag }[];
   rebootRequired?: boolean;
+  /** Présence WebSocket live. Peut être false alors que status=ONLINE
+   * pendant la grâce de 90s anti-flapping côté backend. */
+  isConnected?: boolean;
 }
 
 export type MachineStatus =

@@ -5,7 +5,7 @@ import {
   regenerateEnrollmentToken,
 } from "../services/enrollment.js";
 import { revokeMachine } from "../services/security.js";
-import { disconnectAgent } from "../websocket/sessions.js";
+import { disconnectAgent, getAgentSession, getConnectedMachineIds } from "../websocket/sessions.js";
 import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/auth.js";
 import { logAudit } from "../middleware/audit.js";
 import { generateBootstrapToken, invalidateInstallTokens } from "../services/bootstrap.js";
@@ -99,10 +99,16 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         orderBy: { createdAt: "desc" },
       });
 
+      // Présence WS live — distincte du status BDD qui a une grâce de 90s
+      // après disconnect (anti-flapping, voir handler.ts:126). Le frontend
+      // utilise isConnected pour savoir si une action dispatchée passera.
+      const connectedIds = new Set(getConnectedMachineIds());
+
       const result = machines.map((m) => ({
         ...m,
         tags: m.tags.map((t) => t.tag),
         sudoersOutdated: isSudoersOutdated(m.sudoersHash),
+        isConnected: connectedIds.has(m.id),
       }));
 
       if (isPaginated) {
@@ -157,6 +163,8 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         sudoersOutdated: isSudoersOutdated(machine.sudoersHash),
         expectedSudoersHash: getExpectedSudoersHash(),
         tags: machine.tags.map((t) => t.tag),
+        // Live WS presence — voir route /api/machines pour le pourquoi
+        isConnected: getAgentSession(id)?.authenticated === true,
       });
     }
   );

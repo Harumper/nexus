@@ -72,7 +72,15 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
         });
       }
     } catch (err) {
-      setError(getErrorMessage(err));
+      const msg = getErrorMessage(err);
+      // Quand le WS est coupé mais que la machine reste ONLINE pendant la grâce
+      // anti-flapping (~90s), le dispatcher renvoie ce message brut. On le
+      // traduit en quelque chose d'actionnable pour l'utilisateur.
+      setError(
+        /agent is not connected/i.test(msg)
+          ? "Agent en cours de reconnexion. Réessaie dans quelques secondes."
+          : msg
+      );
     } finally {
       setLoading(false);
     }
