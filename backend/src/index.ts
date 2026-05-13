@@ -89,6 +89,12 @@ async function main() {
         styleSrc: ["'self'", "'unsafe-inline'"],
         connectSrc: ["'self'", ...(keycloakUrl ? [keycloakUrl] : [])],
         frameSrc: cspFrameSrc,
+        // data: pour la preview d'image du FilesTab (servies inline en
+        // data:image/...;base64 après fs.read). blob: au cas où une lib
+        // utilise URL.createObjectURL. Pas d'origine externe whitelistée :
+        // l'attaquant qui injecterait une img ne peut servir que ses
+        // propres bytes encodés en data, déjà passés par notre auth.
+        imgSrc: ["'self'", "data:", "blob:"],
       },
     },
   });
