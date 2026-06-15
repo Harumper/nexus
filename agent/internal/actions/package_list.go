@@ -29,9 +29,13 @@ func (a *PackageListAction) Execute(params map[string]interface{}) (interface{},
 	}
 
 	securityCount := 0
+	deferredCount := 0
 	for _, u := range updates {
 		if u.SecurityUpdate {
 			securityCount++
+		}
+		if u.Deferred {
+			deferredCount++
 		}
 	}
 
@@ -39,6 +43,9 @@ func (a *PackageListAction) Execute(params map[string]interface{}) (interface{},
 		"package_manager": string(pm),
 		"total_updates":   len(updates),
 		"security_updates": securityCount,
-		"packages":        updates,
+		// Paquets différés (phased/kept-back) : listés mais non installés
+		// immédiatement par `apt-get upgrade`. Explique l'écart avec le MOTD.
+		"deferred_updates": deferredCount,
+		"packages":         updates,
 	}, nil
 }

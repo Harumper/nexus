@@ -83,6 +83,17 @@ func (a *SystemUpdateSecurityAction) Execute(params map[string]interface{}) (int
 	return result, nil
 }
 
+// aptUpdateEnv force la locale C pendant l'upgrade : la trace est alors en
+// anglais (standard pour les logs apt) et l'heuristique de progression qui
+// compte "Unpacking"/"Setting up" reste fiable quelle que soit la langue système.
+func aptUpdateEnv() []string {
+	return append(os.Environ(),
+		"DEBIAN_FRONTEND=noninteractive",
+		"LC_ALL=C",
+		"LANG=C",
+	)
+}
+
 // ===================== Exécution (commandes HARDCODÉES) =====================
 
 func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID string) (*collector.UpdateResult, error) {
@@ -102,7 +113,7 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		// Via sudo — l'agent tourne sous nexus-agent (non-root)
 		sendProgress("Mise à jour de l'index des paquets...", 10)
 		updateCmd := exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "update")
-		updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		updateCmd.Env = aptUpdateEnv()
 		if out, err := updateCmd.CombinedOutput(); err != nil {
 			return &collector.UpdateResult{
 				Success:     false,
@@ -112,13 +123,15 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		}
 
 		// Étape 2 : apt-get upgrade
+		// "-q" (et non "-qq") : on garde les lignes "Unpacking"/"Setting up"
+		// pour alimenter la trace temps réel ; "-qq" les supprimait.
 		sendProgress("Installation des mises à jour...", 30)
 		if securityOnly {
 			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/unattended-upgrades", "--minimal_upgrade_steps")
 		} else {
-			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "upgrade", "-y", "-qq")
+			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "upgrade", "-y", "-q")
 		}
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		cmd.Env = aptUpdateEnv()
 
 	case collector.PMDnf:
 		sendProgress("Installation des mises à jour...", 20)
