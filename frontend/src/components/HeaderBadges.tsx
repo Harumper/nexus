@@ -15,7 +15,11 @@ interface Props {
  * "The bad news at the top" — pattern Datadog/Cockpit.
  */
 export default function HeaderBadges({ data, onTabChange, onShowFailedServices }: Props) {
-  const { alerts, failedServices, updatesCount, securityUpdates, certs } = data;
+  const { updatesCount, securityUpdates } = data;
+  // Garde-fou null : un agent injoignable peut remonter null au lieu de [].
+  const alerts = data.alerts ?? [];
+  const failedServices = data.failedServices ?? [];
+  const certs = data.certs ?? [];
   const expiringCerts = certs.filter((c) => c.days_remaining < 30);
   const minDays = expiringCerts.length > 0
     ? Math.min(...expiringCerts.map((c) => c.days_remaining))

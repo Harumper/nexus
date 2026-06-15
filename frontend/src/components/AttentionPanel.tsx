@@ -24,7 +24,13 @@ interface Props {
  * Quand tout va bien : message rassurant, pas de bruit.
  */
 export default function AttentionPanel({ data, onTabChange, onShowFailedServices }: Props) {
-  const { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, error, reload } = data;
+  const { updatesCount, securityUpdates, minCertDays, loading, error, reload } = data;
+  // Garde-fou null : si l'agent est injoignable, certaines sources peuvent
+  // remonter null au lieu d'un tableau vide — on normalise pour éviter un
+  // crash `.filter/.length of null` au render.
+  const alerts = data.alerts ?? [];
+  const failedServices = data.failedServices ?? [];
+  const certs = data.certs ?? [];
   const expiringCerts = certs.filter((c) => c.days_remaining < 30);
   const totalIssues = alerts.length + failedServices.length + (updatesCount > 0 ? 1 : 0) + expiringCerts.length;
 
