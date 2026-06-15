@@ -60,7 +60,7 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
         api.sslScan(machineId).catch((err) => { console.warn("[Attention] ssl:", err); return null; }),
       ]);
 
-      setAlerts(alertsRes.filter((a) => a.machineId === machineId) as ActiveAlert[]);
+      setAlerts((alertsRes ?? []).filter((a) => a.machineId === machineId) as ActiveAlert[]);
       setFailedServices(healthRes?.data?.services?.failed ?? []);
       setUpdatesCount(healthRes?.data?.updates?.count ?? 0);
       setSecurityUpdates(healthRes?.data?.updates?.security ?? 0);
