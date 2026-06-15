@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Download,
   RefreshCw,
@@ -11,11 +11,14 @@ import {
   ChevronUp,
   Lock,
   Unlock,
+  Clock,
+  ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { Dialog } from "./ui/Dialog";
 import type { WSDashboardMessage } from "../types";
 
 interface UpdatePanelProps {
@@ -28,12 +31,14 @@ interface PendingPackage {
   current_version: string;
   new_version: string;
   security_update: boolean;
+  deferred?: boolean;
 }
 
 interface PackageListResult {
   package_manager: string;
   total_updates: number;
   security_updates: number;
+  deferred_updates?: number;
   packages: PendingPackage[];
 }
 
@@ -57,13 +62,27 @@ export default function UpdatePanel({
   const [showAllPackages, setShowAllPackages] = useState(false);
   const [holds, setHolds] = useState<Set<string>>(new Set());
   const [togglingHold, setTogglingHold] = useState<string | null>(null);
+  // Journal complet des événements reçus pour la MAJ en cours / la dernière.
+  // Conservé après la fin pour permettre la relecture via la modal.
+  const [log, setLog] = useState<string[]>([]);
+  const [showLog, setShowLog] = useState(false);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll du journal en bas quand la modal est ouverte
+  useEffect(() => {
+    if (showLog) logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [log, showLog]);
 
   // WebSocket pour la progression des MAJ
   const handleWsMessage = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.type === "update.progress" && msg.machine_id === machineId) {
-        setProgress(msg.data as UpdateProgress);
-        if (msg.data?.percent === 100) {
+        const data = msg.data as UpdateProgress;
+        setProgress(data);
+        if (data?.line) {
+          setLog((prev) => [...prev, data.line]);
+        }
+        if (data?.percent === 100) {
           setTimeout(() => {
             setUpdating(false);
             setResult({
@@ -131,6 +150,7 @@ export default function UpdatePanel({
     setUpdating(true);
     setProgress({ line: "Démarrage de la mise à jour...", percent: 0 });
     setResult(null);
+    setLog(["Démarrage de la mise à jour..."]);
     try {
       const actionId = securityOnly
         ? "system.update_security"
@@ -145,6 +165,12 @@ export default function UpdatePanel({
 
   const securityPkgs =
     packageData?.packages.filter((p) => p.security_update) ?? [];
+  const deferredCount =
+    packageData?.deferred_updates ??
+    (packageData?.packages.filter((p) => p.deferred).length || 0);
+  // Nombre réellement installable maintenant par apt (= total - différés),
+  // ce qui correspond au "X peuvent être appliquées immédiatement" du terminal.
+  const applicableCount = (packageData?.total_updates ?? 0) - deferredCount;
   const displayedPackages = showAllPackages
     ? packageData?.packages ?? []
     : (packageData?.packages ?? []).slice(0, 10);
@@ -214,12 +240,36 @@ export default function UpdatePanel({
                 <span className="text-xs text-amber-400/80">sécurité</span>
               </div>
             )}
+            {deferredCount > 0 && (
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border"
+                title="Phased updates / kept-back : listés comme disponibles mais non installés immédiatement par apt (déploiement progressif Ubuntu)."
+              >
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">
+                  {deferredCount}
+                </span>
+                <span className="text-xs text-muted-foreground">différé{deferredCount > 1 ? "s" : ""}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted">
               <span className="text-xs text-muted-foreground">
                 via {packageData.package_manager}
               </span>
             </div>
           </div>
+
+          {deferredCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {deferredCount} mise{deferredCount > 1 ? "s" : ""} à jour différée
+              {deferredCount > 1 ? "s" : ""} (phased/kept-back) ne ser
+              {deferredCount > 1 ? "ont" : "a"} pas installée
+              {deferredCount > 1 ? "s" : ""} immédiatement par apt —{" "}
+              {packageData.total_updates - deferredCount} applicable
+              {packageData.total_updates - deferredCount > 1 ? "s" : ""}{" "}
+              maintenant.
+            </p>
+          )}
 
           {/* Liste des packages */}
           {packageData.total_updates > 0 && (
@@ -254,7 +304,18 @@ export default function UpdatePanel({
                         style={{ opacity: isHeld ? 0.5 : 1 }}
                       >
                         <td className="px-3 py-1.5 text-xs font-mono text-foreground">
-                          {pkg.name}
+                          <span className="inline-flex items-center gap-1.5">
+                            {pkg.name}
+                            {pkg.deferred && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-sans font-medium bg-muted text-muted-foreground border border-border"
+                                title="Phased/kept-back : non installé immédiatement par apt"
+                              >
+                                <Clock className="w-2.5 h-2.5" />
+                                différé
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td className="px-3 py-1.5 text-xs text-muted-foreground font-mono">
                           {pkg.current_version || "—"}
@@ -337,15 +398,55 @@ export default function UpdatePanel({
         </div>
       )}
 
+      {/* Accès au journal complet des événements de la MAJ */}
+      {log.length > 0 && (
+        <button
+          onClick={() => setShowLog(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ScrollText className="w-3.5 h-3.5" />
+          Voir le journal ({log.length} ligne{log.length > 1 ? "s" : ""})
+        </button>
+      )}
+
+      {/* Modal : journal terminal complet */}
+      <Dialog
+        open={showLog}
+        onClose={() => setShowLog(false)}
+        title={`Journal de mise à jour — ${machineName}`}
+        description={`${log.length} événement${log.length > 1 ? "s" : ""} reçu${
+          log.length > 1 ? "s" : ""
+        }${updating ? " · en cours…" : ""}`}
+        size="xl"
+      >
+        <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-300 p-4 max-h-[60vh] overflow-y-auto">
+          {log.map((line, i) => (
+            <div key={i} className="flex gap-3">
+              <span className="select-none text-emerald-700 tabular-nums">
+                {String(i + 1).padStart(3, "0")}
+              </span>
+              <span className="text-emerald-200">{line}</span>
+            </div>
+          ))}
+          <div ref={logEndRef} />
+        </pre>
+      </Dialog>
+
       {/* Boutons d'action */}
       {!updating && packageData && packageData.total_updates > 0 && (
         <div className="flex gap-3">
           <button
             onClick={() => startUpdate(false)}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            disabled={applicableCount <= 0}
+            title={
+              deferredCount > 0
+                ? `${deferredCount} mise(s) à jour différée(s) ne sera/seront pas installée(s) maintenant par apt`
+                : undefined
+            }
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Download className="w-4 h-4" />
-            Tout mettre à jour ({packageData.total_updates})
+            Tout mettre à jour ({applicableCount})
           </button>
           {securityPkgs.length > 0 && (
             <button

@@ -3,6 +3,7 @@ package actions
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -153,7 +154,9 @@ func (a *SystemUpdatesAvailableAction) Validate(_ map[string]interface{}) error 
 
 func (a *SystemUpdatesAvailableAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	// apt list --upgradable ne necessite pas sudo en mode list
+	// LC_ALL=C : sortie déterministe quelle que soit la langue système
 	cmd := exec.Command("/usr/bin/apt", "list", "--upgradable", "-qq")
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive", "LC_ALL=C", "LANG=C")
 	out, _ := cmd.Output()
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	count := 0
