@@ -107,7 +107,9 @@ func listPendingApt() ([]PendingUpdate, error) {
 	// pour distinguer les phased/kept-back (différés) du reste.
 	installable := aptInstallableSet()
 
-	var updates []PendingUpdate
+	// Slice initialisée non-nil : en Go une slice nil se sérialise en `null`
+	// (et non `[]`), ce qui faisait planter le front (`packages.filter` of null).
+	updates := make([]PendingUpdate, 0)
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -198,7 +200,7 @@ func listPendingDnf() ([]PendingUpdate, error) {
 	cmd := exec.Command("/usr/bin/dnf", "check-update", "-q")
 	output, _ := cmd.Output() // dnf check-update retourne exit code 100 si des updates existent
 
-	var updates []PendingUpdate
+	updates := make([]PendingUpdate, 0)
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -225,7 +227,7 @@ func listPendingYum() ([]PendingUpdate, error) {
 	cmd := exec.Command("/usr/bin/yum", "check-update", "-q")
 	output, _ := cmd.Output()
 
-	var updates []PendingUpdate
+	updates := make([]PendingUpdate, 0)
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
