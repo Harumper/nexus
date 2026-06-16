@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -48,6 +50,48 @@ func selfSHA256() string {
 		selfSHAValue = hex.EncodeToString(h.Sum(nil))
 	})
 	return selfSHAValue
+}
+
+// sdNotify envoie un message au gestionnaire de service (systemd) via le
+// socket $NOTIFY_SOCKET. No-op si la variable n'est pas définie (lancement
+// hors systemd). Gère les sockets abstraits (@ -> NUL).
+func sdNotify(state string) {
+	sock := os.Getenv("NOTIFY_SOCKET")
+	if sock == "" {
+		return
+	}
+	addr := &net.UnixAddr{Name: sock, Net: "unixgram"}
+	if strings.HasPrefix(sock, "@") {
+		addr.Name = "\x00" + sock[1:]
+	}
+	conn, err := net.DialUnix("unixgram", nil, addr)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	conn.Write([]byte(state))
+}
+
+// runWatchdog notifie systemd (WATCHDOG=1) à la moitié de l'intervalle
+// WatchdogSec. SANS ça, l'unit `WatchdogSec=120` faisait tuer+relancer l'agent
+// toutes les 120s (d'où les déconnexions périodiques observées). No-op si le
+// watchdog n'est pas activé (WATCHDOG_USEC absent).
+func runWatchdog() {
+	usecStr := os.Getenv("WATCHDOG_USEC")
+	if usecStr == "" {
+		return
+	}
+	usec, err := strconv.Atoi(usecStr)
+	if err != nil || usec <= 0 {
+		return
+	}
+	interval := time.Duration(usec) * time.Microsecond / 2
+	sdNotify("WATCHDOG=1")
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		sdNotify("WATCHDOG=1")
+	}
 }
 
 var (
@@ -238,15 +282,28 @@ func main() {
 	// Démarrer la collecte de métriques
 	go runMetrics(client, cfg)
 
+	// Notifier systemd que le service est prêt + entretenir le watchdog
+	// (WatchdogSec dans l'unit). Sans ça, systemd tue l'agent périodiquement.
+	sdNotify("READY=1")
+	go runWatchdog()
+
 	log.Println("[Agent] Running. Waiting for signals...")
 
-	// Attendre le signal d'arrêt
+	// Attendre soit un signal d'arrêt, soit la perte de connexion WS.
+	// L'agent n'a pas de reconnexion in-process : sur déconnexion réelle, on
+	// sort proprement et systemd relance (Restart=always, RestartSec=10).
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
-
-	log.Println("[Agent] Shutting down...")
-	client.Close()
+	select {
+	case <-sigCh:
+		log.Println("[Agent] Shutting down...")
+		client.Close()
+	case <-client.Done():
+		log.Println("[Agent] Connection lost — exiting for systemd restart")
+		sdNotify("STOPPING=1")
+		client.Close()
+		os.Exit(1)
+	}
 }
 
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {

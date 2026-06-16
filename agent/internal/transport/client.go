@@ -29,6 +29,8 @@ type Client struct {
 	cancel       context.CancelFunc
 	onMessage    func(Message)
 	msgCh        chan []byte // Pour l'enrollment synchrone
+	done         chan struct{}
+	doneOnce     sync.Once
 }
 
 func NewClient(serverURL, machineID string) *Client {
@@ -39,7 +41,18 @@ func NewClient(serverURL, machineID string) *Client {
 		ctx:       ctx,
 		cancel:    cancel,
 		msgCh:     make(chan []byte, 10),
+		done:      make(chan struct{}),
 	}
+}
+
+// Done est fermé quand la boucle de lecture s'arrête sur une erreur (connexion
+// perdue). Permet à main de réagir à une déconnexion réelle.
+func (c *Client) Done() <-chan struct{} {
+	return c.done
+}
+
+func (c *Client) signalDone() {
+	c.doneOnce.Do(func() { close(c.done) })
 }
 
 func (c *Client) SetKeys(privateKey *ecdsa.PrivateKey, sharedSecret []byte) {
@@ -83,6 +96,7 @@ func (c *Client) ReadLoop() {
 		_, data, err := c.conn.Read(c.ctx)
 		if err != nil {
 			log.Printf("[WS] Read error: %v", err)
+			c.signalDone()
 			return
 		}
 
