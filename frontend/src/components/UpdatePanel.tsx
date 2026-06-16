@@ -115,7 +115,13 @@ export default function UpdatePanel({
         ),
         api.packageHoldsList(machineId).catch(() => null),
       ]);
-      setPackageData(resp.data);
+      // Normalise packages : l'agent (Go) sérialise une slice vide en `null`
+      // (pas `[]`) quand le système est à jour → sans ça, les .filter/.map au
+      // render planteraient (page blanche après application des MAJ).
+      const data = resp.data;
+      setPackageData(
+        data ? { ...data, packages: data.packages ?? [] } : null
+      );
       setHolds(new Set(holdsResp?.data?.holds || []));
     } catch (err) {
       setResult({ success: false, message: getErrorMessage(err, "Erreur") });
@@ -164,10 +170,10 @@ export default function UpdatePanel({
   };
 
   const securityPkgs =
-    packageData?.packages.filter((p) => p.security_update) ?? [];
+    (packageData?.packages ?? []).filter((p) => p.security_update);
   const deferredCount =
     packageData?.deferred_updates ??
-    (packageData?.packages.filter((p) => p.deferred).length || 0);
+    (packageData?.packages ?? []).filter((p) => p.deferred).length;
   // Nombre réellement installable maintenant par apt (= total - différés),
   // ce qui correspond au "X peuvent être appliquées immédiatement" du terminal.
   const applicableCount = (packageData?.total_updates ?? 0) - deferredCount;
