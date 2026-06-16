@@ -43,7 +43,7 @@ func Load() (*Config, error) {
 		MetricsInterval:   getEnvInt("NEXUS_METRICS_INTERVAL", 60),
 		AgentType:         getEnv("NEXUS_AGENT_TYPE", "agent"),
 		ProcessInterval:   getEnvInt("NEXUS_PROCESS_INTERVAL", 600),
-		Version:           "0.1.0",
+		Version:           "dev", // écrasé par main.Version (injecté au build)
 	}
 
 	if cfg.ServerURL == "" {
