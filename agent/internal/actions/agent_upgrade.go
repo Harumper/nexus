@@ -13,6 +13,18 @@ import (
 
 func init() { Register(&AgentUpgradeAction{}) }
 
+// OnAgentUpgradeProgress est appelé à chaque étape de la mise à jour de
+// l'agent (téléchargement, vérification, installation, redémarrage). Branché
+// par main.go pour streamer la progression vers le backend (agent.upgrade.progress).
+// Distinct de OnUpdateProgress (MAJ système apt) : contexte UI différent.
+var OnAgentUpgradeProgress func(line string, percent int)
+
+func upgradeProgress(line string, percent int) {
+	if OnAgentUpgradeProgress != nil {
+		OnAgentUpgradeProgress(line, percent)
+	}
+}
+
 // AgentUpgradeAction met a jour le binaire de l'agent lui-meme.
 // Flow :
 //   1. Telecharge le nouveau binaire dans /var/lib/nexus-agent/nexus-agent.new
@@ -48,6 +60,7 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	os.MkdirAll("/var/lib/nexus-agent", 0700)
 
 	// 1. Telecharger
+	upgradeProgress("Téléchargement du nouveau binaire…", 10)
 	url := downloadURL + "?token=" + token
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -78,8 +91,10 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	}
 
 	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
+	upgradeProgress(fmt.Sprintf("Téléchargé : %d octets", written), 45)
 
 	// 2. Verifier le SHA256 si fourni
+	upgradeProgress("Vérification de l'intégrité (SHA256)…", 55)
 	if expectedSHA256 != "" && expectedSHA256 != actualSHA256 {
 		os.Remove(newBinPath)
 		return nil, fmt.Errorf("sha256 mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
@@ -91,6 +106,7 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	}
 
 	// 3. Remplacer le binaire actuel via sudo install (atomic)
+	upgradeProgress("Installation du binaire (atomique)…", 75)
 	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", newBinPath, finalBinPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("install failed: %w: %s", err, string(output))
@@ -101,6 +117,7 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 
 	// 4. Lancer un exit differe (apres avoir retourne la reponse)
 	// systemd va redemarrer l'agent (Restart=always) avec le nouveau binaire.
+	upgradeProgress("Installé. Redémarrage de l'agent dans 2s…", 90)
 	go func() {
 		time.Sleep(2 * time.Second)
 		os.Exit(0)

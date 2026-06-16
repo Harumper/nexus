@@ -2,12 +2,16 @@ package main
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +21,34 @@ import (
 	"github.com/nexus/agent/internal/security"
 	"github.com/nexus/agent/internal/transport"
 )
+
+// selfSHA256 renvoie le SHA256 (hex) du binaire de l'agent en cours
+// d'exécution, calculé une seule fois. Sert au backend pour comparer la
+// version installée à celle qu'il sert (détection "à jour" + fin d'upgrade).
+var (
+	selfSHAOnce  sync.Once
+	selfSHAValue string
+)
+
+func selfSHA256() string {
+	selfSHAOnce.Do(func() {
+		exePath, err := os.Executable()
+		if err != nil {
+			return
+		}
+		f, err := os.Open(exePath)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			return
+		}
+		selfSHAValue = hex.EncodeToString(h.Sum(nil))
+	})
+	return selfSHAValue
+}
 
 var (
 	Version   = "0.1.0"
@@ -172,9 +204,19 @@ func main() {
 	log.Printf("[Agent] Authenticated (type=%s)", agentType)
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
-	// Connecter le callback de progression des mises à jour
+	// Connecter le callback de progression des mises à jour système (apt)
 	actions.OnUpdateProgress = func(line string, percent int) {
 		client.SendSigned(transport.TypeUpdateProgress, "", map[string]interface{}{
+			"line":    line,
+			"percent": percent,
+		})
+	}
+
+	// Connecter le callback de progression de la MAJ de l'agent lui-même.
+	// Canal distinct : le frontend suit ça dans une modal dédiée jusqu'au
+	// redémarrage, puis détecte la reconnexion via le SHA du heartbeat.
+	actions.OnAgentUpgradeProgress = func(line string, percent int) {
+		client.SendSigned(transport.TypeAgentUpgradeProgress, "", map[string]interface{}{
 			"line":    line,
 			"percent": percent,
 		})
@@ -351,6 +393,10 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 		"agent_type":      cfg.AgentType,
 		"reboot_required": rebootRequired,
 		"sudoers_hash":    actions.GetSudoersHash(),
+		// SHA256 du binaire en cours d'exécution : permet au backend de
+		// savoir de façon fiable si l'agent tourne la dernière version servie
+		// (et donc de confirmer une self-upgrade après reconnexion).
+		"agent_sha256": selfSHA256(),
 	}
 	if err := client.SendSigned(transport.TypeHeartbeat, "", data); err != nil {
 		log.Printf("[Agent] Failed to send heartbeat: %v", err)

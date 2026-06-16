@@ -117,10 +117,22 @@ class ApiClient {
   }
 
   async upgradeAgent(id: string) {
-    return this.request<{ success: boolean; message: string; request_id?: string }>(
+    return this.request<{ success: boolean; message: string; request_id?: string; currentVersion?: string }>(
       `/machines/${id}/agent/upgrade`,
       { method: "POST" }
     );
+  }
+
+  async agentStatus(id: string) {
+    return this.request<{
+      currentVersion: string | null;
+      currentSha: string | null;
+      targetSha: string | null;
+      targetAvailable: boolean;
+      upToDate: boolean | null;
+      updateAvailable: boolean;
+      upgrading: boolean;
+    }>(`/machines/${id}/agent-status`);
   }
 
   // System control (reboot, services)

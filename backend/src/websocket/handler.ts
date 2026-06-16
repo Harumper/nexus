@@ -16,6 +16,7 @@ import {
   processHeartbeat,
   processMetrics,
 } from "../services/machine-manager.js";
+import { onAgentHeartbeat } from "../services/agent-upgrade-tracker.js";
 import { prisma } from "../services/database.js";
 import { decryptMessagePayload } from "../services/security.js";
 import { updateMachineMetrics, actionsDispatched, actionsFailed } from "../services/prometheus.js";
@@ -186,15 +187,21 @@ async function handleAuthenticatedMessage(
   payload: any
 ): Promise<void> {
   switch (type) {
-    case MSG_TYPES.HEARTBEAT:
+    case MSG_TYPES.HEARTBEAT: {
       updateSessionHeartbeat(machineId);
-      await processHeartbeat(machineId, payload as HeartbeatData);
+      const hb = payload as HeartbeatData;
+      await processHeartbeat(machineId, hb);
+      // Alimente le tracker de self-upgrade : si une MAJ d'agent est en cours
+      // et que le SHA rapporté correspond au binaire cible, l'upgrade est
+      // confirmé (broadcast agent.upgrade.result).
+      onAgentHeartbeat(machineId, hb.agent_sha256, hb.agent_version);
       broadcastToDashboard({
         type: "machine.status",
         machine_id: machineId,
         data: { status: "ONLINE", lastHeartbeat: new Date().toISOString() },
       });
       break;
+    }
 
     case MSG_TYPES.METRICS_REPORT: {
       const metricsPayload = payload as MetricsReport;
@@ -232,9 +239,19 @@ async function handleAuthenticatedMessage(
       break;
 
     case MSG_TYPES.UPDATE_PROGRESS:
-      // Relayer la progression vers les clients dashboard
+      // Relayer la progression (MAJ système apt) vers les clients dashboard
       broadcastToDashboard({
         type: "update.progress",
+        machine_id: machineId,
+        data: payload,
+      });
+      break;
+
+    case MSG_TYPES.AGENT_UPGRADE_PROGRESS:
+      // Relayer la progression de la self-upgrade de l'agent (phases
+      // download/install/restart, avant la perte de connexion).
+      broadcastToDashboard({
+        type: "agent.upgrade.progress",
         machine_id: machineId,
         data: payload,
       });

@@ -16,6 +16,11 @@ import {
   type BootstrapArtifacts,
 } from "../services/agent-bootstrap.js";
 import { dispatchAgentUpgrade } from "../services/agent-upgrade.js";
+import {
+  getServerBinarySHA256,
+  getLatestAgentSha,
+  isUpgradePending,
+} from "../services/agent-upgrade-tracker.js";
 import { isSudoersOutdated, getExpectedSudoersHash } from "../services/sudoers-version.js";
 
 interface MachineForBootstrap {
@@ -432,6 +437,42 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         success: true,
         message: "Agent upgrade dispatched. Service will restart in ~2s.",
         request_id: result.requestId,
+        currentVersion: result.currentVersion,
+      });
+    }
+  );
+
+  // Statut de version de l'agent : compare le SHA du binaire en cours
+  // d'exécution (rapporté par heartbeat) à celui que le backend sert.
+  // Sert au badge "MAJ dispo" et à l'état initial de la modal d'upgrade.
+  app.get(
+    "/api/machines/:id/agent-status",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const machine = await prisma.machine.findUnique({
+        where: { id },
+        select: { id: true, agentVersion: true },
+      });
+      if (!machine) return reply.code(404).send({ error: "Machine not found" });
+
+      const targetSha = await getServerBinarySHA256();
+      const currentSha = getLatestAgentSha(id) ?? null;
+      const targetAvailable = targetSha !== null;
+      // upToDate seulement si on connaît les deux SHA et qu'ils coïncident.
+      const upToDate =
+        targetSha !== null && currentSha !== null
+          ? currentSha === targetSha
+          : null;
+
+      return reply.send({
+        currentVersion: machine.agentVersion,
+        currentSha,
+        targetSha,
+        targetAvailable,
+        upToDate,
+        updateAvailable: upToDate === false,
+        upgrading: isUpgradePending(id),
       });
     }
   );
