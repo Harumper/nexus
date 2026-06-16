@@ -37,6 +37,7 @@ const (
 	TypeActionConfirm      = "action.confirm"
 	TypeActionResponse     = "action.response"
 	TypeUpdateProgress     = "update.progress"
+	TypeAgentUpgradeProgress = "agent.upgrade.progress"
 	TypePing               = "ping"
 	TypePong               = "pong"
 	TypeError              = "error"

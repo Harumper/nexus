@@ -1,37 +1,15 @@
-import { createHash } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { prisma } from "./database.js";
 import { generateBootstrapToken } from "./bootstrap.js";
 import { dispatchAction } from "./action-dispatcher.js";
 import { getAgentBackendUrl } from "./agent-bootstrap.js";
+import {
+  getServerBinarySHA256,
+  beginUpgrade,
+} from "./agent-upgrade-tracker.js";
 
 const AGENT_BINARY_PATH =
   process.env.NEXUS_AGENT_BINARY_PATH || "/app/agent/nexus-agent";
-
-// Cache du SHA256 du binaire (calcule une seule fois au demarrage)
-let binarySHA256: string | null = null;
-
-function computeSHA256(path: string): Promise<string> {
-  return new Promise((res, rej) => {
-    const hash = createHash("sha256");
-    createReadStream(path)
-      .on("data", (chunk) => hash.update(chunk))
-      .on("end", () => res(hash.digest("hex")))
-      .on("error", rej);
-  });
-}
-
-async function getBinarySHA256(): Promise<string | null> {
-  if (binarySHA256) return binarySHA256;
-  if (!existsSync(AGENT_BINARY_PATH)) return null;
-  try {
-    binarySHA256 = await computeSHA256(AGENT_BINARY_PATH);
-    return binarySHA256;
-  } catch {
-    return null;
-  }
-}
 
 export async function dispatchAgentUpgrade(
   machineId: string,
@@ -63,8 +41,9 @@ export async function dispatchAgentUpgrade(
   // Generer un token single-use pour l'agent
   const { rawToken } = await generateBootstrapToken(machineId, "install");
 
-  // Calculer le SHA256 pour verification cote agent
-  const sha256 = await getBinarySHA256();
+  // Calculer le SHA256 du binaire servi (cible) pour verification cote agent
+  // ET pour detecter la fin de l'upgrade (reconnexion avec ce SHA).
+  const sha256 = await getServerBinarySHA256();
 
   // Dispatch l'action vers l'agent
   const result = await dispatchAction(
@@ -82,6 +61,11 @@ export async function dispatchAgentUpgrade(
 
   if (!result.success) {
     return { success: false, error: result.error };
+  }
+
+  // Armer le suivi : succes = l'agent se reconnecte en rapportant ce SHA.
+  if (sha256) {
+    beginUpgrade(machineId, sha256, machine.agentVersion || undefined);
   }
 
   return {

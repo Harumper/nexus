@@ -29,6 +29,8 @@ export interface HeartbeatData {
   agent_type?: string;
   reboot_required?: boolean;
   sudoers_hash?: string;
+  // SHA256 du binaire agent en cours d'exécution (détection "à jour" / fin d'upgrade)
+  agent_sha256?: string;
 }
 
 export interface MetricsReport {

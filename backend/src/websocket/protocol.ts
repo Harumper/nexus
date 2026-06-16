@@ -8,6 +8,7 @@ export const MSG_TYPES = {
   ACTION_RESPONSE: "action.response",
   SYSTEM_INFO: "system.info",
   UPDATE_PROGRESS: "update.progress",
+  AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress",
 
   // Server -> Agent
   ENROLLMENT_COMPLETE: "enrollment.complete",

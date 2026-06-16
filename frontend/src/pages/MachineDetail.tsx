@@ -25,6 +25,7 @@ import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
+import AgentUpgradeDialog from "../components/AgentUpgradeDialog";
 import AttentionPanel from "../components/AttentionPanel";
 import HeaderBadges from "../components/HeaderBadges";
 import { useMachineAttention } from "../hooks/useMachineAttention";
@@ -46,6 +47,8 @@ export default function MachineDetail() {
   const [lastSubtab, setLastSubtab] = useState<Record<string, Tab>>({});
   const [logsService, setLogsService] = useState<string | null>(null);
   const [showSshDialog, setShowSshDialog] = useState(false);
+  const [showAgentUpgrade, setShowAgentUpgrade] = useState(false);
+  const [agentUpdateAvailable, setAgentUpdateAvailable] = useState(false);
   // Demande "one-shot" de filtrer Services sur l'état "failed" — émise par
   // HeaderBadges / AttentionPanel quand l'utilisateur clique sur le badge
   // "services en échec". Consommée par ServicesTab à la réception.
@@ -84,6 +87,24 @@ export default function MachineDetail() {
     }, 15_000);
     return () => clearInterval(interval);
   }, [id, machine]);
+
+  // Statut de version de l'agent → badge "MAJ dispo". Rafraîchi à l'ouverture
+  // de la modal d'upgrade (onSuccess) et au montage quand la machine est un
+  // agent en ligne.
+  const refreshAgentStatus = useCallback(() => {
+    if (!id || machine?.type !== "AGENT" || machine?.status !== "ONLINE") {
+      setAgentUpdateAvailable(false);
+      return;
+    }
+    api
+      .agentStatus(id)
+      .then((s) => setAgentUpdateAvailable(s.updateAvailable))
+      .catch(() => setAgentUpdateAvailable(false));
+  }, [id, machine?.type, machine?.status]);
+
+  useEffect(() => {
+    refreshAgentStatus();
+  }, [refreshAgentStatus]);
 
   // WebSocket for real-time metric updates
   const handleWsMessage = useCallback(
@@ -150,25 +171,8 @@ export default function MachineDetail() {
     }
   };
 
-  const handleUpgradeAgent = async () => {
-    if (!id) return;
-    if (
-      !(await confirm({
-        title: "Mettre à jour l'agent ?",
-        description:
-          "L'agent va télécharger la dernière version et se redémarrer automatiquement (~5s d'interruption).",
-        confirmLabel: "Mettre à jour",
-        variant: "primary",
-      }))
-    )
-      return;
-    try {
-      const res = await api.upgradeAgent(id);
-      toast.success(res.message || "Mise à jour déclenchée");
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de la mise à jour"));
-    }
-  };
+  // La MAJ de l'agent passe désormais par une modal de suivi (AgentUpgradeDialog)
+  // qui reste ouverte jusqu'à la reconnexion en nouvelle version.
 
   const handleReboot = async () => {
     if (!id) return;
@@ -351,9 +355,25 @@ export default function MachineDetail() {
                   <Terminal className="w-3.5 h-3.5" /> SSH
                 </button>
               )}
-              {isOnline && (
-                <button onClick={handleUpgradeAgent} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-info)", color: "var(--nx-info)" }}>
+              {isOnline && isAgent && (
+                <button
+                  onClick={() => setShowAgentUpgrade(true)}
+                  title={agentUpdateAvailable ? "Une nouvelle version de l'agent est disponible" : "Mettre à jour le binaire de l'agent"}
+                  className="relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    border: `1px solid ${agentUpdateAvailable ? "var(--nx-warning)" : "var(--nx-info)"}`,
+                    color: agentUpdateAvailable ? "var(--nx-warning)" : "var(--nx-info)",
+                  }}
+                >
                   <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
+                  {agentUpdateAvailable && (
+                    <span
+                      className="ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                      style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
+                    >
+                      MAJ dispo
+                    </span>
+                  )}
                 </button>
               )}
               {isOnline && isAgent && !machine.isCritical && (
@@ -574,6 +594,17 @@ export default function MachineDetail() {
           ipAddress={machine.ipAddress}
           defaultUser={machine.sshUser}
           onClose={() => setShowSshDialog(false)}
+        />
+      )}
+
+      {showAgentUpgrade && (
+        <AgentUpgradeDialog
+          machineId={machine.id}
+          machineName={machine.name}
+          ipAddress={machine.ipAddress}
+          sshUser={machine.sshUser}
+          onClose={() => setShowAgentUpgrade(false)}
+          onSuccess={refreshAgentStatus}
         />
       )}
 
