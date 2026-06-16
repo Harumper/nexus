@@ -16,6 +16,7 @@ export async function processHeartbeat(
       lastHeartbeat: new Date(),
       agentVersion: data.agent_version || undefined,
       sudoersHash: data.sudoers_hash || undefined,
+      agentSha256: data.agent_sha256 || undefined,
       status: "ONLINE",
     },
   });

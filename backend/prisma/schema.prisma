@@ -146,6 +146,7 @@ model Machine {
   sshUser         String?     // Username par defaut pour le bouton SSH
   isCritical      Boolean     @default(false) // Machine critique : reboot/service_stop/package.remove bloques
   sudoersHash     String?     // SHA256 du fichier /etc/sudoers.d/nexus-agent (envoye par l'agent au heartbeat)
+  agentSha256     String?     // SHA256 du binaire agent en cours d'execution (envoye au heartbeat) -> badge "MAJ dispo" flotte-wide
 
   // Relations
   metrics      Metric[]
