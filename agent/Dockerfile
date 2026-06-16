@@ -8,9 +8,12 @@ WORKDIR /build
 COPY go.mod go.sum* ./
 COPY . .
 
+# Version injectée au build. La CI passe 0.1.0+<short-sha> ; sinon défaut "dev".
+ARG AGENT_VERSION=0.1.0+dev
+
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.Version=$(date +%Y%m%d)" \
+    -ldflags="-w -s -X main.Version=${AGENT_VERSION}" \
     -o nexus-agent \
     ./cmd/nexus-agent/
 

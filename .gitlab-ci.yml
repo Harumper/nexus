@@ -82,7 +82,7 @@ build-backend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
+    - docker build --build-arg AGENT_VERSION="0.1.0+$CI_COMMIT_SHORT_SHA" -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
     - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/backend:latest
   rules:
@@ -125,7 +125,7 @@ build-agent:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build -f agent/Dockerfile -t $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/agent:latest ./agent
+    - docker build --build-arg AGENT_VERSION="0.1.0+$CI_COMMIT_SHORT_SHA" -f agent/Dockerfile -t $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/agent:latest ./agent
     - docker push $CI_REGISTRY_IMAGE/agent:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/agent:latest
   rules:

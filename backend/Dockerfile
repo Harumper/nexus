@@ -7,11 +7,14 @@ FROM golang:1.23-alpine AS agent-builder
 
 RUN apk add --no-cache git ca-certificates
 WORKDIR /build
+# Version injectée au build (sinon main.Version reste à son défaut "0.1.0").
+# La CI passe 0.1.0+<short-sha> ; en local, valeur "dev" explicite.
+ARG AGENT_VERSION=0.1.0+dev
 COPY agent/go.mod agent/go.sum* ./
 RUN go mod download
 COPY agent/ ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s" \
+    -ldflags="-w -s -X main.Version=${AGENT_VERSION}" \
     -o /out/nexus-agent \
     ./cmd/nexus-agent/
 
