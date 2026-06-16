@@ -29,6 +29,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Version du binaire agent servi. Surchargée en CI par 0.1.0+<short-sha>.
+        AGENT_VERSION: ${AGENT_VERSION:-0.1.0+local}
     container_name: nexus-backend
     restart: unless-stopped
     environment:
@@ -67,6 +70,8 @@ services:
     build:
       context: ./agent
       dockerfile: Dockerfile
+      args:
+        AGENT_VERSION: ${AGENT_VERSION:-0.1.0+local}
     container_name: nexus-probe-local
     restart: unless-stopped
     environment:
