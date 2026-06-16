@@ -65,6 +65,14 @@ export default function AgentUpgradeDialog({
   const startedAtRef = useRef<number>(0);
   const lastProgressAtRef = useRef<number>(0);
   const logEndRef = useRef<HTMLDivElement | null>(null);
+  // Statut courant accessible dans le handler WS (closure stable) : on n'agit
+  // que pendant "working" pour ignorer tout message tardif après un état terminal.
+  const statusRef = useRef<Status>("confirm");
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+  // "Agent reconnecté…" ne doit s'afficher qu'une fois (sinon flood à chaque heartbeat).
+  const reconnectNotedRef = useRef(false);
 
   const append = useCallback((line: string) => {
     setLog((prev) => [...prev, line]);
@@ -94,15 +102,21 @@ export default function AgentUpgradeDialog({
   const handleWs = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.machine_id !== machineId) return;
+      // N'agir que pendant l'opération : ignore tout message tardif (machine.status
+      // périodique, etc.) une fois en état terminal (success/failed).
+      if (statusRef.current !== "working") return;
       if (msg.type === "agent.upgrade.progress") {
         const d = msg.data as ProgressMsg;
         if (d?.line) append(d.line);
         if (typeof d?.percent === "number") setPercent(d.percent);
         lastProgressAtRef.current = Date.now();
       } else if (msg.type === "machine.status" && msg.data?.status === "ONLINE") {
-        // Reconnexion détectée — on attend encore la confirmation de version
-        // (agent.upgrade.result) avant de déclarer le succès.
-        append("Agent reconnecté — vérification de la version…");
+        // Reconnexion détectée — affichée une seule fois ; on attend la
+        // confirmation de version (agent.upgrade.result) avant le succès.
+        if (!reconnectNotedRef.current) {
+          reconnectNotedRef.current = true;
+          append("Agent reconnecté — vérification de la version…");
+        }
       } else if (msg.type === "agent.upgrade.result") {
         const r = msg.data as ResultMsg;
         if (r?.success) {
@@ -132,6 +146,7 @@ export default function AgentUpgradeDialog({
     setPercent(0);
     setLog(["Déclenchement de la mise à jour de l'agent…"]);
     setResultMsg("");
+    reconnectNotedRef.current = false;
     startedAtRef.current = Date.now();
     lastProgressAtRef.current = Date.now();
     try {

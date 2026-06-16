@@ -10,6 +10,10 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Vrai tant qu'une connexion est désirée (enabled + monté). Mis à false au
+  // cleanup (enabled→false ou démontage) pour empêcher onclose de relancer une
+  // reconnexion zombie après une coupure volontaire.
+  const wantConnection = useRef(false);
 
   // Stocker onMessage dans une ref pour éviter que le hook se reconnecte
   // chaque fois que le parent re-render (onMessage = nouvelle référence à
@@ -18,7 +22,11 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
   onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      wantConnection.current = false;
+      return;
+    }
+    wantConnection.current = true;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
@@ -50,8 +58,13 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
 
       ws.onclose = () => {
         setConnected(false);
-        // Reconnexion automatique après 3s
-        reconnectTimer.current = setTimeout(connect, 3000);
+        // Reconnexion auto seulement si la connexion est toujours désirée.
+        // (Sinon : coupure volontaire enabled→false ou démontage → on ne
+        // relance pas une connexion zombie qui continuerait à recevoir des
+        // messages.)
+        if (wantConnection.current) {
+          reconnectTimer.current = setTimeout(connect, 3000);
+        }
       };
 
       ws.onerror = () => {
@@ -66,6 +79,8 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
   useEffect(() => {
     connect();
     return () => {
+      // Coupure volontaire : empêcher la reconnexion auto déclenchée par onclose.
+      wantConnection.current = false;
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
