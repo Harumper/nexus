@@ -32,6 +32,8 @@ export interface Machine {
   /** Présence WebSocket live. Peut être false alors que status=ONLINE
    * pendant la grâce de 90s anti-flapping côté backend. */
   isConnected?: boolean;
+  /** Le binaire agent en cours diffère de celui servi par le serveur. */
+  agentUpdateAvailable?: boolean;
 }
 
 export type MachineStatus =

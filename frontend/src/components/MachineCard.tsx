@@ -179,6 +179,14 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />
                 </span>
               )}
+              {machine.agentUpdateAvailable && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-info-subtle text-info"
+                  title="Une nouvelle version de l'agent est disponible"
+                >
+                  ↑ Agent
+                </span>
+              )}
               {alertCount > 0 && (
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"

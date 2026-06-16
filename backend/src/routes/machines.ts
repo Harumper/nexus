@@ -91,6 +91,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           type: true,
           isCritical: true,
           sudoersHash: true,
+          agentSha256: true,
           lastHeartbeat: true,
           lastMetrics: true,
           enrolledAt: true,
@@ -108,13 +109,24 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       // après disconnect (anti-flapping, voir handler.ts:126). Le frontend
       // utilise isConnected pour savoir si une action dispatchée passera.
       const connectedIds = new Set(getConnectedMachineIds());
+      // SHA du binaire agent servi (cible) — calculé une fois, mis en cache.
+      const targetSha = await getServerBinarySHA256();
 
-      const result = machines.map((m) => ({
-        ...m,
-        tags: m.tags.map((t) => t.tag),
-        sudoersOutdated: isSudoersOutdated(m.sudoersHash),
-        isConnected: connectedIds.has(m.id),
-      }));
+      const result = machines.map((m) => {
+        const { agentSha256, ...rest } = m;
+        return {
+          ...rest,
+          tags: m.tags.map((t) => t.tag),
+          sudoersOutdated: isSudoersOutdated(m.sudoersHash),
+          isConnected: connectedIds.has(m.id),
+          // MAJ agent dispo = binaire en cours ≠ binaire servi (agents seulement).
+          agentUpdateAvailable:
+            m.type === "AGENT" &&
+            !!agentSha256 &&
+            !!targetSha &&
+            agentSha256 !== targetSha,
+        };
+      });
 
       if (isPaginated) {
         const total = await prisma.machine.count();
@@ -147,6 +159,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           sshUser: true,
           isCritical: true,
           sudoersHash: true,
+          agentSha256: true,
           boundIp: true,
           lastHeartbeat: true,
           lastMetrics: true,
@@ -163,13 +176,21 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "Machine not found" });
       }
 
+      const targetSha = await getServerBinarySHA256();
+      const { agentSha256, ...machineRest } = machine;
+
       return reply.send({
-        ...machine,
+        ...machineRest,
         sudoersOutdated: isSudoersOutdated(machine.sudoersHash),
         expectedSudoersHash: getExpectedSudoersHash(),
         tags: machine.tags.map((t) => t.tag),
         // Live WS presence — voir route /api/machines pour le pourquoi
         isConnected: getAgentSession(id)?.authenticated === true,
+        agentUpdateAvailable:
+          machine.type === "AGENT" &&
+          !!agentSha256 &&
+          !!targetSha &&
+          agentSha256 !== targetSha,
       });
     }
   );
@@ -452,12 +473,13 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const machine = await prisma.machine.findUnique({
         where: { id },
-        select: { id: true, agentVersion: true },
+        select: { id: true, agentVersion: true, agentSha256: true },
       });
       if (!machine) return reply.code(404).send({ error: "Machine not found" });
 
       const targetSha = await getServerBinarySHA256();
-      const currentSha = getLatestAgentSha(id) ?? null;
+      // SHA persisté (source de vérité) avec repli sur le dernier vu en mémoire.
+      const currentSha = machine.agentSha256 ?? getLatestAgentSha(id) ?? null;
       const targetAvailable = targetSha !== null;
       // upToDate seulement si on connaît les deux SHA et qu'ils coïncident.
       const upToDate =

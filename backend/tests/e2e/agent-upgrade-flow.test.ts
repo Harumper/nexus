@@ -90,4 +90,40 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(content).toContain("agentUpdateAvailable");
     expect(content).toContain("MAJ dispo");
   });
+
+  it("le SHA agent est persisté (schema + heartbeat) pour le badge flotte-wide", () => {
+    const schema = readFileSync(
+      resolve(rootDir, "backend/prisma/schema.prisma"),
+      "utf8"
+    );
+    expect(schema).toMatch(/agentSha256\s+String\?/);
+    // Migration présente
+    const migDir = resolve(rootDir, "backend/prisma/migrations");
+    const migs = require("fs").readdirSync(migDir) as string[];
+    const hasMig = migs.some((d) =>
+      existsSync(resolve(migDir, d, "migration.sql")) &&
+      readFileSync(resolve(migDir, d, "migration.sql"), "utf8").includes(
+        'ADD COLUMN "agentSha256"'
+      )
+    );
+    expect(hasMig).toBe(true);
+    // Persistance au heartbeat
+    const mm = readFileSync(
+      resolve(backendSrc, "services/machine-manager.ts"),
+      "utf8"
+    );
+    expect(mm).toContain("agentSha256: data.agent_sha256");
+  });
+
+  it("la route liste calcule agentUpdateAvailable (badge flotte)", () => {
+    const content = readFileSync(resolve(backendSrc, "routes/machines.ts"), "utf8");
+    expect(content).toContain("agentUpdateAvailable");
+    // Comparaison au SHA cible servi
+    expect(content).toContain("getServerBinarySHA256");
+  });
+
+  it("MachineCard affiche le badge agent dans la flotte", () => {
+    const content = readFileSync(resolve(frontendSrc, "components/MachineCard.tsx"), "utf8");
+    expect(content).toContain("agentUpdateAvailable");
+  });
 });
