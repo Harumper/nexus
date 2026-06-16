@@ -51,7 +51,9 @@ func selfSHA256() string {
 }
 
 var (
-	Version   = "0.1.0"
+	// Version est injectée au build via -ldflags "-X main.Version=...".
+	// "dev" = binaire compilé sans estampillage (build local).
+	Version   = "dev"
 	agentType string
 
 	// serverPublicKey est la cle publique ECDSA du backend, parsee une fois
