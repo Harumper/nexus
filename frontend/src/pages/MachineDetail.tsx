@@ -49,6 +49,8 @@ export default function MachineDetail() {
   const [showSshDialog, setShowSshDialog] = useState(false);
   const [showAgentUpgrade, setShowAgentUpgrade] = useState(false);
   const [agentUpdateAvailable, setAgentUpdateAvailable] = useState(false);
+  // null = indéterminé (SHA cible ou courant inconnu) → on n'empêche pas la MAJ.
+  const [agentUpToDate, setAgentUpToDate] = useState<boolean | null>(null);
   // Demande "one-shot" de filtrer Services sur l'état "failed" — émise par
   // HeaderBadges / AttentionPanel quand l'utilisateur clique sur le badge
   // "services en échec". Consommée par ServicesTab à la réception.
@@ -94,12 +96,19 @@ export default function MachineDetail() {
   const refreshAgentStatus = useCallback(() => {
     if (!id || machine?.type !== "AGENT" || machine?.status !== "ONLINE") {
       setAgentUpdateAvailable(false);
+      setAgentUpToDate(null);
       return;
     }
     api
       .agentStatus(id)
-      .then((s) => setAgentUpdateAvailable(s.updateAvailable))
-      .catch(() => setAgentUpdateAvailable(false));
+      .then((s) => {
+        setAgentUpdateAvailable(s.updateAvailable);
+        setAgentUpToDate(s.upToDate);
+      })
+      .catch(() => {
+        setAgentUpdateAvailable(false);
+        setAgentUpToDate(null);
+      });
   }, [id, machine?.type, machine?.status]);
 
   useEffect(() => {
@@ -358,14 +367,33 @@ export default function MachineDetail() {
               {isOnline && isAgent && (
                 <button
                   onClick={() => setShowAgentUpgrade(true)}
-                  title={agentUpdateAvailable ? "Une nouvelle version de l'agent est disponible" : "Mettre à jour le binaire de l'agent"}
-                  className="relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  disabled={agentUpToDate === true}
+                  title={
+                    agentUpToDate === true
+                      ? "L'agent est déjà à la dernière version"
+                      : agentUpdateAvailable
+                      ? "Une nouvelle version de l'agent est disponible"
+                      : "Mettre à jour le binaire de l'agent"
+                  }
+                  className="relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   style={{
-                    border: `1px solid ${agentUpdateAvailable ? "var(--nx-warning)" : "var(--nx-info)"}`,
-                    color: agentUpdateAvailable ? "var(--nx-warning)" : "var(--nx-info)",
+                    border: `1px solid ${
+                      agentUpToDate === true
+                        ? "var(--nx-border)"
+                        : agentUpdateAvailable
+                        ? "var(--nx-warning)"
+                        : "var(--nx-info)"
+                    }`,
+                    color:
+                      agentUpToDate === true
+                        ? "var(--nx-text-weak)"
+                        : agentUpdateAvailable
+                        ? "var(--nx-warning)"
+                        : "var(--nx-info)",
                   }}
                 >
-                  <ArrowUpCircle className="w-3.5 h-3.5" /> Mettre à jour l'agent
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  {agentUpToDate === true ? "Agent à jour" : "Mettre à jour l'agent"}
                   {agentUpdateAvailable && (
                     <span
                       className="ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"

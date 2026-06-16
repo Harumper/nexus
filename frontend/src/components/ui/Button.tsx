@@ -56,7 +56,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const iconCls = ICON_SIZE[size];
+    // Le span est dimensionné (w-3/h-4…), mais les icônes lucide rendent un
+    // <svg width=24 height=24> : sans contrainte, elles débordent à 24px. On
+    // force donc le svg enfant à remplir le span.
+    const iconCls = cn(
+      ICON_SIZE[size],
+      "inline-flex shrink-0 [&>svg]:w-full [&>svg]:h-full"
+    );
     return (
       <button
         ref={ref}
