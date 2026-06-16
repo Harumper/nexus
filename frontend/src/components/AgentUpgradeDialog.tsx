@@ -150,7 +150,26 @@ export default function AgentUpgradeDialog({
     startedAtRef.current = Date.now();
     lastProgressAtRef.current = Date.now();
     try {
-      await api.upgradeAgent(machineId);
+      // Tolère une déconnexion transitoire (l'agent peut être dans une courte
+      // fenêtre de reconnexion WS) : on réessaie avant d'échouer.
+      const maxAttempts = 4;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await api.upgradeAgent(machineId);
+          break;
+        } catch (err) {
+          const msg = getErrorMessage(err, "Échec du déclenchement");
+          const transient = /not connected|connect/i.test(msg);
+          if (transient && attempt < maxAttempts) {
+            append(
+              `Agent momentanément indisponible — nouvelle tentative (${attempt}/${maxAttempts - 1})…`
+            );
+            await new Promise((r) => setTimeout(r, 3000));
+            continue;
+          }
+          throw err;
+        }
+      }
     } catch (err) {
       append(`✗ ${getErrorMessage(err, "Échec du déclenchement")}`);
       setResultMsg(getErrorMessage(err, "Échec du déclenchement de la mise à jour"));
