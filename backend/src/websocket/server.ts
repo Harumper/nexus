@@ -77,9 +77,39 @@ function rejectUpgrade(socket: Duplex, code: number, reason: string): void {
   socket.destroy();
 }
 
+// Keepalive WS : un reverse-proxy (Traefik, nginx…) coupe une connexion dont
+// le sens serveur→client reste inactif (les heartbeats agent→serveur ne
+// suffisent pas). On envoie donc un ping périodique vers chaque agent — la lib
+// websocket de l'agent répond automatiquement au pong via sa boucle de lecture.
+// Effet de bord utile : détection des connexions mortes (pas de pong → terminate).
+const WS_PING_INTERVAL_MS = parseInt(
+  process.env.WS_PING_INTERVAL_MS || "30000",
+  10
+);
+
 export function setupWebSocketServer(app: FastifyInstance): void {
   const agentWss = new WebSocketServer({ noServer: true });
   const dashboardWss = new WebSocketServer({ noServer: true });
+
+  // Heartbeat ping/pong sur les connexions agents (anti-timeout proxy).
+  const pingInterval = setInterval(() => {
+    for (const ws of agentWss.clients) {
+      const sock = ws as typeof ws & { isAlive?: boolean };
+      if (sock.isAlive === false) {
+        // Pas de pong depuis le dernier ping → connexion morte.
+        ws.terminate();
+        continue;
+      }
+      sock.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        // socket en cours de fermeture — ignoré
+      }
+    }
+  }, WS_PING_INTERVAL_MS);
+  // Ne pas empêcher l'arrêt du process à cause de ce timer.
+  if (typeof pingInterval.unref === "function") pingInterval.unref();
 
   // Intercepter les upgrades HTTP pour le WebSocket
   app.server.on("upgrade", (request: IncomingMessage, socket: Duplex, head) => {
@@ -90,6 +120,12 @@ export function setupWebSocketServer(app: FastifyInstance): void {
       agentWss.handleUpgrade(request, socket, head, (ws) => {
         const ip = extractClientIp(request);
         console.log(`[WS] New agent connection from ${ip}`);
+        // Marqueur de vivacité pour le keepalive ping/pong ci-dessus.
+        const sock = ws as typeof ws & { isAlive?: boolean };
+        sock.isAlive = true;
+        ws.on("pong", () => {
+          sock.isAlive = true;
+        });
         handleAgentConnection(ws, ip);
       });
     } else if (pathname === "/ws/dashboard") {
