@@ -138,10 +138,12 @@ export default function Machines() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((machine) => (
-            <div key={machine.id} className="relative">
+            <div key={machine.id} className="relative group h-full">
               <button
                 onClick={(e) => { e.stopPropagation(); toggle(machine.id); }}
-                className="absolute top-3 left-3 z-10 p-1 rounded transition-colors hover:bg-background"
+                className={`absolute top-3 left-3 z-10 p-1 rounded transition-opacity hover:bg-background ${
+                  selected.has(machine.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                }`}
                 title={selected.has(machine.id) ? "Désélectionner" : "Sélectionner"}
                 style={{
                   background: selected.has(machine.id) ? "var(--nx-primary)" : "var(--nx-bg-surface)",
