@@ -79,7 +79,7 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
 
   return (
     <div
-      className="rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5 group relative"
+      className="h-full rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5 group relative"
       style={{
         background: "var(--nx-bg-surface)",
         border: "1px solid var(--nx-border)",
@@ -136,10 +136,10 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
       <div className="relative pointer-events-none">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-3 pr-6">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-2 mb-3 pr-6">
+        <div className="flex items-center gap-3 min-w-0">
           <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--nx-bg-elevated)" }}
           >
             {isProbe ? (
@@ -148,9 +148,9 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
               <Server className="w-5 h-5" style={{ color: "var(--nx-text-weak)" }} />
             )}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">{machine.name}</h3>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground truncate">{machine.name}</h3>
               {isProbe && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
                   style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
@@ -198,13 +198,13 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground truncate">
               {machine.hostname || machine.ipAddress || "Non configuré"}
             </p>
           </div>
         </div>
 
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
+        <div className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
           <span className={`w-2 h-2 rounded-full ${status.dot} ${isOnline ? "animate-pulse" : ""}`} />
           {statusLabel(machine.status)}
         </div>
