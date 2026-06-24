@@ -327,11 +327,12 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
 
   it("should expose the security audit in the frontend (SecurityTab + api)", () => {
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
-    expect(tab).toContain("securityAudit");
+    expect(tab).toContain("SecurityAuditDialog"); // modal de progression
     expect(tab).toContain("hardening_index");
+    const dialog = readFileSync(resolve(frontendSrc, "components/SecurityAuditDialog.tsx"), "utf8");
+    expect(dialog).toContain("securityAudit");
     const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    // securityAudit appelle la route dédiée /security/audit (qui dispatche
-    // l'action security.audit côté backend + persiste l'historique).
+    // securityAudit appelle la route dédiée /security/audit (dispatch async).
     expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/);
   });
 });
@@ -500,9 +501,10 @@ describe("Security scan history & trend (Phase 3)", () => {
     const handler = readFileSync(resolve(backendSrc, "websocket/handler.ts"), "utf8");
     expect(handler).toContain("security.audit.progress");
     expect(handler).toContain("security.audit.result");
-    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
-    expect(tab).toContain("useWebSocket");
-    expect(tab).toContain("security.audit.progress");
+    // La modal de progression écoute le stream WS (console live, comme la MAJ agent).
+    const dialog = readFileSync(resolve(frontendSrc, "components/SecurityAuditDialog.tsx"), "utf8");
+    expect(dialog).toContain("useWebSocket");
+    expect(dialog).toContain("security.audit.progress");
   });
 
   it("should render a hardening trend chart from history in the frontend", () => {
