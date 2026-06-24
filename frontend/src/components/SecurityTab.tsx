@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
-import type { SecurityAuditResult, ListeningService } from "../types";
+import type { SecurityAuditResult, ListeningService, SecurityScanPoint } from "../types";
 
 interface SecurityTabProps {
   machineId: string;
@@ -28,6 +29,23 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [fwServices, setFwServices] = useState<ListeningService[] | null>(null);
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
   const [fwLoading, setFwLoading] = useState(false);
+
+  // Historique des scans (tendance de l'indice). Chargé au montage.
+  const [history, setHistory] = useState<SecurityScanPoint[]>([]);
+
+  const loadHistory = async () => {
+    try {
+      const res = await api.securityScans(machineId, 50);
+      setHistory(res.scans);
+    } catch {
+      // historique non bloquant
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machineId]);
 
   // Décompte du watchdog (SSH ou pare-feu) — revert auto si non confirmé.
   useEffect(() => {
@@ -62,6 +80,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
       } else {
         toast.success("Audit de durcissement terminé.");
       }
+      loadHistory(); // rafraîchit la courbe de tendance
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de l'audit (Lynis indisponible ?)"));
     } finally {
@@ -265,6 +284,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           </p>
         )}
       </div>
+
+      {/* Tendance de l'indice de durcissement (historique) */}
+      <HardeningTrend history={history} />
 
       {/* État initial */}
       {!result && !loading && (
@@ -507,6 +529,56 @@ function RemediationRow({
           {actionLabel}
         </button>
       )}
+    </div>
+  );
+}
+
+// Courbe d'évolution de l'indice de durcissement (du plus ancien au plus récent).
+function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
+  const points = history
+    .filter((s) => s.hardeningIndex >= 0)
+    .slice()
+    .reverse()
+    .map((s) => ({
+      t: new Date(s.scannedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      index: s.hardeningIndex,
+    }));
+  if (points.length < 2) return null;
+
+  const last = points[points.length - 1].index;
+  const prev = points[points.length - 2].index;
+  const delta = last - prev;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
+          Tendance de l'indice
+        </h3>
+        {delta !== 0 && (
+          <span
+            className="text-xs font-medium"
+            style={{ color: delta > 0 ? "var(--nx-success)" : "var(--nx-danger)" }}
+          >
+            {delta > 0 ? "▲ +" : "▼ "}{delta} depuis le dernier scan
+          </span>
+        )}
+      </div>
+      <div style={{ width: "100%", height: 160 }}>
+        <ResponsiveContainer>
+          <AreaChart data={points} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--nx-border)" />
+            <XAxis dataKey="t" tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} />
+            <Tooltip
+              contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: "var(--nx-text-weak)" }}
+            />
+            <Area type="monotone" dataKey="index" stroke="var(--nx-accent)" fill="var(--nx-accent)" fillOpacity={0.15} strokeWidth={2} name="Indice" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

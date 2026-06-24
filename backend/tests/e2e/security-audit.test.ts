@@ -329,7 +329,9 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
     expect(tab).toContain("securityAudit");
     expect(tab).toContain("hardening_index");
     const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    expect(apiFile).toMatch(/securityAudit[\s\S]*security\.audit/);
+    // securityAudit appelle la route dédiée /security/audit (qui dispatche
+    // l'action security.audit côté backend + persiste l'historique).
+    expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/);
   });
 });
 
@@ -461,5 +463,35 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("Assistant pare-feu");
     expect(tab).toContain("firewallConfirm"); // confirm réutilisé
+  });
+});
+
+describe("Security scan history & trend (Phase 3)", () => {
+  it("should define a SecurityScan model + migration (no db push)", () => {
+    const schema = readFileSync(resolve(backendSrc, "../prisma/schema.prisma"), "utf8");
+    expect(schema).toContain("model SecurityScan {");
+    expect(schema).toContain("hardeningIndex");
+    expect(schema).toMatch(/securityScans\s+SecurityScan\[\]/); // relation côté Machine
+    const mig = resolve(backendSrc, "../prisma/migrations/20260624120000_add_security_scan/migration.sql");
+    expect(existsSync(mig)).toBe(true);
+    expect(readFileSync(mig, "utf8")).toContain('CREATE TABLE "SecurityScan"');
+  });
+
+  it("should persist scans and expose history via dedicated routes", () => {
+    const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
+    expect(route).toContain("/api/machines/:id/security/audit");
+    expect(route).toContain("/api/machines/:id/security/scans");
+    expect(route).toContain("securityScan.create"); // persistance
+    const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
+    expect(index).toContain("securityRoutes");
+  });
+
+  it("should render a hardening trend chart from history in the frontend", () => {
+    const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/); // route persistante
+    expect(apiFile).toContain("securityScans");
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("HardeningTrend");
+    expect(tab).toContain("Tendance de l'indice");
   });
 });

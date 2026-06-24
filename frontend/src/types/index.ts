@@ -104,6 +104,17 @@ export interface LynisItem {
   text: string;
 }
 
+export interface SecurityScanPoint {
+  hardeningIndex: number;
+  warningCount: number;
+  suggestionCount: number;
+  fail2banActive: boolean;
+  autoUpdatesActive: boolean;
+  sshHardened: boolean;
+  firewallActive: boolean;
+  scannedAt: string;
+}
+
 export interface ListeningService {
   proto: string;
   address: string;

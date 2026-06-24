@@ -156,6 +156,7 @@ model Machine {
   tags              MachineTag[]
   groupMembers      MachineGroupMember[]
   bootstrapTokens   BootstrapToken[]
+  securityScans     SecurityScan[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -165,6 +166,29 @@ model Machine {
   @@index([lastHeartbeat])
   @@index([enrollmentToken])
   @@index([type])
+}
+
+// Historique des audits de durcissement (Lynis) : un enregistrement par scan,
+// pour tracer l'évolution de l'indice de durcissement et détecter les régressions.
+model SecurityScan {
+  id      String  @id @default(cuid())
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  hardeningIndex  Int     // -1 si non disponible (Lynis n'a pas produit d'indice)
+  warningCount    Int     @default(0)
+  suggestionCount Int     @default(0)
+  lynisVersion    String?
+
+  // État des remédiations au moment du scan (pour le détail historique)
+  fail2banActive    Boolean @default(false)
+  autoUpdatesActive Boolean @default(false)
+  sshHardened       Boolean @default(false)
+  firewallActive    Boolean @default(false)
+
+  scannedAt DateTime @default(now())
+
+  @@index([machineId, scannedAt])
 }
 
 // ===================== BOOTSTRAP TOKENS =====================
