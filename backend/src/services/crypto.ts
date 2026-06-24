@@ -221,13 +221,6 @@ export function generateNonce(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-// ===================== Key Fingerprint =====================
-
-export function keyFingerprint(publicKeyPem: string): string {
-  const hash = crypto.createHash("sha256").update(publicKeyPem).digest("hex");
-  return hash.substring(0, 16);
-}
-
 // ===================== Message Signing =====================
 
 export function buildSignaturePayload(msg: {

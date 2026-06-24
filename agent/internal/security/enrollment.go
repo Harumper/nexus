@@ -133,22 +133,25 @@ func Enroll(
 		return nil, fmt.Errorf("unexpected response type: %s", response.Type)
 	}
 
-	// 8. Vérifier la signature du serveur
-	if serverPublicKeyPEM != "" {
-		serverPubKey, err := ParsePublicKeyPEM(serverPublicKeyPEM)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse server public key: %w", err)
-		}
-
-		sigPayload := BuildSignaturePayload(
-			response.Type, "", response.MachineID,
-			response.Timestamp, response.Nonce, response.Payload,
-		)
-		if !VerifySignature(sigPayload, response.Signature, serverPubKey) {
-			return nil, fmt.Errorf("server signature verification failed")
-		}
-		log.Println("[Enrollment] Server signature verified")
+	// 8. Vérifier la signature du serveur — PINNING STRICT : la clé serveur est
+	// OBLIGATOIRE. Sans elle, un serveur non authentifié pourrait enrôler l'agent
+	// (rupture d'isolation entre projets / MITM sur l'enrollement).
+	if serverPublicKeyPEM == "" {
+		return nil, fmt.Errorf("clé publique serveur obligatoire pour l'enrollement (pinning)")
 	}
+	pinnedServerKey, err := ParsePublicKeyPEM(serverPublicKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server public key: %w", err)
+	}
+
+	sigPayload := BuildSignaturePayload(
+		response.Type, "", response.MachineID,
+		response.Timestamp, response.Nonce, response.Payload,
+	)
+	if !VerifySignature(sigPayload, response.Signature, pinnedServerKey) {
+		return nil, fmt.Errorf("server signature verification failed")
+	}
+	log.Println("[Enrollment] Server signature verified (pinned key)")
 
 	// 9. Parser la réponse
 	var responseData struct {
@@ -159,13 +162,19 @@ func Enroll(
 		return nil, fmt.Errorf("failed to parse enrollment response: %w", err)
 	}
 
-	// 10. Dériver le secret partagé via ECDH
-	serverPubKey, err := ParsePublicKeyPEM(responseData.ServerPublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server key from response: %w", err)
+	// 10. Dériver le secret partagé via ECDH avec la clé PINNÉE (et non celle
+	// reçue dans le payload) : la signature ci-dessus prouve déjà que la réponse
+	// vient du détenteur de la clé pinnée. On vérifie en plus que la clé du
+	// payload correspond, par cohérence.
+	if responseData.ServerPublicKey != "" {
+		if respKey, perr := ParsePublicKeyPEM(responseData.ServerPublicKey); perr == nil {
+			if !respKey.Equal(pinnedServerKey) {
+				return nil, fmt.Errorf("server key in response does not match pinned key")
+			}
+		}
 	}
 
-	sharedSecret, err := DeriveSharedSecret(keystore.GetPrivateKey(), serverPubKey)
+	sharedSecret, err := DeriveSharedSecret(keystore.GetPrivateKey(), pinnedServerKey)
 	if err != nil {
 		return nil, fmt.Errorf("ECDH failed: %w", err)
 	}

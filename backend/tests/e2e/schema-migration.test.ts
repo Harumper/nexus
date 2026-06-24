@@ -99,18 +99,19 @@ describe("Frontend - Phase 2 Files", () => {
   it("should have Tag type in types", () => {
     const content = readFileSync(resolve(frontendDir, "types/index.ts"), "utf8");
     expect(content).toContain("interface Tag");
-    expect(content).toContain("interface MachineGroup");
     expect(content).toContain("interface Setting");
     expect(content).toContain("rebootRequired");
+    // NB : le type MachineGroup frontend a été retiré (scaffolding sans UI ;
+    // le modèle backend MachineGroup reste, utilisé par bulk).
   });
 
   it("should have tag API methods", () => {
     const content = readFileSync(resolve(frontendDir, "services/api.ts"), "utf8");
     expect(content).toContain("getTags");
     expect(content).toContain("createTag");
-    expect(content).toContain("assignTag");
-    expect(content).toContain("getGroups");
     expect(content).toContain("getSettings");
+    // assignTag/removeTag et les méthodes groups frontend ont été retirées
+    // (clients morts, jamais appelés ; pas d'UI de gestion).
   });
 
   it("should integrate Tags in Settings page (no dedicated /tags route)", () => {

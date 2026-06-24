@@ -15,7 +15,6 @@ import {
   Tag as TagIcon,
 } from "lucide-react";
 import { api } from "../services/api";
-import type { Setting } from "../types";
 import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
 import TagsManagementCard from "../components/TagsManagementCard";
 import { PageLoader } from "../components/ui";
@@ -52,7 +51,6 @@ interface LifecycleConfig {
 }
 
 export default function Settings() {
-  const [settings, setSettings] = useState<Setting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -92,7 +90,6 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       const data = await api.getSettings();
-      setSettings(data);
 
       // Populate from settings
       for (const s of data) {

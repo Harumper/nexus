@@ -25,14 +25,3 @@ export function PageLoader() {
     </div>
   );
 }
-
-export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "animate-pulse rounded bg-muted motion-reduce:animate-none",
-        className
-      )}
-    />
-  );
-}

@@ -8,7 +8,6 @@ import {
   isKeycloakEnabled,
   isLocalAuthEnabled,
   verifyKeycloakToken,
-  mapKeycloakRole,
 } from "../services/keycloak.js";
 
 /**

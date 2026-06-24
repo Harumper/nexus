@@ -32,6 +32,55 @@ var (
 	selfSHAValue string
 )
 
+// ===================== Idempotence des actions =====================
+// Un même request_id ne doit JAMAIS être ré-exécuté : un re-dispatch (ou une
+// redélivraison WS de la même trame après perte d'ack) rejouerait une mutation
+// destructrice (reboot, apt remove, user.create...). On mémorise les request_id
+// traités + leur réponse pour renvoyer le résultat sans ré-exécuter.
+type idemEntry struct {
+	done     bool
+	response map[string]interface{}
+	at       time.Time
+}
+
+var (
+	idemMu    sync.Mutex
+	idemCache = make(map[string]*idemEntry)
+)
+
+const idemTTL = 10 * time.Minute
+
+// idemReserve réserve un request_id pour exécution. Retourne (réponse mémorisée,
+// estDuplicata). Si duplicata et exécution terminée, la réponse est non-nil.
+func idemReserve(requestID string) (map[string]interface{}, bool) {
+	idemMu.Lock()
+	defer idemMu.Unlock()
+	for k, e := range idemCache {
+		if time.Since(e.at) > idemTTL {
+			delete(idemCache, k)
+		}
+	}
+	if e, ok := idemCache[requestID]; ok {
+		if e.done {
+			return e.response, true
+		}
+		return nil, true
+	}
+	idemCache[requestID] = &idemEntry{at: time.Now()}
+	return nil, false
+}
+
+// idemComplete enregistre la réponse finale pour un request_id réservé.
+func idemComplete(requestID string, response map[string]interface{}) {
+	idemMu.Lock()
+	defer idemMu.Unlock()
+	if e, ok := idemCache[requestID]; ok {
+		e.done = true
+		e.response = response
+		e.at = time.Now()
+	}
+}
+
 func selfSHA256() string {
 	selfSHAOnce.Do(func() {
 		exePath, err := os.Executable()
@@ -158,15 +207,20 @@ func main() {
 
 	// Parser la cle publique du serveur une fois au boot. Utilisee pour
 	// verifier les messages action.confirm (annulation watchdog firewall/netplan).
-	if cfg.ServerPublicKey != "" {
-		parsed, err := security.ParsePublicKeyPEM(cfg.ServerPublicKey)
-		if err != nil {
-			log.Fatalf("Failed to parse server public key: %v", err)
-		}
-		serverPublicKey = parsed
-	} else {
-		log.Println("[Agent] WARNING: no server public key configured — action.confirm will be rejected")
+	// PINNING STRICT (isolation entre projets) : la clé publique du serveur est
+	// OBLIGATOIRE. Sans elle, n'importe quel backend pourrait piloter cet agent
+	// (et action.request/action.confirm seraient de toute façon rejetés). On
+	// échoue donc au boot plutôt que de tourner dans un état inutilisable.
+	if cfg.ServerPublicKey == "" {
+		log.Fatal("[Agent] FATAL: aucune clé publique serveur configurée (NEXUS_SERVER_PUBLIC_KEY_FILE). " +
+			"Elle est obligatoire pour authentifier le backend et isoler l'agent. " +
+			"Ré-enrôlez l'agent avec --server-public-key-file (UI : bouton Ré-enrôler).")
 	}
+	parsedServerKey, err := security.ParsePublicKeyPEM(cfg.ServerPublicKey)
+	if err != nil {
+		log.Fatalf("Failed to parse server public key: %v", err)
+	}
+	serverPublicKey = parsedServerKey
 
 	// Dead man's switch : si l'agent a crash pendant une modif (firewall/netplan),
 	// revert tous les snapshots pending au demarrage
@@ -396,6 +450,19 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 
 	log.Printf("[Agent] Action request: %s (request_id: %s)", request.ActionID, request.RequestID)
 
+	// Idempotence : ne jamais ré-exécuter un request_id déjà traité.
+	if cached, dup := idemReserve(request.RequestID); dup {
+		if cached != nil {
+			log.Printf("[Agent] request_id=%s déjà traité — renvoi de la réponse mémorisée (pas de ré-exécution)", request.RequestID)
+			if err := client.SendSigned(transport.TypeActionResponse, request.RequestID, cached); err != nil {
+				log.Printf("[Agent] Failed to resend cached action response: %v", err)
+			}
+		} else {
+			log.Printf("[Agent] request_id=%s en cours de traitement — duplicata ignoré", request.RequestID)
+		}
+		return
+	}
+
 	// In probe mode, only allow whitelisted actions
 	if strings.EqualFold(agentType, "probe") {
 		if !probeAllowedActions[request.ActionID] {
@@ -431,6 +498,10 @@ func sendActionResponse(client *transport.Client, requestID, actionID string, su
 	if errMsg != "" {
 		response["error"] = errMsg
 	}
+
+	// Mémoriser la réponse pour l'idempotence (renvoyée telle quelle si le même
+	// request_id est redélivré, sans ré-exécuter l'action).
+	idemComplete(requestID, response)
 
 	if err := client.SendSigned(transport.TypeActionResponse, requestID, response); err != nil {
 		log.Printf("[Agent] Failed to send action response: %v", err)

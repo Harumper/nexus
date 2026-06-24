@@ -10,6 +10,16 @@ Context for AI assistants working on this codebase. Human contributors should re
   - `backend/src/services/machine-manager.ts` → `PROBE_ALLOWED_ACTIONS`
   - `agent/cmd/nexus-agent/main.go` → `probeAllowedActions`
   When adding a read-only action, update both.
+- **Server key pinning is MANDATORY** (isolation entre projets). The agent `log.Fatal`s at boot if no server public key is configured (`main.go`), and `Enroll()` refuses to enroll without it (`enrollment.go`). The ECDH shared secret is derived against the *pinned* key, not the one echoed in the enrollment response. `install-agent.sh` requires `--server-public-key-file` for any (re-)enrollment. Don't reintroduce an optional/warning fallback.
+- **One Nexus agent per machine.** Agent paths/identity are NOT namespaced (`nexus-agent` user, `/var/lib/nexus`, `/etc/nexus`, `/etc/sudoers.d/nexus-agent`, service `nexus-agent`). A second deployment installing an agent on the same host would collide. If multi-instance is ever needed, namespace these by deployment id.
+- **Action idempotency**: the agent dedups by `request_id` (`idemCache` in `main.go`, 10-min TTL) and re-sends the memorized response instead of re-executing. Never re-execute a mutating action on redelivery. The frontend dispatch retry (`b898f9f`) must only retry on pre-send errors (`not connected`), never after the message is sent.
+
+## Re-enrollment / uninstall
+
+- `install-agent.sh --uninstall` (alias `--purge`): full removal (service, binary, keys, shared secret, config, snapshots, sudoers, user, group).
+- `install-agent.sh --reenroll`: purges residual identity/state (keys, `shared.secret`, old server key, unconfirmed watchdog snapshots, inbox, old config) BEFORE reinstalling — fixes the "agent skips enrollment because `shared.secret` exists" deadlock.
+- Enrollment token is optional on re-run when a local `shared.secret` exists (sudoers/binary refresh path).
+- Backend `POST /api/machines/:id/re-enroll` regenerates token+ECDSA, **disconnects the agent**, invalidates old install tokens, and returns a bootstrap command flagged `--reenroll`. The UI "Ré-enrôler" button (MachineDetail) routes through `/machines/:id/enroll` which calls `reEnrollMachine` for already-enrolled machines.
 
 ## Watchdog-revert pattern
 

@@ -85,8 +85,10 @@ describe("B2 — SSL cert tracking", () => {
     expect(content).toContain("ssl.scan");
   });
 
-  it("should have SslCertsCard frontend component", () => {
-    const p = resolve(frontendSrc, "components/SslCertsCard.tsx");
+  it("should surface SSL cert tracking in the frontend (useMachineAttention)", () => {
+    // Le suivi des certs est affiché via le panneau d'attention (MachineDetail),
+    // pas un composant SslCertsCard dédié (supprimé car jamais rendu).
+    const p = resolve(frontendSrc, "hooks/useMachineAttention.tsx");
     expect(existsSync(p)).toBe(true);
     const content = readFileSync(p, "utf8");
     expect(content).toContain("sslScan");

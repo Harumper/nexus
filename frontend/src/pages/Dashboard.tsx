@@ -8,7 +8,6 @@ import {
   Download,
   AlertTriangle,
   RotateCcw,
-  Heart,
 } from "lucide-react";
 import {
   AreaChart,
@@ -26,7 +25,7 @@ import MachineCard from "../components/MachineCard";
 import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
 import { PageLoader } from "../components/ui";
-import type { Machine, Metric, WSDashboardMessage } from "../types";
+import type { Metric, WSDashboardMessage } from "../types";
 
 interface FleetSummary {
   avgCpu: number;
@@ -60,23 +59,30 @@ export default function Dashboard() {
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"cpu" | "memory" | "disk">("cpu");
 
-  // Charger les métriques récentes pour les machines en ligne
+  // Chargement INITIAL des dernières métriques (les updates live arrivent
+  // ensuite via WebSocket — cf. handleWsMessage "machine.metrics"). On ne fait
+  // plus de polling 15s séquentiel (50 req HTTP/15s qui doublaient le WS) :
+  // requêtes en parallèle + un seul setState groupé, rejoué quand la liste des
+  // machines change (nouvelle machine en ligne).
   const loadMetrics = useCallback(async () => {
     const onlineMachines = machines.filter((m) => m.status === "ONLINE");
-    for (const m of onlineMachines) {
-      try {
-        const metric = await api.getLatestMetrics(m.id);
-        setLatestMetrics((prev) => ({ ...prev, [m.id]: metric }));
-      } catch {
-        // pas de métriques encore
-      }
-    }
+    const results = await Promise.all(
+      onlineMachines.map((m) =>
+        api
+          .getLatestMetrics(m.id)
+          .then((metric) => [m.id, metric] as const)
+          .catch(() => null)
+      )
+    );
+    setLatestMetrics((prev) => {
+      const next = { ...prev };
+      for (const r of results) if (r) next[r[0]] = r[1];
+      return next;
+    });
   }, [machines]);
 
   useEffect(() => {
     loadMetrics();
-    const interval = setInterval(loadMetrics, 15_000);
-    return () => clearInterval(interval);
   }, [loadMetrics]);
 
   // Fetch fleet summary and trends

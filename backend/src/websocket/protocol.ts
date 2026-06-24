@@ -19,8 +19,6 @@ export const MSG_TYPES = {
   PONG: "pong",
 } as const;
 
-export type MessageType = (typeof MSG_TYPES)[keyof typeof MSG_TYPES];
-
 // Messages qui ne nécessitent pas d'authentification
 export const UNAUTHENTICATED_TYPES = new Set<string>([
   MSG_TYPES.ENROLLMENT_REQUEST,

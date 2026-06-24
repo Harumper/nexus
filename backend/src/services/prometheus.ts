@@ -1,6 +1,6 @@
 import client from "prom-client";
 import { prisma } from "./database.js";
-import { getConnectedMachineIds, getAllSessions } from "../websocket/sessions.js";
+import { getConnectedMachineIds } from "../websocket/sessions.js";
 import { getDashboardClientCount } from "../websocket/dashboard.js";
 
 // Registry Prometheus

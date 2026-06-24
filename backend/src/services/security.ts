@@ -100,12 +100,15 @@ export async function revokeMachine(
   });
 }
 
-export function decryptMessagePayload(
-  encryptedPayload: string,
-  machineSharedSecret: string
-): string {
+// Déchiffre (master) le shared secret stocké et renvoie la clé AES prête à
+// l'emploi. À appeler UNE fois par session, pas par message.
+export function deriveSharedKey(machineSharedSecret: string): Buffer {
   const masterSecret = process.env.ECDSA_MASTER_SECRET!;
   const sharedSecretB64 = decryptAES(machineSharedSecret, masterSecret);
-  const sharedSecret = Buffer.from(sharedSecretB64, "base64");
-  return decryptAES(encryptedPayload, sharedSecret);
+  return Buffer.from(sharedSecretB64, "base64");
+}
+
+// Déchiffre un payload avec la clé AES déjà dérivée (chemin chaud).
+export function decryptWithSharedKey(encryptedPayload: string, key: Buffer): string {
+  return decryptAES(encryptedPayload, key);
 }

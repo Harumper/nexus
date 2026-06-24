@@ -86,11 +86,6 @@ func (ks *Keystore) GetPrivateKey() *ecdsa.PrivateKey {
 	return ks.privateKey
 }
 
-// GetPublicKey retourne la clé publique
-func (ks *Keystore) GetPublicKey() *ecdsa.PublicKey {
-	return ks.publicKey
-}
-
 // GetPublicKeyPEM retourne la clé publique en PEM
 func (ks *Keystore) GetPublicKeyPEM() (string, error) {
 	if ks.publicKey == nil {

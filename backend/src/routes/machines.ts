@@ -31,7 +31,8 @@ interface MachineForBootstrap {
 }
 
 async function buildBootstrapArtifacts(
-  machine: MachineForBootstrap
+  machine: MachineForBootstrap,
+  opts: { reenroll?: boolean } = {}
 ): Promise<BootstrapArtifacts | null> {
   let backendUrl: string;
   try {
@@ -52,6 +53,7 @@ async function buildBootstrapArtifacts(
     binaryToken: binaryTok.rawToken,
     scriptToken: scriptTok.rawToken,
     backendUrl,
+    reenroll: opts.reenroll,
   });
 
   // Les 2 tokens expirent au meme moment, on prend le plus tot
@@ -418,16 +420,47 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Re-enroll machine
+  // Re-enroll machine : régénère le token + la paire ECDSA backend, déconnecte
+  // l'agent existant, invalide les anciens tokens d'install, et renvoie une
+  // commande d'install marquée --reenroll (purge l'identité résiduelle côté
+  // machine pour éviter le deadlock "shared.secret obsolète").
   app.post(
     "/api/machines/:id/re-enroll",
     { preHandler: [requireAdmin] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const user = getUserFromRequest(request);
 
+      const machine = await prisma.machine.findUnique({ where: { id }, select: { id: true, name: true } });
+      if (!machine) {
+        return reply.code(404).send({ error: "Machine not found" });
+      }
+
+      // Régénère token + paire ECDSA backend, remet agentPublicKey/sharedSecret/boundIp à null
       const result = await regenerateEnrollmentToken(id);
 
-      return reply.send(result);
+      // Coupe la session WS active : l'ancien agent utilise un secret désormais invalide
+      disconnectAgent(id);
+
+      // Invalide les anciens tokens d'install pour ne pas laisser de vecteur ouvert
+      await invalidateInstallTokens(id);
+
+      // Commande d'install complète avec --reenroll (purge côté machine)
+      const bootstrap = await buildBootstrapArtifacts(
+        { id: machine.id, name: machine.name, enrollmentToken: result.enrollmentToken, backendPublicKey: result.backendPublicKey },
+        { reenroll: true }
+      );
+
+      await logAudit({
+        action: "MACHINE_UPDATE",
+        resource: "machine",
+        resourceId: id,
+        userId: user?.sub,
+        ipAddress: request.ip,
+        details: { action: "re_enrolled" },
+      });
+
+      return reply.send({ ...result, bootstrap });
     }
   );
 

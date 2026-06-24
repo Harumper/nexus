@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { toast } from "sonner";
 import { statusColor, statusLabel, timeAgo } from "../lib/utils";
 import { api } from "../services/api";
@@ -15,7 +15,7 @@ interface MachineCardProps {
   onDeleted?: () => void;
 }
 
-export default function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: MachineCardProps) {
+function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: MachineCardProps) {
   const navigate = useNavigate();
   const status = statusColor(machine.status);
   const isOnline = machine.status === "ONLINE";
@@ -251,6 +251,11 @@ export default function MachineCard({ machine, latestMetric, alertCount = 0, onD
     </div>
   );
 }
+
+// Memo : sur le Dashboard, une métrique WS reçue ne re-render que la carte
+// concernée (machine/latestMetric/alertCount/onDeleted comparés en shallow),
+// pas toute la grille.
+export default memo(MachineCard);
 
 /** Mini circular gauge for machine cards */
 function Gauge({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Cpu }) {

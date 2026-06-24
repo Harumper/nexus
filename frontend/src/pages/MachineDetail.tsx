@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
-  Activity, Network, ListTree, Download, Radio, AlertTriangle,
+  Activity, Network, ListTree, Download, Radio,
   RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen,
 } from "lucide-react";
 import { api } from "../services/api";
@@ -418,6 +418,9 @@ export default function MachineDetail() {
                   <ShieldOff className="w-3.5 h-3.5" /> Révoquer
                 </button>
               )}
+              <button onClick={() => navigate(`/machines/${id}/enroll`)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}>
+                <RefreshCw className="w-3.5 h-3.5" /> Ré-enrôler
+              </button>
               <button onClick={handleDelete} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}>
                 <Trash2 className="w-3.5 h-3.5" /> Supprimer
               </button>

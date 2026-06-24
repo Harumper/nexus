@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { encryptAES } from "../services/crypto.js";
 import {
   fetchNautilusSnapshot,
   getNautilusConfig,
@@ -84,11 +85,13 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
               })
           );
         } else {
+          // Chiffré au repos avec le master secret (comme les clés privées agent).
+          const encrypted = encryptAES(body.token, process.env.ECDSA_MASTER_SECRET!);
           updates.push(
             prisma.setting.upsert({
               where: { key: NAUTILUS_SETTINGS_KEYS.TOKEN },
-              create: { key: NAUTILUS_SETTINGS_KEYS.TOKEN, value: body.token },
-              update: { value: body.token },
+              create: { key: NAUTILUS_SETTINGS_KEYS.TOKEN, value: encrypted },
+              update: { value: encrypted },
             })
           );
         }
