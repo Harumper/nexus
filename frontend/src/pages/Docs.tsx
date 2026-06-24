@@ -488,6 +488,7 @@ function AlertsDoc() {
     <p className="text-sm font-semibold text-foreground mb-2">Sécurité (évalué toutes les 6h)</p>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">CERT_EXPIRING</strong> — Au moins un cert SSL expire dans ≤ N jours (threshold = N).</li>
+      <li><strong className="text-foreground">HARDENING_INDEX_BELOW</strong> — L'indice de durcissement (Lynis) du dernier audit passe sous N/100 (threshold = N). Évalué sur le dernier scan persisté + à chaque nouvel audit (onglet Sécurité).</li>
     </ul>
 
     <H2>Notifications</H2>

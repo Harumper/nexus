@@ -36,6 +36,12 @@ const CONDITION_GROUPS = [
       { value: "CERT_EXPIRING", label: "Certificat SSL expirant dans" },
     ],
   },
+  {
+    label: "Sécurité",
+    options: [
+      { value: "HARDENING_INDEX_BELOW", label: "Indice de durcissement sous" },
+    ],
+  },
 ];
 
 function thresholdUnit(t: string): string {
@@ -43,6 +49,7 @@ function thresholdUnit(t: string): string {
     case "MACHINE_OFFLINE": return "secondes";
     case "CERT_EXPIRING": return "jours";
     case "UPDATES_AVAILABLE": return "updates";
+    case "HARDENING_INDEX_BELOW": return "/100";
     case "SERVICE_FAILED":
     case "TIMER_FAILED":
     case "CRON_FAILED":

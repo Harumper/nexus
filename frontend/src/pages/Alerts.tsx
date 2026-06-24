@@ -66,6 +66,7 @@ const CONDITION_LABELS: Record<string, string> = {
   CRON_FAILED: "Cron job en échec",
   UPDATES_AVAILABLE: "Mises à jour disponibles",
   CERT_EXPIRING: "Certificat SSL expirant dans",
+  HARDENING_INDEX_BELOW: "Indice de durcissement sous",
 };
 
 // Unite du threshold selon conditionType
@@ -74,6 +75,7 @@ function thresholdUnit(conditionType: string): string {
     case "MACHINE_OFFLINE": return "secondes";
     case "CERT_EXPIRING": return "jours";
     case "UPDATES_AVAILABLE": return "updates";
+    case "HARDENING_INDEX_BELOW": return "/100";
     case "SERVICE_FAILED":
     case "TIMER_FAILED":
     case "CRON_FAILED":

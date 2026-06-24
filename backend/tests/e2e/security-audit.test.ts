@@ -495,3 +495,37 @@ describe("Security scan history & trend (Phase 3)", () => {
     expect(tab).toContain("Tendance de l'indice");
   });
 });
+
+describe("Hardening regression alert (Phase 3.2b)", () => {
+  it("should add the HARDENING_INDEX_BELOW enum value + migration", () => {
+    const schema = readFileSync(resolve(backendSrc, "../prisma/schema.prisma"), "utf8");
+    expect(schema).toContain("HARDENING_INDEX_BELOW");
+    const mig = readFileSync(
+      resolve(backendSrc, "../prisma/migrations/20260624130000_add_hardening_alert/migration.sql"),
+      "utf8"
+    );
+    expect(mig).toMatch(/ALTER TYPE "AlertConditionType" ADD VALUE 'HARDENING_INDEX_BELOW'/);
+  });
+
+  it("should evaluate against the latest persisted SecurityScan (no agent poll)", () => {
+    const engine = readFileSync(resolve(backendSrc, "services/alert-engine.ts"), "utf8");
+    expect(engine).toContain("evaluateHardeningAlerts");
+    expect(engine).toContain("HARDENING_CHECK_CONDITIONS");
+    // Lecture du dernier scan persisté, pas de dispatchActionSync ici.
+    expect(engine).toMatch(/securityScan\.findFirst/);
+  });
+
+  it("should wire the hardening evaluator (periodic + after each audit)", () => {
+    const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
+    expect(index).toContain("evaluateHardeningAlerts");
+    const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
+    expect(route).toContain("evaluateHardeningAlerts"); // déclenché après audit
+  });
+
+  it("should validate the new condition in the alerts route + expose it in the UI", () => {
+    const alerts = readFileSync(resolve(backendSrc, "routes/alerts.ts"), "utf8");
+    expect(alerts).toContain("HARDENING_INDEX_BELOW");
+    const create = readFileSync(resolve(frontendSrc, "pages/AlertCreate.tsx"), "utf8");
+    expect(create).toContain("HARDENING_INDEX_BELOW");
+  });
+});
