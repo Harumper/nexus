@@ -181,6 +181,7 @@ var (
 		"system.updates_available":  true,
 		"system.health_summary":     true,
 		"ssl.scan":                  true,
+		"security.audit":            true,
 		"agent.sudoers_check":       true,
 		"fs.list":                   true,
 		"fs.read":                   true,

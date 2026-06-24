@@ -299,3 +299,36 @@ describe("Privileged user actions gating (SSH keys / sudo)", () => {
     expect(content).toMatch(/ALLOW_USER_PRIVILEGE_MGMT=false/);
   });
 });
+
+describe("Security hardening module (Lynis audit — MVP)", () => {
+  it("should have a read-only security.audit agent action that parses Lynis", () => {
+    const content = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
+    expect(content).toContain('"security.audit"');
+    // Lecture seule : audit non interactif, jamais de remédiation
+    expect(content).toContain("audit");
+    expect(content).toContain("--cronjob");
+    expect(content).toContain("lynis-report.dat");
+    expect(content).toContain("hardening_index");
+  });
+
+  it("should classify security.audit as read-only (allowed in PROBE mode) in both lists", () => {
+    const agentMain = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(agentMain).toMatch(/"security\.audit":\s*true/);
+    const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).toContain('"security.audit"');
+  });
+
+  it("should whitelist Lynis in sudoers (audit + report read), fixed paths", () => {
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(content).toContain("/lynis audit system --cronjob");
+    expect(content).toContain("/bin/cat /var/log/lynis-report.dat");
+  });
+
+  it("should expose the security audit in the frontend (SecurityTab + api)", () => {
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("securityAudit");
+    expect(tab).toContain("hardening_index");
+    const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(apiFile).toMatch(/securityAudit[\s\S]*security\.audit/);
+  });
+});

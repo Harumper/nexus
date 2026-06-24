@@ -23,6 +23,7 @@ import StorageTab from "../components/StorageTab";
 import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
+import SecurityTab from "../components/SecurityTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import AgentUpgradeDialog from "../components/AgentUpgradeDialog";
@@ -34,7 +35,7 @@ import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 import { getErrorMessage } from "../services/errors";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -259,6 +260,12 @@ export default function MachineDetail() {
       tabs: [
         { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent, tooltip: "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
         { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent, tooltip: "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
+      ],
+    },
+    {
+      label: "Sécurité",
+      tabs: [
+        { id: "security", label: "Durcissement", icon: Shield, show: isOnline, tooltip: "Audit de durcissement (Lynis) : indice, avertissements, suggestions" },
       ],
     },
   ];
@@ -609,6 +616,10 @@ export default function MachineDetail() {
 
         {activeTab === "files" && isOnline && (
           <FilesTab machine={machine} canUpload={isAgent} />
+        )}
+
+        {activeTab === "security" && isOnline && (
+          <SecurityTab machineId={machine.id} />
         )}
 
         {activeTab === "netplan" && isOnline && (
