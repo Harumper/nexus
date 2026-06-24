@@ -325,6 +325,14 @@ func main() {
 		})
 	}
 
+	// Progression de l'audit de sécurité (Lynis) — console live côté UI.
+	actions.OnSecurityProgress = func(line string, percent int) {
+		client.SendSigned(transport.TypeSecurityProgress, "", map[string]interface{}{
+			"line":    line,
+			"percent": percent,
+		})
+	}
+
 	// Handler pour les messages entrants
 	client.OnMessage(func(msg transport.Message) {
 		handleMessage(msg, client, sandbox, cfg, keystore)

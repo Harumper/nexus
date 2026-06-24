@@ -404,10 +404,11 @@ nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/apache2/ssl/*.crt
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/haproxy/certs/*.crt
 
 # === Audit de sécurité (Lynis — lecture seule) ===
-# audit system --cronjob : audit non interactif. Lynis n'applique aucune modif.
-# Les deux chemins selon le packaging (Debian/Ubuntu = /usr/sbin, EPEL = /usr/bin).
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lynis audit system --cronjob
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/lynis audit system --cronjob
+# audit system --quick --no-colors : audit non interactif, sortie streamée (pas
+# de modif système). --quick évite la pause de fin. Les deux chemins selon le
+# packaging (Debian/Ubuntu = /usr/sbin, EPEL = /usr/bin).
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lynis audit system --quick --no-colors
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/lynis audit system --quick --no-colors
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /var/log/lynis-report.dat
 
 # === Package pinning (apt-mark) ===

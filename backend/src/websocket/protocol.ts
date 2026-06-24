@@ -9,6 +9,7 @@ export const MSG_TYPES = {
   SYSTEM_INFO: "system.info",
   UPDATE_PROGRESS: "update.progress",
   AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress",
+  SECURITY_PROGRESS: "security.audit.progress",
 
   // Server -> Agent
   ENROLLMENT_COMPLETE: "enrollment.complete",

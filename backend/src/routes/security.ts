@@ -2,26 +2,14 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
 import { requireAuth, getUserFromRequest } from "../middleware/auth.js";
 import { dispatchAction } from "../services/action-dispatcher.js";
-import { waitForResponse } from "../services/action-response.js";
-import { evaluateHardeningAlerts } from "../services/alert-engine.js";
-
-// Résultat brut renvoyé par l'action agent security.audit.
-interface AuditData {
-  hardening_index?: number;
-  warning_count?: number;
-  suggestion_count?: number;
-  lynis_version?: string;
-  fail2ban_active?: boolean;
-  auto_updates_active?: boolean;
-  ssh_hardened?: boolean;
-  firewall_active?: boolean;
-  [k: string]: unknown;
-}
 
 export async function securityRoutes(app: FastifyInstance): Promise<void> {
-  // Lance un audit Lynis ET persiste un SecurityScan (historique/tendance).
-  // Lecture seule côté machine ; RBAC appliqué par dispatchAction (security.audit
-  // est read-only -> autorisé READONLY+).
+  // Lance un audit Lynis en ASYNCHRONE : on dispatche et on renvoie aussitôt le
+  // request_id (pas d'attente HTTP — Lynis dure 60-120s, ce qui provoquait des
+  // 504 derrière le proxy). La progression est streamée via WS
+  // (security.audit.progress) et le résultat final diffusé via WS
+  // (security.audit.result) + persisté dans handleActionResponse. RBAC appliqué
+  // par dispatchAction (security.audit est read-only -> autorisé READONLY+).
   app.post(
     "/api/machines/:id/security/audit",
     { preHandler: [requireAuth] },
@@ -39,41 +27,7 @@ export async function securityRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: result.error });
       }
 
-      let data: AuditData;
-      try {
-        data = (await waitForResponse(result.requestId, 120_000)) as AuditData;
-      } catch (err: any) {
-        return reply.code(408).send({ success: false, error: err?.message || "Audit timeout" });
-      }
-
-      // Persiste un point d'historique (résumé ; les listes restent dans `data`).
-      try {
-        await prisma.securityScan.create({
-          data: {
-            machineId: id,
-            hardeningIndex:
-              typeof data.hardening_index === "number" ? data.hardening_index : -1,
-            warningCount: data.warning_count ?? 0,
-            suggestionCount: data.suggestion_count ?? 0,
-            lynisVersion: data.lynis_version || null,
-            fail2banActive: !!data.fail2ban_active,
-            autoUpdatesActive: !!data.auto_updates_active,
-            sshHardened: !!data.ssh_hardened,
-            firewallActive: !!data.firewall_active,
-          },
-        });
-      } catch (err) {
-        request.log.error({ err, machineId: id }, "[Security] persist scan failed");
-        // On ne fait pas échouer l'audit si la persistance échoue.
-      }
-
-      // Évalue immédiatement les alertes de posture pour cette machine
-      // (fire-and-forget) : le score qui vient d'être mesuré peut franchir un seuil.
-      evaluateHardeningAlerts(id).catch((err) =>
-        request.log.error({ err, machineId: id }, "[Security] hardening alert eval failed")
-      );
-
-      return reply.send({ success: true, data });
+      return reply.send({ success: true, request_id: result.requestId });
     }
   );
 

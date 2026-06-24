@@ -19,6 +19,7 @@ import {
 import { onAgentHeartbeat } from "../services/agent-upgrade-tracker.js";
 import { prisma } from "../services/database.js";
 import { deriveSharedKey, decryptWithSharedKey } from "../services/security.js";
+import { recordSecurityScan } from "../services/security-scan.js";
 import { updateMachineMetrics, actionsFailed } from "../services/prometheus.js";
 import type {
   WSMessage,
@@ -271,6 +272,15 @@ async function handleAuthenticatedMessage(
       });
       break;
 
+    case MSG_TYPES.SECURITY_PROGRESS:
+      // Relayer la progression de l'audit Lynis (console live de l'onglet Sécurité).
+      broadcastToDashboard({
+        type: "security.audit.progress",
+        machine_id: machineId,
+        data: payload,
+      });
+      break;
+
     default:
       console.warn(`[WS] Unknown message type: ${type}`);
   }
@@ -283,6 +293,20 @@ async function handleActionResponse(
   // Résoudre la promesse si quelqu'un attend cette réponse
   if (payload.request_id) {
     resolveResponse(payload.request_id, payload);
+  }
+
+  // Audit de sécurité (dispatch asynchrone) : persiste l'historique, évalue les
+  // alertes de posture, et diffuse le résultat complet au dashboard (l'onglet
+  // Sécurité l'attend via WS — pas de requête HTTP longue, donc pas de 504).
+  if (payload.action_id === "security.audit" && payload.success && payload.data) {
+    recordSecurityScan(machineId, payload.data).catch((err) =>
+      console.error("[Security] recordSecurityScan failed:", err)
+    );
+    broadcastToDashboard({
+      type: "security.audit.result",
+      machine_id: machineId,
+      data: payload.data,
+    });
   }
 
   const action = payload.success ? "ACTION_COMPLETE" : "ACTION_FAILED";

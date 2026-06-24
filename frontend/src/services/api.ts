@@ -703,13 +703,15 @@ class ApiClient {
   }
 
   // ── Posture de sécurité (audit de durcissement Lynis) ────
-  // Route dédiée : dispatche l'audit (Lynis ~30-90s) ET persiste un point
-  // d'historique pour la courbe de tendance.
+  // Dispatch ASYNCHRONE de l'audit Lynis : renvoie aussitôt le request_id (pas
+  // d'attente HTTP — évite les 504 derrière le proxy). La progression et le
+  // résultat arrivent via WebSocket (security.audit.progress / .result), et le
+  // résumé est persisté côté backend pour l'historique.
   async securityAudit(id: string) {
-    return this.request<{
-      success: boolean;
-      data: import("../types").SecurityAuditResult;
-    }>(`/machines/${id}/security/audit`, { method: "POST" });
+    return this.request<{ success: boolean; request_id: string }>(
+      `/machines/${id}/security/audit`,
+      { method: "POST" }
+    );
   }
 
   async securityScans(id: string, limit = 50) {
