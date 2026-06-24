@@ -74,6 +74,10 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	parsed := parseLynisReport(report)
 	parsed["lynis_installed_now"] = installed
 	parsed["lynis_path"] = bin
+	// État des remédiations « 1 clic » (pilote les boutons de l'UI).
+	parsed["fail2ban_installed"] = fileExists("/usr/bin/fail2ban-client")
+	parsed["fail2ban_active"] = systemctlActive("fail2ban")
+	parsed["auto_updates_active"] = autoUpdatesActive()
 	return parsed, nil
 }
 

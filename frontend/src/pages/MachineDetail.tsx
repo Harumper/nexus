@@ -619,7 +619,7 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "security" && isOnline && (
-          <SecurityTab machineId={machine.id} />
+          <SecurityTab machineId={machine.id} canRemediate={isAgent} />
         )}
 
         {activeTab === "netplan" && isOnline && (

@@ -332,3 +332,35 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
     expect(apiFile).toMatch(/securityAudit[\s\S]*security\.audit/);
   });
 });
+
+describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)", () => {
+  it("should define fail2ban + auto-updates remediation agent actions", () => {
+    const content = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
+    expect(content).toContain('"security.harden_fail2ban"');
+    expect(content).toContain('"security.enable_auto_updates"');
+    expect(content).toContain("jail.local");
+    expect(content).toContain("unattended-upgrades");
+  });
+
+  it("should NOT expose remediation actions in PROBE mode (mutations, AGENT-only)", () => {
+    const agentMain = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(agentMain).not.toContain("security.harden_fail2ban");
+    expect(agentMain).not.toContain("security.enable_auto_updates");
+  });
+
+  it("should whitelist the remediation file writes + systemctl enable in sudoers", () => {
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(content).toContain("/etc/fail2ban/jail.local");
+    expect(content).toContain("/etc/apt/apt.conf.d/20auto-upgrades");
+    expect(content).toContain("/usr/bin/systemctl enable *");
+  });
+
+  it("should wire 1-click remediation in the frontend (api + SecurityTab)", () => {
+    const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(apiFile).toMatch(/hardenFail2ban[\s\S]*security\.harden_fail2ban/);
+    expect(apiFile).toMatch(/enableAutoUpdates[\s\S]*security\.enable_auto_updates/);
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("hardenFail2ban");
+    expect(tab).toContain("Remédiations recommandées");
+  });
+});
