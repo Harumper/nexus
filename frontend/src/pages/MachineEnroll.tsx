@@ -93,7 +93,10 @@ export default function MachineEnroll() {
     try {
       const m = await api.getMachine(machineId);
       setMachine(m);
-      if (m.status === "ONLINE") {
+      // On arrête le polling seulement quand l'agent est ONLINE ET que sa
+      // version est remontée (elle arrive au 1er heartbeat, juste après le
+      // passage ONLINE). Sinon l'écran restait figé sur "version —".
+      if (m.status === "ONLINE" && m.agentVersion) {
         stopPolling();
       }
     } catch {
@@ -101,13 +104,20 @@ export default function MachineEnroll() {
     }
   }, [machineId, stopPolling]);
 
-  useEffect(() => {
-    if (step !== 3 || !machineId) return;
+  // (Re)démarre le polling : fetch immédiat + interval 2s, avec un plafond de
+  // 2 min. Réutilisé par le bouton "Rafraîchir" pour relancer après un arrêt.
+  const startPolling = useCallback(() => {
+    stopPolling();
     refreshMachine();
     pollTimerRef.current = setInterval(refreshMachine, 2000);
-    pollStopRef.current = setTimeout(() => stopPolling(), 60_000);
+    pollStopRef.current = setTimeout(() => stopPolling(), 120_000);
+  }, [refreshMachine, stopPolling]);
+
+  useEffect(() => {
+    if (step !== 3 || !machineId) return;
+    startPolling();
     return stopPolling;
-  }, [step, machineId, refreshMachine, stopPolling]);
+  }, [step, machineId, startPolling, stopPolling]);
 
   // ===== Actions =====
   const handleCreate = async (e: FormEvent) => {
@@ -382,28 +392,31 @@ export default function MachineEnroll() {
               />
             </div>
 
-            {isOnline ? (
-              <div className="mt-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Agent connecté —{" "}
-                {machine?.hostname && <span>{machine.hostname} — </span>}
-                {machine?.ipAddress}
-              </div>
-            ) : (
-              <div className="mt-6 flex items-center justify-between">
+            <div className="mt-6 flex items-center justify-between gap-3">
+              {isOnline ? (
+                <div className="flex-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Agent connecté —{" "}
+                  {machine?.hostname && <span>{machine.hostname} — </span>}
+                  {machine?.ipAddress}
+                </div>
+              ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Polling toutes les 2 secondes...
+                  Surveillance de la connexion...
                 </div>
-                <button
-                  onClick={refreshMachine}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Rafraîchir
-                </button>
-              </div>
-            )}
+              )}
+              {/* Bouton toujours disponible : relance le polling (utile si le
+                  polling s'est arrêté ou si l'agent s'est connecté après coup). */}
+              <button
+                onClick={startPolling}
+                className="shrink-0 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                title="Rafraîchir l'état de la connexion"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Rafraîchir
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-3">
