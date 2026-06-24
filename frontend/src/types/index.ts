@@ -99,6 +99,25 @@ export interface DiskInfo {
   percent: number;
 }
 
+export interface LynisItem {
+  id: string;
+  text: string;
+}
+
+export interface SecurityAuditResult {
+  hardening_index: number; // -1 si non disponible
+  lynis_version: string;
+  warnings: LynisItem[];
+  suggestions: LynisItem[];
+  warning_count: number;
+  suggestion_count: number;
+  firewall_active: boolean;
+  firewall_empty_ruleset: boolean;
+  scan_date: string;
+  lynis_installed_now: boolean;
+  lynis_path: string;
+}
+
 export interface MetricsResponse {
   machineId: string;
   range: string;

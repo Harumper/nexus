@@ -702,6 +702,18 @@ class ApiClient {
     });
   }
 
+  // ── Posture de sécurité (audit de durcissement Lynis) ────
+  async securityAudit(id: string) {
+    return this.request<{
+      success: boolean;
+      data: import("../types").SecurityAuditResult;
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      // Lynis peut prendre ~30-90s : on monte au plafond autorisé (120s).
+      body: JSON.stringify({ action_id: "security.audit", params: {}, timeout: 120000 }),
+    });
+  }
+
   // ── Files (browser) ──────────────────────────────────────
   async fsList(id: string, path: string) {
     return this.request<{
