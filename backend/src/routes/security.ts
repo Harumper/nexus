@@ -3,6 +3,7 @@ import { prisma } from "../services/database.js";
 import { requireAuth, getUserFromRequest } from "../middleware/auth.js";
 import { dispatchAction } from "../services/action-dispatcher.js";
 import { waitForResponse } from "../services/action-response.js";
+import { evaluateHardeningAlerts } from "../services/alert-engine.js";
 
 // Résultat brut renvoyé par l'action agent security.audit.
 interface AuditData {
@@ -65,6 +66,12 @@ export async function securityRoutes(app: FastifyInstance): Promise<void> {
         request.log.error({ err, machineId: id }, "[Security] persist scan failed");
         // On ne fait pas échouer l'audit si la persistance échoue.
       }
+
+      // Évalue immédiatement les alertes de posture pour cette machine
+      // (fire-and-forget) : le score qui vient d'être mesuré peut franchir un seuil.
+      evaluateHardeningAlerts(id).catch((err) =>
+        request.log.error({ err, machineId: id }, "[Security] hardening alert eval failed")
+      );
 
       return reply.send({ success: true, data });
     }

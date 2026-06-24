@@ -15,6 +15,10 @@ const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
 // Conditions qui necessitent un scan SSL (moins frequent, plus lourd)
 const CERT_CHECK_CONDITIONS: AlertConditionType[] = ["CERT_EXPIRING"];
 
+// Condition de posture : evaluee sur le DERNIER SecurityScan persiste (pas de
+// poll agent — Lynis est trop lent). Declenchee aussi apres chaque audit.
+const HARDENING_CHECK_CONDITIONS: AlertConditionType[] = ["HARDENING_INDEX_BELOW"];
+
 // ===================== Cache des alertes actives =====================
 // Set en mémoire des (ruleId:machineId) actuellement FIRING/ACKNOWLEDGED.
 // C'est un SUPERSET de l'état DB (initialisé au boot, alimenté par fireAlert).
@@ -312,6 +316,55 @@ export async function evaluateCertAlerts(): Promise<void> {
         }
       })
     );
+  }
+}
+
+// ===================== Posture de durcissement =====================
+
+// Evalue les regles HARDENING_INDEX_BELOW contre le DERNIER SecurityScan
+// persiste de chaque machine ciblee. Pas de poll agent (lecture DB only) :
+// appelable frequemment et apres chaque audit. machineId optionnel = scope.
+export async function evaluateHardeningAlerts(machineId?: string): Promise<void> {
+  const rules = await prisma.alertRule.findMany({
+    where: { enabled: true, conditionType: { in: HARDENING_CHECK_CONDITIONS } },
+  });
+  if (rules.length === 0) return;
+
+  // Machines ciblees : si machineId fourni, on se limite a elle.
+  const needAll = rules.some((r) => r.machineIds.length === 0);
+  const specificIds = new Set(rules.flatMap((r) => r.machineIds));
+  const machines = await prisma.machine.findMany({
+    where: {
+      ...(machineId ? { id: machineId } : needAll ? {} : { id: { in: Array.from(specificIds) } }),
+    },
+    select: { id: true },
+  });
+
+  for (const machine of machines) {
+    const latest = await prisma.securityScan.findFirst({
+      where: { machineId: machine.id },
+      orderBy: { scannedAt: "desc" },
+      select: { hardeningIndex: true },
+    });
+
+    const applicable = rules.filter(
+      (r) => r.machineIds.length === 0 || r.machineIds.includes(machine.id)
+    );
+
+    for (const rule of applicable) {
+      const threshold = rule.threshold ?? 60;
+      // On ne declenche que si on a un indice valide (>= 0) sous le seuil.
+      // Indice -1 (Lynis sans indice) ou pas de scan -> ne rien declencher.
+      if (latest && latest.hardeningIndex >= 0 && latest.hardeningIndex < threshold) {
+        await fireAlert(rule.id, machine.id, rule.severity, {
+          conditionType: "HARDENING_INDEX_BELOW",
+          threshold,
+          hardeningIndex: latest.hardeningIndex,
+        });
+      } else {
+        await resolveAlert(rule.id, machine.id);
+      }
+    }
   }
 }
 

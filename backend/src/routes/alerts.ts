@@ -94,6 +94,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
               enum: [
                 "CPU_ABOVE", "MEMORY_ABOVE", "DISK_ABOVE", "MACHINE_OFFLINE", "LOAD_ABOVE",
                 "SERVICE_FAILED", "TIMER_FAILED", "CRON_FAILED", "UPDATES_AVAILABLE", "CERT_EXPIRING",
+                "HARDENING_INDEX_BELOW",
               ],
             },
             threshold: { type: "number" },

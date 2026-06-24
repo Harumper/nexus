@@ -19,7 +19,7 @@ import { groupRoutes } from "./routes/groups.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { initKeycloak } from "./services/keycloak.js";
-import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts, initAlertState } from "./services/alert-engine.js";
+import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts, evaluateHardeningAlerts, initAlertState } from "./services/alert-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
@@ -236,6 +236,13 @@ async function main() {
   // Premier scan 30s apres demarrage
   setTimeout(() => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] initial cert scan failed:", err)), 30_000);
 
+  // Posture de durcissement : lecture DB du dernier SecurityScan (peu couteux),
+  // toutes les 15 min. Aussi declenche apres chaque audit (route /security/audit).
+  const stopHardeningAlert = jitteredInterval(
+    () => evaluateHardeningAlerts().catch((err) => console.error("[AlertEngine] Hardening eval error:", err)),
+    15 * 60_000
+  );
+
   const stopLifecycle = jitteredInterval(checkMachineLifecycle, 60 * 60 * 1000);
 
   // Rafraichir les metriques fleet pour Prometheus toutes les 30s
@@ -275,6 +282,7 @@ async function main() {
     stopOfflineAlert();
     stopHealthAlert();
     stopCertAlert();
+    stopHardeningAlert();
     stopLifecycle();
     stopFleetMetrics();
     stopMetricsCleanup();
