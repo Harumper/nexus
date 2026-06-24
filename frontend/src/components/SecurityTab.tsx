@@ -1,20 +1,24 @@
 import { useState } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
+import { useConfirm } from "./ui";
 import type { SecurityAuditResult } from "../types";
 
 interface SecurityTabProps {
   machineId: string;
+  canRemediate?: boolean;
 }
 
 // Onglet « Durcissement » : lance un audit Lynis (lecture seule) à la demande
 // et affiche le score + warnings + suggestions. La remédiation 1-clic viendra
 // en Phase 2 (mapping finding -> action Nexus).
-export default function SecurityTab({ machineId }: SecurityTabProps) {
+export default function SecurityTab({ machineId, canRemediate = true }: SecurityTabProps) {
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState<string | null>(null);
+  const { confirm, ConfirmDialogElement } = useConfirm();
 
   const runAudit = async () => {
     setLoading(true);
@@ -30,6 +34,28 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       toast.error(getErrorMessage(err, "Échec de l'audit (Lynis indisponible ?)"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Applique une remédiation après confirmation, puis relance l'audit pour
+  // rafraîchir l'état affiché.
+  const applyRemediation = async (
+    key: string,
+    opts: { title: string; description: string },
+    fn: () => Promise<unknown>
+  ) => {
+    if (!(await confirm({ title: opts.title, description: opts.description, confirmLabel: "Appliquer" }))) {
+      return;
+    }
+    setApplying(key);
+    try {
+      await fn();
+      toast.success("Remédiation appliquée.");
+      await runAudit();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de la remédiation"));
+    } finally {
+      setApplying(null);
     }
   };
 
@@ -116,6 +142,58 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             )}
           </div>
 
+          {/* Remédiations recommandées (1 clic) */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Wrench className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
+              Remédiations recommandées
+            </h3>
+            <div className="space-y-2">
+              <RemediationRow
+                label="Protection anti-bruteforce (fail2ban)"
+                active={result.fail2ban_active}
+                activeLabel={result.fail2ban_installed && !result.fail2ban_active ? "Installé, inactif" : "Actif"}
+                actionLabel={result.fail2ban_installed ? "Activer" : "Installer + activer"}
+                busy={applying === "fail2ban"}
+                disabled={!canRemediate}
+                onApply={() =>
+                  applyRemediation(
+                    "fail2ban",
+                    {
+                      title: "Installer/activer fail2ban ?",
+                      description:
+                        "Installe fail2ban (si absent), déploie une jail SSH par défaut (ban après 5 essais) et active le service.",
+                    },
+                    () => api.hardenFail2ban(machineId)
+                  )
+                }
+              />
+              <RemediationRow
+                label="Mises à jour de sécurité automatiques (unattended-upgrades)"
+                active={result.auto_updates_active}
+                activeLabel="Actif"
+                actionLabel="Activer"
+                busy={applying === "autoupd"}
+                disabled={!canRemediate}
+                onApply={() =>
+                  applyRemediation(
+                    "autoupd",
+                    {
+                      title: "Activer les mises à jour automatiques ?",
+                      description:
+                        "Installe unattended-upgrades (si absent) et active l'application automatique des mises à jour de sécurité.",
+                    },
+                    () => api.enableAutoUpdates(machineId)
+                  )
+                }
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Le durcissement SSH et l'assistant pare-feu (avec garde anti-lock-out) arrivent
+              dans un prochain incrément.
+            </p>
+          </div>
+
           {result.warnings.length > 0 && (
             <FindingList
               title="Avertissements"
@@ -138,6 +216,47 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             des mesures prises, pas un pourcentage de « sécurité ».
           </p>
         </>
+      )}
+      {ConfirmDialogElement}
+    </div>
+  );
+}
+
+function RemediationRow({
+  label,
+  active,
+  activeLabel,
+  actionLabel,
+  busy,
+  disabled,
+  onApply,
+}: {
+  label: string;
+  active: boolean;
+  activeLabel: string;
+  actionLabel: string;
+  busy: boolean;
+  disabled?: boolean;
+  onApply: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+      <span className="text-sm text-foreground">{label}</span>
+      {active ? (
+        <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium" style={{ color: "var(--nx-success)" }}>
+          <Check className="w-4 h-4" /> {activeLabel}
+        </span>
+      ) : (
+        <button
+          onClick={onApply}
+          disabled={busy || disabled}
+          title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : undefined}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+          style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
+          {actionLabel}
+        </button>
       )}
     </div>
   );

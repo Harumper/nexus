@@ -714,6 +714,27 @@ class ApiClient {
     });
   }
 
+  // Remédiations de durcissement « 1 clic » (Phase 2)
+  async hardenFail2ban(id: string) {
+    return this.request<{ success: boolean; data: { fail2ban_active: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.harden_fail2ban", params: {}, timeout: 60000 }),
+      }
+    );
+  }
+
+  async enableAutoUpdates(id: string) {
+    return this.request<{ success: boolean; data: { auto_updates_active: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.enable_auto_updates", params: {}, timeout: 60000 }),
+      }
+    );
+  }
+
   // ── Files (browser) ──────────────────────────────────────
   async fsList(id: string, path: string) {
     return this.request<{

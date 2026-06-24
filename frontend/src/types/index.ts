@@ -116,6 +116,10 @@ export interface SecurityAuditResult {
   scan_date: string;
   lynis_installed_now: boolean;
   lynis_path: string;
+  // État des remédiations « 1 clic » (Phase 2)
+  fail2ban_installed: boolean;
+  fail2ban_active: boolean;
+  auto_updates_active: boolean;
 }
 
 export interface MetricsResponse {

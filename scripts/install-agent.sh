@@ -348,7 +348,12 @@ Cmnd_Alias NEXUS_BLOCKED_SVC = /usr/bin/systemctl stop ssh*, \
                                 /usr/bin/systemctl reload nexus-agent*, \
                                 /usr/bin/systemctl disable nexus-agent*
 
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *, /usr/bin/systemctl reload *, !NEXUS_BLOCKED_SVC
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *, /usr/bin/systemctl reload *, /usr/bin/systemctl enable *, !NEXUS_BLOCKED_SVC
+
+# === Remédiations de durcissement (Phase 2 — écriture de configs) ===
+# fail2ban (anti-bruteforce) et unattended-upgrades (MAJ auto). Destinations fixes.
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-fail2ban-*.tmp /etc/fail2ban/jail.local
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-autoupd-*.tmp /etc/apt/apt.conf.d/20auto-upgrades
 
 # === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
