@@ -40,6 +40,29 @@ func lynisPath() string {
 	return ""
 }
 
+// installLynis rafraîchit l'index apt puis installe lynis, en REMONTANT la
+// sortie réelle d'apt en cas d'échec (diagnostic : paquet absent des dépôts,
+// dépôt universe désactivé, réseau, sudoers/NOEXEC...).
+func installLynis() (string, error) {
+	// apt-get update (whitelisté) — non fatal : l'install peut réussir si
+	// l'index est déjà à jour. Sur une VM fraîche, c'est souvent indispensable.
+	updateOut, _ := exec.Command("sudo", "-n", "/usr/bin/apt-get", "update").CombinedOutput()
+
+	out, err := exec.Command("sudo", "-n", "/usr/bin/apt-get", "install", "-y", "-qq", "lynis").CombinedOutput()
+	combined := strings.TrimSpace(string(out))
+	if err != nil {
+		detail := combined
+		if detail == "" {
+			detail = strings.TrimSpace(string(updateOut))
+		}
+		if detail == "" {
+			detail = err.Error()
+		}
+		return combined, fmt.Errorf("installation de lynis échouée: %s", detail)
+	}
+	return combined, nil
+}
+
 type lynisItem struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
@@ -49,12 +72,18 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	installed := false
 	bin := lynisPath()
 	if bin == "" {
-		// Tentative d'installation via apt (whitelist sudoers existante).
-		// Si ça échoue (pas d'apt / pas de réseau), on remonte une erreur claire.
-		_ = exec.Command("sudo", "-n", "/usr/bin/apt-get", "install", "-y", "-qq", "lynis").Run()
+		// Tentative d'installation via apt. On rafraîchit d'abord l'index
+		// (sur une VM fraîche, `install` échoue souvent par "Unable to locate
+		// package"). On REMONTE la sortie réelle d'apt en cas d'échec.
+		if out, err := installLynis(); err != nil {
+			return nil, err
+		} else if out != "" {
+			// (output conservé pour debug éventuel, non bloquant)
+			_ = out
+		}
 		bin = lynisPath()
 		if bin == "" {
-			return nil, fmt.Errorf("lynis introuvable et installation impossible (apt requis)")
+			return nil, fmt.Errorf("lynis introuvable après installation (paquet 'lynis' absent des dépôts ?)")
 		}
 		installed = true
 	}
