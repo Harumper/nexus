@@ -703,15 +703,19 @@ class ApiClient {
   }
 
   // ── Posture de sécurité (audit de durcissement Lynis) ────
+  // Route dédiée : dispatche l'audit (Lynis ~30-90s) ET persiste un point
+  // d'historique pour la courbe de tendance.
   async securityAudit(id: string) {
     return this.request<{
       success: boolean;
       data: import("../types").SecurityAuditResult;
-    }>(`/machines/${id}/actions/sync`, {
-      method: "POST",
-      // Lynis peut prendre ~30-90s : on monte au plafond autorisé (120s).
-      body: JSON.stringify({ action_id: "security.audit", params: {}, timeout: 120000 }),
-    });
+    }>(`/machines/${id}/security/audit`, { method: "POST" });
+  }
+
+  async securityScans(id: string, limit = 50) {
+    return this.request<{ scans: import("../types").SecurityScanPoint[] }>(
+      `/machines/${id}/security/scans?limit=${limit}`
+    );
   }
 
   // Remédiations de durcissement « 1 clic » (Phase 2)
