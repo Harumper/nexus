@@ -355,6 +355,11 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl 
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-fail2ban-*.tmp /etc/fail2ban/jail.local
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-autoupd-*.tmp /etc/apt/apt.conf.d/20auto-upgrades
 
+# === Assistant pare-feu : sockets en écoute (lecture seule) ===
+# ss -p (noms de process) nécessite root. Chemins selon packaging (sbin/bin).
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ss -Htlnp
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/ss -Htlnp
+
 # === Durcissement SSH (drop-in + watchdog-revert) ===
 # Drop-in Nexus uniquement (99-nexus-hardening.conf) ; sshd -t valide AVANT reload.
 # Le rechargement se fait par SIGHUP (kill, déjà whitelisté) — `systemctl reload ssh`
