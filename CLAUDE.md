@@ -23,16 +23,25 @@ Context for AI assistants working on this codebase. Human contributors should re
 
 ## Watchdog-revert pattern
 
-Firewall (`60s`) and netplan (`120s`) use the same pattern:
+Firewall (`60s`), netplan (`120s`) and **sshd hardening (`120s`)** use the same pattern:
 
-1. Agent takes a snapshot to `/var/lib/nexus-agent/{firewall|netplan}-snapshot-<reqid>.{iptables|}/`
+1. Agent takes a snapshot to `/var/lib/nexus-agent/{firewall|netplan|sshd}-snapshot-<reqid>...`
 2. Applies the mutation
 3. Arms `time.AfterFunc` to revert if not confirmed
-4. Backend `POST /api/machines/:id/{firewall|netplan}/confirm` sends `action.confirm` signed WS message
+4. Backend `POST /api/machines/:id/{firewall|netplan|sshd}/confirm` sends `action.confirm` signed WS message (request_id prefix routes the agent dispatch: `netplan-`/`sshd-`/else→firewall `HandleConfirm`)
 5. Agent cancels the timer + deletes the snapshot
-6. **Dead-man's switch**: on agent boot, `RecoverPendingSnapshots()` / `RecoverPendingNetplan()` scans snapshot dir and reverts anything left (covers agent crash during the window)
+6. **Dead-man's switch**: on agent boot, `RecoverPendingSnapshots()` / `RecoverPendingNetplan()` / `RecoverPendingSshd()` scans snapshot dir and reverts anything left (covers agent crash during the window)
 
-When adding a new watchdog action, follow this exact pattern. Don't invent variants.
+When adding a new watchdog action, follow this exact pattern. Don't invent variants. **`sshd.harden` and `firewall.apply_policy` both follow it** — sshd has its own confirm route; `firewall.apply_policy` reuses the firewall watchdog/route (one snapshot for the whole policy).
+
+## Security hardening module (Posture de sécurité)
+
+Onglet `SecurityTab` sur MachineDetail. Audit **Lynis** (FOSS) en lecture seule (`security.audit`, parse `lynis-report.dat` côté agent → indice/warnings/suggestions + état remédiations) puis remédiations « 1 clic » (avec confirmation) mappées aux actions agent :
+- `security.harden_fail2ban`, `security.enable_auto_updates` (installent un utilitaire — AGENT-only).
+- `sshd.harden` : drop-in `/etc/ssh/sshd_config.d/99-nexus-hardening.conf`, **`sshd -t` avant reload**, reload par **SIGHUP** (`systemctl reload ssh` reste bloqué en sudoers), watchdog 120s.
+- `firewall.apply_policy` : `network.listening_services` (`ss`, lecture seule) propose les ports → ufw allow + enable, watchdog 60s. SSH toujours autorisé (anti-lockout).
+
+Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, toujours watchdog + `sshd -t`. Quand tu ajoutes une remédiation : action Go (`security`/`firewall` capability), **sudoers aux 2 endroits**, lecture seule → ajouter aux 2 allow-lists PROBE, mutation → NE PAS l'ajouter.
 
 ## Security rules
 
