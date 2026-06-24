@@ -84,6 +84,7 @@ export const PROBE_ALLOWED_ACTIONS = [
   "sshkey.list",
   "network.status",
   "network.interfaces",
+  "network.listening_services",
   "netplan.get",
   "package.holds_list",
   "system.services_failed",

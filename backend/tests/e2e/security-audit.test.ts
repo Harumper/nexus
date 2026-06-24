@@ -419,3 +419,47 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     expect(tab).toContain("Confirmer");
   });
 });
+
+describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () => {
+  it("should have a read-only network.listening_services probe (ss)", () => {
+    const content = readFileSync(resolve(agentDir, "internal/actions/network_listening.go"), "utf8");
+    expect(content).toContain('"network.listening_services"');
+    expect(content).toContain("parseSsListening");
+    expect(content).toContain("-Htlnp");
+    expect(content).toContain("isExposedAddr");
+  });
+
+  it("should classify listening_services as read-only (PROBE) in both lists", () => {
+    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(main).toMatch(/"network\.listening_services":\s*true/);
+    const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).toContain('"network.listening_services"');
+  });
+
+  it("should apply a firewall policy via the existing watchdog (one snapshot, revert on failure)", () => {
+    const content = readFileSync(resolve(agentDir, "internal/actions/firewall.go"), "utf8");
+    expect(content).toContain('"firewall.apply_policy"');
+    expect(content).toContain("registerPendingRevert"); // réutilise le watchdog existant
+    expect(content).toContain("restoreFromSnapshot"); // revert immédiat sur échec
+    expect(content).toContain("firewallPortRegex"); // validation stricte des ports
+  });
+
+  it("should NOT expose firewall.apply_policy in PROBE mode (mutation)", () => {
+    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(main).not.toContain("firewall.apply_policy");
+  });
+
+  it("should whitelist ss in sudoers (read-only, fixed args)", () => {
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(content).toContain("/ss -Htlnp");
+  });
+
+  it("should wire the firewall assistant in the frontend (reuses firewallConfirm)", () => {
+    const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(apiFile).toMatch(/listeningServices[\s\S]*network\.listening_services/);
+    expect(apiFile).toMatch(/firewallApplyPolicy[\s\S]*firewall\.apply_policy/);
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("Assistant pare-feu");
+    expect(tab).toContain("firewallConfirm"); // confirm réutilisé
+  });
+});

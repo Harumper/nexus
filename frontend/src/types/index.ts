@@ -104,6 +104,15 @@ export interface LynisItem {
   text: string;
 }
 
+export interface ListeningService {
+  proto: string;
+  address: string;
+  port: string;
+  process: string;
+  exposed: boolean;
+  is_ssh: boolean;
+}
+
 export interface SecurityAuditResult {
   hardening_index: number; // -1 si non disponible
   lynis_version: string;

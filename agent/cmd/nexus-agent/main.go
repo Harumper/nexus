@@ -174,6 +174,7 @@ var (
 		"sshkey.list":               true,
 		"network.status":            true,
 		"network.interfaces":        true,
+		"network.listening_services": true,
 		"netplan.get":               true,
 		"package.holds_list":        true,
 		"system.services_failed":    true,

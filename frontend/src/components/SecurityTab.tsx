@@ -1,39 +1,45 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
-import type { SecurityAuditResult } from "../types";
+import type { SecurityAuditResult, ListeningService } from "../types";
 
 interface SecurityTabProps {
   machineId: string;
   canRemediate?: boolean;
 }
 
-// Onglet « Durcissement » : lance un audit Lynis (lecture seule) à la demande
-// et affiche le score + warnings + suggestions. La remédiation 1-clic viendra
-// en Phase 2 (mapping finding -> action Nexus).
+type Pending = { kind: "sshd" | "firewall"; requestId: string; expiresAt: number };
+
+// Onglet « Durcissement » : audit Lynis (lecture seule) + remédiations 1-clic
+// (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
 export default function SecurityTab({ machineId, canRemediate = true }: SecurityTabProps) {
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState<string | null>(null);
-  const [pendingSshd, setPendingSshd] = useState<{ requestId: string; expiresAt: number } | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   const [remaining, setRemaining] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm, ConfirmDialogElement } = useConfirm();
 
-  // Décompte du watchdog SSH (revert auto si non confirmé).
+  // Assistant pare-feu : services détectés + sélection des ports à autoriser.
+  const [fwServices, setFwServices] = useState<ListeningService[] | null>(null);
+  const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
+  const [fwLoading, setFwLoading] = useState(false);
+
+  // Décompte du watchdog (SSH ou pare-feu) — revert auto si non confirmé.
   useEffect(() => {
-    if (!pendingSshd) {
+    if (!pending) {
       setRemaining(0);
       return;
     }
     const tick = () => {
-      const r = Math.max(0, Math.floor((pendingSshd.expiresAt - Date.now()) / 1000));
+      const r = Math.max(0, Math.floor((pending.expiresAt - Date.now()) / 1000));
       setRemaining(r);
       if (r <= 0) {
-        setPendingSshd(null);
+        setPending(null);
         if (countdownRef.current) clearInterval(countdownRef.current);
         runAudit();
       }
@@ -44,7 +50,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSshd]);
+  }, [pending]);
 
   const runAudit = async () => {
     setLoading(true);
@@ -101,7 +107,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     setApplying("sshd");
     try {
       const res = await api.sshdHarden(machineId);
-      setPendingSshd({ requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
+      setPending({ kind: "sshd", requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
       toast.success("Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).");
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec du durcissement SSH"));
@@ -110,22 +116,85 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     }
   };
 
-  const handleConfirmSshd = async () => {
-    if (!pendingSshd) return;
+  // Confirme le watchdog en cours (SSH ou pare-feu), selon le kind.
+  const handleConfirm = async () => {
+    if (!pending) return;
     try {
-      await api.sshdConfirm(machineId, pendingSshd.requestId);
-      setPendingSshd(null);
-      toast.success("Durcissement SSH confirmé.");
+      if (pending.kind === "sshd") {
+        await api.sshdConfirm(machineId, pending.requestId);
+      } else {
+        await api.firewallConfirm(machineId, pending.requestId);
+      }
+      setPending(null);
+      toast.success("Modification confirmée.");
       runAudit();
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de la confirmation"));
     }
   };
 
+  // ── Assistant pare-feu ──────────────────────────────────────
+  const analyzeFirewall = async () => {
+    setFwLoading(true);
+    try {
+      const res = await api.listeningServices(machineId);
+      const svcs = res.data.services.filter((s) => s.exposed); // loopback non concerné
+      setFwServices(svcs);
+      // Présélection : tous les services exposés détectés (on garde joignable ce
+      // qui tourne) ; SSH toujours coché (et non décochable côté UI).
+      setFwSelected(new Set(svcs.map((s) => s.port)));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de l'analyse des ports"));
+    } finally {
+      setFwLoading(false);
+    }
+  };
+
+  const toggleFwPort = (svc: ListeningService) => {
+    if (svc.is_ssh) return; // SSH verrouillé (anti-lockout)
+    setFwSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(svc.port)) next.delete(svc.port);
+      else next.add(svc.port);
+      return next;
+    });
+  };
+
+  const applyFirewallPolicy = async () => {
+    if (!fwServices) return;
+    const ports = Array.from(new Set(Array.from(fwSelected).map((p) => `${p}/tcp`)));
+    const hasSsh = fwServices.some((s) => s.is_ssh && fwSelected.has(s.port));
+    const sshNote = hasSsh
+      ? ""
+      : "\n⚠️ ATTENTION : aucun port SSH détecté/sélectionné — risque de te bloquer dehors.";
+    if (
+      !(await confirm({
+        title: "Appliquer cette politique pare-feu ?",
+        description:
+          `Active ufw (deny entrant par défaut) et autorise : ${ports.join(", ") || "(aucun)"}.` +
+          " Watchdog 60s : si tu perds l'accès ou ne confirmes pas, l'état précédent est restauré automatiquement." +
+          sshNote,
+        confirmLabel: "Appliquer",
+        variant: "danger",
+      }))
+    )
+      return;
+    setApplying("firewall");
+    try {
+      const res = await api.firewallApplyPolicy(machineId, ports);
+      setPending({ kind: "firewall", requestId: res.data.request_id, expiresAt: Date.now() + 60_000 });
+      toast.success("Politique appliquée — confirme avant 60s (vérifie ton accès).");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de l'application de la politique"));
+    } finally {
+      setApplying(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
-      {/* Bandeau watchdog SSH : à confirmer avant revert auto */}
-      {pendingSshd && remaining > 0 && (
+      {/* Bandeau watchdog (SSH ou pare-feu) : à confirmer avant revert auto */}
+      {pending && remaining > 0 && (
         <div
           className="rounded-xl border p-4 flex items-center justify-between gap-3"
           style={{ background: "var(--nx-warning-subtle)", borderColor: "var(--nx-warning)" }}
@@ -134,15 +203,18 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
             <AlertTriangle className="w-5 h-5" style={{ color: "var(--nx-warning)" }} />
             <div>
               <div className="text-sm font-semibold" style={{ color: "var(--nx-warning)" }}>
-                Durcissement SSH appliqué — confirmer dans {remaining}s
+                {pending.kind === "sshd" ? "Durcissement SSH appliqué" : "Politique pare-feu appliquée"} — confirmer dans {remaining}s
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
-                Teste ta reconnexion SSH. Sans confirmation, la config précédente sera restaurée automatiquement.
+                {pending.kind === "sshd"
+                  ? "Teste ta reconnexion SSH."
+                  : "Vérifie que tu as toujours accès à la machine."}{" "}
+                Sans confirmation, l'état précédent sera restauré automatiquement.
               </div>
             </div>
           </div>
           <button
-            onClick={handleConfirmSshd}
+            onClick={handleConfirm}
             className="shrink-0 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
             style={{ background: "var(--nx-success)", color: "var(--nx-bg-base)" }}
           >
@@ -285,14 +357,85 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 activeLabel="Durci"
                 actionLabel="Durcir"
                 busy={applying === "sshd"}
-                disabled={!canRemediate || pendingSshd !== null}
+                disabled={!canRemediate || pending !== null}
                 onApply={applySshHarden}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
-              watchdog 120s (anti-lock-out). L'assistant pare-feu arrive dans un prochain incrément.
+              watchdog 120s (anti-lock-out).
             </p>
+          </div>
+
+          {/* Assistant pare-feu */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Network className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
+                Assistant pare-feu
+              </h3>
+              <button
+                onClick={analyzeFirewall}
+                disabled={fwLoading}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+              >
+                {fwLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Analyser les ports ouverts
+              </button>
+            </div>
+
+            {!fwServices && (
+              <p className="text-sm text-muted-foreground">
+                Détecte les services en écoute (non-loopback) et propose une politique :
+                autoriser les ports cochés + tout bloquer en entrée par défaut.
+              </p>
+            )}
+
+            {fwServices && fwServices.length === 0 && (
+              <p className="text-sm text-muted-foreground">Aucun service exposé détecté (tout en loopback).</p>
+            )}
+
+            {fwServices && fwServices.length > 0 && (
+              <>
+                <ul className="space-y-1.5">
+                  {fwServices.map((s) => (
+                    <li key={`${s.address}:${s.port}`} className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={fwSelected.has(s.port)}
+                        disabled={s.is_ssh || !canRemediate || pending !== null}
+                        onChange={() => toggleFwPort(s)}
+                      />
+                      <span className="font-mono text-xs" style={{ color: "var(--nx-text)" }}>
+                        {s.port}/tcp
+                      </span>
+                      <span className="text-muted-foreground">{s.process || "?"}</span>
+                      <span className="text-[10px]" style={{ color: "var(--nx-text-weak)" }}>{s.address}</span>
+                      {s.is_ssh && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
+                          SSH (verrouillé)
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-xs text-muted-foreground">
+                    Active ufw (deny entrant) + autorise les ports cochés. Watchdog 60s anti-lock-out.
+                  </p>
+                  <button
+                    onClick={applyFirewallPolicy}
+                    disabled={!canRemediate || pending !== null || applying === "firewall"}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                    style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
+                  >
+                    {applying === "firewall" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flame className="w-3.5 h-3.5" />}
+                    Appliquer la politique
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {result.warnings.length > 0 && (

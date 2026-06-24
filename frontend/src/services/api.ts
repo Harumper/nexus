@@ -756,6 +756,29 @@ class ApiClient {
     );
   }
 
+  // Assistant pare-feu : liste les sockets en écoute (lecture seule).
+  async listeningServices(id: string) {
+    return this.request<{ success: boolean; data: { services: import("../types").ListeningService[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "network.listening_services", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  // Applique une politique pare-feu (allow détectés + enable) avec watchdog 60s.
+  // La confirmation réutilise firewallConfirm (request_id prefixé "firewall-").
+  async firewallApplyPolicy(id: string, allow: string[]) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string; allowed: string[] } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "firewall.apply_policy", params: { allow }, timeout: 30000 }),
+      }
+    );
+  }
+
   // ── Files (browser) ──────────────────────────────────────
   async fsList(id: string, path: string) {
     return this.request<{

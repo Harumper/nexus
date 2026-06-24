@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +20,11 @@ func init() {
 	Register(&FirewallRuleRemoveAction{})
 	Register(&FirewallEnableAction{})
 	Register(&FirewallDisableAction{})
+	Register(&FirewallApplyPolicyAction{})
 }
+
+// Port ou port/proto strict (pas de métacaractères) pour l'assistant pare-feu.
+var firewallPortRegex = regexp.MustCompile(`^[0-9]{1,5}(/(tcp|udp))?$`)
 
 const (
 	watchdogDuration = 60 * time.Second
@@ -384,5 +389,80 @@ func (a *FirewallDisableAction) Execute(params map[string]interface{}) (interfac
 		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
 		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
 		"output":               string(output),
+	}, nil
+}
+
+// ===================== firewall.apply_policy =====================
+// Assistant pare-feu : autorise une liste de ports détectés puis active ufw
+// (deny entrant par défaut). UNE seule opération watchdog'd (snapshot iptables
+// + revert 60s). Anti-lock-out : le port SSH doit figurer dans 'allow' (garanti
+// côté UI), et le watchdog restaure tout si l'accès est perdu.
+
+type FirewallApplyPolicyAction struct{}
+
+func (a *FirewallApplyPolicyAction) ID() string         { return "firewall.apply_policy" }
+func (a *FirewallApplyPolicyAction) Capability() string { return "firewall" }
+
+func (a *FirewallApplyPolicyAction) Validate(params map[string]interface{}) error {
+	raw, ok := params["allow"].([]interface{})
+	if !ok || len(raw) == 0 {
+		return fmt.Errorf("required parameter 'allow' missing (liste de ports, ex. [\"22/tcp\",\"80/tcp\"])")
+	}
+	if len(raw) > 100 {
+		return fmt.Errorf("too many rules (max 100)")
+	}
+	for _, item := range raw {
+		s, ok := item.(string)
+		if !ok || !firewallPortRegex.MatchString(s) {
+			return fmt.Errorf("invalid allow entry %q (attendu: port ou port/tcp|udp)", item)
+		}
+	}
+	return nil
+}
+
+func (a *FirewallApplyPolicyAction) Execute(params map[string]interface{}) (interface{}, error) {
+	raw := params["allow"].([]interface{})
+	allow := make([]string, 0, len(raw))
+	for _, item := range raw {
+		allow = append(allow, item.(string))
+	}
+
+	reqID, _ := params["request_id"].(string)
+	if reqID == "" {
+		reqID = fmt.Sprintf("firewall-%d", time.Now().UnixNano())
+	}
+
+	pr, err := registerPendingRevert(reqID)
+	if err != nil {
+		return nil, err
+	}
+
+	// fail : revert immédiat depuis le snapshot puis libère le pending.
+	fail := func(format string, args ...interface{}) (interface{}, error) {
+		_ = restoreFromSnapshot(pr.SnapshotFile, pr.UfwEnabled)
+		HandleConfirm(reqID)
+		return nil, fmt.Errorf(format, args...)
+	}
+
+	// 1. Autoriser les ports AVANT d'activer (les règles sont en place avant l'enforcement).
+	for _, port := range allow {
+		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ufw", "allow", port)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fail("ufw allow %s failed: %w: %s", port, err, string(out))
+		}
+	}
+
+	// 2. Activer ufw (deny entrant par défaut sur une activation standard).
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ufw", "--force", "enable")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fail("ufw enable failed: %w: %s", err, string(out))
+	}
+
+	return map[string]interface{}{
+		"applied":             true,
+		"request_id":          reqID,
+		"allowed":             allow,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
 	}, nil
 }
