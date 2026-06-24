@@ -31,6 +31,7 @@ When adding a new watchdog action, follow this exact pattern. Don't invent varia
 - **Validation regexes**: POSIX login names `^[a-z_][a-z0-9_-]{0,31}$`, service names `^[a-zA-Z0-9@_.\-]+(\.service)?$`, package names `^[a-z0-9][a-z0-9+.\-]*$`. Reuse constants, don't re-declare.
 - **isCritical flag** blocks `system.reboot`, stop/restart of critical services (docker/nginx/ssh/postgres/...), and remove of critical packages. See `backend/src/services/machine-protection.ts`.
 - **nexus-agent service protection**: hardcoded in `agent/internal/actions/services.go` — cannot be stopped/restarted by itself.
+- **Privileged user actions** (`sshkey.add`/`sshkey.remove`/`user.update_sudo`, and `user.create` with `sudo:true`) create access that *survives agent removal* and is no longer revocable by Nexus. They are gated in `backend/src/services/privileged-actions.ts`, enforced centrally in `dispatchAction()` (covers sync/async/bulk/batch): **disabled by default** (`ALLOW_USER_PRIVILEGE_MGMT=true` to enable) **and ADMIN-only**. Reads (`user.list`/`sshkey.list`) stay open. The frontend mirrors this via the `userPrivilegeMgmt` feature flag in `/api/auth/config`, but the backend is the authority — never rely on the UI gating alone.
 
 ## Coding conventions
 

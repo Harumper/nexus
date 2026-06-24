@@ -39,7 +39,7 @@ type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netpl
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, authConfig } = useAuth();
   const [machine, setMachine] = useState<Machine | null>(null);
   const [latestMetric, setLatestMetric] = useState<Metric | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,6 +214,10 @@ export default function MachineDetail() {
   const isOnline = machine.status === "ONLINE";
   const isProbe = machine.type === "PROBE";
   const isAgent = machine.type === "AGENT";
+  // Gestion des clés SSH / sudo : activée par flag backend ET réservée ADMIN.
+  // Cosmétique — le vrai contrôle est appliqué dans dispatchAction() côté backend.
+  const canManagePrivileges =
+    isAgent && isAdmin && authConfig?.features?.userPrivilegeMgmt === true;
 
   const tabGroups: {
     label: string;
@@ -593,7 +597,11 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "users" && isOnline && (
-          <UsersTab machineId={machine.id} canMutate={isAgent} />
+          <UsersTab
+            machineId={machine.id}
+            canMutate={isAgent}
+            canManagePrivileges={canManagePrivileges}
+          />
         )}
 
         {activeTab === "files" && isOnline && (

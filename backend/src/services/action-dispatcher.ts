@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { prisma } from "./database.js";
 import { isActionAllowed } from "./machine-manager.js";
 import { checkCriticalProtection } from "./machine-protection.js";
+import { checkPrivilegedAction, checkRoleForAction } from "./privileged-actions.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -17,7 +18,8 @@ import { actionsDispatched } from "./prometheus.js";
 export async function dispatchAction(
   machineId: string,
   action: DispatchActionBody,
-  userId?: string
+  userId?: string,
+  userRole?: string
 ): Promise<{ success: boolean; error?: string; requestId?: string }> {
   // 1. Verifier que l'action est autorisee pour le type de machine (PROBE=readonly, AGENT=all)
   if (!(await isActionAllowed(machineId, action.action_id))) {
@@ -25,6 +27,25 @@ export async function dispatchAction(
       success: false,
       error: `Action '${action.action_id}' is not allowed for this machine type`,
     };
+  }
+
+  // 1a. RBAC par action : READONLY = lecture seule, OPERATOR = mutations sauf
+  // ADMIN-only (script.execute), ADMIN = tout. userRole undefined = appel
+  // système interne (de confiance). Voir privileged-actions.ts.
+  const roleCheck = checkRoleForAction(action.action_id, userRole);
+  if (!roleCheck.allowed) {
+    return { success: false, error: roleCheck.reason };
+  }
+
+  // 1b. Actions à persistance hors-bande (clés SSH / sudo) : désactivées par
+  // défaut + réservées ADMIN. Voir privileged-actions.ts.
+  const privileged = checkPrivilegedAction(
+    action.action_id,
+    userRole,
+    action.params
+  );
+  if (!privileged.allowed) {
+    return { success: false, error: privileged.reason };
   }
 
   // 2. Vérifier que l'agent est connecté

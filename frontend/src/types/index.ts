@@ -126,6 +126,10 @@ export interface AuthConfig {
     realm: string;
     clientId: string;
   } | null;
+  features?: {
+    // Gestion des clés SSH / sudo via l'UI (désactivé par défaut côté backend).
+    userPrivilegeMgmt?: boolean;
+  };
 }
 
 export interface Tag {

@@ -85,9 +85,37 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("nexus-shared-secret");
   });
 
-  it("should validate timestamps on incoming action requests", () => {
+  it("should fully verify incoming action.request (signature + nonce + timestamp)", () => {
+    // action.request dispatche TOUTES les actions mutantes (script.execute,
+    // package.install, user.create, firewall...). Il doit etre verifie comme
+    // action.confirm : VerifyServerMessage controle la signature ECDSA du
+    // backend + le nonce (anti-replay) + le timestamp. Un simple controle de
+    // timestamp ne suffit pas (trame chiffree rejouable dans la fenetre).
     const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(content).toContain("IsTimestampValid");
+    const actionReqIdx = content.indexOf("case transport.TypeActionRequest:");
+    const actionConfIdx = content.indexOf("case transport.TypeActionConfirm:");
+    expect(actionReqIdx).toBeGreaterThan(-1);
+    // Le bloc action.request doit appeler VerifyServerMessage avant de dispatcher.
+    const actionReqBlock = content.slice(actionReqIdx, actionConfIdx);
+    expect(actionReqBlock).toContain("VerifyServerMessage");
+    expect(actionReqBlock).toContain("serverPublicKey");
+  });
+
+  it("should enforce per-action RBAC centrally in dispatchAction", () => {
+    // C1 : sans RBAC par action, tout utilisateur authentifie (READONLY/OPERATOR)
+    // pouvait dispatcher script.execute = RCE root. Le controle doit etre dans
+    // dispatchAction (couvre sync/async/bulk/batch), pas seulement au niveau route.
+    const dispatcher = readFileSync(resolve(backendSrc, "services/action-dispatcher.ts"), "utf8");
+    expect(dispatcher).toContain("checkRoleForAction");
+
+    const priv = readFileSync(resolve(backendSrc, "services/privileged-actions.ts"), "utf8");
+    expect(priv).toContain("checkRoleForAction");
+    // script.execute doit etre reserve ADMIN.
+    expect(priv).toContain("ADMIN_ONLY_ACTIONS");
+    expect(priv).toMatch(/ADMIN_ONLY_ACTIONS[\s\S]*script\.execute/);
+    // READONLY borne a la liste lecture seule (source unique : PROBE_ALLOWED_ACTIONS).
+    expect(priv).toContain("READ_ONLY_ACTIONS");
+    expect(priv).toContain("PROBE_ALLOWED_ACTIONS");
   });
 
   it("should enforce PROBE whitelist cote agent", () => {
@@ -166,5 +194,80 @@ describe("Security Audit — Docker & Infrastructure", () => {
     const content = readFileSync(resolve(rootDir, ".gitlab-ci.yml"), "utf8");
     expect(content).toContain("--password-stdin");
     expect(content).not.toMatch(/docker login -u.*-p\s/);
+  });
+});
+
+describe("Privileged user actions gating (SSH keys / sudo)", () => {
+  const svc = resolve(backendSrc, "services/privileged-actions.ts");
+
+  it("should define a privileged-actions service", () => {
+    expect(existsSync(svc)).toBe(true);
+  });
+
+  it("should gate the three out-of-band persistence actions", () => {
+    const content = readFileSync(svc, "utf8");
+    expect(content).toContain('"user.update_sudo"');
+    expect(content).toContain('"sshkey.add"');
+    expect(content).toContain('"sshkey.remove"');
+  });
+
+  it("should treat user.create with sudo=true as privileged (no bypass)", () => {
+    const content = readFileSync(svc, "utf8");
+    expect(content).toMatch(/user\.create.*params\?\.sudo === true/s);
+  });
+
+  it("should be disabled by default (explicit ALLOW_USER_PRIVILEGE_MGMT=true)", () => {
+    const content = readFileSync(svc, "utf8");
+    expect(content).toContain("ALLOW_USER_PRIVILEGE_MGMT");
+    expect(content).toMatch(/=== "true"/);
+  });
+
+  it("should require ADMIN role even when enabled", () => {
+    const content = readFileSync(svc, "utf8");
+    expect(content).toMatch(/userRole !== "ADMIN"/);
+  });
+
+  it("should be enforced inside dispatchAction (covers all dispatch paths)", () => {
+    const content = readFileSync(
+      resolve(backendSrc, "services/action-dispatcher.ts"),
+      "utf8"
+    );
+    expect(content).toContain("checkPrivilegedAction");
+    expect(content).toMatch(
+      /checkPrivilegedAction\(\s*action\.action_id,\s*userRole,\s*action\.params/s
+    );
+  });
+
+  it("should propagate the caller role from action routes", () => {
+    const content = readFileSync(resolve(backendSrc, "routes/actions.ts"), "utf8");
+    expect(content).toMatch(/dispatchAction\([^)]*user\?\.role/s);
+  });
+
+  it("should NOT include privileged actions in the bulk allow-list", () => {
+    const content = readFileSync(resolve(backendSrc, "routes/bulk.ts"), "utf8");
+    expect(content).not.toContain("sshkey.add");
+    expect(content).not.toContain("user.update_sudo");
+  });
+
+  it("should expose the feature flag to the frontend via /api/auth/config", () => {
+    const content = readFileSync(resolve(backendSrc, "routes/auth.ts"), "utf8");
+    expect(content).toContain("userPrivilegeMgmt");
+  });
+
+  it("should gate the frontend controls behind ADMIN + feature flag", () => {
+    const detail = readFileSync(
+      resolve(frontendSrc, "pages/MachineDetail.tsx"),
+      "utf8"
+    );
+    expect(detail).toMatch(
+      /canManagePrivileges[\s\S]*isAdmin[\s\S]*userPrivilegeMgmt/
+    );
+    const tab = readFileSync(resolve(frontendSrc, "components/UsersTab.tsx"), "utf8");
+    expect(tab).toContain("canManagePrivileges");
+  });
+
+  it("should document the flag in .env.example (default false)", () => {
+    const content = readFileSync(resolve(rootDir, ".env.example"), "utf8");
+    expect(content).toMatch(/ALLOW_USER_PRIVILEGE_MGMT=false/);
   });
 });

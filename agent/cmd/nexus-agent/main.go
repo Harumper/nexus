@@ -309,9 +309,28 @@ func main() {
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {
 	switch msg.Type {
 	case transport.TypeActionRequest:
-		// Valider le timestamp pour eviter les replay attacks
-		if msg.Timestamp != "" && !security.IsTimestampValid(msg.Timestamp, 60*time.Second) {
-			log.Printf("[Agent] Rejected action request: timestamp too old or invalid (%s)", msg.Timestamp)
+		// SECURITE CRITIQUE : action.request dispatche TOUTES les actions
+		// mutantes (script.execute, package.install, user.create, firewall...).
+		// On exige la meme verification que action.confirm — signature ECDSA du
+		// backend + timestamp + nonce (anti-replay) — AVANT tout dechiffrement
+		// ou dispatch. Sans cela, une trame chiffree capturee serait rejouable
+		// dans la fenetre de validite, et l'authenticite ne reposerait que sur
+		// le secret AES symetrique (que l'agent possede aussi) au lieu de la cle
+		// publique du serveur. Le backend signe deja ce message.
+		if serverPublicKey == nil {
+			log.Printf("[Agent] Rejected action.request: server public key not configured")
+			return
+		}
+		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			Type:      msg.Type,
+			RequestID: msg.RequestID,
+			MachineID: msg.MachineID,
+			Timestamp: msg.Timestamp,
+			Nonce:     msg.Nonce,
+			Payload:   msg.Payload,
+			Signature: msg.Signature,
+		}, serverPublicKey); err != nil {
+			log.Printf("[Agent] Rejected action.request (request_id=%s): %v", msg.RequestID, err)
 			return
 		}
 		go handleActionRequest(msg, client, sandbox, keystore)
