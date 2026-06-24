@@ -90,14 +90,21 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 
 	// Audit non-interactif (--cronjob = quiet + no-colors + non interactif).
 	// Lynis écrit toujours son rapport dans /var/log/lynis-report.dat.
-	cmd := exec.Command("sudo", "-n", bin, "audit", "system", "--cronjob")
-	// Lynis sort un code != 0 si des warnings existent : ce n'est PAS une erreur
-	// d'exécution. On ignore donc le code de sortie et on se fie au rapport.
-	_ = cmd.Run()
+	// On capture la sortie : un code != 0 peut être normal (warnings), mais si
+	// le run a été REFUSÉ par sudo ou a planté, aucun rapport ne sera écrit —
+	// on doit alors remonter le contexte plutôt qu'un "illisible" opaque.
+	runOut, _ := exec.Command("sudo", "-n", bin, "audit", "system", "--cronjob").CombinedOutput()
 
 	report, err := readLynisReport()
 	if err != nil {
-		return nil, fmt.Errorf("rapport Lynis illisible: %w", err)
+		detail := strings.TrimSpace(string(runOut))
+		if len(detail) > 400 {
+			detail = detail[:400] + "…"
+		}
+		if detail == "" {
+			detail = "(aucune sortie — sudo a probablement refusé l'exécution ; sudoers à jour ?)"
+		}
+		return nil, fmt.Errorf("rapport Lynis indisponible (%v). Sortie de l'audit: %s", err, detail)
 	}
 
 	parsed := parseLynisReport(report)
@@ -116,7 +123,13 @@ func readLynisReport() ([]byte, error) {
 	if data, err := os.ReadFile(lynisReportPath); err == nil {
 		return data, nil
 	}
-	return exec.Command("sudo", "-n", "/bin/cat", lynisReportPath).Output()
+	out, err := exec.Command("sudo", "-n", "/bin/cat", lynisReportPath).CombinedOutput()
+	if err != nil {
+		// Remonte la vraie cause : "No such file" (lynis n'a pas tourné) vs
+		// "a password is required"/"not allowed" (sudoers cat manquant).
+		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return out, nil
 }
 
 // parseLynisReport parse le format plat key=value de lynis-report.dat.
