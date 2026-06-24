@@ -8,6 +8,7 @@ import {
   isLocalAuthEnabled,
   getOidcEndpoints,
 } from "../services/keycloak.js";
+import { isUserPrivilegeMgmtEnabled } from "../services/privileged-actions.js";
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   // Auth config (le frontend demande comment s'authentifier)
@@ -27,6 +28,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             clientId: keycloakEndpoints?.clientId,
           }
         : null,
+      features: {
+        // Gestion des clés SSH / sudo via l'UI (désactivé par défaut, ADMIN only).
+        // Purement indicatif pour le front : le vrai contrôle est dans dispatchAction().
+        userPrivilegeMgmt: isUserPrivilegeMgmtEnabled(),
+      },
     });
   });
 

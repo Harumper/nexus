@@ -120,7 +120,8 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
           const dispatch = await dispatchAction(
             machine.id,
             { action_id: body.action_id, params: body.params },
-            user?.sub
+            user?.sub,
+            user?.role
           );
           if (!dispatch.success || !dispatch.requestId) {
             return {

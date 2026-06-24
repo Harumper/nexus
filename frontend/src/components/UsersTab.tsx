@@ -26,6 +26,10 @@ import {
 interface Props {
   machineId: string;
   canMutate: boolean;
+  // Gestion des accès persistants (clés SSH / sudo). Désactivé par défaut côté
+  // backend et réservé ADMIN. Le backend reste l'autorité — ceci masque juste
+  // les contrôles qui échoueraient.
+  canManagePrivileges: boolean;
 }
 
 interface LinuxUser {
@@ -39,7 +43,11 @@ interface LinuxUser {
   groups: string[];
 }
 
-export default function UsersTab({ machineId, canMutate }: Props) {
+export default function UsersTab({
+  machineId,
+  canMutate,
+  canManagePrivileges,
+}: Props) {
   const [users, setUsers] = useState<LinuxUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
@@ -177,28 +185,28 @@ export default function UsersTab({ machineId, canMutate }: Props) {
                       >
                         Clés
                       </Button>
+                      {canManagePrivileges && u.username !== "root" && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => handleToggleSudo(u.username, u.sudo)}
+                          loading={acting === u.username}
+                          icon={<Shield />}
+                          className="!border-warning !text-warning hover:!bg-warning-subtle"
+                        >
+                          {u.sudo ? "-sudo" : "+sudo"}
+                        </Button>
+                      )}
                       {canMutate && u.username !== "root" && (
-                        <>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => handleToggleSudo(u.username, u.sudo)}
-                            loading={acting === u.username}
-                            icon={<Shield />}
-                            className="!border-warning !text-warning hover:!bg-warning-subtle"
-                          >
-                            {u.sudo ? "-sudo" : "+sudo"}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => setPendingDelete(u.username)}
-                            disabled={acting === u.username}
-                            icon={<Trash2 />}
-                            aria-label={`Supprimer ${u.username}`}
-                            className="!border-destructive !text-destructive hover:!bg-danger-subtle"
-                          />
-                        </>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setPendingDelete(u.username)}
+                          disabled={acting === u.username}
+                          icon={<Trash2 />}
+                          aria-label={`Supprimer ${u.username}`}
+                          className="!border-destructive !text-destructive hover:!bg-danger-subtle"
+                        />
                       )}
                     </div>
                   </Td>
@@ -213,7 +221,7 @@ export default function UsersTab({ machineId, canMutate }: Props) {
         <SshKeysDrawer
           machineId={machineId}
           user={selected}
-          canMutate={canMutate}
+          canMutate={canManagePrivileges}
           onClose={() => setSelected(null)}
         />
       )}
@@ -221,6 +229,7 @@ export default function UsersTab({ machineId, canMutate }: Props) {
       {showCreate && canMutate && (
         <CreateUserDialog
           machineId={machineId}
+          canManagePrivileges={canManagePrivileges}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
@@ -416,10 +425,12 @@ function SshKeysDrawer({
 
 function CreateUserDialog({
   machineId,
+  canManagePrivileges,
   onClose,
   onCreated,
 }: {
   machineId: string;
+  canManagePrivileges: boolean;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -493,15 +504,17 @@ function CreateUserDialog({
             placeholder="Jean Dupont"
           />
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={sudo}
-            onChange={(e) => setSudo(e.target.checked)}
-            className="accent-primary"
-          />
-          <span className="text-xs">Ajouter au groupe sudo</span>
-        </label>
+        {canManagePrivileges && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sudo}
+              onChange={(e) => setSudo(e.target.checked)}
+              className="accent-primary"
+            />
+            <span className="text-xs">Ajouter au groupe sudo</span>
+          </label>
+        )}
       </div>
     </Dialog>
   );

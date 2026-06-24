@@ -32,7 +32,7 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
       };
       const user = getUserFromRequest(request);
 
-      const result = await dispatchAction(id, body, user?.sub);
+      const result = await dispatchAction(id, body, user?.sub, user?.role);
 
       if (!result.success || !result.requestId) {
         return reply.code(400).send({ error: result.error });
@@ -77,7 +77,7 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
       };
       const user = getUserFromRequest(request);
 
-      const result = await dispatchAction(id, body, user?.sub);
+      const result = await dispatchAction(id, body, user?.sub, user?.role);
 
       if (!result.success) {
         return reply.code(400).send({ error: result.error });
@@ -146,7 +146,8 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
           const result = await dispatchAction(
             machineId,
             { action_id: body.action_id, params: body.params },
-            user?.sub
+            user?.sub,
+            user?.role
           );
           return { machineId, ...result };
         })
