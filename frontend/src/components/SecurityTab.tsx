@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, TerminalSquare } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
-import { useWebSocket } from "../hooks/useWebSocket";
-import type { SecurityAuditResult, ListeningService, SecurityScanPoint, WSDashboardMessage } from "../types";
+import SecurityAuditDialog from "./SecurityAuditDialog";
+import type { SecurityAuditResult, ListeningService, SecurityScanPoint } from "../types";
 
 interface SecurityTabProps {
   machineId: string;
@@ -19,7 +19,7 @@ type Pending = { kind: "sshd" | "firewall"; requestId: string; expiresAt: number
 // (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
 export default function SecurityTab({ machineId, canRemediate = true }: SecurityTabProps) {
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false); // modal de progression de l'audit
   const [applying, setApplying] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [remaining, setRemaining] = useState(0);
@@ -31,29 +31,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
   const [fwLoading, setFwLoading] = useState(false);
 
-  // Console live de l'audit (lignes streamées par l'agent via WS).
-  const [consoleLines, setConsoleLines] = useState<string[]>([]);
-  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
-
-  // Pendant un audit, on écoute la progression + le résultat via WebSocket
-  // (l'audit est asynchrone : pas de requête HTTP longue, donc pas de 504).
-  const handleAuditWs = (msg: WSDashboardMessage) => {
-    if (msg.machine_id !== machineId) return;
-    if (msg.type === "security.audit.progress") {
-      const line = (msg.data as { line?: string })?.line;
-      if (line) setConsoleLines((prev) => [...prev.slice(-400), line]);
-    } else if (msg.type === "security.audit.result") {
-      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-      setResult(msg.data as SecurityAuditResult);
-      setLoading(false);
-      loadHistory();
-      toast.success("Audit de durcissement terminé.");
-    }
-  };
-  useWebSocket({ onMessage: handleAuditWs, enabled: loading });
 
   const loadHistory = async () => {
     try {
@@ -92,26 +71,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending]);
 
-  const runAudit = async () => {
-    setLoading(true);
-    setConsoleLines([]);
-    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-    // Filet de sécurité : si aucun résultat WS au bout de 3 min (agent perdu,
-    // message manqué), on arrête l'état "en cours".
-    scanTimeoutRef.current = setTimeout(() => {
-      setLoading(false);
-      toast.error("Audit : pas de réponse de l'agent (timeout). Réessaie.");
-    }, 180_000);
-    try {
-      // Dispatch ASYNCHRONE : renvoie aussitôt un request_id. La progression et
-      // le résultat arrivent via WebSocket (handleAuditWs).
-      await api.securityAudit(machineId);
-    } catch (err) {
-      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-      setLoading(false);
-      toast.error(getErrorMessage(err, "Impossible de lancer l'audit"));
-    }
-  };
+  // Ouvre la modal de progression — elle dispatche l'audit, affiche la sortie
+  // streamée en direct, et renvoie le résultat (onResult) pour rafraîchir l'onglet.
+  const runAudit = () => setAuditOpen(true);
 
   // Applique une remédiation après confirmation, puis relance l'audit pour
   // rafraîchir l'état affiché.
@@ -283,15 +245,11 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           </div>
           <button
             onClick={runAudit}
-            disabled={loading}
+            disabled={auditOpen}
             className="shrink-0 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             style={{ background: "var(--nx-primary)", color: "var(--nx-primary-foreground)" }}
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Audit en cours…
-              </>
-            ) : result ? (
+            {result ? (
               <>
                 <RefreshCw className="w-4 h-4" /> Relancer l'audit
               </>
@@ -302,24 +260,25 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
             )}
           </button>
         </div>
-        {loading && (
-          <p className="text-xs text-muted-foreground mt-3">
-            Lynis analyse la configuration (parefeu, SSH, kernel, comptes, MAJ…). Cela peut
-            prendre jusqu'à ~90&nbsp;secondes — suivi en direct ci-dessous.
-          </p>
-        )}
       </div>
 
-      {/* Console live de l'audit (sortie streamée par l'agent) */}
-      {(loading || consoleLines.length > 0) && (
-        <ConsoleView lines={consoleLines} live={loading} />
+      {/* Modal de progression (sortie Lynis streamée en direct, comme la MAJ agent) */}
+      {auditOpen && (
+        <SecurityAuditDialog
+          machineId={machineId}
+          onClose={() => setAuditOpen(false)}
+          onResult={(data) => {
+            setResult(data);
+            loadHistory();
+          }}
+        />
       )}
 
       {/* Tendance de l'indice de durcissement (historique) */}
       <HardeningTrend history={history} />
 
       {/* État initial */}
-      {!result && !loading && (
+      {!result && !auditOpen && (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Aucun audit pour l'instant. Lance un audit pour évaluer la posture de sécurité de
           cette machine.
@@ -559,36 +518,6 @@ function RemediationRow({
           {actionLabel}
         </button>
       )}
-    </div>
-  );
-}
-
-// Console live : sortie de l'audit Lynis streamée par l'agent (auto-scroll).
-function ConsoleView({ lines, live }: { lines: string[]; live: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.scrollTo({ top: ref.current.scrollHeight });
-  }, [lines]);
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--nx-text-weak)" }}>
-        <TerminalSquare className="w-3.5 h-3.5" />
-        Sortie de l'audit
-        {live && <Loader2 className="w-3 h-3 animate-spin" />}
-      </div>
-      <div
-        ref={ref}
-        className="font-mono text-[11px] leading-relaxed overflow-auto rounded-md p-3"
-        style={{ maxHeight: 240, background: "var(--nx-bg-base)", color: "var(--nx-text-weak)" }}
-      >
-        {lines.length === 0 ? (
-          <span className="opacity-60">Démarrage de l'audit…</span>
-        ) : (
-          lines.map((l, i) => (
-            <div key={i} className="whitespace-pre-wrap break-all">{l}</div>
-          ))
-        )}
-      </div>
     </div>
   );
 }
