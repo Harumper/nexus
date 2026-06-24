@@ -78,6 +78,7 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	parsed["fail2ban_installed"] = fileExists("/usr/bin/fail2ban-client")
 	parsed["fail2ban_active"] = systemctlActive("fail2ban")
 	parsed["auto_updates_active"] = autoUpdatesActive()
+	parsed["ssh_hardened"] = fileExists(sshdDropinPath)
 	return parsed, nil
 }
 

@@ -355,6 +355,15 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl 
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-fail2ban-*.tmp /etc/fail2ban/jail.local
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-autoupd-*.tmp /etc/apt/apt.conf.d/20auto-upgrades
 
+# === Durcissement SSH (drop-in + watchdog-revert) ===
+# Drop-in Nexus uniquement (99-nexus-hardening.conf) ; sshd -t valide AVANT reload.
+# Le rechargement se fait par SIGHUP (kill, déjà whitelisté) — `systemctl reload ssh`
+# reste BLOQUÉ pour éviter le lock-out. /bin/cat lecture du drop-in pour snapshot.
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sshd -t
+nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/ssh/sshd_config.d/99-nexus-hardening.conf
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/* /etc/ssh/sshd_config.d/99-nexus-hardening.conf
+nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/ssh/sshd_config.d/99-nexus-hardening.conf
+
 # === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status

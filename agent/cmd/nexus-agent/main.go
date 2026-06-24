@@ -227,6 +227,7 @@ func main() {
 	// revert tous les snapshots pending au demarrage
 	actions.RecoverPendingSnapshots()
 	actions.RecoverPendingNetplan()
+	actions.RecoverPendingSshd()
 
 	// Cleanup périodique de l'inbox fs.upload (fichiers > 7j). Une fois au boot
 	// puis toutes les 24h. Pas critique si rate (les fichiers seront pris au
@@ -414,6 +415,8 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		// On dispatch selon le prefix du request_id
 		if strings.HasPrefix(msg.RequestID, "netplan-") {
 			actions.HandleNetplanConfirm(msg.RequestID)
+		} else if strings.HasPrefix(msg.RequestID, "sshd-") {
+			actions.HandleSshdConfirm(msg.RequestID)
 		} else {
 			actions.HandleConfirm(msg.RequestID)
 		}

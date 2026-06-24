@@ -735,6 +735,27 @@ class ApiClient {
     );
   }
 
+  // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
+  async sshdHarden(id: string) {
+    return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "sshd.harden", params: {}, timeout: 30000 }),
+      }
+    );
+  }
+
+  async sshdConfirm(id: string, requestId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/machines/${id}/sshd/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ request_id: requestId }),
+      }
+    );
+  }
+
   // ── Files (browser) ──────────────────────────────────────
   async fsList(id: string, path: string) {
     return this.request<{

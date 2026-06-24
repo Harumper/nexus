@@ -364,3 +364,58 @@ describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)"
     expect(tab).toContain("Remédiations recommandées");
   });
 });
+
+describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
+  it("should follow the watchdog-revert pattern (snapshot/confirm/recover) like firewall/netplan", () => {
+    const content = readFileSync(resolve(agentDir, "internal/actions/ssh_harden.go"), "utf8");
+    expect(content).toContain('"sshd.harden"');
+    expect(content).toContain("registerPendingSshd");
+    expect(content).toContain("HandleSshdConfirm");
+    expect(content).toContain("RecoverPendingSshd");
+    expect(content).toContain("time.AfterFunc");
+    // Anti-lock-out : sshd -t AVANT reload, et reload par SIGHUP (pas systemctl)
+    expect(content).toMatch(/sshd.*-t/);
+    expect(content).toContain("SIGHUP");
+    expect(content).toContain("99-nexus-hardening.conf");
+    // Ne touche PAS l'auth (pas de désactivation password/root login dans le drop-in)
+    expect(content).not.toContain("PasswordAuthentication no");
+    expect(content).not.toContain("PermitRootLogin no");
+  });
+
+  it("should wire the dead-man's switch and confirm dispatch in main.go", () => {
+    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(main).toContain("RecoverPendingSshd");
+    expect(main).toMatch(/sshd-[\s\S]*HandleSshdConfirm/);
+  });
+
+  it("should keep systemctl reload/restart of ssh BLOCKED in sudoers (anti-lockout)", () => {
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    // sshd -t + drop-in install/rm whitelistés
+    expect(content).toContain("/usr/sbin/sshd -t");
+    expect(content).toContain("/etc/ssh/sshd_config.d/99-nexus-hardening.conf");
+    // ssh reload/restart restent dans la liste bloquée
+    expect(content).toMatch(/systemctl restart ssh\*/);
+  });
+
+  it("should NOT expose sshd.harden in PROBE mode (mutation)", () => {
+    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(main).not.toContain('"sshd.harden"');
+  });
+
+  it("should expose a signed sshd/confirm backend route", () => {
+    const route = readFileSync(resolve(backendSrc, "routes/ssh.ts"), "utf8");
+    expect(route).toContain("/api/machines/:id/sshd/confirm");
+    expect(route).toContain("action.confirm");
+    const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
+    expect(index).toContain("sshRoutes");
+  });
+
+  it("should wire SSH hardening + watchdog confirm in the frontend", () => {
+    const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(apiFile).toMatch(/sshdHarden[\s\S]*sshd\.harden/);
+    expect(apiFile).toContain("sshdConfirm");
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("sshdHarden");
+    expect(tab).toContain("Confirmer");
+  });
+});
