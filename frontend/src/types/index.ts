@@ -120,6 +120,7 @@ export interface SecurityAuditResult {
   fail2ban_installed: boolean;
   fail2ban_active: boolean;
   auto_updates_active: boolean;
+  ssh_hardened: boolean;
 }
 
 export interface MetricsResponse {

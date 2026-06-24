@@ -28,6 +28,7 @@ import { cleanupExpiredTokens } from "./services/bootstrap.js";
 import { ensureBuiltinSeed } from "./services/bootstrap-seed.js";
 import { firewallRoutes } from "./routes/firewall.js";
 import { networkRoutes } from "./routes/network.js";
+import { sshRoutes } from "./routes/ssh.js";
 import { bulkRoutes } from "./routes/bulk.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { packagesRoutes } from "./routes/packages.js";
@@ -180,6 +181,7 @@ async function main() {
   await app.register(agentDownloadRoutes);
   await app.register(firewallRoutes);
   await app.register(networkRoutes);
+  await app.register(sshRoutes);
   await app.register(bulkRoutes);
   await app.register(integrationsRoutes);
   await app.register(packagesRoutes);

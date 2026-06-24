@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
@@ -18,7 +18,33 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState<string | null>(null);
+  const [pendingSshd, setPendingSshd] = useState<{ requestId: string; expiresAt: number } | null>(null);
+  const [remaining, setRemaining] = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm, ConfirmDialogElement } = useConfirm();
+
+  // Décompte du watchdog SSH (revert auto si non confirmé).
+  useEffect(() => {
+    if (!pendingSshd) {
+      setRemaining(0);
+      return;
+    }
+    const tick = () => {
+      const r = Math.max(0, Math.floor((pendingSshd.expiresAt - Date.now()) / 1000));
+      setRemaining(r);
+      if (r <= 0) {
+        setPendingSshd(null);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        runAudit();
+      }
+    };
+    tick();
+    countdownRef.current = setInterval(tick, 1000);
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSshd]);
 
   const runAudit = async () => {
     setLoading(true);
@@ -59,8 +85,73 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     }
   };
 
+  // Durcissement SSH : watchdog-revert (comme netplan/firewall). On NE relance
+  // PAS l'audit immédiatement — on attend la confirmation (ou le revert auto).
+  const applySshHarden = async () => {
+    if (
+      !(await confirm({
+        title: "Durcir la configuration SSH ?",
+        description:
+          "Applique des algorithmes modernes + limites (MaxAuthTries…). La config est validée par `sshd -t` puis rechargée SANS couper ta session. ⚠️ Vérifie que tu peux toujours te reconnecter en SSH AVANT de confirmer : sans confirmation sous 120s, l'état précédent est restauré automatiquement.",
+        confirmLabel: "Appliquer",
+        variant: "danger",
+      }))
+    )
+      return;
+    setApplying("sshd");
+    try {
+      const res = await api.sshdHarden(machineId);
+      setPendingSshd({ requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
+      toast.success("Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec du durcissement SSH"));
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  const handleConfirmSshd = async () => {
+    if (!pendingSshd) return;
+    try {
+      await api.sshdConfirm(machineId, pendingSshd.requestId);
+      setPendingSshd(null);
+      toast.success("Durcissement SSH confirmé.");
+      runAudit();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de la confirmation"));
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {/* Bandeau watchdog SSH : à confirmer avant revert auto */}
+      {pendingSshd && remaining > 0 && (
+        <div
+          className="rounded-xl border p-4 flex items-center justify-between gap-3"
+          style={{ background: "var(--nx-warning-subtle)", borderColor: "var(--nx-warning)" }}
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5" style={{ color: "var(--nx-warning)" }} />
+            <div>
+              <div className="text-sm font-semibold" style={{ color: "var(--nx-warning)" }}>
+                Durcissement SSH appliqué — confirmer dans {remaining}s
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
+                Teste ta reconnexion SSH. Sans confirmation, la config précédente sera restaurée automatiquement.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleConfirmSshd}
+            className="shrink-0 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+            style={{ background: "var(--nx-success)", color: "var(--nx-bg-base)" }}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Confirmer ({remaining}s)
+          </button>
+        </div>
+      )}
+
       {/* En-tête + action */}
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-start justify-between gap-4">
@@ -187,10 +278,20 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                   )
                 }
               />
+              <RemediationRow
+                label="Durcir SSH (algos modernes + limites)"
+                icon={KeyRound}
+                active={result.ssh_hardened}
+                activeLabel="Durci"
+                actionLabel="Durcir"
+                busy={applying === "sshd"}
+                disabled={!canRemediate || pendingSshd !== null}
+                onApply={applySshHarden}
+              />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Le durcissement SSH et l'assistant pare-feu (avec garde anti-lock-out) arrivent
-              dans un prochain incrément.
+              Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
+              watchdog 120s (anti-lock-out). L'assistant pare-feu arrive dans un prochain incrément.
             </p>
           </div>
 
@@ -224,6 +325,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
 function RemediationRow({
   label,
+  icon: Icon,
   active,
   activeLabel,
   actionLabel,
@@ -232,6 +334,7 @@ function RemediationRow({
   onApply,
 }: {
   label: string;
+  icon?: typeof AlertTriangle;
   active: boolean;
   activeLabel: string;
   actionLabel: string;
@@ -241,7 +344,10 @@ function RemediationRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-      <span className="text-sm text-foreground">{label}</span>
+      <span className="text-sm text-foreground flex items-center gap-2">
+        {Icon && <Icon className="w-4 h-4" style={{ color: "var(--nx-text-weak)" }} />}
+        {label}
+      </span>
       {active ? (
         <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium" style={{ color: "var(--nx-success)" }}>
           <Check className="w-4 h-4" /> {activeLabel}
