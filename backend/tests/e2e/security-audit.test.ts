@@ -304,11 +304,12 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
   it("should have a read-only security.audit agent action that parses Lynis", () => {
     const content = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
     expect(content).toContain('"security.audit"');
-    // Lecture seule : audit non interactif, jamais de remédiation
+    // Lecture seule : audit non interactif (--quick), sortie streamée, jamais de remédiation
     expect(content).toContain("audit");
-    expect(content).toContain("--cronjob");
+    expect(content).toContain("--quick");
     expect(content).toContain("lynis-report.dat");
     expect(content).toContain("hardening_index");
+    expect(content).toContain("OnSecurityProgress"); // streaming console live
   });
 
   it("should classify security.audit as read-only (allowed in PROBE mode) in both lists", () => {
@@ -320,7 +321,7 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
 
   it("should whitelist Lynis in sudoers (audit + report read), fixed paths", () => {
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    expect(content).toContain("/lynis audit system --cronjob");
+    expect(content).toContain("/lynis audit system --quick --no-colors");
     expect(content).toContain("/bin/cat /var/log/lynis-report.dat");
   });
 
@@ -481,9 +482,27 @@ describe("Security scan history & trend (Phase 3)", () => {
     const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
     expect(route).toContain("/api/machines/:id/security/audit");
     expect(route).toContain("/api/machines/:id/security/scans");
-    expect(route).toContain("securityScan.create"); // persistance
+    // La persistance est faite à la réception de la réponse agent (async),
+    // dans le service security-scan (appelé par handleActionResponse).
+    const svc = readFileSync(resolve(backendSrc, "services/security-scan.ts"), "utf8");
+    expect(svc).toContain("securityScan.create");
+    const handler = readFileSync(resolve(backendSrc, "websocket/handler.ts"), "utf8");
+    expect(handler).toContain("recordSecurityScan");
     const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
     expect(index).toContain("securityRoutes");
+  });
+
+  it("should stream the audit live via WebSocket (async, no blocking HTTP / 504)", () => {
+    // L'audit est dispatché en async (renvoie request_id) ; progression et
+    // résultat arrivent via WS — plus de waitForResponse côté route.
+    const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
+    expect(route).not.toContain("waitForResponse");
+    const handler = readFileSync(resolve(backendSrc, "websocket/handler.ts"), "utf8");
+    expect(handler).toContain("security.audit.progress");
+    expect(handler).toContain("security.audit.result");
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("useWebSocket");
+    expect(tab).toContain("security.audit.progress");
   });
 
   it("should render a hardening trend chart from history in the frontend", () => {
@@ -517,9 +536,11 @@ describe("Hardening regression alert (Phase 3.2b)", () => {
 
   it("should wire the hardening evaluator (periodic + after each audit)", () => {
     const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
-    expect(index).toContain("evaluateHardeningAlerts");
-    const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
-    expect(route).toContain("evaluateHardeningAlerts"); // déclenché après audit
+    expect(index).toContain("evaluateHardeningAlerts"); // interval périodique
+    // Déclenché après chaque audit : recordSecurityScan (à la réception de la
+    // réponse agent) appelle evaluateHardeningAlerts.
+    const svc = readFileSync(resolve(backendSrc, "services/security-scan.ts"), "utf8");
+    expect(svc).toContain("evaluateHardeningAlerts");
   });
 
   it("should validate the new condition in the alerts route + expose it in the UI", () => {

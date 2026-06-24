@@ -1,12 +1,17 @@
 package actions
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
+
+// OnSecurityProgress streame les lignes de l'audit Lynis vers le frontend
+// (console live), comme OnUpdateProgress pour apt. Câblé dans main.go.
+var OnSecurityProgress ProgressCallback
 
 func init() {
 	Register(&SecurityAuditAction{})
@@ -88,23 +93,38 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 		installed = true
 	}
 
-	// Audit non-interactif (--cronjob = quiet + no-colors + non interactif).
-	// Lynis écrit toujours son rapport dans /var/log/lynis-report.dat.
-	// On capture la sortie : un code != 0 peut être normal (warnings), mais si
-	// le run a été REFUSÉ par sudo ou a planté, aucun rapport ne sera écrit —
-	// on doit alors remonter le contexte plutôt qu'un "illisible" opaque.
-	runOut, _ := exec.Command("sudo", "-n", bin, "audit", "system", "--cronjob").CombinedOutput()
+	// Audit en STREAMING : on lit la sortie de lynis ligne par ligne et on la
+	// pousse via OnSecurityProgress (console live côté UI). --quick évite la
+	// pause de fin ; --no-colors pour une sortie propre. Lynis écrit toujours
+	// son rapport dans /var/log/lynis-report.dat.
+	cmd := exec.Command("sudo", "-n", bin, "audit", "system", "--quick", "--no-colors")
+	stdout, pipeErr := cmd.StdoutPipe()
+	if pipeErr != nil {
+		return nil, fmt.Errorf("pipe lynis: %w", pipeErr)
+	}
+	cmd.Stderr = cmd.Stdout // combiner stderr (ex. refus sudo) dans le flux
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("lancement de lynis échoué: %w", err)
+	}
+	lineCount := 0
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		lineCount++
+		if OnSecurityProgress != nil {
+			OnSecurityProgress(sc.Text(), min(5+lineCount/4, 95))
+		}
+	}
+	// Code de sortie != 0 = warnings présents : NON bloquant. On se fie au rapport.
+	_ = cmd.Wait()
 
 	report, err := readLynisReport()
 	if err != nil {
-		detail := strings.TrimSpace(string(runOut))
-		if len(detail) > 400 {
-			detail = detail[:400] + "…"
-		}
-		if detail == "" {
-			detail = "(aucune sortie — sudo a probablement refusé l'exécution ; sudoers à jour ?)"
-		}
-		return nil, fmt.Errorf("rapport Lynis indisponible (%v). Sortie de l'audit: %s", err, detail)
+		// Les lignes (dont un éventuel refus sudo) ont déjà été streamées.
+		return nil, fmt.Errorf("rapport Lynis indisponible: %v", err)
+	}
+	if OnSecurityProgress != nil {
+		OnSecurityProgress("Audit terminé.", 100)
 	}
 
 	parsed := parseLynisReport(report)
