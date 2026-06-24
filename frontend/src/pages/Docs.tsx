@@ -249,13 +249,13 @@ sudo journalctl -u nexus-agent -f`}</Code>
     <Code>{`# 1. SSH sur la machine concernée
 ssh user@machine-ip
 
-# 2. Re-télécharge le script depuis Nexus et le relance avec les mêmes paramètres
-#    qu'à l'install initiale (l'enrollment token n'est plus nécessaire si l'agent
-#    a déjà ses clés ECDSA dans /var/lib/nexus/keys/)
+# 2. Relance le script avec les mêmes paramètres qu'à l'install initiale.
+#    L'enrollment token n'est PAS nécessaire : l'agent réutilise ses clés ECDSA
+#    existantes (/var/lib/nexus/keys/) et ne se ré-enrôle pas. Le script
+#    rafraîchit uniquement le sudoers et le binaire.
 sudo bash install-agent.sh \\
   --server-url wss://nexus.example.com/ws/agent \\
-  --machine-id <machine-id> \\
-  --reinstall
+  --machine-id <machine-id>
 
 # 3. Redémarre le service pour que l'agent recharge le hash sudoers
 sudo systemctl restart nexus-agent`}</Code>
@@ -265,54 +265,35 @@ sudo systemctl restart nexus-agent`}</Code>
 
     <H2>Désinstallation complète</H2>
     <P>
-      Pour retirer entièrement l'agent d'une machine (avant suppression de la machine
-      dans Nexus, ou avant un ré-enrôlement propre depuis zéro) :
+      Le script gère désormais la désinstallation complète via <strong>--uninstall</strong>
+      (alias <strong>--purge</strong>). Il supprime le service, le binaire, les clés ECDSA,
+      le shared secret, la config, les snapshots watchdog, le sudoers, le user système et
+      le retire du groupe <code>systemd-journal</code> :
     </P>
     <Code>{`# Sur la machine cible, en root
-sudo systemctl stop nexus-agent 2>/dev/null
-sudo systemctl disable nexus-agent 2>/dev/null
+sudo /tmp/install-agent.sh --uninstall
 
-# Service unit + binaire
-sudo rm -f /etc/systemd/system/nexus-agent.service
-sudo rm -f /usr/local/bin/nexus-agent
-
-# Clés ECDSA (CRITIQUE pour ré-enrôlement propre — sans -agent dans le path)
-sudo rm -rf /var/lib/nexus
-# Configuration agent (sans -agent dans le path)
-sudo rm -rf /etc/nexus
-# Scripts/snapshots watchdog (avec -agent)
-sudo rm -rf /var/lib/nexus-agent
-
-# Sudoers
-sudo rm -f /etc/sudoers.d/nexus-agent
-
-# Groupes systemd-journal
-sudo gpasswd -d nexus-agent systemd-journal 2>/dev/null
-
-# Utilisateur
-sudo userdel nexus-agent 2>/dev/null
-
-# Reload systemd
-sudo systemctl daemon-reload
-
-echo "Cleanup done"`}</Code>
+# (le script est aussi dans /opt/nexus si tu l'as conservé)`}</Code>
     <Warn>
-      Cette commande supprime aussi les <strong>clés ECDSA</strong> et le shared secret. Si
-      tu veux ré-enrôler la machine ensuite, tu devras créer une nouvelle entrée dans
-      l'UI (les anciennes clés ne sont plus valables).
+      <strong>--uninstall</strong> supprime aussi les <strong>clés ECDSA</strong> et le shared
+      secret. Pour ré-enrôler ensuite, utilise le bouton <strong>Ré-enrôler</strong> dans l'UI
+      (les anciennes clés ne sont plus valables).
     </Warn>
 
     <H2>Ré-enrôlement propre</H2>
     <P>
-      Si tu veux repartir de zéro (clés régénérées, statut remis à <em>ENROLLMENT_PENDING</em>) :
+      Pour repartir de zéro proprement (clés régénérées côté backend ET purge de l'état
+      résiduel côté machine, qui est la cause des deadlocks de ré-enrollement) :
     </P>
     <ol className="list-decimal list-inside text-sm text-muted-foreground mb-4 space-y-1 ml-2">
-      <li>Désinstalle l'agent (script ci-dessus)</li>
-      <li>Dans l'UI Nexus → la machine → bouton <strong>Re-enroll</strong> (régénère un token + nouvelle paire ECDSA)</li>
-      <li>Copie la nouvelle commande d'install et exécute-la sur la machine</li>
+      <li>Dans l'UI Nexus → la machine → bouton <strong>Ré-enrôler</strong>. Cela régénère un token + une nouvelle paire ECDSA backend, déconnecte l'agent et invalide les anciens tokens d'install.</li>
+      <li>Copie la nouvelle commande d'install affichée : elle contient <code>--reenroll</code>, qui <strong>purge automatiquement</strong> l'identité résiduelle (clés, shared secret, ancienne clé serveur, snapshots watchdog) avant de ré-enrôler.</li>
+      <li>Exécute-la sur la machine. Aucune désinstallation manuelle préalable n'est nécessaire.</li>
     </ol>
     <P>
-      Alternative : supprime entièrement la machine dans Nexus et recrée-en une nouvelle. Plus propre si la machine a été remise à zéro.
+      Équivalent en ligne de commande sans l'UI : <code>install-agent.sh --uninstall</code>
+      puis une nouvelle install — ou directement <code>install-agent.sh --reenroll ...</code>
+      avec le nouveau token.
     </P>
   </>);
 }

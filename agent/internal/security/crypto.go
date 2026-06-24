@@ -125,27 +125,6 @@ func DeriveSharedSecret(privateKey *ecdsa.PrivateKey, peerPublicKey *ecdsa.Publi
 	return key, nil
 }
 
-// EncryptAES chiffre avec AES-256-GCM
-func EncryptAES(plaintext string, key []byte) (string, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	ciphertext := gcm.Seal(nil, nonce, []byte(plaintext), nil)
-
-	// Format: nonce:ciphertext (base64)
-	return base64.StdEncoding.EncodeToString(nonce) + ":" +
-		base64.StdEncoding.EncodeToString(ciphertext), nil
-}
-
 // DecryptAES déchiffre avec AES-256-GCM
 // Supporte 2 formats :
 //   - Go:   nonce:ciphertext+tag (2 parties)

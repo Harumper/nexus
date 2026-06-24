@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -36,14 +35,6 @@ var sslScanPaths = []string{
 	"/etc/nginx/ssl",
 	"/etc/apache2/ssl",
 	"/etc/haproxy/certs",
-}
-
-// Patterns de fichiers a considerer
-var sslFilePatterns = []string{
-	"fullchain.pem",
-	"cert.pem",
-	"*.crt",
-	"*.pem",
 }
 
 type CertInfo struct {
@@ -105,15 +96,6 @@ func (a *SslScanAction) Execute(_ map[string]interface{}) (interface{}, error) {
 		"min_days":      minDays,
 		"expiring_soon": expiringSoon,
 	}, nil
-}
-
-func matchesAnyPattern(name string, patterns []string) bool {
-	for _, p := range patterns {
-		if matched, _ := filepath.Match(p, name); matched {
-			return true
-		}
-	}
-	return false
 }
 
 // listCandidateCertFiles utilise sudo find pour lister les fichiers .pem/.crt

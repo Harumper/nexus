@@ -120,4 +120,9 @@ export interface AgentSession {
   connectedAt: Date;
   lastHeartbeat: Date;
   ip: string;
+  // Clé AES du shared secret, déchiffrée du master UNE fois et mise en cache
+  // pour le chemin chaud (évite 1 findUnique + 1 AES master-decrypt par message).
+  // Invalidée naturellement au cycle de vie de la session (re-enroll/revoke
+  // déconnectent l'agent → nouvelle session sans clé cachée).
+  sharedSecretKey?: Buffer;
 }

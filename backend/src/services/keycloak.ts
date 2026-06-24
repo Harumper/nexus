@@ -1,4 +1,5 @@
 import * as openidClient from "openid-client";
+import * as jose from "jose";
 
 // ===================== Configuration =====================
 
@@ -14,10 +15,10 @@ export interface KeycloakConfig {
 
 let config: KeycloakConfig | null = null;
 let oidcConfig: openidClient.Configuration | null = null;
-
-export function getKeycloakConfig(): KeycloakConfig | null {
-  return config;
-}
+// JWKS distant du realm : utilisé pour vérifier la SIGNATURE des tokens.
+// Mis en cache par jose (rotation de clés gérée automatiquement via le kid).
+let jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
+let expectedIssuer: string | null = null;
 
 export function isKeycloakEnabled(): boolean {
   const authMode = process.env.AUTH_MODE || "local";
@@ -58,6 +59,7 @@ export async function initKeycloak(): Promise<void> {
   };
 
   const issuerUrl = `${url}/realms/${realm}`;
+  expectedIssuer = issuerUrl;
 
   try {
     oidcConfig = await openidClient.discovery(
@@ -68,7 +70,13 @@ export async function initKeycloak(): Promise<void> {
         : undefined,
     );
 
-    console.log("[Keycloak] OIDC discovery successful for %s", issuerUrl);
+    // jwks_uri issu de la discovery (fallback sur le chemin standard Keycloak)
+    const jwksUri =
+      oidcConfig.serverMetadata().jwks_uri ||
+      `${issuerUrl}/protocol/openid-connect/certs`;
+    jwks = jose.createRemoteJWKSet(new URL(jwksUri));
+
+    console.log("[Keycloak] OIDC discovery successful for %s (jwks: %s)", issuerUrl, jwksUri);
   } catch (err) {
     throw new Error(`[Keycloak] OIDC discovery failed for ${issuerUrl}: ${err}`);
   }
@@ -90,87 +98,48 @@ export interface KeycloakTokenPayload {
 export async function verifyKeycloakToken(
   accessToken: string
 ): Promise<{ valid: boolean; payload?: KeycloakTokenPayload; error?: string }> {
-  if (!oidcConfig) {
+  if (!jwks || !expectedIssuer) {
     return { valid: false, error: "Keycloak not initialized" };
   }
 
   try {
-    const claims = await openidClient.fetchUserInfo(
-      oidcConfig,
-      accessToken,
-      openidClient.skipSubjectCheck,
-    );
+    // Contrôle AUTORITAIRE : vérification cryptographique de la signature via
+    // le JWKS du realm + validation de l'issuer et de l'expiration (gérées par
+    // jose). On n'accepte JAMAIS un token dont la signature n'est pas vérifiée,
+    // et les rôles sont lus UNIQUEMENT depuis ce payload vérifié.
+    const { payload } = await jose.jwtVerify(accessToken, jwks, {
+      issuer: expectedIssuer,
+      // Keycloak signe les access tokens en RS256/ES256 ; on interdit
+      // explicitement les algorithmes symétriques et "none".
+      algorithms: ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256"],
+    });
 
-    // fetchUserInfo retourne les claims de l'userinfo endpoint
-    // On a aussi besoin des realm_access pour les rôles,
-    // donc on décode le token JWT directement
-    const payload = decodeJwtPayload(accessToken);
-    if (!payload) {
-      return { valid: false, error: "Invalid JWT format" };
+    const p = payload as unknown as {
+      sub: string;
+      preferred_username?: string;
+      email?: string;
+      name?: string;
+      realm_access?: { roles: string[] };
+      resource_access?: Record<string, { roles: string[] }>;
+    };
+
+    if (!p.sub) {
+      return { valid: false, error: "Token missing sub claim" };
     }
 
     return {
       valid: true,
       payload: {
-        sub: payload.sub,
-        preferred_username: payload.preferred_username || claims.preferred_username as string || "unknown",
-        email: payload.email || claims.email as string,
-        name: payload.name || claims.name as string,
-        realm_access: payload.realm_access,
-        resource_access: payload.resource_access,
+        sub: p.sub,
+        preferred_username: p.preferred_username || "unknown",
+        email: p.email,
+        name: p.name,
+        realm_access: p.realm_access,
+        resource_access: p.resource_access,
       },
     };
-  } catch {
-    // Fallback: vérifier le token via l'introspection ou le décoder directement
-    // en vérifiant la signature avec les clés JWKS
-    try {
-      const payload = await verifyTokenWithJwks(accessToken);
-      if (payload) {
-        return { valid: true, payload };
-      }
-      return { valid: false, error: "Token verification failed" };
-    } catch (err: any) {
-      return { valid: false, error: err.message || "Token verification failed" };
-    }
-  }
-}
-
-async function verifyTokenWithJwks(
-  accessToken: string
-): Promise<KeycloakTokenPayload | null> {
-  if (!oidcConfig || !config) return null;
-
-  try {
-    // Utiliser le token introspection endpoint si le client est confidentiel
-    if (config.clientSecret) {
-      const result = await openidClient.tokenIntrospection(
-        oidcConfig,
-        accessToken,
-      );
-      if (!result.active) return null;
-      const payload = decodeJwtPayload(accessToken);
-      return payload;
-    }
-
-    // Pour un client public, décoder et vérifier le JWT manuellement
-    // via le JWKS endpoint
-    const payload = decodeJwtPayload(accessToken);
-    if (!payload) return null;
-
-    // Vérifier l'expiration
-    if (payload.exp && payload.exp < Date.now() / 1000) {
-      return null;
-    }
-
-    // Vérifier l'issuer
-    const expectedIssuer = `${config.url}/realms/${config.realm}`;
-    if (payload.iss !== expectedIssuer) {
-      return null;
-    }
-
-    return payload;
-  } catch {
-    return null;
+  } catch (err: any) {
+    return { valid: false, error: err?.message || "Token verification failed" };
   }
 }
 
@@ -203,15 +172,3 @@ export function getOidcEndpoints() {
   };
 }
 
-// ===================== Helpers =====================
-
-function decodeJwtPayload(token: string): any | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = Buffer.from(parts[1], "base64url").toString("utf8");
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
-}

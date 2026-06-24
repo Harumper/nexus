@@ -112,40 +112,28 @@ export async function fleetRoutes(app: FastifyInstance) {
     };
     const ms = rangeMs[range] || rangeMs["1h"];
     const since = new Date(Date.now() - ms);
-    const bucketSize = 5 * 60 * 1000; // 5 minutes
 
-    const metrics = await prisma.metric.findMany({
-      where: { timestamp: { gte: since } },
-      orderBy: { timestamp: "asc" },
-      select: { cpuPercent: true, memoryPercent: true, timestamp: true },
-    });
+    // Agrégation en SQL (buckets de 5 min) plutôt que de ramener toutes les
+    // lignes Metric et agréger en JS (~144k lignes pour 24h × 100 machines).
+    const rows = await prisma.$queryRaw<
+      Array<{ bucket: Date; avgCpu: number; avgMemory: number }>
+    >`
+      SELECT
+        to_timestamp(floor(extract(epoch from "timestamp") / 300) * 300) AS bucket,
+        round(avg("cpuPercent")::numeric, 1)::float8 AS "avgCpu",
+        round(avg("memoryPercent")::numeric, 1)::float8 AS "avgMemory"
+      FROM "Metric"
+      WHERE "timestamp" >= ${since}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
 
-    // Group by 5-min buckets
-    const buckets = new Map<number, { cpuSum: number; memSum: number; count: number }>();
-    for (const m of metrics) {
-      const bucketKey = Math.floor(m.timestamp.getTime() / bucketSize) * bucketSize;
-      const existing = buckets.get(bucketKey) || { cpuSum: 0, memSum: 0, count: 0 };
-      existing.cpuSum += m.cpuPercent;
-      existing.memSum += m.memoryPercent;
-      existing.count++;
-      buckets.set(bucketKey, existing);
-    }
-
-    const result = Array.from(buckets.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([timestamp, data]) => ({
-        timestamp: new Date(timestamp).toISOString(),
-        avgCpu: Math.round((data.cpuSum / data.count) * 10) / 10,
-        avgMemory: Math.round((data.memSum / data.count) * 10) / 10,
-      }));
+    const result = rows.map((r) => ({
+      timestamp: r.bucket.toISOString(),
+      avgCpu: r.avgCpu,
+      avgMemory: r.avgMemory,
+    }));
 
     return { range, buckets: result };
   });
-}
-
-async function getSettingValue(key: string, defaultValue: number): Promise<number> {
-  const setting = await prisma.setting.findUnique({ where: { key } });
-  if (!setting) return defaultValue;
-  const val = typeof setting.value === "number" ? setting.value : (setting.value as any)?.value ?? (setting.value as any);
-  return typeof val === "number" ? val : defaultValue;
 }

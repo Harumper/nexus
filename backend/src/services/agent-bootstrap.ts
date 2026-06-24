@@ -35,12 +35,16 @@ interface GenerateStepsParams {
   binaryToken: string;
   scriptToken: string;
   backendUrl: string;
+  // Ré-enrollement : ajoute --reenroll pour que le script purge l'identité
+  // résiduelle (clés, shared secret, snapshots) avant de ré-enrôler proprement.
+  reenroll?: boolean;
 }
 
 export function generateInstallSteps(params: GenerateStepsParams): InstallStep[] {
-  const { machineId, enrollmentToken, backendPublicKey, binaryToken, scriptToken, backendUrl } =
+  const { machineId, enrollmentToken, backendPublicKey, binaryToken, scriptToken, backendUrl, reenroll } =
     params;
   const wsUrl = getWsAgentUrl(backendUrl);
+  const reenrollFlag = reenroll ? " \\\n  --reenroll" : "";
 
   return [
     {
@@ -59,8 +63,10 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
     },
     {
       id: "run",
-      title: "Installer et démarrer l'agent",
-      description: "Écrit la clé publique du serveur dans un fichier temporaire puis lance l'installation.",
+      title: reenroll ? "Purger, réinstaller et ré-enrôler l'agent" : "Installer et démarrer l'agent",
+      description: reenroll
+        ? "Purge l'identité résiduelle (clés, shared secret, snapshots) puis réinstalle et ré-enrôle proprement."
+        : "Écrit la clé publique du serveur dans un fichier temporaire puis lance l'installation.",
       command: `sudo tee /tmp/nexus-pubkey.pem > /dev/null <<'NEXUS_PUBKEY_EOF'
 ${backendPublicKey.trimEnd()}
 NEXUS_PUBKEY_EOF
@@ -69,7 +75,7 @@ sudo /tmp/install-agent.sh \\
   --machine-id "${machineId}" \\
   --enrollment-token "${enrollmentToken}" \\
   --server-public-key-file /tmp/nexus-pubkey.pem \\
-  --binary /tmp/nexus-agent`,
+  --binary /tmp/nexus-agent${reenrollFlag}`,
     },
   ];
 }

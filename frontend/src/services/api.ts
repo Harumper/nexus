@@ -439,16 +439,6 @@ class ApiClient {
     );
   }
 
-  async networkInterfaces(id: string) {
-    return this.request<{ success: boolean; data: { interfaces: any[] } }>(
-      `/machines/${id}/actions/sync`,
-      {
-        method: "POST",
-        body: JSON.stringify({ action_id: "network.interfaces", params: {}, timeout: 15000 }),
-      }
-    );
-  }
-
   async netplanGet(id: string) {
     return this.request<{ success: boolean; data: { dir: string; files: any[]; target_file: string } }>(
       `/machines/${id}/actions/sync`,
@@ -562,6 +552,7 @@ class ApiClient {
       enrollmentToken: string;
       backendPublicKey: string;
       expiresAt: string;
+      bootstrap: import("../types").BootstrapArtifacts | null;
     }>(`/machines/${id}/re-enroll`, { method: "POST" });
   }
 
@@ -630,46 +621,6 @@ class ApiClient {
 
   async deleteTag(id: string) {
     return this.request<void>(`/tags/${id}`, { method: "DELETE" });
-  }
-
-  async assignTag(machineId: string, tagId: string) {
-    return this.request<void>(`/machines/${machineId}/tags`, {
-      method: "POST",
-      body: JSON.stringify({ tagId }),
-    });
-  }
-
-  async removeTag(machineId: string, tagId: string) {
-    return this.request<void>(`/machines/${machineId}/tags/${tagId}`, {
-      method: "DELETE",
-    });
-  }
-
-  // Groups
-  async getGroups() {
-    return this.request<import("../types").MachineGroup[]>("/groups");
-  }
-
-  async createGroup(data: {
-    name: string;
-    description?: string;
-    type: string;
-    filter?: any;
-  }) {
-    return this.request<import("../types").MachineGroup>("/groups", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteGroup(id: string) {
-    return this.request<void>(`/groups/${id}`, { method: "DELETE" });
-  }
-
-  async getGroupMachines(id: string) {
-    return this.request<import("../types").Machine[]>(
-      `/groups/${id}/machines`
-    );
   }
 
   // Alerts actives (FIRING/ACKNOWLEDGED) — pour badges machine/fleet

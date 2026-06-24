@@ -1,4 +1,5 @@
 import { prisma } from "./database.js";
+import { decryptAES } from "./crypto.js";
 
 // Settings keys utilises pour l'integration Nautilus
 export const NAUTILUS_SETTINGS_KEYS = {
@@ -70,12 +71,25 @@ export async function getNautilusConfig(): Promise<NautilusConfig> {
 
   const enabled = map.get(NAUTILUS_SETTINGS_KEYS.ENABLED);
   const url = map.get(NAUTILUS_SETTINGS_KEYS.URL);
-  const token = map.get(NAUTILUS_SETTINGS_KEYS.TOKEN);
+  const rawToken = map.get(NAUTILUS_SETTINGS_KEYS.TOKEN);
+
+  // Le token est chiffré au repos. On déchiffre ; si le déchiffrement échoue
+  // (valeur legacy en clair stockée avant le chiffrement), on retombe sur la
+  // valeur brute pour ne pas casser une intégration existante — elle sera
+  // re-chiffrée à la prochaine sauvegarde.
+  let token: string | null = null;
+  if (typeof rawToken === "string" && rawToken.length > 0) {
+    try {
+      token = decryptAES(rawToken, process.env.ECDSA_MASTER_SECRET!);
+    } catch {
+      token = rawToken;
+    }
+  }
 
   return {
     enabled: enabled === true || enabled === "true",
     url: typeof url === "string" ? url : "http://localhost:26020/metrics",
-    token: typeof token === "string" && token.length > 0 ? token : null,
+    token,
   };
 }
 

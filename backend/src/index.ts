@@ -19,7 +19,7 @@ import { groupRoutes } from "./routes/groups.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { initKeycloak } from "./services/keycloak.js";
-import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts } from "./services/alert-engine.js";
+import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts, initAlertState } from "./services/alert-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
 import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
@@ -211,6 +211,10 @@ async function main() {
   // Tous les intervals utilisent jitteredInterval pour décaler leur démarrage
   // de 0-30 % de leur période et éviter le thundering herd (tous les setInterval
   // se déclenchaient au même tick avant, créant des spikes CPU/DB synchronisés).
+
+  // Charge l'état des alertes actives en cache mémoire (évite les findFirst N+1
+  // dans evaluateMetrics/resolveAlert sur le chemin chaud).
+  await initAlertState().catch((err) => console.error("[AlertEngine] initAlertState failed:", err));
 
   const stopOfflineCheck = jitteredInterval(checkOfflineMachines, 30_000);
 

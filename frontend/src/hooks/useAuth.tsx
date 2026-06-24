@@ -9,7 +9,7 @@ import {
 } from "react";
 import Keycloak from "keycloak-js";
 import { api } from "../services/api";
-import type { User, AuthState, AuthConfig } from "../types";
+import type { AuthState, AuthConfig } from "../types";
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<void>;
@@ -287,21 +287,4 @@ export function useAuth(): AuthContextType {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}
-
-// Hook pour lancer le login Keycloak (redirect)
-export function useKeycloakLogin() {
-  const { authConfig } = useAuth();
-
-  return useCallback(() => {
-    if (!authConfig?.keycloak) return;
-
-    const kc = new Keycloak({
-      url: authConfig.keycloak.url,
-      realm: authConfig.keycloak.realm,
-      clientId: authConfig.keycloak.clientId,
-    });
-
-    kc.init({ onLoad: "login-required" });
-  }, [authConfig]);
 }

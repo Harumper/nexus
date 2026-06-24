@@ -1,5 +1,5 @@
 import { prisma } from "./database.js";
-import type { MetricsReport, HeartbeatData, SystemInfo } from "../types/index.js";
+import type { MetricsReport, HeartbeatData } from "../types/index.js";
 
 const HEARTBEAT_TIMEOUT = parseInt(
   process.env.HEARTBEAT_TIMEOUT_SECONDS || "90",
@@ -21,13 +21,8 @@ export async function processHeartbeat(
     },
   });
 
-  await prisma.machineEvent.create({
-    data: {
-      machineId,
-      type: "heartbeat",
-      data: { uptime: data.uptime, agent_version: data.agent_version },
-    },
-  });
+  // Pas de machineEvent "heartbeat" : c'était du bruit pur (jamais consulté,
+  // ~288k lignes/jour pour 100 agents). lastHeartbeat sur Machine suffit.
 }
 
 export async function processMetrics(
@@ -53,21 +48,6 @@ export async function processMetrics(
   await prisma.machine.update({
     where: { id: machineId },
     data: { lastMetrics: new Date() },
-  });
-}
-
-export async function updateSystemInfo(
-  machineId: string,
-  info: SystemInfo
-): Promise<void> {
-  await prisma.machine.update({
-    where: { id: machineId },
-    data: {
-      hostname: info.hostname,
-      os: info.os,
-      osVersion: info.os_version,
-      arch: info.arch,
-    },
   });
 }
 

@@ -133,7 +133,8 @@ describe("Security Audit — Agent Hardening", () => {
   });
 
   it("should have secure sudoers without dangerous wildcards", () => {
-    const content = readFileSync(resolve(agentDir, "deploy/install.sh"), "utf8");
+    // Script réellement servi aux agents (pas l'ancien agent/deploy/install.sh).
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     // apt-get update should NOT have wildcard
     expect(content).toMatch(/apt-get update\n/);
     // NOEXEC tag on install/remove
@@ -144,15 +145,42 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("/var/lib/nexus-agent/nexus-script");
     // Uses mktemp instead of hardcoded /tmp path
     expect(content).toContain("mktemp");
+    // upgrade/update must use EXACT args (no trailing wildcard → pas d'injection -o)
+    expect(content).not.toMatch(/apt-get upgrade -y \*/);
+    expect(content).toContain("/usr/bin/apt-get upgrade -y -q");
+    // Les clés privées TLS ne doivent JAMAIS être lisibles via sudo cat
+    expect(content).not.toContain("/etc/ssl/private/");
+    expect(content).not.toMatch(/cat \/etc\/letsencrypt\/live\/\*\/\*\.pem/);
+    expect(content).not.toMatch(/cat \/etc\/nginx\/ssl\/\*$/m);
+  });
+
+  it("should enforce mandatory server key pinning in the agent", () => {
+    const mainGo = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    // Boot fatal si pas de clé serveur (plus de simple WARNING)
+    expect(mainGo).toMatch(/ServerPublicKey == ""/);
+    expect(mainGo).toContain("log.Fatal");
+    const enroll = readFileSync(resolve(agentDir, "internal/security/enrollment.go"), "utf8");
+    // Enrollement refusé sans clé pinnée + ECDH contre la clé pinnée
+    expect(enroll).toMatch(/serverPublicKeyPEM == ""/);
+    expect(enroll).toContain("pinnedServerKey");
+  });
+
+  it("should dedup action requests by request_id (idempotency)", () => {
+    const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(content).toContain("idemReserve");
+    expect(content).toContain("idemComplete");
   });
 
   it("should have restricted systemd sandbox without blocking sudo/apt", () => {
-    const content = readFileSync(resolve(agentDir, "deploy/nexus-agent.service"), "utf8");
+    // Unité systemd embarquée dans le script d'install réellement servi.
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     // AmbientCapabilities donnent les caps au non-root agent
     expect(content).toContain("AmbientCapabilities");
     expect(content).toContain("CAP_NET_RAW");
     // Pas de CapabilityBoundingSet : bloquerait sudo+apt (chown, fowner, etc.)
     expect(content).not.toContain("CapabilityBoundingSet=");
+    // Pas de ProtectSystem=strict : casserait les écritures sudo (apt/netplan/users)
+    expect(content).not.toContain("ProtectSystem=strict");
     // Sandbox reste actif via les autres directives
     expect(content).toContain("ProtectHome=true");
     expect(content).toContain("ProtectKernelModules=true");

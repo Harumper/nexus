@@ -91,6 +91,19 @@ async function authenticate(
     try {
       const payload = (await request.jwtVerify()) as JwtPayload;
       payload.provider = "local";
+
+      // Revalider l'état du compte en DB : un compte désactivé ou dont le rôle
+      // a changé ne doit PAS conserver l'accès jusqu'à l'expiration du JWT (4h).
+      // Le rôle de la DB fait foi (et non celui figé dans le token).
+      const dbUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { isActive: true, role: true },
+      });
+      if (!dbUser || !dbUser.isActive) {
+        return null;
+      }
+      payload.role = dbUser.role as JwtPayload["role"];
+      (request as any).user = payload;
       return payload;
     } catch {
       // JWT local invalide

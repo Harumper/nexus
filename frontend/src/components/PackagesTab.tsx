@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, Package, Download, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { Search, Package, Download, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";

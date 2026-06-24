@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
-  Bell,
   Plus,
   AlertTriangle,
   CheckCircle2,
@@ -86,10 +85,6 @@ function thresholdUnit(conditionType: string): string {
 
 function needsThreshold(conditionType: string): boolean {
   return !["SERVICE_FAILED", "TIMER_FAILED", "CRON_FAILED"].includes(conditionType);
-}
-
-function needsTargetPattern(conditionType: string): boolean {
-  return ["SERVICE_FAILED", "TIMER_FAILED", "CRON_FAILED"].includes(conditionType);
 }
 
 export default function Alerts() {

@@ -15,6 +15,26 @@ const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
 // Conditions qui necessitent un scan SSL (moins frequent, plus lourd)
 const CERT_CHECK_CONDITIONS: AlertConditionType[] = ["CERT_EXPIRING"];
 
+// ===================== Cache des alertes actives =====================
+// Set en mémoire des (ruleId:machineId) actuellement FIRING/ACKNOWLEDGED.
+// C'est un SUPERSET de l'état DB (initialisé au boot, alimenté par fireAlert).
+// Permet à resolveAlert/fireAlert d'éviter un findFirst par (règle×machine×cycle)
+// quand rien n'est en alerte — le cas ultra-majoritaire sur le chemin chaud
+// (evaluateMetrics tourne à chaque rapport métrique × N machines).
+const firingKeys = new Set<string>();
+const fkey = (ruleId: string, machineId: string) => `${ruleId}:${machineId}`;
+
+// À appeler au démarrage du backend : recharge l'état FIRING depuis la DB.
+export async function initAlertState(): Promise<void> {
+  firingKeys.clear();
+  const active = await prisma.alertState.findMany({
+    where: { status: { in: ["FIRING", "ACKNOWLEDGED"] } },
+    select: { ruleId: true, machineId: true },
+  });
+  for (const a of active) firingKeys.add(fkey(a.ruleId, a.machineId));
+  console.log(`[AlertEngine] ${firingKeys.size} alerte(s) active(s) chargée(s) en cache`);
+}
+
 // ===================== Évaluation des métriques entrantes =====================
 
 export async function evaluateMetrics(
@@ -303,15 +323,19 @@ async function fireAlert(
   severity: AlertSeverity,
   details: Record<string, any>
 ): Promise<void> {
-  // Vérifier si déjà en cours
-  const existing = await prisma.alertState.findFirst({
-    where: {
-      ruleId,
-      machineId,
-      status: { in: ["FIRING", "ACKNOWLEDGED"] },
-    },
-    include: { rule: true },
-  });
+  const k = fkey(ruleId, machineId);
+  // Si la clé n'est pas dans le cache (superset), il n'y a certainement pas
+  // d'alerte active : on saute le findFirst et on crée directement.
+  const existing = firingKeys.has(k)
+    ? await prisma.alertState.findFirst({
+        where: {
+          ruleId,
+          machineId,
+          status: { in: ["FIRING", "ACKNOWLEDGED"] },
+        },
+        include: { rule: true },
+      })
+    : null;
 
   if (existing) {
     // Vérifier le cooldown
@@ -341,6 +365,7 @@ async function fireAlert(
     },
     include: { rule: true, machine: true },
   });
+  firingKeys.add(k);
 
   // Notifier le dashboard en temps réel
   broadcastToDashboard({
@@ -408,6 +433,10 @@ async function resolveAlert(
   ruleId: string,
   machineId: string
 ): Promise<void> {
+  const k = fkey(ruleId, machineId);
+  // Négative-cache : si pas dans le superset, rien à résoudre → 0 requête DB.
+  if (!firingKeys.has(k)) return;
+
   const firing = await prisma.alertState.findFirst({
     where: {
       ruleId,
@@ -416,7 +445,11 @@ async function resolveAlert(
     },
   });
 
-  if (!firing) return;
+  if (!firing) {
+    // Clé stale (résolue via l'API p.ex.) : on nettoie le cache.
+    firingKeys.delete(k);
+    return;
+  }
 
   await prisma.alertState.update({
     where: { id: firing.id },
@@ -425,6 +458,7 @@ async function resolveAlert(
       resolvedAt: new Date(),
     },
   });
+  firingKeys.delete(k);
 
   broadcastToDashboard({
     type: "alert.resolved",

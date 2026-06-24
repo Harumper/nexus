@@ -52,9 +52,19 @@ export default function MachineEnroll() {
         if (cancelled) return;
         setMachine(m);
         setName(m.name);
-        const artifacts = await api.regenerateBootstrap(paramId);
-        if (cancelled) return;
-        setBootstrap(artifacts);
+        // Machine déjà enrôlée (ONLINE/OFFLINE/REVOKED) → ré-enrollement complet :
+        // régénère token + clé backend, déconnecte l'agent, et renvoie une
+        // commande --reenroll qui purge l'identité résiduelle côté machine.
+        // Machine encore ENROLLMENT_PENDING → simple régénération des tokens d'install.
+        if (m.status === "ENROLLMENT_PENDING") {
+          const artifacts = await api.regenerateBootstrap(paramId);
+          if (cancelled) return;
+          setBootstrap(artifacts);
+        } else {
+          const res = await api.reEnrollMachine(paramId);
+          if (cancelled) return;
+          setBootstrap(res.bootstrap);
+        }
       } catch (err) {
         if (!cancelled) setError(getErrorMessage(err, "Erreur lors du chargement"));
       } finally {

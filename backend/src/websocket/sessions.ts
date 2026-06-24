@@ -55,10 +55,6 @@ export function getAgentSession(machineId: string): AgentSession | undefined {
   return sessions.get(machineId);
 }
 
-export function getAllSessions(): Map<string, AgentSession> {
-  return sessions;
-}
-
 export function getConnectedMachineIds(): string[] {
   return Array.from(sessions.entries())
     .filter(([_, s]) => s.authenticated)

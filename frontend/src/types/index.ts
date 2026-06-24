@@ -106,11 +106,6 @@ export interface MetricsResponse {
   metrics: Metric[];
 }
 
-export interface LoginResponse {
-  token: string;
-  user: User;
-}
-
 export interface AuthState {
   user: User | null;
   token: string | null;
@@ -138,16 +133,6 @@ export interface Tag {
   color: string;
   createdAt: string;
   _count?: { machines: number };
-}
-
-export interface MachineGroup {
-  id: string;
-  name: string;
-  description: string | null;
-  type: "STATIC" | "DYNAMIC";
-  filter: { tags?: string[]; status?: string[] } | null;
-  createdAt: string;
-  _count?: { members: number };
 }
 
 export interface Setting {

@@ -7,7 +7,7 @@ export { Card, CardHeader, CardTitle } from "./Card";
 export { Badge } from "./Badge";
 export { EmptyState } from "./EmptyState";
 export { PageHeader } from "./PageHeader";
-export { Spinner, PageLoader, Skeleton } from "./Spinner";
+export { Spinner, PageLoader } from "./Spinner";
 export { Input, Textarea } from "./Input";
 export { Dialog, Drawer } from "./Dialog";
 export { ConfirmDialog } from "./ConfirmDialog";

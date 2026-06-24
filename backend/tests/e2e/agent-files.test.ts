@@ -110,11 +110,14 @@ describe("Agent Go Files - Phase 4", () => {
   });
 
   describe("Systemd deployment", () => {
-    it("should have systemd service file with non-root user", () => {
-      const path = resolve(agentDir, "deploy/nexus-agent.service");
-      expect(existsSync(path)).toBe(true);
+    // Script réellement servi aux agents (route /api/agents/install-script) et
+    // lu par sudoers-version.ts. L'unité systemd y est embarquée (heredoc).
+    const installScript = resolve(agentDir, "../scripts/install-agent.sh");
 
-      const content = readFileSync(path, "utf8");
+    it("should have systemd service (embedded in install script) with non-root user", () => {
+      expect(existsSync(installScript)).toBe(true);
+
+      const content = readFileSync(installScript, "utf8");
       expect(content).toContain("[Unit]");
       expect(content).toContain("[Service]");
       expect(content).toContain("[Install]");
@@ -125,18 +128,25 @@ describe("Agent Go Files - Phase 4", () => {
     });
 
     it("should have install script with sudoers setup", () => {
-      const path = resolve(agentDir, "deploy/install.sh");
-      expect(existsSync(path)).toBe(true);
+      expect(existsSync(installScript)).toBe(true);
 
-      const content = readFileSync(path, "utf8");
-      expect(content).toContain("--server");
-      expect(content).toContain("--token");
+      const content = readFileSync(installScript, "utf8");
+      expect(content).toContain("--server-url");
+      expect(content).toContain("--enrollment-token");
       expect(content).toContain("--machine-id");
       expect(content).toContain("systemctl");
       expect(content).toContain("agent.env");
       expect(content).toContain("sudoers");
       expect(content).toContain("visudo -cf");
       expect(content).toContain("/etc/sudoers.d/nexus-agent");
+    });
+
+    it("should support clean uninstall and re-enroll modes", () => {
+      const content = readFileSync(installScript, "utf8");
+      expect(content).toContain("--uninstall");
+      expect(content).toContain("--reenroll");
+      expect(content).toContain("do_uninstall");
+      expect(content).toContain("purge_state");
     });
   });
 
