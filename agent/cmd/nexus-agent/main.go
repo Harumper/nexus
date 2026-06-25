@@ -101,17 +101,30 @@ func selfSHA256() string {
 	return selfSHAValue
 }
 
-// sdNotify envoie un message au gestionnaire de service (systemd) via le
-// socket $NOTIFY_SOCKET. No-op si la variable n'est pas définie (lancement
-// hors systemd). Gère les sockets abstraits (@ -> NUL).
+// notifySocket : chemin du socket systemd capturé une seule fois au boot.
+// On RETIRE NOTIFY_SOCKET de l'environnement (initSystemdNotify) pour qu'il ne
+// soit PAS hérité par les processus enfants (lynis, apt, systemctl…) : sinon
+// ces enfants écrivent dans le socket et systemd inonde le journal de
+// « Got notification message from PID X, but reception only permitted for main PID ».
+// (Équivalent du flag unset_environment de sd_notify.)
+var notifySocket string
+
+func initSystemdNotify() {
+	notifySocket = os.Getenv("NOTIFY_SOCKET")
+	if notifySocket != "" {
+		os.Unsetenv("NOTIFY_SOCKET")
+	}
+}
+
+// sdNotify envoie un message au gestionnaire de service (systemd) via le socket
+// capturé au boot. No-op hors systemd. Gère les sockets abstraits (@ -> NUL).
 func sdNotify(state string) {
-	sock := os.Getenv("NOTIFY_SOCKET")
-	if sock == "" {
+	if notifySocket == "" {
 		return
 	}
-	addr := &net.UnixAddr{Name: sock, Net: "unixgram"}
-	if strings.HasPrefix(sock, "@") {
-		addr.Name = "\x00" + sock[1:]
+	addr := &net.UnixAddr{Name: notifySocket, Net: "unixgram"}
+	if strings.HasPrefix(notifySocket, "@") {
+		addr.Name = "\x00" + notifySocket[1:]
 	}
 	conn, err := net.DialUnix("unixgram", nil, addr)
 	if err != nil {
@@ -192,6 +205,10 @@ var (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// Capturer NOTIFY_SOCKET et le retirer de l'env AVANT de lancer le moindre
+	// sous-processus, pour ne pas le fuiter aux enfants (sinon flood du journal).
+	initSystemdNotify()
 
 	// Charger la configuration
 	cfg, err := config.Load()
