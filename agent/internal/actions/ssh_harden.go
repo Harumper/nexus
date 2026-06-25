@@ -217,6 +217,19 @@ func (a *SshHardenAction) Capability() string                  { return "securit
 func (a *SshHardenAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *SshHardenAction) Execute(params map[string]interface{}) (interface{}, error) {
+	// Aperçu (dry-run) : renvoie EXACTEMENT ce qui serait écrit, sans rien
+	// appliquer (pas de snapshot/install/reload/watchdog). Permet à l'UI de
+	// montrer le contenu avant que l'utilisateur ne confirme — source unique
+	// = l'agent (aucun risque de divergence avec un texte recopié côté UI).
+	if dr, _ := params["dry_run"].(bool); dr {
+		return map[string]interface{}{
+			"dry_run":             true,
+			"dropin":              sshdDropinPath,
+			"content":             sshdHardeningDropin,
+			"watchdog_expires_in": int(sshdWatchdogDuration.Seconds()),
+		}, nil
+	}
+
 	reqID, _ := params["request_id"].(string)
 	if reqID == "" {
 		reqID = fmt.Sprintf("sshd-%d", time.Now().UnixNano())

@@ -621,3 +621,19 @@ describe("Pare-feu : exclusion des ports gérés par Docker", () => {
     expect(tab).toContain("chaîne DOCKER");
   });
 });
+
+describe("Durcissement SSH : aperçu (dry-run) avant application", () => {
+  it("agent: sshd.harden gère dry_run (renvoie le contenu, sans appliquer)", () => {
+    const s = readFileSync(resolve(agentDir, "internal/actions/ssh_harden.go"), "utf8");
+    expect(s).toContain('params["dry_run"]');
+    expect(s).toContain('"content":');
+  });
+  it("frontend: aperçu SSH + application en 2 temps", () => {
+    const api = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(api).toContain("sshdHardenPreview");
+    expect(api).toContain("dry_run: true");
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("openSshPreview");
+    expect(tab).toContain("aperçu avant application");
+  });
+});
