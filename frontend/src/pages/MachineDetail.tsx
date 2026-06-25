@@ -30,12 +30,16 @@ import AgentUpgradeDialog from "../components/AgentUpgradeDialog";
 import AttentionPanel from "../components/AttentionPanel";
 import HeaderBadges from "../components/HeaderBadges";
 import { useMachineAttention } from "../hooks/useMachineAttention";
-import { useConfirm, PageLoader } from "../components/ui";
+import { useConfirm, PageLoader, Tooltip } from "../components/ui";
 import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 import { getErrorMessage } from "../services/errors";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security";
+
+// Bouton d'action du header : icône seule (le libellé est dans le Tooltip).
+const ICON_BTN =
+  "inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function MachineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -342,95 +346,116 @@ export default function MachineDetail() {
           </div>
 
           {isAdmin && (
-            <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  if (!id) return;
-                  attention.reload();
-                  try {
-                    const [m, lm] = await Promise.all([
-                      api.getMachine(id),
-                      api.getLatestMetrics(id).catch(() => null),
-                    ]);
-                    setMachine(m);
-                    if (lm) setLatestMetric(lm);
-                  } catch (err) {
-                    console.warn("[MachineDetail] refresh failed:", err);
-                  }
-                }}
-                title="Recharger toutes les données (machine, métriques, attention)"
-                disabled={attention.loading}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${attention.loading ? "animate-spin" : ""}`} />
-              </button>
-              {machine.ipAddress && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Tooltip content="Recharger (machine, métriques, attention)">
                 <button
-                  onClick={() => setShowSshDialog(true)}
-                  title="Connexion SSH : copie la commande + instructions par OS"
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                  style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text)" }}
-                >
-                  <Terminal className="w-3.5 h-3.5" /> SSH
-                </button>
-              )}
-              {isOnline && isAgent && (
-                <button
-                  onClick={() => setShowAgentUpgrade(true)}
-                  disabled={agentUpToDate === true}
-                  title={
-                    agentUpToDate === true
-                      ? "L'agent est déjà à la dernière version"
-                      : agentUpdateAvailable
-                      ? "Une nouvelle version de l'agent est disponible"
-                      : "Mettre à jour le binaire de l'agent"
-                  }
-                  className="relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                  style={{
-                    border: `1px solid ${
-                      agentUpToDate === true
-                        ? "var(--nx-border)"
-                        : agentUpdateAvailable
-                        ? "var(--nx-warning)"
-                        : "var(--nx-info)"
-                    }`,
-                    color:
-                      agentUpToDate === true
-                        ? "var(--nx-text-weak)"
-                        : agentUpdateAvailable
-                        ? "var(--nx-warning)"
-                        : "var(--nx-info)",
+                  onClick={async () => {
+                    if (!id) return;
+                    attention.reload();
+                    try {
+                      const [m, lm] = await Promise.all([
+                        api.getMachine(id),
+                        api.getLatestMetrics(id).catch(() => null),
+                      ]);
+                      setMachine(m);
+                      if (lm) setLatestMetric(lm);
+                    } catch (err) {
+                      console.warn("[MachineDetail] refresh failed:", err);
+                    }
                   }}
+                  aria-label="Recharger"
+                  disabled={attention.loading}
+                  className={ICON_BTN}
+                  style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
                 >
-                  <ArrowUpCircle className="w-3.5 h-3.5" />
-                  {agentUpToDate === true ? "Agent à jour" : "Mettre à jour l'agent"}
-                  {agentUpdateAvailable && (
-                    <span
-                      className="ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-                      style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
-                    >
-                      MAJ dispo
-                    </span>
-                  )}
+                  <RefreshCw className={`w-4 h-4 ${attention.loading ? "animate-spin" : ""}`} />
                 </button>
+              </Tooltip>
+
+              {machine.ipAddress && (
+                <Tooltip content="Connexion SSH (copie la commande + instructions)">
+                  <button
+                    onClick={() => setShowSshDialog(true)}
+                    aria-label="Connexion SSH"
+                    className={ICON_BTN}
+                    style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text)" }}
+                  >
+                    <Terminal className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               )}
+
+              {isOnline && isAgent && (
+                <Tooltip
+                  content={
+                    agentUpToDate === true
+                      ? "Agent déjà à la dernière version"
+                      : agentUpdateAvailable
+                      ? "Mise à jour de l'agent disponible"
+                      : "Mettre à jour l'agent"
+                  }
+                >
+                  <button
+                    onClick={() => {
+                      if (agentUpToDate !== true) setShowAgentUpgrade(true);
+                    }}
+                    aria-disabled={agentUpToDate === true}
+                    aria-label="Mettre à jour l'agent"
+                    className={`relative ${ICON_BTN} ${agentUpToDate === true ? "opacity-50 cursor-default" : ""}`}
+                    style={{
+                      border: `1px solid ${
+                        agentUpToDate === true
+                          ? "var(--nx-border)"
+                          : agentUpdateAvailable
+                          ? "var(--nx-warning)"
+                          : "var(--nx-info)"
+                      }`,
+                      color:
+                        agentUpToDate === true
+                          ? "var(--nx-text-weak)"
+                          : agentUpdateAvailable
+                          ? "var(--nx-warning)"
+                          : "var(--nx-info)",
+                    }}
+                  >
+                    <ArrowUpCircle className="w-4 h-4" />
+                    {agentUpdateAvailable && (
+                      <span
+                        className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border"
+                        style={{ background: "var(--nx-warning)", borderColor: "var(--nx-bg-surface)" }}
+                      />
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+
               {isOnline && isAgent && !machine.isCritical && (
-                <button onClick={handleReboot} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
-                  <Power className="w-3.5 h-3.5" /> Redémarrer
-                </button>
+                <Tooltip content="Redémarrer la machine">
+                  <button onClick={handleReboot} aria-label="Redémarrer" className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
+                    <Power className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               )}
+
               {machine.status !== "REVOKED" && (
-                <button onClick={handleRevoke} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
-                  <ShieldOff className="w-3.5 h-3.5" /> Révoquer
-                </button>
+                <Tooltip content="Révoquer (déconnecte l'agent immédiatement)">
+                  <button onClick={handleRevoke} aria-label="Révoquer" className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
+                    <ShieldOff className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               )}
-              <button onClick={() => navigate(`/machines/${id}/enroll`)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}>
-                <RefreshCw className="w-3.5 h-3.5" /> Ré-enrôler
-              </button>
-              <button onClick={handleDelete} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}>
-                <Trash2 className="w-3.5 h-3.5" /> Supprimer
-              </button>
+
+              <Tooltip content="Ré-enrôler (régénère identité + token d'install)">
+                <button onClick={() => navigate(`/machines/${id}/enroll`)} aria-label="Ré-enrôler" className={ICON_BTN} style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}>
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Supprimer la machine (irréversible)">
+                <button onClick={handleDelete} aria-label="Supprimer" className={ICON_BTN} style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </Tooltip>
             </div>
           )}
         </div>
