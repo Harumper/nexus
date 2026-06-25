@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -11,6 +12,31 @@ func init() {
 	Register(&HardenFail2banAction{})
 	Register(&EnableAutoUpdatesAction{})
 	Register(&SetLoginBannerAction{})
+	Register(&DisableCoreDumpsAction{})
+	Register(&HardenLoginDefsAction{})
+}
+
+// ── core dumps (KRNL-5820) ──
+const nocoreLimitsPath = "/etc/security/limits.d/99-nexus-nocore.conf"
+const coredumpSysctlPath = "/etc/sysctl.d/99-nexus-coredump.conf"
+const nocoreConf = `# Généré par Nexus — désactivation des core dumps (KRNL-5820).
+* hard core 0
+* soft core 0
+root hard core 0
+`
+const coredumpSysctl = `# Généré par Nexus — pas de core dump pour binaires setuid (KRNL-5820).
+fs.suid_dumpable = 0
+`
+
+// ── login.defs (AUTH-9230/9286/9328) ──
+const loginDefsPath = "/etc/login.defs"
+
+var loginDefsSettings = [][2]string{
+	{"UMASK", "027"},
+	{"PASS_MAX_DAYS", "90"},
+	{"PASS_MIN_DAYS", "1"},
+	{"PASS_WARN_AGE", "14"},
+	{"SHA_CRYPT_MIN_ROUNDS", "640000"},
 }
 
 // Bannière légale (BANN-7126/7130). La 1ʳᵉ ligne sert de marqueur de détection.
@@ -138,6 +164,93 @@ func loginBannerSet() bool {
 		return false
 	}
 	return strings.Contains(string(data), loginBannerMarker)
+}
+
+// ──────────────────── core dumps ────────────────────
+
+type DisableCoreDumpsAction struct{}
+
+func (a *DisableCoreDumpsAction) ID() string                              { return "security.disable_core_dumps" }
+func (a *DisableCoreDumpsAction) Capability() string                      { return "security" }
+func (a *DisableCoreDumpsAction) Validate(_ map[string]interface{}) error { return nil }
+
+func (a *DisableCoreDumpsAction) Execute(_ map[string]interface{}) (interface{}, error) {
+	if err := installRootFile(nocoreConf, "sec-nocore-*.tmp", nocoreLimitsPath); err != nil {
+		return nil, err
+	}
+	if err := installRootFile(coredumpSysctl, "sec-coredump-*.tmp", coredumpSysctlPath); err != nil {
+		return nil, err
+	}
+	// Appliquer immédiatement le sysctl (le limits.d s'applique aux nouvelles sessions).
+	if err := sudoRun("/usr/sbin/sysctl", "-p", coredumpSysctlPath); err != nil {
+		return nil, fmt.Errorf("sysctl -p: %w", err)
+	}
+	return map[string]interface{}{
+		"core_dumps_disabled": true,
+		"files":               []string{nocoreLimitsPath, coredumpSysctlPath},
+	}, nil
+}
+
+func coreDumpsDisabled() bool {
+	return fileExists(nocoreLimitsPath) && fileExists(coredumpSysctlPath)
+}
+
+// ──────────────────── login.defs ────────────────────
+
+type HardenLoginDefsAction struct{}
+
+func (a *HardenLoginDefsAction) ID() string                              { return "security.harden_login_defs" }
+func (a *HardenLoginDefsAction) Capability() string                      { return "security" }
+func (a *HardenLoginDefsAction) Validate(_ map[string]interface{}) error { return nil }
+
+func (a *HardenLoginDefsAction) Execute(_ map[string]interface{}) (interface{}, error) {
+	data, err := os.ReadFile(loginDefsPath) // world-readable
+	if err != nil {
+		return nil, fmt.Errorf("lecture %s: %w", loginDefsPath, err)
+	}
+	content := string(data)
+	for _, kv := range loginDefsSettings {
+		content = setLoginDef(content, kv[0], kv[1])
+	}
+	if err := installRootFile(content, "sec-logindefs-*.tmp", loginDefsPath); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"login_defs_hardened": true,
+		"applied":             loginDefsSettings,
+	}, nil
+}
+
+// setLoginDef remplace (ou ajoute) une directive KEY dans le contenu login.defs.
+// Idempotent : conserve la 1ʳᵉ occurrence (active ou commentée) réécrite à la
+// bonne valeur, supprime les doublons éventuels.
+func setLoginDef(content, key, value string) string {
+	re := regexp.MustCompile(`^[\t ]*#?[\t ]*` + regexp.QuoteMeta(key) + `([\t ]|=|$)`)
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines)+1)
+	done := false
+	for _, l := range lines {
+		if re.MatchString(l) {
+			if !done {
+				out = append(out, key+"\t"+value)
+				done = true
+			}
+			continue // supprime les doublons
+		}
+		out = append(out, l)
+	}
+	if !done {
+		out = append(out, key+"\t"+value)
+	}
+	return strings.Join(out, "\n")
+}
+
+func loginDefsHardened() bool {
+	data, err := os.ReadFile(loginDefsPath)
+	if err != nil {
+		return false
+	}
+	return regexp.MustCompile(`(?m)^[\t ]*UMASK[\t ]+027\b`).Match(data)
 }
 
 // ───────────────────────── helpers ─────────────────────────

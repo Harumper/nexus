@@ -191,6 +191,8 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	parsed["auto_updates_active"] = autoUpdatesActive()
 	parsed["ssh_hardened"] = fileExists(sshdDropinPath)
 	parsed["login_banner_set"] = loginBannerSet()
+	parsed["core_dumps_disabled"] = coreDumpsDisabled()
+	parsed["login_defs_hardened"] = loginDefsHardened()
 	return parsed, nil
 }
 
