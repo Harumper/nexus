@@ -560,6 +560,7 @@ describe("Security — remédiation bannière légale (1-clic)", () => {
     expect(h).toContain("SetLoginBannerAction");
     expect(h).toContain("func loginBannerSet()");
     expect(h).toContain("/etc/issue.net");
+    expect(h).toContain('params["text"]'); // bannière configurable
     const audit = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
     expect(audit).toContain('parsed["login_banner_set"]');
   });

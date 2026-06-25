@@ -4,7 +4,12 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
-import { useConfirm } from "./ui";
+import { useConfirm, Dialog, Textarea, Button } from "./ui";
+
+// Bannière par défaut proposée dans l'éditeur (modifiable avant dépôt).
+const DEFAULT_BANNER = `*** Accès restreint ***
+Tout accès non autorisé à ce système est interdit et peut faire l'objet de
+poursuites. Toutes les activités peuvent être journalisées et surveillées.`;
 import SecurityAuditDialog from "./SecurityAuditDialog";
 import type { SecurityAuditResult, ListeningService, SecurityScanPoint } from "../types";
 
@@ -58,6 +63,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [fwDockerServices, setFwDockerServices] = useState<ListeningService[]>([]);
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
   const [fwLoading, setFwLoading] = useState(false);
+  const [bannerOpen, setBannerOpen] = useState(false);
+  const [bannerText, setBannerText] = useState(DEFAULT_BANNER);
 
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
@@ -116,6 +123,20 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
   // Applique une remédiation après confirmation, puis relance l'audit pour
   // rafraîchir l'état affiché.
+  const applyBanner = async () => {
+    setApplying("banner");
+    try {
+      await api.setLoginBanner(machineId, bannerText);
+      toast.success("Bannière déposée.");
+      setBannerOpen(false);
+      await runAudit();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec du dépôt de la bannière"));
+    } finally {
+      setApplying(null);
+    }
+  };
+
   const applyRemediation = async (
     key: string,
     opts: { title: string; description: string },
@@ -433,20 +454,10 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 label="Bannière légale (/etc/issue, /etc/issue.net)"
                 active={!!result.login_banner_set}
                 activeLabel="En place"
-                actionLabel="Déposer"
+                actionLabel="Configurer"
                 busy={applying === "banner"}
                 disabled={!canRemediate}
-                onApply={() =>
-                  applyRemediation(
-                    "banner",
-                    {
-                      title: "Déposer la bannière légale ?",
-                      description:
-                        "Écrit un avertissement d'accès restreint dans /etc/issue et /etc/issue.net (affiché avant connexion). Aucune incidence sur l'accès.",
-                    },
-                    () => api.setLoginBanner(machineId)
-                  )
-                }
+                onApply={() => setBannerOpen(true)}
               />
               <RemediationRow
                 label="Désactiver les core dumps"
@@ -622,6 +633,40 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
         </>
       )}
       {ConfirmDialogElement}
+
+      <Dialog
+        open={bannerOpen}
+        onClose={() => setBannerOpen(false)}
+        size="lg"
+        title="Bannière légale (/etc/issue, /etc/issue.net)"
+        description="Avertissement affiché AVANT connexion (console + SSH). Personnalisable."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setBannerOpen(false)} disabled={applying === "banner"}>
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={applyBanner}
+              loading={applying === "banner"}
+              disabled={!canRemediate || bannerText.trim() === ""}
+            >
+              Déposer
+            </Button>
+          </>
+        }
+      >
+        <Textarea
+          value={bannerText}
+          onChange={(e) => setBannerText(e.target.value)}
+          rows={6}
+          className="font-mono text-xs"
+          placeholder="Texte de la bannière…"
+        />
+        <p className="text-[11px] text-muted-foreground mt-2">
+          Sans incidence sur l'accès. Max 4096 caractères.
+        </p>
+      </Dialog>
     </div>
   );
 }

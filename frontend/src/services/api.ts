@@ -741,12 +741,16 @@ class ApiClient {
     );
   }
 
-  async setLoginBanner(id: string) {
+  async setLoginBanner(id: string, text?: string) {
     return this.request<{ success: boolean; data: { login_banner_set: boolean } }>(
       `/machines/${id}/actions/sync`,
       {
         method: "POST",
-        body: JSON.stringify({ action_id: "security.set_login_banner", params: {}, timeout: 30000 }),
+        body: JSON.stringify({
+          action_id: "security.set_login_banner",
+          params: text != null ? { text } : {},
+          timeout: 30000,
+        }),
       }
     );
   }
