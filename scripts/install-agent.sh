@@ -155,8 +155,13 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage:"
             echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F]"
+            echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
             echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # purge + réinstalle"
             echo "  install-agent.sh --uninstall                                                                   # suppression complète"
+            echo ""
+            echo "  NB : la mise à jour 'self-upgrade' (depuis l'UI) ne remplace QUE le binaire."
+            echo "       sudoers et service systemd ne sont (ré)écrits que par ce script —"
+            echo "       à relancer si le sudoers a dérivé (ex. nouvelle commande whitelistée)."
             exit 0 ;;
         *) error "Option inconnue: $1"; exit 1 ;;
     esac
@@ -469,35 +474,45 @@ ok "Répertoires créés."
 
 info "Installation du binaire..."
 
-if [ -n "$AGENT_BINARY" ] && [ -f "$AGENT_BINARY" ]; then
-    # Skip cp if source and destination are the same file (cas ou le binaire
-    # a ete telecharge directement dans $BIN_PATH avant l'install)
-    if [ "$(readlink -f "$AGENT_BINARY")" != "$(readlink -f "$BIN_PATH")" ]; then
-        cp "$AGENT_BINARY" "$BIN_PATH"
-    else
-        ok "Binaire deja en place : $BIN_PATH"
-    fi
-elif [ -f "./nexus-agent" ]; then
-    cp "./nexus-agent" "$BIN_PATH"
-elif [ -f "$(dirname "$0")/../agent/nexus-agent" ]; then
-    cp "$(dirname "$0")/../agent/nexus-agent" "$BIN_PATH"
+# Refresh d'un agent déjà enrôlé, sans binaire fourni : on CONSERVE le binaire
+# en place. C'est volontaire — ce mode sert à rafraîchir sudoers/service (que la
+# self-upgrade ne peut pas mettre à jour) sans écraser/rétrograder le binaire que
+# la self-upgrade a éventuellement installé.
+if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -z "$AGENT_BINARY" ] && [ ! -f "./nexus-agent" ] && [ -f "$BIN_PATH" ]; then
+    chown root:root "$BIN_PATH"
+    chmod 755 "$BIN_PATH"
+    ok "Refresh : binaire existant conservé ($BIN_PATH, $(du -h "$BIN_PATH" | cut -f1)) — géré par la self-upgrade."
 else
-    # Essayer d'extraire depuis l'image Docker
-    if docker image inspect nexus-agent:latest &>/dev/null; then
-        info "Extraction du binaire depuis l'image Docker..."
-        CONTAINER_ID=$(docker create nexus-agent:latest)
-        docker cp "$CONTAINER_ID:/usr/local/bin/nexus-agent" "$BIN_PATH"
-        docker rm "$CONTAINER_ID" > /dev/null
+    if [ -n "$AGENT_BINARY" ] && [ -f "$AGENT_BINARY" ]; then
+        # Skip cp if source and destination are the same file (cas ou le binaire
+        # a ete telecharge directement dans $BIN_PATH avant l'install)
+        if [ "$(readlink -f "$AGENT_BINARY")" != "$(readlink -f "$BIN_PATH")" ]; then
+            cp "$AGENT_BINARY" "$BIN_PATH"
+        else
+            ok "Binaire deja en place : $BIN_PATH"
+        fi
+    elif [ -f "./nexus-agent" ]; then
+        cp "./nexus-agent" "$BIN_PATH"
+    elif [ -f "$(dirname "$0")/../agent/nexus-agent" ]; then
+        cp "$(dirname "$0")/../agent/nexus-agent" "$BIN_PATH"
     else
-        error "Binaire nexus-agent introuvable. Utilisez --binary <chemin>"
-        exit 1
+        # Essayer d'extraire depuis l'image Docker
+        if docker image inspect nexus-agent:latest &>/dev/null; then
+            info "Extraction du binaire depuis l'image Docker..."
+            CONTAINER_ID=$(docker create nexus-agent:latest)
+            docker cp "$CONTAINER_ID:/usr/local/bin/nexus-agent" "$BIN_PATH"
+            docker rm "$CONTAINER_ID" > /dev/null
+        else
+            error "Binaire nexus-agent introuvable. Utilisez --binary <chemin>"
+            exit 1
+        fi
     fi
+
+    chown root:root "$BIN_PATH"
+    chmod 755 "$BIN_PATH"
+
+    ok "Binaire installé : $BIN_PATH ($(du -h "$BIN_PATH" | cut -f1))"
 fi
-
-chown root:root "$BIN_PATH"
-chmod 755 "$BIN_PATH"
-
-ok "Binaire installé : $BIN_PATH ($(du -h "$BIN_PATH" | cut -f1))"
 
 # ===================== 4. Fichier de configuration =====================
 
@@ -623,6 +638,9 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     ok "Agent démarré avec succès !"
     echo ""
     echo -e "${GREEN}=== Installation terminée ===${NC}"
+    echo ""
+    echo -e "  ${GREEN}Rafraîchis :${NC} sudoers ($SUDOERS_FILE) + service systemd"
+    echo "  (ce sont précisément les fichiers que la self-upgrade ne peut pas mettre à jour)"
     echo ""
     echo "  Commandes utiles :"
     echo "    systemctl status $SERVICE_NAME     # Statut"
