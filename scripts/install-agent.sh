@@ -64,6 +64,19 @@ wipe_agent() {
     systemctl reset-failed "$SERVICE_NAME" &>/dev/null || true
     ok "Unit systemd supprimée."
 
+    # 1bis. S'assurer qu'AUCUN process agent ne survit. Sinon `userdel` échoue
+    # ET — plus grave — l'ancien agent reste connecté avec l'ancienne identité
+    # et entre en conflit avec le nouveau lors du ré-enrôlement (échec du check
+    # ECDSA / session WS volée). On termine proprement puis on force.
+    if id "$AGENT_USER" &>/dev/null; then
+        pkill -TERM -u "$AGENT_USER" 2>/dev/null || true
+        for _ in 1 2 3 4 5; do
+            pgrep -u "$AGENT_USER" >/dev/null 2>&1 || break
+            sleep 1
+        done
+        pkill -KILL -u "$AGENT_USER" 2>/dev/null || true
+    fi
+
     # 2. Binaire
     rm -f "$BIN_PATH"
     ok "Binaire supprimé : $BIN_PATH"
