@@ -2,12 +2,36 @@ package actions
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
+
+// runCmdTimeout exécute une commande avec un timeout dur. En cas de dépassement,
+// tout le groupe de processus est tué (sudo + enfants apt/lynis) pour ne pas
+// laisser de processus orphelin, et l'agent n'est jamais bloqué indéfiniment.
+func runCmdTimeout(timeout time.Duration, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process != nil {
+			return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return nil
+	}
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return out, fmt.Errorf("timeout après %s", timeout)
+	}
+	return out, err
+}
 
 // OnSecurityProgress streame les lignes de l'audit Lynis vers le frontend
 // (console live), comme OnUpdateProgress pour apt. Câblé dans main.go.
@@ -49,11 +73,16 @@ func lynisPath() string {
 // sortie réelle d'apt en cas d'échec (diagnostic : paquet absent des dépôts,
 // dépôt universe désactivé, réseau, sudoers/NOEXEC...).
 func installLynis() (string, error) {
+	if OnSecurityProgress != nil {
+		OnSecurityProgress("Installation de Lynis (apt)…", 3)
+	}
 	// apt-get update (whitelisté) — non fatal : l'install peut réussir si
 	// l'index est déjà à jour. Sur une VM fraîche, c'est souvent indispensable.
-	updateOut, _ := exec.Command("sudo", "-n", "/usr/bin/apt-get", "update").CombinedOutput()
+	// Timeout dur : si le lock apt est tenu (unattended-upgrades) ou un dépôt
+	// lent, on ne bloque pas l'agent indéfiniment.
+	updateOut, _ := runCmdTimeout(90*time.Second, "sudo", "-n", "/usr/bin/apt-get", "update")
 
-	out, err := exec.Command("sudo", "-n", "/usr/bin/apt-get", "install", "-y", "-qq", "lynis").CombinedOutput()
+	out, err := runCmdTimeout(150*time.Second, "sudo", "-n", "/usr/bin/apt-get", "install", "-y", "-qq", "lynis")
 	combined := strings.TrimSpace(string(out))
 	if err != nil {
 		detail := combined
@@ -74,6 +103,9 @@ type lynisItem struct {
 }
 
 func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, error) {
+	if OnSecurityProgress != nil {
+		OnSecurityProgress("Lancement de l'audit Lynis…", 2)
+	}
 	installed := false
 	bin := lynisPath()
 	if bin == "" {
@@ -97,7 +129,18 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	// pousse via OnSecurityProgress (console live côté UI). --quick évite la
 	// pause de fin ; --no-colors pour une sortie propre. Lynis écrit toujours
 	// son rapport dans /var/log/lynis-report.dat.
-	cmd := exec.Command("sudo", "-n", bin, "audit", "system", "--quick", "--no-colors")
+	// Timeout dur (5 min) : un lynis qui se bloque ne doit jamais figer l'agent
+	// ni le modal indéfiniment. Setpgid + Cancel tuent tout le groupe à l'expiration.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sudo", "-n", bin, "audit", "system", "--quick", "--no-colors")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process != nil {
+			return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return nil
+	}
 	stdout, pipeErr := cmd.StdoutPipe()
 	if pipeErr != nil {
 		return nil, fmt.Errorf("pipe lynis: %w", pipeErr)
@@ -117,6 +160,9 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	}
 	// Code de sortie != 0 = warnings présents : NON bloquant. On se fie au rapport.
 	_ = cmd.Wait()
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, fmt.Errorf("audit Lynis interrompu : timeout (5 min) dépassé")
+	}
 
 	report, err := readLynisReport()
 	if err != nil {
