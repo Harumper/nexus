@@ -142,6 +142,8 @@ export interface SecurityAuditResult {
   auto_updates_active: boolean;
   ssh_hardened: boolean;
   login_banner_set?: boolean;
+  core_dumps_disabled?: boolean;
+  login_defs_hardened?: boolean;
 }
 
 export interface MetricsResponse {

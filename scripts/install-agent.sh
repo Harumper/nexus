@@ -362,6 +362,12 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/li
 # Bannière légale (security.set_login_banner) : /etc/issue + /etc/issue.net
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue.net
+# Core dumps off (security.disable_core_dumps)
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-nocore-*.tmp /etc/security/limits.d/99-nexus-nocore.conf
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-coredump-*.tmp /etc/sysctl.d/99-nexus-coredump.conf
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sysctl -p /etc/sysctl.d/99-nexus-coredump.conf
+# Durcissement login.defs (security.harden_login_defs)
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-logindefs-*.tmp /etc/login.defs
 
 # === Assistant pare-feu : sockets en écoute (lecture seule) ===
 # ss -p (noms de process) nécessite root. Chemins selon packaging (sbin/bin).

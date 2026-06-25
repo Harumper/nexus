@@ -578,3 +578,30 @@ describe("Security — remédiation bannière légale (1-clic)", () => {
     expect(tab).toContain("Bannière légale");
   });
 });
+
+describe("Security — remédiations durcissement + doc inline", () => {
+  it("agent: actions core_dumps + login_defs", () => {
+    const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
+    expect(h).toContain('"security.disable_core_dumps"');
+    expect(h).toContain('"security.harden_login_defs"');
+    expect(h).toContain("func setLoginDef(");
+    expect(h).toContain("fs.suid_dumpable = 0");
+    const audit = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
+    expect(audit).toContain('parsed["core_dumps_disabled"]');
+    expect(audit).toContain('parsed["login_defs_hardened"]');
+  });
+
+  it("sudoers: install + sysctl whitelistés", () => {
+    const s = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(s).toContain("99-nexus-nocore.conf");
+    expect(s).toContain("/usr/sbin/sysctl -p /etc/sysctl.d/99-nexus-coredump.conf");
+    expect(s).toContain("sec-logindefs-*.tmp /etc/login.defs");
+  });
+
+  it("frontend: cartes + lien doc Lynis sur chaque finding", () => {
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("core_dumps_disabled");
+    expect(tab).toContain("login_defs_hardened");
+    expect(tab).toContain("cisofy.com/lynis/controls/");
+  });
+});

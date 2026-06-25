@@ -442,6 +442,44 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                   )
                 }
               />
+              <RemediationRow
+                label="Désactiver les core dumps"
+                active={!!result.core_dumps_disabled}
+                activeLabel="Désactivés"
+                actionLabel="Désactiver"
+                busy={applying === "nocore"}
+                disabled={!canRemediate}
+                onApply={() =>
+                  applyRemediation(
+                    "nocore",
+                    {
+                      title: "Désactiver les core dumps ?",
+                      description:
+                        "Dépose limits.d + sysctl (fs.suid_dumpable=0) pour empêcher les vidages mémoire (qui peuvent contenir des secrets). Sans incidence sur les services.",
+                    },
+                    () => api.disableCoreDumps(machineId)
+                  )
+                }
+              />
+              <RemediationRow
+                label="Durcir /etc/login.defs (umask 027 + âges de mot de passe)"
+                active={!!result.login_defs_hardened}
+                activeLabel="Durci"
+                actionLabel="Durcir"
+                busy={applying === "logindefs"}
+                disabled={!canRemediate}
+                onApply={() =>
+                  applyRemediation(
+                    "logindefs",
+                    {
+                      title: "Durcir /etc/login.defs ?",
+                      description:
+                        "Applique umask 027, âges de mot de passe (max 90j / min 1j / avertissement 14j) et rounds de hachage SHA. N'affecte que les NOUVEAUX comptes/mots de passe — les comptes existants ne sont pas verrouillés.",
+                    },
+                    () => api.hardenLoginDefs(machineId)
+                  )
+                }
+              />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
@@ -704,17 +742,39 @@ function FindingList({
         {title} <span className="text-muted-foreground">({items.length})</span>
       </h3>
       <ul className="space-y-2">
-        {items.map((it, i) => (
-          <li key={`${it.id}-${i}`} className="flex items-start gap-3 text-sm">
-            <span
-              className="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded mt-0.5"
-              style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}
-            >
-              {it.id || "—"}
-            </span>
-            <span className="text-foreground">{it.text || it.id}</span>
-          </li>
-        ))}
+        {items.map((it, i) => {
+          // Les IDs de contrôle Lynis (AUTH-9230, BANN-7126, DEB-0280…) ont une
+          // page de doc officielle → lien direct depuis la ligne du rapport.
+          const docUrl = /^[A-Z]+-\d+$/.test(it.id || "")
+            ? `https://cisofy.com/lynis/controls/${it.id}/`
+            : null;
+          const idCls =
+            "shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded mt-0.5 transition-colors";
+          return (
+            <li key={`${it.id}-${i}`} className="flex items-start gap-3 text-sm">
+              {docUrl ? (
+                <a
+                  href={docUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Documentation Lynis — ${it.id}`}
+                  className={`${idCls} hover:underline`}
+                  style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-info)" }}
+                >
+                  {it.id}
+                </a>
+              ) : (
+                <span
+                  className={idCls}
+                  style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}
+                >
+                  {it.id || "—"}
+                </span>
+              )}
+              <span className="text-foreground">{it.text || it.id}</span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

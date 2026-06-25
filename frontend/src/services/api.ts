@@ -751,6 +751,26 @@ class ApiClient {
     );
   }
 
+  async disableCoreDumps(id: string) {
+    return this.request<{ success: boolean; data: { core_dumps_disabled: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.disable_core_dumps", params: {}, timeout: 30000 }),
+      }
+    );
+  }
+
+  async hardenLoginDefs(id: string) {
+    return this.request<{ success: boolean; data: { login_defs_hardened: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.harden_login_defs", params: {}, timeout: 30000 }),
+      }
+    );
+  }
+
   // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
   async sshdHarden(id: string) {
     return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
