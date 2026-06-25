@@ -233,6 +233,10 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
           machine: { select: { id: true, name: true, hostname: true } },
         },
         orderBy: { firedAt: "desc" },
+        // Borne de sécurité : une tempête d'alertes (panne réseau touchant tout
+        // le parc) ne doit pas renvoyer des milliers de lignes d'un coup. Endpoint
+        // poll par le Dashboard (30s) et chaque useMachineAttention (60s).
+        take: 500,
       });
 
       return reply.send(alerts);
