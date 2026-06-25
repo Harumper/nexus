@@ -479,16 +479,6 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 	}
 
 	log.Printf("[Agent] Action request: %s (request_id: %s)", request.ActionID, request.RequestID)
-	// Diag : log des CLÉS de params (jamais les valeurs — évite de fuiter
-	// mots de passe / clés SSH) + la valeur du flag dry_run, pour tracer le
-	// chemin de l'aperçu (dry-run) de bout en bout.
-	if len(request.Params) > 0 {
-		keys := make([]string, 0, len(request.Params))
-		for k := range request.Params {
-			keys = append(keys, k)
-		}
-		log.Printf("[Agent] action=%s param_keys=%v dry_run=%v", request.ActionID, keys, request.Params["dry_run"])
-	}
 
 	// Idempotence : ne jamais ré-exécuter un request_id déjà traité.
 	if cached, dup := idemReserve(request.RequestID); dup {
