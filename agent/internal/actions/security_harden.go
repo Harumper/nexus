@@ -53,17 +53,30 @@ poursuites. Toutes les activites peuvent etre journalisees et surveillees.
 
 const autoUpdatesConfPath = "/etc/apt/apt.conf.d/20auto-upgrades"
 
-// jail.local curé : protège SSH par défaut, lit le journal systemd.
-const fail2banJailLocal = `# Généré par Nexus — protection anti-bruteforce de base.
+// jail.local : protège SSH par défaut, lit le journal systemd. Les 3 valeurs
+// (bantime/findtime/maxretry) sont configurables via les params de l'action.
+const fail2banJailTemplate = `# Généré par Nexus — protection anti-bruteforce de base.
 [DEFAULT]
-bantime  = 1h
-findtime = 10m
-maxretry = 5
+bantime  = %s
+findtime = %s
+maxretry = %s
 backend  = systemd
 
 [sshd]
 enabled = true
 `
+
+// bantime/findtime : durée fail2ban (secondes ou abrégé 600/10m/1h/1d/1w).
+var fail2banDurationRe = regexp.MustCompile(`^\d+[smhdw]?$`)
+var fail2banIntRe = regexp.MustCompile(`^\d+$`)
+
+// paramStr lit un paramètre string avec valeur par défaut.
+func paramStr(params map[string]interface{}, key, def string) string {
+	if v, ok := params[key].(string); ok && strings.TrimSpace(v) != "" {
+		return strings.TrimSpace(v)
+	}
+	return def
+}
 
 const autoUpdatesConf = `// Généré par Nexus — mises à jour de sécurité automatiques.
 APT::Periodic::Update-Package-Lists "1";
@@ -74,11 +87,22 @@ APT::Periodic::Unattended-Upgrade "1";
 
 type HardenFail2banAction struct{}
 
-func (a *HardenFail2banAction) ID() string                          { return "security.harden_fail2ban" }
-func (a *HardenFail2banAction) Capability() string                  { return "security" }
-func (a *HardenFail2banAction) Validate(_ map[string]interface{}) error { return nil }
+func (a *HardenFail2banAction) ID() string         { return "security.harden_fail2ban" }
+func (a *HardenFail2banAction) Capability() string { return "security" }
 
-func (a *HardenFail2banAction) Execute(_ map[string]interface{}) (interface{}, error) {
+func (a *HardenFail2banAction) Validate(params map[string]interface{}) error {
+	for _, k := range []string{"bantime", "findtime"} {
+		if v, ok := params[k].(string); ok && v != "" && !fail2banDurationRe.MatchString(v) {
+			return fmt.Errorf("%s invalide (attendu: 600, 10m, 1h, 1d…)", k)
+		}
+	}
+	if v, ok := params["maxretry"].(string); ok && v != "" && !fail2banIntRe.MatchString(v) {
+		return fmt.Errorf("maxretry invalide (entier attendu)")
+	}
+	return nil
+}
+
+func (a *HardenFail2banAction) Execute(params map[string]interface{}) (interface{}, error) {
 	// 1. Installer si absent (apt whitelisté)
 	if !fileExists("/usr/bin/fail2ban-client") {
 		if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "fail2ban"); err != nil {
@@ -86,8 +110,14 @@ func (a *HardenFail2banAction) Execute(_ map[string]interface{}) (interface{}, e
 		}
 	}
 
-	// 2. Déposer jail.local (tempfile + sudo install, comme netplan/sshkeys)
-	if err := installRootFile(fail2banJailLocal, "sec-fail2ban-*.tmp", "/etc/fail2ban/jail.local"); err != nil {
+	// 2. Déposer jail.local (valeurs validées → pas d'injection de conf)
+	jail := fmt.Sprintf(
+		fail2banJailTemplate,
+		paramStr(params, "bantime", "1h"),
+		paramStr(params, "findtime", "10m"),
+		paramStr(params, "maxretry", "5"),
+	)
+	if err := installRootFile(jail, "sec-fail2ban-*.tmp", "/etc/fail2ban/jail.local"); err != nil {
 		return nil, err
 	}
 

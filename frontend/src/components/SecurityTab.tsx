@@ -4,7 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { toast } from "sonner";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
-import { useConfirm, Dialog, Textarea, Button } from "./ui";
+import { useConfirm, Dialog, Textarea, Button, Input } from "./ui";
 
 // Bannière par défaut proposée dans l'éditeur (modifiable avant dépôt).
 const DEFAULT_BANNER = `*** Accès restreint ***
@@ -65,6 +65,10 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [fwLoading, setFwLoading] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
   const [bannerText, setBannerText] = useState(DEFAULT_BANNER);
+  const [f2bOpen, setF2bOpen] = useState(false);
+  const [f2bBantime, setF2bBantime] = useState("1h");
+  const [f2bFindtime, setF2bFindtime] = useState("10m");
+  const [f2bMaxretry, setF2bMaxretry] = useState("5");
 
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
@@ -123,6 +127,24 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
   // Applique une remédiation après confirmation, puis relance l'audit pour
   // rafraîchir l'état affiché.
+  const applyFail2ban = async () => {
+    setApplying("fail2ban");
+    try {
+      await api.hardenFail2ban(machineId, {
+        bantime: f2bBantime,
+        findtime: f2bFindtime,
+        maxretry: f2bMaxretry,
+      });
+      toast.success("fail2ban configuré.");
+      setF2bOpen(false);
+      await runAudit();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de la configuration fail2ban"));
+    } finally {
+      setApplying(null);
+    }
+  };
+
   const applyBanner = async () => {
     setApplying("banner");
     try {
@@ -406,20 +428,10 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 label="Protection anti-bruteforce (fail2ban)"
                 active={result.fail2ban_active}
                 activeLabel={result.fail2ban_installed && !result.fail2ban_active ? "Installé, inactif" : "Actif"}
-                actionLabel={result.fail2ban_installed ? "Activer" : "Installer + activer"}
+                actionLabel={result.fail2ban_installed ? "Configurer" : "Installer + configurer"}
                 busy={applying === "fail2ban"}
                 disabled={!canRemediate}
-                onApply={() =>
-                  applyRemediation(
-                    "fail2ban",
-                    {
-                      title: "Installer/activer fail2ban ?",
-                      description:
-                        "Installe fail2ban (si absent), déploie une jail SSH par défaut (ban après 5 essais) et active le service.",
-                    },
-                    () => api.hardenFail2ban(machineId)
-                  )
-                }
+                onApply={() => setF2bOpen(true)}
               />
               <RemediationRow
                 label="Mises à jour de sécurité automatiques (unattended-upgrades)"
@@ -666,6 +678,48 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
         <p className="text-[11px] text-muted-foreground mt-2">
           Sans incidence sur l'accès. Max 4096 caractères.
         </p>
+      </Dialog>
+
+      <Dialog
+        open={f2bOpen}
+        onClose={() => setF2bOpen(false)}
+        size="md"
+        title="Protection anti-bruteforce (fail2ban)"
+        description="Installe fail2ban si absent, déploie une jail SSH et active le service."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setF2bOpen(false)} disabled={applying === "fail2ban"}>
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={applyFail2ban}
+              loading={applying === "fail2ban"}
+              disabled={!canRemediate}
+            >
+              Appliquer
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-xs font-medium">Durée de bannissement (bantime)</span>
+            <Input value={f2bBantime} onChange={(e) => setF2bBantime(e.target.value)} placeholder="1h" className="font-mono" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium">Fenêtre de détection (findtime)</span>
+            <Input value={f2bFindtime} onChange={(e) => setF2bFindtime(e.target.value)} placeholder="10m" className="font-mono" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium">Essais avant ban (maxretry)</span>
+            <Input value={f2bMaxretry} onChange={(e) => setF2bMaxretry(e.target.value)} placeholder="5" className="font-mono" />
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            Durées : secondes ou abrégé (<code>600</code>, <code>10m</code>, <code>1h</code>, <code>1d</code>, <code>1w</code>).
+            SSH est protégé par défaut.
+          </p>
+        </div>
       </Dialog>
     </div>
   );

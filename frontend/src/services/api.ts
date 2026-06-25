@@ -721,12 +721,15 @@ class ApiClient {
   }
 
   // Remédiations de durcissement « 1 clic » (Phase 2)
-  async hardenFail2ban(id: string) {
+  async hardenFail2ban(
+    id: string,
+    opts: { bantime?: string; findtime?: string; maxretry?: string } = {}
+  ) {
     return this.request<{ success: boolean; data: { fail2ban_active: boolean } }>(
       `/machines/${id}/actions/sync`,
       {
         method: "POST",
-        body: JSON.stringify({ action_id: "security.harden_fail2ban", params: {}, timeout: 60000 }),
+        body: JSON.stringify({ action_id: "security.harden_fail2ban", params: opts, timeout: 60000 }),
       }
     );
   }
