@@ -781,13 +781,27 @@ class ApiClient {
   // Aperçu générique (dry-run) d'une remédiation : renvoie les fichiers/directives
   // qui seraient écrits, sans rien appliquer.
   async remediationPreview(id: string, actionId: string) {
-    return this.request<{
+    const res = await this.request<{
       success: boolean;
-      data: { changes: { path: string; content: string }[]; note?: string };
+      // Deux formes possibles côté agent :
+      //  - dryRunChanges (auto-updates/core-dumps/login.defs) → { changes, note }
+      //  - sshd.harden dry-run → { dropin, content, watchdog_expires_in }
+      data: {
+        changes?: { path: string; content: string }[];
+        note?: string;
+        dropin?: string;
+        content?: string;
+      };
     }>(`/machines/${id}/actions/sync`, {
       method: "POST",
       body: JSON.stringify({ action_id: actionId, params: { dry_run: true }, timeout: 15000 }),
     });
+
+    const d = res.data;
+    const changes =
+      d.changes ??
+      (d.dropin && d.content !== undefined ? [{ path: d.dropin, content: d.content }] : []);
+    return { ...res, data: { changes, note: d.note } };
   }
 
   // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
