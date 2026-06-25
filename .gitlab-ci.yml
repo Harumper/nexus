@@ -34,12 +34,19 @@ version:
     GIT_DEPTH: 0 # clone complet : indispensable pour récupérer les tags
   before_script:
     - apk add --no-cache git
-  script:
-    - VERSION="$(git describe --tags --always --dirty 2>/dev/null || true)"
-    - '[ -z "$VERSION" ] && VERSION="0.0.0-unknown"'
-    - VERSION="${VERSION#v}" # retire le 'v' de tête (v0.2.0 -> 0.2.0)
-    # Si pas de tag (sha seul), préfixe pour rester lisible comme une version
-    - 'case "$VERSION" in *.*.*) : ;; *) VERSION="0.0.0-dev+$VERSION" ;; esac'
+    # Version AGENT : DOIT changer uniquement quand le code de l'agent change
+    # (sinon un commit backend/frontend signalerait une "MAJ dispo" sur tous les
+    # agents alors que le binaire est identique). On combine :
+    #   - le dernier tag joignable (vrai versioning de release), ou 0.0.0-dev ;
+    #   - le sha du DERNIER commit touchant agent/ (build metadata +agent.<sha>).
+    # Résultat : la version ne bouge que sur un nouveau tag OU un changement agent.
+    # La comparaison "MAJ dispo" est une simple égalité de cette chaîne.
+    - BASE="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+    - '[ -z "$BASE" ] && BASE="0.0.0-dev"'
+    - BASE="${BASE#v}" # retire le 'v' de tête (v0.2.0 -> 0.2.0)
+    - 'AGENT_REV="$(git rev-list -1 HEAD -- agent/ 2>/dev/null | cut -c1-7)"'
+    - '[ -z "$AGENT_REV" ] && AGENT_REV="none"'
+    - VERSION="${BASE}+agent.${AGENT_REV}"
     - echo "AGENT_VERSION=$VERSION" > version.env
     - cat version.env
   artifacts:
