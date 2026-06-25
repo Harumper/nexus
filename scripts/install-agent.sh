@@ -45,68 +45,43 @@ fi
 
 # ===================== Fonctions de nettoyage =====================
 
-# purge_state : supprime l'identité et l'état résiduel qui font échouer un
-# ré-enrollement (clés ECDSA agent, shared secret, ancienne clé serveur,
-# snapshots watchdog non confirmés, inbox, ancienne config). Conserve le
-# binaire, le user, le sudoers et le service (réécrits par l'install).
-# C'est LA correction du deadlock "l'agent saute l'enrollement car shared.secret
-# existe et s'authentifie avec un secret que le backend ne connaît plus".
-purge_state() {
-    info "Purge de l'état résiduel (ré-enrollement propre)..."
-
-    # Clés ECDSA agent + shared secret dérivé (cause n°1 du deadlock)
-    rm -f "$KEY_DIR/agent.key" "$KEY_DIR/agent.pub" "$KEY_DIR/shared.secret"
-    # Variante historique du KeyPath (config.go défaut /opt/nexus/keys)
-    rm -f /opt/nexus/keys/agent.key /opt/nexus/keys/agent.pub /opt/nexus/keys/shared.secret
-
-    # Ancienne clé publique serveur (régénérée à chaque re-enroll côté backend)
-    rm -f "$CONFIG_DIR/server-public-key.pem"
-
-    # Snapshots watchdog NON confirmés : dangereux, seraient revert au boot
-    rm -f "$AGENT_SCRIPT_DIR"/firewall-snapshot-*.iptables 2>/dev/null || true
-    rm -rf "$AGENT_SCRIPT_DIR"/netplan-snapshot-* 2>/dev/null || true
-    # Scripts temporaires et tempfiles d'install résiduels
-    rm -f "$AGENT_SCRIPT_DIR"/nexus-script-*.sh "$AGENT_SCRIPT_DIR"/nexus-agent.new \
-          "$AGENT_SCRIPT_DIR"/sshkey-*.tmp 2>/dev/null || true
-
-    # Ancienne config (réécrite ensuite avec le nouveau token / nouvelle clé)
-    rm -f "$CONFIG_DIR/agent.env"
-
-    ok "État résiduel purgé : l'agent se ré-enrôlera proprement."
-}
-
-# do_uninstall : suppression COMPLÈTE de l'agent (équivalent --purge).
-# Exhaustif d'après l'audit : service, binaire, dirs, clés, sudoers, user, groupe.
-do_uninstall() {
-    echo ""
-    echo -e "${BLUE}=== Nexus Agent - Désinstallation complète ===${NC}"
-    echo ""
+# wipe_agent : suppression COMPLÈTE de l'agent (table rase) — service, binaire,
+# clés, shared secret, clé serveur, config, état/snapshots, SUDOERS, utilisateur.
+# Argument "keep-logs" → conserve $LOG_DIR (cas du ré-enrollement), sinon les
+# logs sont aussi supprimés (cas --uninstall).
+# Réutilisé par do_uninstall ET par --reenroll : un ré-enrôlement repart donc
+# d'une base propre (sudoers/user/binaire inclus), pas seulement de l'identité.
+wipe_agent() {
+    local keep_logs="${1:-}"
 
     # 1. Service systemd : stop + disable + suppression unit + reload
-    if systemctl list-unit-files "${SERVICE_NAME}.service" &>/dev/null \
-       && systemctl cat "${SERVICE_NAME}.service" &>/dev/null; then
-        if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-            systemctl stop "$SERVICE_NAME" && ok "Service arrêté."
-        fi
-        systemctl disable "$SERVICE_NAME" &>/dev/null && ok "Service désactivé." || true
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        systemctl stop "$SERVICE_NAME" && ok "Service arrêté."
     fi
+    systemctl disable "$SERVICE_NAME" &>/dev/null || true
     rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
     systemctl daemon-reload
     systemctl reset-failed "$SERVICE_NAME" &>/dev/null || true
     ok "Unit systemd supprimée."
 
     # 2. Binaire
-    rm -f "$BIN_PATH" && ok "Binaire supprimé : $BIN_PATH"
+    rm -f "$BIN_PATH"
+    ok "Binaire supprimé : $BIN_PATH"
 
-    # 3. Clés, config, état, snapshots, logs, install dir (tout ce qui survit)
-    rm -rf "$KEY_DIR" /var/lib/nexus /opt/nexus
+    # 3. Clés, shared secret, clé serveur, config, état/snapshots (+ logs si non conservés)
+    rm -rf "$KEY_DIR" /opt/nexus/keys /var/lib/nexus /opt/nexus
     rm -rf "$CONFIG_DIR"
-    rm -rf "$AGENT_SCRIPT_DIR"        # /var/lib/nexus-agent (snapshots/inbox/scripts)
-    rm -rf "$LOG_DIR"
-    ok "Clés, config, état et snapshots supprimés."
+    rm -rf "$AGENT_SCRIPT_DIR"        # /var/lib/nexus-agent (snapshots/inbox/scripts/tempfiles)
+    if [ "$keep_logs" = "keep-logs" ]; then
+        ok "Clés, config, état et snapshots supprimés (logs conservés)."
+    else
+        rm -rf "$LOG_DIR"
+        ok "Clés, config, état, snapshots et logs supprimés."
+    fi
 
-    # 4. Sudoers
-    rm -f /etc/sudoers.d/nexus-agent && ok "Sudoers supprimé."
+    # 4. Sudoers (table rase — réécrit ensuite par l'install)
+    rm -f /etc/sudoers.d/nexus-agent
+    ok "Sudoers supprimé."
 
     # 5. Utilisateur système + retrait du groupe
     if id "$AGENT_USER" &>/dev/null; then
@@ -114,7 +89,14 @@ do_uninstall() {
         userdel "$AGENT_USER" &>/dev/null && ok "Utilisateur '$AGENT_USER' supprimé." || \
             warn "Impossible de supprimer l'utilisateur '$AGENT_USER' (processus en cours ?)."
     fi
+}
 
+# do_uninstall : suppression complète (--purge), logs inclus.
+do_uninstall() {
+    echo ""
+    echo -e "${BLUE}=== Nexus Agent - Désinstallation complète ===${NC}"
+    echo ""
+    wipe_agent
     echo ""
     echo -e "${GREEN}=== Désinstallation terminée ===${NC}"
     echo "Les backups /etc/sudoers.bak.* ne sont pas touchés (suppression manuelle si besoin)."
@@ -149,14 +131,14 @@ while [[ $# -gt 0 ]]; do
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;
         --uninstall|--purge) MODE="uninstall";      shift ;;
-        # --reenroll : purge l'identité résiduelle (clés, secret, snapshots,
-        # ancienne clé serveur) AVANT de réinstaller/ré-enrôler proprement.
+        # --reenroll : TABLE RASE (supprime binaire, clés, secret, config,
+        # état, sudoers, utilisateur ; conserve les logs) PUIS réinstall propre.
         --reenroll)         MODE="reenroll";        shift ;;
         -h|--help)
             echo "Usage:"
             echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F]"
             echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
-            echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # purge + réinstalle"
+            echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # TABLE RASE (sudoers/user/binaire, logs gardés) + réinstall"
             echo "  install-agent.sh --uninstall                                                                   # suppression complète"
             echo ""
             echo "  NB : la mise à jour 'self-upgrade' (depuis l'UI) ne remplace QUE le binaire."
@@ -235,10 +217,12 @@ if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     ok "Agent arrêté."
 fi
 
-# Ré-enrollement : purger l'identité/état résiduel AVANT de reconfigurer, sinon
-# l'agent saute l'enrollement (shared.secret présent) et reste en deadlock.
+# Ré-enrollement : TABLE RASE avant de réinstaller (sudoers/user/binaire inclus,
+# logs conservés). Évite à la fois le deadlock shared.secret ET le sudoers
+# obsolète (puisque tout est réécrit ensuite par l'install).
 if [ "$MODE" = "reenroll" ]; then
-    purge_state
+    info "Ré-enrôlement : purge complète de l'agent (table rase, logs conservés)…"
+    wipe_agent keep-logs
 fi
 
 # ===================== 1. Créer l'utilisateur système =====================
