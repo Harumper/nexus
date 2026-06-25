@@ -93,8 +93,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const loadHistory = async (): Promise<SecurityScanPoint[]> => {
     try {
       const res = await api.securityScans(machineId, 50);
-      setHistory(res.scans);
-      return res.scans;
+      const scans = res.scans ?? []; // jamais null → pas de crash .filter/.length
+      setHistory(scans);
+      return scans;
     } catch {
       // historique non bloquant
       return [];

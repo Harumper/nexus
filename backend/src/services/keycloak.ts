@@ -19,6 +19,9 @@ let oidcConfig: openidClient.Configuration | null = null;
 // Mis en cache par jose (rotation de clés gérée automatiquement via le kid).
 let jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
 let expectedIssuer: string | null = null;
+// Client OIDC attendu : sert à vérifier que le token a bien été émis POUR Nexus
+// (azp/aud), pas pour un autre client du même realm Keycloak.
+let expectedClientId: string | null = null;
 
 export function isKeycloakEnabled(): boolean {
   const authMode = process.env.AUTH_MODE || "local";
@@ -60,6 +63,7 @@ export async function initKeycloak(): Promise<void> {
 
   const issuerUrl = `${url}/realms/${realm}`;
   expectedIssuer = issuerUrl;
+  expectedClientId = clientId;
 
   try {
     oidcConfig = await openidClient.discovery(
@@ -116,6 +120,7 @@ export async function verifyKeycloakToken(
 
     const p = payload as unknown as {
       sub: string;
+      azp?: string;
       preferred_username?: string;
       email?: string;
       name?: string;
@@ -125,6 +130,21 @@ export async function verifyKeycloakToken(
 
     if (!p.sub) {
       return { valid: false, error: "Token missing sub claim" };
+    }
+
+    // Contrôle d'audience : le token doit avoir été émis POUR le client Nexus,
+    // pas pour un autre client du même realm (sinon un token portant un rôle
+    // realm `nexus-admin` émis par une autre app donnerait ADMIN ici). Keycloak
+    // positionne `azp` = client émetteur ; on accepte aussi un `aud` contenant
+    // notre client. Tolérant si expectedClientId non configuré (ne casse rien).
+    if (expectedClientId) {
+      const aud = payload.aud;
+      const audOk = Array.isArray(aud)
+        ? aud.includes(expectedClientId)
+        : aud === expectedClientId;
+      if (p.azp !== expectedClientId && !audOk) {
+        return { valid: false, error: "Token audience mismatch (émis pour un autre client)" };
+      }
     }
 
     return {

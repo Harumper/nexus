@@ -11,6 +11,7 @@ import { processEnrollment } from "../services/enrollment.js";
 import { broadcastToDashboard } from "./dashboard.js";
 import { evaluateMetrics } from "../services/alert-engine.js";
 import { resolveResponse } from "../services/action-response.js";
+import { consumeInternalRequest } from "../services/action-dispatcher.js";
 import { verifyAgentMessage, verifyAgentIp } from "../services/security.js";
 import {
   processHeartbeat,
@@ -314,6 +315,12 @@ async function handleActionResponse(
   // Incrementer les compteurs Prometheus
   if (!payload.success) {
     actionsFailed.inc();
+  }
+
+  // Ne pas auditer la complétion d'un dispatch interne (sondes alert-engine) :
+  // symétrique du skip d'ACTION_REQUEST côté dispatcher.
+  if (consumeInternalRequest(payload.request_id)) {
+    return;
   }
 
   await prisma.auditLog.create({
