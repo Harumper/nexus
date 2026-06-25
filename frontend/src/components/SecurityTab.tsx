@@ -15,10 +15,37 @@ interface SecurityTabProps {
 
 type Pending = { kind: "sshd" | "firewall"; requestId: string; expiresAt: number };
 
+// Reconstitue un SecurityAuditResult à partir du dernier scan persisté
+// (tendance). Seuls les TEXTES des warnings/suggestions ne sont pas conservés
+// en base → listes vides ; le reste (indice, compteurs, remédiations) est exact.
+// Permet d'afficher la dernière posture connue au montage, au lieu d'un faux
+// « Aucun audit pour l'instant » alors que la tendance montre des scans.
+function scanPointToResult(p: SecurityScanPoint): SecurityAuditResult {
+  return {
+    hardening_index: p.hardeningIndex,
+    lynis_version: "",
+    warnings: [],
+    suggestions: [],
+    warning_count: p.warningCount,
+    suggestion_count: p.suggestionCount,
+    firewall_active: p.firewallActive,
+    firewall_empty_ruleset: false,
+    scan_date: p.scannedAt,
+    lynis_installed_now: false,
+    lynis_path: "",
+    fail2ban_installed: p.fail2banActive,
+    fail2ban_active: p.fail2banActive,
+    auto_updates_active: p.autoUpdatesActive,
+    ssh_hardened: p.sshHardened,
+  };
+}
+
 // Onglet « Durcissement » : audit Lynis (lecture seule) + remédiations 1-clic
 // (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
 export default function SecurityTab({ machineId, canRemediate = true }: SecurityTabProps) {
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
+  // result reconstitué depuis l'historique (détail warnings/suggestions absent).
+  const [resultStale, setResultStale] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false); // modal de progression de l'audit
   const [applying, setApplying] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -34,17 +61,28 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
 
-  const loadHistory = async () => {
+  const loadHistory = async (): Promise<SecurityScanPoint[]> => {
     try {
       const res = await api.securityScans(machineId, 50);
       setHistory(res.scans);
+      return res.scans;
     } catch {
       // historique non bloquant
+      return [];
     }
   };
 
   useEffect(() => {
-    loadHistory();
+    // Au montage : charger la tendance ET, faute d'audit live, afficher la
+    // dernière posture connue (reconstituée depuis le dernier scan persisté).
+    (async () => {
+      const scans = await loadHistory();
+      // result === null au montage ; on n'écrase jamais un résultat live.
+      if (scans.length > 0 && !result) {
+        setResult(scanPointToResult(scans[0]));
+        setResultStale(true);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [machineId]);
 
@@ -269,6 +307,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           onClose={() => setAuditOpen(false)}
           onResult={(data) => {
             setResult(data);
+            setResultStale(false);
             loadHistory();
           }}
         />
@@ -288,6 +327,19 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
       {/* Résultats */}
       {result && (
         <>
+          {resultStale && (
+            <div className="rounded-lg border border-border bg-elevated px-4 py-2.5 text-xs text-muted-foreground flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                Dernière posture connue
+                {result.scan_date
+                  ? ` (audit du ${new Date(result.scan_date).toLocaleString("fr-FR")})`
+                  : ""}
+                . Le détail des warnings/suggestions n'est pas conservé — relance
+                l'audit pour le voir.
+              </span>
+            </div>
+          )}
           {/* Score + parefeu */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <HardeningScore index={result.hardening_index} />
