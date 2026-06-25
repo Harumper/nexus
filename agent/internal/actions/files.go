@@ -46,7 +46,15 @@ var fsDenyPathPrefixes = []string{
 	"/etc/gshadow",
 	"/etc/sudoers", // y compris /etc/sudoers.d/* (sauf cas dédié géré par agent.sudoers_check)
 	"/root/.ssh/",
-	"/var/lib/nexus-agent/keys/",   // clés ECDSA backend/machine
+	// Répertoires de clés/secrets de l'agent Nexus. ATTENTION : le répertoire
+	// réel des clés est /var/lib/nexus/keys (KEY_DIR dans install-agent.sh),
+	// PAS /var/lib/nexus-agent/keys. shared.secret (clé AES du canal) y vit ;
+	// sans ces préfixes un fs.read (autorisé en PROBE/READONLY) l'exfiltrerait.
+	"/var/lib/nexus/keys/",
+	"/var/lib/nexus/",
+	"/opt/nexus/keys/",
+	"/opt/nexus/",
+	"/var/lib/nexus-agent/keys/",
 	"/var/lib/nexus-agent/secrets/",
 	"/proc/kcore",
 	"/sys/firmware/efi/efivars",
@@ -64,14 +72,15 @@ var fsDenyPatterns = []*regexp.Regexp{
 // Extensions de fichiers refusées en lecture. Couvre les fichiers de
 // clés et secrets qu'on ne veut pas voir transiter par Nexus.
 var fsDenyExtensions = map[string]bool{
-	".key":  true,
-	".pem":  true,
-	".pfx":  true,
-	".p12":  true,
-	".jks":  true,
-	".gpg":  true,
-	".asc":  true,
-	".kdbx": true,
+	".key":    true,
+	".pem":    true,
+	".pfx":    true,
+	".p12":    true,
+	".jks":    true,
+	".gpg":    true,
+	".asc":    true,
+	".kdbx":   true,
+	".secret": true, // shared.secret (clé AES du canal agent↔backend)
 }
 
 // Charset autorisé pour un nom de fichier uploadé. POSIX-safe, pas
@@ -110,6 +119,15 @@ func resolvePath(raw string) (string, os.FileInfo, error) {
 	info, err := os.Lstat(clean)
 	if err != nil {
 		return "", nil, fmt.Errorf("stat: %w", err)
+	}
+	// Défense en profondeur : Lstat ne résout que le dernier composant, donc un
+	// symlink de répertoire PARENT (/tmp/x/shared.secret -> /var/lib/nexus/keys)
+	// contournerait la denylist basée sur `clean`. On résout tous les symlinks
+	// et on re-teste la cible réelle (préfixes + patterns + extension).
+	if resolved, rerr := filepath.EvalSymlinks(clean); rerr == nil && resolved != clean {
+		if isDenied(resolved) {
+			return "", nil, fmt.Errorf("path denied by security policy (cible du lien): %s", resolved)
+		}
 	}
 	return clean, info, nil
 }

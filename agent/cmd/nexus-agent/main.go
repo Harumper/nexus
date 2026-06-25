@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -322,6 +323,9 @@ func main() {
 	}
 
 	log.Printf("[Agent] Authenticated (type=%s)", agentType)
+	// Propager le mode PROBE au package actions (effets de bord lecture-seule,
+	// ex. security.audit qui ne doit pas installer lynis en PROBE).
+	actions.SetProbeMode(strings.EqualFold(agentType, "probe"))
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
 	// Connecter le callback de progression des mises à jour système (apt)
@@ -477,6 +481,17 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 		log.Printf("[Agent] Failed to parse action request: %v", err)
 		return
 	}
+
+	// Filet de sécurité : un panic dans Validate/Execute d'une action ne doit
+	// JAMAIS faire tomber tout le process (sinon 10s d'indispo via restart
+	// systemd + perte du cache d'idempotence + des timers watchdog en cours).
+	// On renvoie une erreur propre et on libère la réservation d'idempotence.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[Agent] PANIC dans l'action %s (request_id=%s): %v", request.ActionID, request.RequestID, r)
+			sendActionResponse(client, request.RequestID, request.ActionID, false, nil, fmt.Sprintf("internal agent error: %v", r))
+		}
+	}()
 
 	log.Printf("[Agent] Action request: %s (request_id: %s)", request.ActionID, request.RequestID)
 

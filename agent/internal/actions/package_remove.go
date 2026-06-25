@@ -19,11 +19,12 @@ func (a *PackageRemoveAction) Validate(params map[string]interface{}) error {
 	if !ok {
 		return fmt.Errorf("required parameter 'packages' missing")
 	}
-	// Accept both string and []interface{}
+	// Accept both string and []interface{}. Validation partagée avec
+	// package.install (validPackageName) : charset + refus du '-' en tête.
 	switch v := packages.(type) {
 	case string:
-		if v == "" {
-			return fmt.Errorf("packages cannot be empty")
+		if err := validPackageName(v); err != nil {
+			return err
 		}
 	case []interface{}:
 		if len(v) == 0 {
@@ -31,14 +32,11 @@ func (a *PackageRemoveAction) Validate(params map[string]interface{}) error {
 		}
 		for _, p := range v {
 			name, ok := p.(string)
-			if !ok || name == "" {
+			if !ok {
 				return fmt.Errorf("invalid package name")
 			}
-			// Basic injection prevention - only allow alphanumeric, dash, dot, plus
-			for _, c := range name {
-				if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '+' || c == ':') {
-					return fmt.Errorf("invalid character in package name: %c", c)
-				}
+			if err := validPackageName(name); err != nil {
+				return err
 			}
 		}
 	default:

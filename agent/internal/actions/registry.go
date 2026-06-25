@@ -12,6 +12,18 @@ var (
 	registry = make(map[string]security.Action)
 )
 
+// probeMode reflète si l'agent tourne en mode PROBE (lecture seule). Mis à jour
+// par main.go quand le type de machine est connu. Les actions whitelistées PROBE
+// qui auraient un effet de bord (ex. security.audit installant lynis via apt)
+// doivent consulter ce flag pour rester strictement en lecture seule.
+var probeMode bool
+
+// SetProbeMode est appelé par main.go quand le type d'agent est déterminé.
+func SetProbeMode(v bool) { probeMode = v }
+
+// IsProbeMode renvoie true si l'agent est en mode PROBE (lecture seule).
+func IsProbeMode() bool { return probeMode }
+
 // Register enregistre une action dans le registre
 // Appelé dans les init() de chaque fichier d'action
 func Register(action security.Action) {

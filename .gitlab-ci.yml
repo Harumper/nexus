@@ -89,6 +89,9 @@ test-agent:
     - cd agent
   script:
     - go vet ./...
+    # Les tests Go (validation/injections, parsing ss/lynis, watchdog…) sont la
+    # partie la plus solide de la suite — ils DOIVENT tourner en CI.
+    - go test ./...
     - CGO_ENABLED=0 go build -o /tmp/nexus-agent ./cmd/nexus-agent
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'

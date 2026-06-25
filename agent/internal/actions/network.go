@@ -40,8 +40,9 @@ type PendingNetplan struct {
 }
 
 var (
-	netplanMu      sync.Mutex
-	pendingNetplan = map[string]*PendingNetplan{}
+	netplanMu        sync.Mutex
+	pendingNetplan   = map[string]*PendingNetplan{}
+	netplanReserving bool // réservation in-flight (ferme la fenêtre TOCTOU)
 )
 
 // HandleNetplanConfirm annule le revert pending.
@@ -139,14 +140,18 @@ func restoreNetplanFromSnapshot(snapDir string) error {
 // registerPendingNetplan snapshot + arme le timer 120s.
 func registerPendingNetplan(requestID string) (*PendingNetplan, error) {
 	netplanMu.Lock()
-	if len(pendingNetplan) > 0 {
+	if len(pendingNetplan) > 0 || netplanReserving {
 		netplanMu.Unlock()
 		return nil, fmt.Errorf("another netplan change is pending confirmation")
 	}
+	netplanReserving = true
 	netplanMu.Unlock()
 
 	snapDir, err := snapshotNetplan(requestID)
 	if err != nil {
+		netplanMu.Lock()
+		netplanReserving = false
+		netplanMu.Unlock()
 		return nil, err
 	}
 
@@ -171,6 +176,7 @@ func registerPendingNetplan(requestID string) (*PendingNetplan, error) {
 
 	netplanMu.Lock()
 	pendingNetplan[requestID] = p
+	netplanReserving = false
 	netplanMu.Unlock()
 	return p, nil
 }
@@ -186,10 +192,19 @@ func (a *NetworkStatusAction) Capability() string                         { retu
 func (a *NetworkStatusAction) Validate(_ map[string]interface{}) error    { return nil }
 
 func (a *NetworkStatusAction) Execute(_ map[string]interface{}) (interface{}, error) {
-	addrRaw, _ := exec.Command("/usr/sbin/ip", "-j", "addr").Output()
-	routeRaw, _ := exec.Command("/usr/sbin/ip", "-j", "route").Output()
+	addrRaw, addrErr := exec.Command("/usr/sbin/ip", "-j", "addr").Output()
+	routeRaw, routeErr := exec.Command("/usr/sbin/ip", "-j", "route").Output()
 
-	var addrs, routes []interface{}
+	// Si les deux commandes échouent, remonter une vraie erreur plutôt que de
+	// renvoyer des champs null (qui font planter le .map côté frontend).
+	if addrErr != nil && routeErr != nil {
+		return nil, fmt.Errorf("ip addr/route indisponibles: %v / %v", addrErr, routeErr)
+	}
+
+	// Slices initialisées non-nil : un JSON {"addresses":[],"routes":[]} plutôt
+	// que null, même si une commande échoue ou renvoie du vide.
+	addrs := []interface{}{}
+	routes := []interface{}{}
 	_ = json.Unmarshal(addrRaw, &addrs)
 	_ = json.Unmarshal(routeRaw, &routes)
 

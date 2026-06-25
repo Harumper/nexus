@@ -53,19 +53,28 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	token := params["token"].(string)
 	expectedSHA256, _ := params["sha256"].(string)
 
+	// Intégrité OBLIGATOIRE : on installe un binaire root, jamais sans contrôle.
+	// Le backend calcule toujours le SHA du binaire servi ; un sha256 vide
+	// signifie un backend incohérent → on refuse plutôt que d'installer à
+	// l'aveugle (angle mort supply-chain dans une base au pinning aussi strict).
+	if expectedSHA256 == "" {
+		return nil, fmt.Errorf("sha256 attendu manquant : mise à jour refusée (intégrité non vérifiable)")
+	}
+
 	newBinPath := "/var/lib/nexus-agent/nexus-agent.new"
 	finalBinPath := "/usr/local/bin/nexus-agent"
 
 	// S'assurer que le dossier existe (StateDirectory devrait l'avoir cree)
 	os.MkdirAll("/var/lib/nexus-agent", 0700)
 
-	// 1. Telecharger
+	// 1. Telecharger. Token en header Authorization (pas en query : évite la
+	// fuite du token dans les logs d'accès proxy/reverse-proxy).
 	upgradeProgress("Téléchargement du nouveau binaire…", 10)
-	url := downloadURL + "?token=" + token
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	client := &http.Client{Timeout: 2 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -93,9 +102,9 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
 	upgradeProgress(fmt.Sprintf("Téléchargé : %d octets", written), 45)
 
-	// 2. Verifier le SHA256 si fourni
+	// 2. Verifier le SHA256 (obligatoire, contrôlé non-vide plus haut)
 	upgradeProgress("Vérification de l'intégrité (SHA256)…", 55)
-	if expectedSHA256 != "" && expectedSHA256 != actualSHA256 {
+	if expectedSHA256 != actualSHA256 {
 		os.Remove(newBinPath)
 		return nil, fmt.Errorf("sha256 mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
 	}

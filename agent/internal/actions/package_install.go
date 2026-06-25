@@ -14,6 +14,25 @@ type PackageInstallAction struct{}
 func (a *PackageInstallAction) ID() string        { return "package.install" }
 func (a *PackageInstallAction) Capability() string { return "packages" }
 
+// validPackageName valide un nom de paquet apt. Charset restreint + refus du
+// '-' en tête (sinon "-oDPkg::Pre-Invoke::=<cmd>" passerait à apt-get : seul le
+// tag NOEXEC du sudoers l'empêchait, ce qui violait la règle "barrière côté Go").
+// Partagé par package.install ET package.remove.
+func validPackageName(name string) error {
+	if name == "" {
+		return fmt.Errorf("invalid package name")
+	}
+	if name[0] == '-' {
+		return fmt.Errorf("invalid package name (option-like): %s", name)
+	}
+	for _, c := range name {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '+' || c == ':') {
+			return fmt.Errorf("invalid character in package name: %c", c)
+		}
+	}
+	return nil
+}
+
 func (a *PackageInstallAction) Validate(params map[string]interface{}) error {
 	packages, ok := params["packages"]
 	if !ok {
@@ -22,8 +41,8 @@ func (a *PackageInstallAction) Validate(params map[string]interface{}) error {
 	// Accept both string and []interface{}
 	switch v := packages.(type) {
 	case string:
-		if v == "" {
-			return fmt.Errorf("packages cannot be empty")
+		if err := validPackageName(v); err != nil {
+			return err
 		}
 	case []interface{}:
 		if len(v) == 0 {
@@ -31,14 +50,11 @@ func (a *PackageInstallAction) Validate(params map[string]interface{}) error {
 		}
 		for _, p := range v {
 			name, ok := p.(string)
-			if !ok || name == "" {
+			if !ok {
 				return fmt.Errorf("invalid package name")
 			}
-			// Basic injection prevention - only allow alphanumeric, dash, dot, plus
-			for _, c := range name {
-				if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '+' || c == ':') {
-					return fmt.Errorf("invalid character in package name: %c", c)
-				}
+			if err := validPackageName(name); err != nil {
+				return err
 			}
 		}
 	default:
