@@ -141,12 +141,14 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("/etc/sudoers.d/nexus-agent");
     });
 
-    it("should support clean uninstall and re-enroll modes", () => {
+    it("should support clean uninstall and re-enroll modes (table rase)", () => {
       const content = readFileSync(installScript, "utf8");
       expect(content).toContain("--uninstall");
       expect(content).toContain("--reenroll");
       expect(content).toContain("do_uninstall");
-      expect(content).toContain("purge_state");
+      // Ré-enrôlement = wipe complet (sudoers/user/binaire) en gardant les logs.
+      expect(content).toContain("wipe_agent");
+      expect(content).toContain("wipe_agent keep-logs");
     });
   });
 
