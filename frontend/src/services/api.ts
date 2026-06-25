@@ -778,6 +778,18 @@ class ApiClient {
     );
   }
 
+  // Aperçu du durcissement SSH : renvoie le contenu exact du drop-in qui serait
+  // écrit, sans rien appliquer (dry_run côté agent).
+  async sshdHardenPreview(id: string) {
+    return this.request<{ success: boolean; data: { dropin: string; content: string; watchdog_expires_in: number } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "sshd.harden", params: { dry_run: true }, timeout: 15000 }),
+      }
+    );
+  }
+
   // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
   async sshdHarden(id: string) {
     return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(

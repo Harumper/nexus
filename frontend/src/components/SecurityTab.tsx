@@ -72,6 +72,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   // Posture modifiée par une remédiation mais audit pas encore relancé
   // (indice/findings non recalculés) → bandeau "relancer un audit".
   const [postureDirty, setPostureDirty] = useState(false);
+  const [sshOpen, setSshOpen] = useState(false);
+  const [sshLoading, setSshLoading] = useState(false);
+  const [sshPreview, setSshPreview] = useState<{ dropin: string; content: string; watchdog_expires_in: number } | null>(null);
 
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
@@ -192,21 +195,28 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
   // Durcissement SSH : watchdog-revert (comme netplan/firewall). On NE relance
   // PAS l'audit immédiatement — on attend la confirmation (ou le revert auto).
-  const applySshHarden = async () => {
-    if (
-      !(await confirm({
-        title: "Durcir la configuration SSH ?",
-        description:
-          "Applique des algorithmes modernes + limites (MaxAuthTries…). La config est validée par `sshd -t` puis rechargée SANS couper ta session. ⚠️ Vérifie que tu peux toujours te reconnecter en SSH AVANT de confirmer : sans confirmation sous 120s, l'état précédent est restauré automatiquement.",
-        confirmLabel: "Appliquer",
-        variant: "danger",
-      }))
-    )
-      return;
+  // Étape 1 : aperçu (dry-run) — récupère le drop-in EXACT qui sera écrit, sans
+  // rien appliquer, et ouvre la modal de prévisualisation.
+  const openSshPreview = async () => {
+    setSshLoading(true);
+    try {
+      const res = await api.sshdHardenPreview(machineId);
+      setSshPreview(res.data);
+      setSshOpen(true);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de l'aperçu SSH"));
+    } finally {
+      setSshLoading(false);
+    }
+  };
+
+  // Étape 2 : application réelle (confirmée via la modal d'aperçu), avec watchdog.
+  const doSshHarden = async () => {
     setApplying("sshd");
     try {
       const res = await api.sshdHarden(machineId);
       setPending({ kind: "sshd", requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
+      setSshOpen(false);
       toast.success("Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).");
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec du durcissement SSH"));
@@ -470,10 +480,10 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 icon={KeyRound}
                 active={result.ssh_hardened}
                 activeLabel="Durci"
-                actionLabel="Durcir"
-                busy={applying === "sshd"}
+                actionLabel="Voir & durcir"
+                busy={applying === "sshd" || sshLoading}
                 disabled={!canRemediate || pending !== null}
-                onApply={applySshHarden}
+                onApply={openSshPreview}
               />
               <RemediationRow
                 label="Bannière légale (/etc/issue, /etc/issue.net)"
@@ -752,6 +762,46 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
             Durées : secondes ou abrégé (<code>600</code>, <code>10m</code>, <code>1h</code>, <code>1d</code>, <code>1w</code>).
             SSH est protégé par défaut.
           </p>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={sshOpen}
+        onClose={() => setSshOpen(false)}
+        size="lg"
+        title="Durcissement SSH — aperçu avant application"
+        description={sshPreview ? `Sera écrit dans ${sshPreview.dropin}` : undefined}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSshOpen(false)} disabled={applying === "sshd"}>
+              Annuler
+            </Button>
+            <Button
+              variant="warning"
+              onClick={doSshHarden}
+              loading={applying === "sshd"}
+              disabled={!canRemediate || pending !== null}
+              icon={<KeyRound />}
+            >
+              Appliquer (watchdog {sshPreview?.watchdog_expires_in ?? 120}s)
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Contenu exact qui sera déposé (lu depuis l'agent, pas une copie) :
+          </p>
+          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-200 p-3 max-h-72 overflow-y-auto">
+            {sshPreview?.content || "…"}
+          </pre>
+          <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-[11px] text-muted-foreground">
+            Anti-lock-out : <code>sshd -t</code> valide la config <strong>avant</strong> rechargement,
+            le reload se fait par SIGHUP (ne coupe pas ta session), et un <strong>watchdog
+            {" "}{sshPreview?.watchdog_expires_in ?? 120}s</strong> restaure l'état précédent
+            si tu ne confirmes pas. <strong>PasswordAuthentication / PermitRootLogin ne sont PAS
+            modifiés.</strong> Garde une session SSH ouverte pour tester avant de confirmer.
+          </div>
         </div>
       </Dialog>
     </div>
