@@ -55,12 +55,13 @@ func (a *ListeningServicesAction) Execute(_ map[string]interface{}) (interface{}
 }
 
 type listeningService struct {
-	Proto   string `json:"proto"`
-	Address string `json:"address"`
-	Port    string `json:"port"`
-	Process string `json:"process"`
-	Exposed bool   `json:"exposed"` // écoute sur une adresse non-loopback
-	IsSSH   bool   `json:"is_ssh"`
+	Proto         string `json:"proto"`
+	Address       string `json:"address"`
+	Port          string `json:"port"`
+	Process       string `json:"process"`
+	Exposed       bool   `json:"exposed"` // écoute sur une adresse non-loopback
+	IsSSH         bool   `json:"is_ssh"`
+	DockerManaged bool   `json:"docker_managed"` // publié par Docker (règles iptables propres → ufw inopérant)
 }
 
 var ssProcRegex = regexp.MustCompile(`\(\("([^"]+)"`)
@@ -98,13 +99,18 @@ func parseSsListening(out string) []listeningService {
 		seen[key] = true
 
 		isSSH := proc == "sshd" || port == "22"
+		// docker-proxy = port publié par Docker ; dockerd = idem (host net).
+		// Ces ports sont gérés par les règles iptables de Docker, ufw ne les
+		// filtre pas → on les marque pour les exclure de l'assistant pare-feu.
+		dockerManaged := proc == "docker-proxy" || proc == "dockerd"
 		services = append(services, listeningService{
-			Proto:   "tcp",
-			Address: addr,
-			Port:    port,
-			Process: proc,
-			Exposed: isExposedAddr(addr),
-			IsSSH:   isSSH,
+			Proto:         "tcp",
+			Address:       addr,
+			Port:          port,
+			Process:       proc,
+			Exposed:       isExposedAddr(addr),
+			IsSSH:         isSSH,
+			DockerManaged: dockerManaged,
 		})
 	}
 	return services

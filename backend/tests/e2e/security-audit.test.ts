@@ -605,3 +605,18 @@ describe("Security — remédiations durcissement + doc inline", () => {
     expect(tab).toContain("cisofy.com/lynis/controls/");
   });
 });
+
+describe("Pare-feu : exclusion des ports gérés par Docker", () => {
+  it("agent: marque docker_managed (docker-proxy/dockerd)", () => {
+    const n = readFileSync(resolve(agentDir, "internal/actions/network_listening.go"), "utf8");
+    expect(n).toContain("DockerManaged");
+    expect(n).toContain("docker-proxy");
+    expect(n).toContain('json:"docker_managed"');
+  });
+  it("frontend: sépare et exclut les services Docker de la politique ufw", () => {
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("docker_managed");
+    expect(tab).toContain("fwDockerServices");
+    expect(tab).toContain("chaîne DOCKER");
+  });
+});
