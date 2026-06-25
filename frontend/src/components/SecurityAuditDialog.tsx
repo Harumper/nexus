@@ -19,6 +19,16 @@ type Status = "working" | "success" | "failed";
 // Filet de sécurité : un peu au-delà du timeout backend.
 const CLIENT_TIMEOUT_MS = 195_000;
 
+// Retire les séquences ANSI (couleurs ET déplacements de curseur). lynis
+// --no-colors enlève les couleurs mais pas les `\x1b[<n>C` d'alignement des
+// `[ FOUND ]`, qui apparaissaient comme "[38C" dans la console.
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /[\x1b\u009b]\[[0-9;?]*[ -\/]*[@-~]/g;
+function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(ANSI_RE, "").replace(/[\r]/g, "");
+}
+
 // Modal de progression de l'audit Lynis (comme la MAJ de l'agent) : barre de
 // progression + sortie shell streamée en direct (WebSocket), jusqu'au résultat.
 export default function SecurityAuditDialog({ machineId, machineName, onClose, onResult }: Props) {
@@ -36,7 +46,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
     statusRef.current = status;
   }, [status]);
 
-  const append = useCallback((line: string) => setLog((prev) => [...prev.slice(-500), line]), []);
+  const append = useCallback((line: string) => setLog((prev) => [...prev.slice(-500), stripAnsi(line)]), []);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
