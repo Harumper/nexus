@@ -203,12 +203,21 @@ export default function AgentUpgradeDialog({
       <div className="space-y-4">
         {/* ─── Confirmation ─── */}
         {status === "confirm" && (
-          <p className="text-sm text-muted-foreground">
-            L'agent va télécharger la dernière version servie par le serveur,
-            remplacer son binaire puis redémarrer. La connexion est interrompue
-            quelques secondes ; cette fenêtre suit l'opération jusqu'à la
-            reconnexion en nouvelle version.
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground">
+              L'agent va télécharger la dernière version servie par le serveur,
+              remplacer son binaire puis redémarrer. La connexion est interrompue
+              quelques secondes ; cette fenêtre suit l'opération jusqu'à la
+              reconnexion en nouvelle version.
+            </p>
+            <p className="text-xs rounded-lg border border-border bg-elevated px-3 py-2 text-muted-foreground">
+              ⚠ Cette mise à jour ne remplace <strong>que le binaire</strong>. Le
+              fichier <code>sudoers</code> et le service systemd ne sont pas
+              touchés — s'ils ont changé (ex. nouvelle commande à autoriser), il
+              faut <strong>réinstaller l'agent</strong> (<code>install-agent.sh</code>)
+              ou utiliser « Ré-enrôler ». Le badge « ⚠ Sudoers » le signale.
+            </p>
+          </>
         )}
 
         {/* ─── En cours ─── */}
