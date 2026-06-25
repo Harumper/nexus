@@ -42,6 +42,12 @@ RUN apk add --no-cache wget
 
 WORKDIR /app
 
+# Exposer au runtime la version de l'agent embarqué : permet de détecter une
+# « MAJ dispo » par comparaison de version (et non par SHA, qui change à chaque
+# commit à cause du tampon de version gravé dans le binaire).
+ARG AGENT_VERSION=0.1.0+dev
+ENV AGENT_VERSION=${AGENT_VERSION}
+
 COPY backend/package.json backend/package-lock.json* ./
 RUN apk add --no-cache python3 make g++ && npm ci --omit=dev && apk del python3 make g++
 

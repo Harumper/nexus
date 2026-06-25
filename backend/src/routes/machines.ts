@@ -18,6 +18,8 @@ import {
 import { dispatchAgentUpgrade } from "../services/agent-upgrade.js";
 import {
   getServerBinarySHA256,
+  getServerAgentVersion,
+  computeAgentUpdateAvailable,
   getLatestAgentSha,
   isUpgradePending,
 } from "../services/agent-upgrade-tracker.js";
@@ -111,7 +113,8 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       // après disconnect (anti-flapping, voir handler.ts:126). Le frontend
       // utilise isConnected pour savoir si une action dispatchée passera.
       const connectedIds = new Set(getConnectedMachineIds());
-      // SHA du binaire agent servi (cible) — calculé une fois, mis en cache.
+      // Cible servie : version (préférée) + SHA (repli) — calculées une fois.
+      const servedVersion = getServerAgentVersion();
       const targetSha = await getServerBinarySHA256();
 
       const result = machines.map((m) => {
@@ -121,12 +124,11 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           tags: m.tags.map((t) => t.tag),
           sudoersOutdated: isSudoersOutdated(m.sudoersHash),
           isConnected: connectedIds.has(m.id),
-          // MAJ agent dispo = binaire en cours ≠ binaire servi (agents seulement).
+          // MAJ agent dispo = version servie ≠ version en cours (agents seulement) ;
+          // ignore le sha de build pour ne pas signaler à chaque commit.
           agentUpdateAvailable:
             m.type === "AGENT" &&
-            !!agentSha256 &&
-            !!targetSha &&
-            agentSha256 !== targetSha,
+            computeAgentUpdateAvailable(servedVersion, targetSha, m.agentVersion, agentSha256),
         };
       });
 
@@ -178,6 +180,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "Machine not found" });
       }
 
+      const servedVersion = getServerAgentVersion();
       const targetSha = await getServerBinarySHA256();
       const { agentSha256, ...machineRest } = machine;
 
@@ -188,11 +191,10 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         tags: machine.tags.map((t) => t.tag),
         // Live WS presence — voir route /api/machines pour le pourquoi
         isConnected: getAgentSession(id)?.authenticated === true,
+        // MAJ par comparaison de version (ignore le sha de build) — voir liste.
         agentUpdateAvailable:
           machine.type === "AGENT" &&
-          !!agentSha256 &&
-          !!targetSha &&
-          agentSha256 !== targetSha,
+          computeAgentUpdateAvailable(servedVersion, targetSha, machine.agentVersion, agentSha256),
       });
     }
   );
@@ -510,11 +512,14 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!machine) return reply.code(404).send({ error: "Machine not found" });
 
+      const servedVersion = getServerAgentVersion();
       const targetSha = await getServerBinarySHA256();
       // SHA persisté (source de vérité) avec repli sur le dernier vu en mémoire.
       const currentSha = machine.agentSha256 ?? getLatestAgentSha(id) ?? null;
       const targetAvailable = targetSha !== null;
-      // upToDate seulement si on connaît les deux SHA et qu'ils coïncident.
+      // upToDate (SHA) : reste la vérité "binaire identique", pilote la
+      // clicabilité du bouton d'upgrade (manuel possible en dev même si la
+      // version est la même).
       const upToDate =
         targetSha !== null && currentSha !== null
           ? currentSha === targetSha
@@ -526,7 +531,15 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         targetSha,
         targetAvailable,
         upToDate,
-        updateAvailable: upToDate === false,
+        // updateAvailable (version) : pilote la pastille/alerte "MAJ dispo".
+        // Ignore le sha de build → silencieux entre deux builds de dev, ne
+        // s'allume que sur un vrai changement de version (tag).
+        updateAvailable: computeAgentUpdateAvailable(
+          servedVersion,
+          targetSha,
+          machine.agentVersion,
+          currentSha
+        ),
         upgrading: isUpgradePending(id),
       });
     }
