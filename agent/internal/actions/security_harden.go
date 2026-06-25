@@ -39,8 +39,7 @@ var loginDefsSettings = [][2]string{
 	{"SHA_CRYPT_MIN_ROUNDS", "640000"},
 }
 
-// Bannière légale (BANN-7126/7130). La 1ʳᵉ ligne sert de marqueur de détection.
-const loginBannerMarker = "Acces restreint - Nexus"
+// Bannière légale par défaut (BANN-7126/7130) — surchargeable via le param "text".
 const loginBanner = `*** Acces restreint - Nexus ***
 Tout acces non autorise a ce systeme est interdit et peut faire l'objet de
 poursuites. Toutes les activites peuvent etre journalisees et surveillees.
@@ -139,16 +138,32 @@ func (a *EnableAutoUpdatesAction) Execute(_ map[string]interface{}) (interface{}
 
 type SetLoginBannerAction struct{}
 
-func (a *SetLoginBannerAction) ID() string                              { return "security.set_login_banner" }
-func (a *SetLoginBannerAction) Capability() string                      { return "security" }
-func (a *SetLoginBannerAction) Validate(_ map[string]interface{}) error { return nil }
+func (a *SetLoginBannerAction) ID() string         { return "security.set_login_banner" }
+func (a *SetLoginBannerAction) Capability() string { return "security" }
 
-func (a *SetLoginBannerAction) Execute(_ map[string]interface{}) (interface{}, error) {
+func (a *SetLoginBannerAction) Validate(params map[string]interface{}) error {
+	if t, ok := params["text"].(string); ok {
+		if len(t) > 4096 {
+			return fmt.Errorf("bannière trop longue (max 4096 caractères)")
+		}
+		if strings.ContainsRune(t, '\x00') {
+			return fmt.Errorf("bannière invalide (caractère nul)")
+		}
+	}
+	return nil
+}
+
+func (a *SetLoginBannerAction) Execute(params map[string]interface{}) (interface{}, error) {
+	// Texte configurable (param "text") ; défaut Nexus si vide/absent.
+	banner := loginBanner
+	if t, ok := params["text"].(string); ok && strings.TrimSpace(t) != "" {
+		banner = strings.TrimRight(t, "\n") + "\n"
+	}
 	// /etc/issue (console locale) ET /etc/issue.net (connexions réseau/SSH).
-	if err := installRootFile(loginBanner, "sec-banner-*.tmp", "/etc/issue"); err != nil {
+	if err := installRootFile(banner, "sec-banner-*.tmp", "/etc/issue"); err != nil {
 		return nil, err
 	}
-	if err := installRootFile(loginBanner, "sec-banner-*.tmp", "/etc/issue.net"); err != nil {
+	if err := installRootFile(banner, "sec-banner-*.tmp", "/etc/issue.net"); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{
@@ -157,13 +172,17 @@ func (a *SetLoginBannerAction) Execute(_ map[string]interface{}) (interface{}, e
 	}, nil
 }
 
-// loginBannerSet : la bannière Nexus est en place si /etc/issue contient le marqueur.
+// loginBannerSet : un vrai bandeau est en place si /etc/issue contient du texte
+// substantiel (au-delà du défaut distrib type "Ubuntu 24.04 LTS \n \l").
+// Heuristique indépendante du contenu (le texte est configurable) : on retire
+// les échappements \X et les espaces, et on exige ≥ 40 caractères utiles.
 func loginBannerSet() bool {
 	data, err := os.ReadFile("/etc/issue")
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), loginBannerMarker)
+	stripped := regexp.MustCompile(`\\.`).ReplaceAllString(string(data), "")
+	return len(strings.TrimSpace(stripped)) >= 40
 }
 
 // ──────────────────── core dumps ────────────────────
