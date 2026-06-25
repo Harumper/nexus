@@ -137,7 +137,7 @@ func userGroups(username string) []string {
 	if err != nil {
 		return nil
 	}
-	var names []string
+	names := []string{} // non-nil → JSON [] et pas null
 	for _, gid := range gids {
 		g, err := user.LookupGroupId(gid)
 		if err == nil {

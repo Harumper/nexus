@@ -80,7 +80,7 @@ func (a *SslScanAction) Execute(_ map[string]interface{}) (interface{}, error) {
 
 	// Trouver le cert le plus proche de l'expiration
 	var minDays = 9999
-	var expiringSoon []CertInfo
+	expiringSoon := []CertInfo{} // non-nil → JSON [] et pas null (anti-crash front)
 	for _, c := range filtered {
 		if c.DaysRemaining < minDays {
 			minDays = c.DaysRemaining

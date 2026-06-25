@@ -109,6 +109,11 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	installed := false
 	bin := lynisPath()
 	if bin == "" {
+		// En mode PROBE, l'agent est strictement lecture seule : on n'installe
+		// JAMAIS de paquet. On audite uniquement si lynis est déjà présent.
+		if IsProbeMode() {
+			return nil, fmt.Errorf("lynis non installé : installation refusée en mode PROBE (lecture seule)")
+		}
 		// Tentative d'installation via apt. On rafraîchit d'abord l'index
 		// (sur une VM fraîche, `install` échoue souvent par "Unable to locate
 		// package"). On REMONTE la sortie réelle d'apt en cas d'échec.

@@ -55,8 +55,9 @@ type PendingSshd struct {
 }
 
 var (
-	sshdMu      sync.Mutex
-	pendingSshd = map[string]*PendingSshd{}
+	sshdMu        sync.Mutex
+	pendingSshd   = map[string]*PendingSshd{}
+	sshdReserving bool // réservation in-flight (ferme la fenêtre TOCTOU)
 )
 
 // HandleSshdConfirm annule le revert pending (confirmation reçue).
@@ -134,14 +135,18 @@ func restoreSshdFromSnapshot(snapDir string) error {
 // registerPendingSshd snapshot + arme le timer 120s.
 func registerPendingSshd(requestID string) (*PendingSshd, error) {
 	sshdMu.Lock()
-	if len(pendingSshd) > 0 {
+	if len(pendingSshd) > 0 || sshdReserving {
 		sshdMu.Unlock()
 		return nil, fmt.Errorf("another SSH hardening change is pending confirmation")
 	}
+	sshdReserving = true
 	sshdMu.Unlock()
 
 	snapDir, err := snapshotSshd(requestID)
 	if err != nil {
+		sshdMu.Lock()
+		sshdReserving = false
+		sshdMu.Unlock()
 		return nil, err
 	}
 
@@ -162,6 +167,7 @@ func registerPendingSshd(requestID string) (*PendingSshd, error) {
 
 	sshdMu.Lock()
 	pendingSshd[requestID] = p
+	sshdReserving = false
 	sshdMu.Unlock()
 	return p, nil
 }
@@ -182,7 +188,7 @@ func sshdMasterPID() string {
 			return p
 		}
 	}
-	out, err := exec.Command("pidof", "sshd").Output()
+	out, err := exec.Command("/usr/bin/pidof", "sshd").Output()
 	if err != nil {
 		return ""
 	}

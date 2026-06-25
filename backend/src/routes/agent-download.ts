@@ -28,9 +28,15 @@ export async function agentDownloadRoutes(app: FastifyInstance): Promise<void> {
       config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
-      const { token } = request.query as { token?: string };
+      // Token accepté en header Authorization: Bearer (préféré, ne fuite pas
+      // dans les logs d'accès) OU en query ?token= (rétro-compat : bootstrap
+      // curl et anciens agents en cours d'auto-upgrade).
+      const authHeader = (request.headers["authorization"] as string | undefined) || "";
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      const { token: queryToken } = request.query as { token?: string };
+      const token = bearer || queryToken;
       if (!token) {
-        return reply.code(400).send({ error: "Missing token query parameter" });
+        return reply.code(400).send({ error: "Missing token (Authorization: Bearer or ?token=)" });
       }
 
       const claim = await validateBootstrapToken(token, "install");

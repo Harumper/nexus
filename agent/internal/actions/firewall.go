@@ -41,8 +41,9 @@ type PendingRevert struct {
 }
 
 var (
-	pendingMu sync.Mutex
-	pending   = map[string]*PendingRevert{}
+	pendingMu        sync.Mutex
+	pending          = map[string]*PendingRevert{}
+	pendingReserving bool // réservation in-flight (check→snapshot→insert atomique)
 )
 
 // HandleConfirm est appele par main.go quand un message action.confirm est recu du backend.
@@ -125,17 +126,26 @@ func restoreFromSnapshot(snapshotFile string, ufwShouldBeEnabled bool) error {
 
 // registerPendingRevert snapshot + arme le timer. Retourne un request_id.
 func registerPendingRevert(requestID string) (*PendingRevert, error) {
+	// Serialize : rejeter si un revert est déjà pending OU en cours de
+	// réservation. Le flag `reserving` ferme la fenêtre TOCTOU : sans lui, deux
+	// requêtes concurrentes (goroutines, request_id distincts) passaient toutes
+	// les deux la garde `len(pending)>0` avant insertion → 2ᵉ snapshot d'un état
+	// déjà muté = anti-lock-out cassé.
 	pendingMu.Lock()
-	// Serialize : rejeter si un revert est deja pending
-	if len(pending) > 0 {
+	if len(pending) > 0 || pendingReserving {
 		pendingMu.Unlock()
 		return nil, fmt.Errorf("another firewall change is pending confirmation; wait or confirm it first")
 	}
+	pendingReserving = true
 	pendingMu.Unlock()
 
+	// À partir d'ici on DOIT relâcher la réservation sur tout chemin d'erreur.
 	ufwEnabled := ufwIsActive()
 	snapshotFile, err := snapshotIptables(requestID)
 	if err != nil {
+		pendingMu.Lock()
+		pendingReserving = false
+		pendingMu.Unlock()
 		return nil, err
 	}
 
@@ -161,6 +171,7 @@ func registerPendingRevert(requestID string) (*PendingRevert, error) {
 
 	pendingMu.Lock()
 	pending[requestID] = p
+	pendingReserving = false
 	pendingMu.Unlock()
 
 	return p, nil
