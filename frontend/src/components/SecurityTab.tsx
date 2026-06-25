@@ -69,6 +69,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const [f2bBantime, setF2bBantime] = useState("1h");
   const [f2bFindtime, setF2bFindtime] = useState("10m");
   const [f2bMaxretry, setF2bMaxretry] = useState("5");
+  // Posture modifiée par une remédiation mais audit pas encore relancé
+  // (indice/findings non recalculés) → bandeau "relancer un audit".
+  const [postureDirty, setPostureDirty] = useState(false);
 
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
@@ -127,6 +130,13 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
   // Applique une remédiation après confirmation, puis relance l'audit pour
   // rafraîchir l'état affiché.
+  // Applique une mesure SANS re-scanner : la carte passe à "actif" en optimiste,
+  // et on marque la posture "à rafraîchir" (un seul audit à relancer à la fin).
+  const markApplied = (patch: Partial<SecurityAuditResult>) => {
+    setResult((r) => (r ? { ...r, ...patch } : r));
+    setPostureDirty(true);
+  };
+
   const applyFail2ban = async () => {
     setApplying("fail2ban");
     try {
@@ -137,7 +147,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
       });
       toast.success("fail2ban configuré.");
       setF2bOpen(false);
-      await runAudit();
+      markApplied({ fail2ban_active: true, fail2ban_installed: true });
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de la configuration fail2ban"));
     } finally {
@@ -151,7 +161,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
       await api.setLoginBanner(machineId, bannerText);
       toast.success("Bannière déposée.");
       setBannerOpen(false);
-      await runAudit();
+      markApplied({ login_banner_set: true });
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec du dépôt de la bannière"));
     } finally {
@@ -162,7 +172,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const applyRemediation = async (
     key: string,
     opts: { title: string; description: string },
-    fn: () => Promise<unknown>
+    fn: () => Promise<unknown>,
+    patch: Partial<SecurityAuditResult> = {}
   ) => {
     if (!(await confirm({ title: opts.title, description: opts.description, confirmLabel: "Appliquer" }))) {
       return;
@@ -171,7 +182,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     try {
       await fn();
       toast.success("Remédiation appliquée.");
-      await runAudit();
+      markApplied(patch);
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de la remédiation"));
     } finally {
@@ -357,6 +368,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           onResult={(data) => {
             setResult(data);
             setResultStale(false);
+            setPostureDirty(false);
             loadHistory();
           }}
         />
@@ -448,7 +460,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                       description:
                         "Installe unattended-upgrades (si absent) et active l'application automatique des mises à jour de sécurité.",
                     },
-                    () => api.enableAutoUpdates(machineId)
+                    () => api.enableAutoUpdates(machineId),
+                    { auto_updates_active: true }
                   )
                 }
               />
@@ -486,7 +499,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                       description:
                         "Dépose limits.d + sysctl (fs.suid_dumpable=0) pour empêcher les vidages mémoire (qui peuvent contenir des secrets). Sans incidence sur les services.",
                     },
-                    () => api.disableCoreDumps(machineId)
+                    () => api.disableCoreDumps(machineId),
+                    { core_dumps_disabled: true }
                   )
                 }
               />
@@ -505,7 +519,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                       description:
                         "Applique umask 027, âges de mot de passe (max 90j / min 1j / avertissement 14j) et rounds de hachage SHA. N'affecte que les NOUVEAUX comptes/mots de passe — les comptes existants ne sont pas verrouillés.",
                     },
-                    () => api.hardenLoginDefs(machineId)
+                    () => api.hardenLoginDefs(machineId),
+                    { login_defs_hardened: true }
                   )
                 }
               />
@@ -514,6 +529,24 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
               watchdog 120s (anti-lock-out).
             </p>
+
+            {postureDirty && (
+              <div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-elevated px-3 py-2">
+                <span className="text-xs text-muted-foreground flex-1">
+                  Mesures appliquées. Relance un audit pour recalculer l'indice et les
+                  findings (tu peux d'abord enchaîner d'autres corrections).
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={runAudit}
+                  disabled={auditOpen}
+                  icon={<RefreshCw />}
+                >
+                  Relancer l'audit
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Assistant pare-feu */}
