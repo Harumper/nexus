@@ -552,3 +552,29 @@ describe("Hardening regression alert (Phase 3.2b)", () => {
     expect(create).toContain("HARDENING_INDEX_BELOW");
   });
 });
+
+describe("Security — remédiation bannière légale (1-clic)", () => {
+  it("agent: action security.set_login_banner + détection d'état", () => {
+    const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
+    expect(h).toContain('"security.set_login_banner"');
+    expect(h).toContain("SetLoginBannerAction");
+    expect(h).toContain("func loginBannerSet()");
+    expect(h).toContain("/etc/issue.net");
+    const audit = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
+    expect(audit).toContain('parsed["login_banner_set"]');
+  });
+
+  it("sudoers: install whitelisté pour /etc/issue et /etc/issue.net", () => {
+    const s = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(s).toMatch(/sec-banner-\*\.tmp \/etc\/issue\b/);
+    expect(s).toContain("sec-banner-*.tmp /etc/issue.net");
+  });
+
+  it("frontend: api + carte de remédiation", () => {
+    const api = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
+    expect(api).toContain("setLoginBanner");
+    const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
+    expect(tab).toContain("login_banner_set");
+    expect(tab).toContain("Bannière légale");
+  });
+});
