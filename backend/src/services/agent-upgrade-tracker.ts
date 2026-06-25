@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 
 // Suivi en mémoire des self-upgrades d'agent. Pas de persistance : un upgrade
@@ -17,8 +17,12 @@ const UPGRADE_TIMEOUT_MS = parseInt(
   10
 );
 
-// SHA256 du binaire servi par le backend (la "cible"). Calculé une fois.
+// SHA256 du binaire servi par le backend (la "cible"). Mis en cache MAIS
+// invalidé si le fichier change (mtime/taille) : sinon un binaire remplacé
+// en place (déploiement sans redémarrage du process) laissait un SHA cible
+// périmé → "MAJ dispo" permanent alors que l'agent a déjà le bon binaire.
 let serverBinarySha: string | null = null;
+let serverBinaryKey = ""; // signature mtime+taille du fichier hashé
 
 function computeSHA256(path: string): Promise<string> {
   return new Promise((res, rej) => {
@@ -31,10 +35,13 @@ function computeSHA256(path: string): Promise<string> {
 }
 
 export async function getServerBinarySHA256(): Promise<string | null> {
-  if (serverBinarySha) return serverBinarySha;
   if (!existsSync(AGENT_BINARY_PATH)) return null;
   try {
+    const st = statSync(AGENT_BINARY_PATH);
+    const key = `${st.mtimeMs}:${st.size}`;
+    if (serverBinarySha && key === serverBinaryKey) return serverBinarySha;
     serverBinarySha = await computeSHA256(AGENT_BINARY_PATH);
+    serverBinaryKey = key;
     return serverBinarySha;
   } catch {
     return null;
