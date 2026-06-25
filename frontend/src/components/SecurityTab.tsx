@@ -885,48 +885,49 @@ function PreviewOverlay({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute inset-0 z-30 rounded-xl bg-background/85 backdrop-blur-sm">
-      <div className="sticky top-4 mx-auto max-w-2xl px-2 sm:px-4 pt-2">
-        <div className="flex flex-col max-h-[82vh] rounded-xl border border-border bg-card shadow-2xl">
-          {/* En-tête */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
-            <button
-              onClick={onClose}
-              aria-label="Retour"
-              className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <h3 className="text-sm font-semibold text-foreground">{title} — aperçu</h3>
-          </div>
-          {/* Corps : le contenu exact qui sera écrit */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Contenu exact qui sera appliqué (lu depuis l'agent, pas une copie) :
-            </p>
-            {changes.map((c) => (
-              <div key={c.path}>
-                <div className="text-[10px] font-mono text-muted-foreground mb-1">{c.path}</div>
-                <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded bg-black/90 text-emerald-200 p-2">
-                  {c.content}
-                </pre>
-              </div>
-            ))}
-            {note && (
-              <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-[11px] text-muted-foreground">
-                {note}
-              </div>
-            )}
-          </div>
-          {/* Pied : Retour / Appliquer */}
-          <div className="flex justify-end gap-2 px-4 py-3 border-t border-border shrink-0">
-            <Button variant="ghost" size="sm" onClick={onClose} disabled={applying} icon={<ArrowLeft />}>
-              Retour
-            </Button>
-            <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
-              {applyLabel}
-            </Button>
-          </div>
+    // Panneau plein : couvre la zone de contenu de l'onglet de façon opaque
+    // (pas une carte centrée). `sticky top-0` garde le panneau dans le viewport
+    // quel que soit le défilement de la page.
+    <div className="absolute inset-0 z-30 bg-background">
+      <div className="sticky top-0 flex flex-col h-[80vh] rounded-xl border border-border bg-card overflow-hidden">
+        {/* En-tête */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0 bg-elevated">
+          <button
+            onClick={onClose}
+            aria-label="Retour"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h3 className="text-sm font-semibold text-foreground">{title} — aperçu</h3>
+        </div>
+        {/* Corps : le contenu exact qui sera écrit */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Contenu exact qui sera appliqué (lu depuis l'agent, pas une copie) :
+          </p>
+          {changes.map((c) => (
+            <div key={c.path}>
+              <div className="text-[10px] font-mono text-muted-foreground mb-1">{c.path}</div>
+              <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded bg-black/90 text-emerald-200 p-2">
+                {c.content}
+              </pre>
+            </div>
+          ))}
+          {note && (
+            <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-[11px] text-muted-foreground">
+              {note}
+            </div>
+          )}
+        </div>
+        {/* Pied : Retour / Appliquer */}
+        <div className="flex justify-end gap-2 px-4 py-3 border-t border-border shrink-0 bg-elevated">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={applying} icon={<ArrowLeft />}>
+            Retour
+          </Button>
+          <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
+            {applyLabel}
+          </Button>
         </div>
       </div>
     </div>
