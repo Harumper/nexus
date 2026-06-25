@@ -64,13 +64,23 @@ export default function Dashboard() {
   // plus de polling 15s séquentiel (50 req HTTP/15s qui doublaient le WS) :
   // requêtes en parallèle + un seul setState groupé, rejoué quand la liste des
   // machines change (nouvelle machine en ligne).
+  // Clé stable = ensemble des IDs en ligne. useMachines rafraîchit `machines`
+  // toutes les 30s (nouvelle référence de tableau) ; sans cette clé, loadMetrics
+  // se relançait à chaque fois → N requêtes HTTP/30s EN DOUBLON du flux WS qui
+  // pousse déjà ces métriques. Avec la clé, on ne refait le snapshot initial que
+  // quand l'ensemble des machines en ligne change réellement.
+  const onlineIdsKey = machines
+    .filter((m) => m.status === "ONLINE")
+    .map((m) => m.id)
+    .sort()
+    .join(",");
   const loadMetrics = useCallback(async () => {
-    const onlineMachines = machines.filter((m) => m.status === "ONLINE");
+    const ids = onlineIdsKey ? onlineIdsKey.split(",") : [];
     const results = await Promise.all(
-      onlineMachines.map((m) =>
+      ids.map((id) =>
         api
-          .getLatestMetrics(m.id)
-          .then((metric) => [m.id, metric] as const)
+          .getLatestMetrics(id)
+          .then((metric) => [id, metric] as const)
           .catch(() => null)
       )
     );
@@ -79,7 +89,7 @@ export default function Dashboard() {
       for (const r of results) if (r) next[r[0]] = r[1];
       return next;
     });
-  }, [machines]);
+  }, [onlineIdsKey]);
 
   useEffect(() => {
     loadMetrics();
