@@ -55,6 +55,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
 
   // Assistant pare-feu : services détectés + sélection des ports à autoriser.
   const [fwServices, setFwServices] = useState<ListeningService[] | null>(null);
+  const [fwDockerServices, setFwDockerServices] = useState<ListeningService[]>([]);
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
   const [fwLoading, setFwLoading] = useState(false);
 
@@ -182,11 +183,16 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     setFwLoading(true);
     try {
       const res = await api.listeningServices(machineId);
-      const svcs = res.data.services.filter((s) => s.exposed); // loopback non concerné
-      setFwServices(svcs);
-      // Présélection : tous les services exposés détectés (on garde joignable ce
-      // qui tourne) ; SSH toujours coché (et non décochable côté UI).
-      setFwSelected(new Set(svcs.map((s) => s.port)));
+      const exposed = res.data.services.filter((s) => s.exposed); // loopback non concerné
+      // Ports publiés par Docker : gérés par les règles iptables de Docker, ufw
+      // ne les filtre pas → on les sépare (affichés mais NON sélectionnables/
+      // appliqués) pour éviter d'ajouter des règles ufw inopérantes.
+      const docker = exposed.filter((s) => s.docker_managed);
+      const actionable = exposed.filter((s) => !s.docker_managed);
+      setFwServices(actionable);
+      setFwDockerServices(docker);
+      // Présélection : services non-Docker exposés ; SSH toujours coché.
+      setFwSelected(new Set(actionable.map((s) => s.port)));
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de l'analyse des ports"));
     } finally {
@@ -512,8 +518,15 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
               </p>
             )}
 
-            {fwServices && fwServices.length === 0 && (
+            {fwServices && fwServices.length === 0 && fwDockerServices.length === 0 && (
               <p className="text-sm text-muted-foreground">Aucun service exposé détecté (tout en loopback).</p>
+            )}
+
+            {fwServices && fwServices.length === 0 && fwDockerServices.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Aucun service non-Docker exposé. Tous les ports exposés sont publiés par
+                Docker (gérés par ses propres règles iptables) — rien à ajouter dans ufw.
+              </p>
             )}
 
             {fwServices && fwServices.length > 0 && (
@@ -555,6 +568,33 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                   </button>
                 </div>
               </>
+            )}
+
+            {fwDockerServices.length > 0 && (
+              <div className="mt-4 rounded-lg border border-border bg-elevated p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                  {fwDockerServices.length} port{fwDockerServices.length > 1 ? "s" : ""} géré
+                  {fwDockerServices.length > 1 ? "s" : ""} par Docker — exclu
+                  {fwDockerServices.length > 1 ? "s" : ""} de la politique ufw
+                </p>
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Docker insère ses propres règles iptables (chaîne DOCKER) ; ufw ne les
+                  filtre pas. Pour restreindre ces ports, publie-les sur une IP précise
+                  (<code>-p 127.0.0.1:…</code>) ou via un pare-feu en amont.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {fwDockerServices.map((s) => (
+                    <span
+                      key={`${s.address}:${s.port}`}
+                      className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--nx-bg-base)", color: "var(--nx-text-weak)" }}
+                      title={`${s.process || "docker"} · ${s.address}`}
+                    >
+                      {s.port}/tcp
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

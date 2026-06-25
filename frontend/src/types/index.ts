@@ -122,6 +122,7 @@ export interface ListeningService {
   process: string;
   exposed: boolean;
   is_ssh: boolean;
+  docker_managed?: boolean;
 }
 
 export interface SecurityAuditResult {
