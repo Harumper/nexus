@@ -640,6 +640,6 @@ describe("Durcissement SSH : aperçu (dry-run) avant application", () => {
     expect(api).toContain("dry_run: true");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("togglePreview");
-    expect(tab).toContain("PreviewPanel");
+    expect(tab).toContain("PreviewOverlay");
   });
 });
