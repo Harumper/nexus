@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp, ArrowLeft } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { api } from "../services/api";
@@ -76,6 +76,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   // en cours de chargement de l'aperçu.
   const [preview, setPreview] = useState<{
     key: string;
+    title: string;
     changes: { path: string; content: string }[];
     note?: string;
     applyLabel: string;
@@ -184,6 +185,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   const togglePreview = async (
     key: string,
     actionId: string,
+    title: string,
     applyLabel: string,
     onApply: () => void
   ) => {
@@ -194,7 +196,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     setPreviewLoading(key);
     try {
       const res = await api.remediationPreview(machineId, actionId);
-      setPreview({ key, changes: res.data.changes, note: res.data.note, applyLabel, onApply });
+      setPreview({ key, title, changes: res.data.changes, note: res.data.note, applyLabel, onApply });
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de l'aperçu"));
     } finally {
@@ -318,7 +320,22 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 relative">
+      {/* Aperçu d'une remédiation : overlay couvrant la zone de contenu de
+          l'onglet (Retour / Appliquer), au lieu de décaler la liste. */}
+      {preview && (
+        <PreviewOverlay
+          title={preview.title}
+          changes={preview.changes}
+          note={preview.note}
+          applyLabel={preview.applyLabel}
+          applying={applying === preview.key}
+          disabled={!canRemediate || (preview.key === "sshd" && pending !== null)}
+          onApply={preview.onApply}
+          onClose={() => setPreview(null)}
+        />
+      )}
+
       {/* Bandeau watchdog (SSH ou pare-feu) : à confirmer avant revert auto */}
       {pending && remaining > 0 && (
         <div
@@ -477,15 +494,11 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 previewing={preview?.key === "autoupd"}
                 disabled={!canRemediate}
                 onPreview={() =>
-                  togglePreview("autoupd", "security.enable_auto_updates", "Activer", () =>
+                  togglePreview("autoupd", "security.enable_auto_updates", "Mises à jour automatiques", "Activer", () =>
                     applyFromPreview("autoupd", () => api.enableAutoUpdates(machineId), { auto_updates_active: true })
                   )
                 }
               />
-              {preview?.key === "autoupd" && (
-                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
-                  applying={applying === "autoupd"} disabled={!canRemediate} onApply={preview.onApply} />
-              )}
 
               <RemediationRow
                 label="Durcir SSH (algos modernes + limites)"
@@ -496,12 +509,8 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 previewLoading={previewLoading === "sshd"}
                 previewing={preview?.key === "sshd"}
                 disabled={!canRemediate || pending !== null}
-                onPreview={() => togglePreview("sshd", "sshd.harden", "Appliquer (watchdog 120s)", doSshHarden)}
+                onPreview={() => togglePreview("sshd", "sshd.harden", "Durcissement SSH", "Appliquer (watchdog 120s)", doSshHarden)}
               />
-              {preview?.key === "sshd" && (
-                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
-                  applying={applying === "sshd"} disabled={!canRemediate || pending !== null} onApply={preview.onApply} />
-              )}
 
               <RemediationRow
                 label="Bannière légale (/etc/issue, /etc/issue.net)"
@@ -522,15 +531,11 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 previewing={preview?.key === "nocore"}
                 disabled={!canRemediate}
                 onPreview={() =>
-                  togglePreview("nocore", "security.disable_core_dumps", "Désactiver", () =>
+                  togglePreview("nocore", "security.disable_core_dumps", "Désactiver les core dumps", "Désactiver", () =>
                     applyFromPreview("nocore", () => api.disableCoreDumps(machineId), { core_dumps_disabled: true })
                   )
                 }
               />
-              {preview?.key === "nocore" && (
-                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
-                  applying={applying === "nocore"} disabled={!canRemediate} onApply={preview.onApply} />
-              )}
 
               <RemediationRow
                 label="Durcir /etc/login.defs (umask 027 + âges de mot de passe)"
@@ -541,15 +546,11 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 previewing={preview?.key === "logindefs"}
                 disabled={!canRemediate}
                 onPreview={() =>
-                  togglePreview("logindefs", "security.harden_login_defs", "Durcir", () =>
+                  togglePreview("logindefs", "security.harden_login_defs", "Durcir /etc/login.defs", "Durcir", () =>
                     applyFromPreview("logindefs", () => api.hardenLoginDefs(machineId), { login_defs_hardened: true })
                   )
                 }
               />
-              {preview?.key === "logindefs" && (
-                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
-                  applying={applying === "logindefs"} disabled={!canRemediate} onApply={preview.onApply} />
-              )}
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
@@ -861,36 +862,72 @@ function RemediationRow({
 
 // Panneau d'aperçu inline (déplié sous une remédiation) : montre le contenu
 // EXACT qui sera écrit (lu depuis l'agent), puis le bouton d'application.
-function PreviewPanel({
+// Overlay couvrant la zone de contenu de l'onglet : montre le contenu EXACT
+// (lu depuis l'agent) avant d'appliquer, avec Retour / Appliquer. Le panneau est
+// `sticky` pour rester visible quel que soit le défilement.
+function PreviewOverlay({
+  title,
   changes,
   note,
   applying,
   disabled,
   applyLabel,
   onApply,
+  onClose,
 }: {
+  title: string;
   changes: { path: string; content: string }[];
   note?: string;
   applying: boolean;
   disabled?: boolean;
   applyLabel: string;
   onApply: () => void;
+  onClose: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-elevated p-3 space-y-2 -mt-1">
-      {changes.map((c) => (
-        <div key={c.path}>
-          <div className="text-[10px] font-mono text-muted-foreground mb-1">{c.path}</div>
-          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded bg-black/90 text-emerald-200 p-2 max-h-60 overflow-y-auto">
-            {c.content}
-          </pre>
+    <div className="absolute inset-0 z-30 rounded-xl bg-background/85 backdrop-blur-sm">
+      <div className="sticky top-4 mx-auto max-w-2xl px-2 sm:px-4 pt-2">
+        <div className="flex flex-col max-h-[82vh] rounded-xl border border-border bg-card shadow-2xl">
+          {/* En-tête */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+            <button
+              onClick={onClose}
+              aria-label="Retour"
+              className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <h3 className="text-sm font-semibold text-foreground">{title} — aperçu</h3>
+          </div>
+          {/* Corps : le contenu exact qui sera écrit */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Contenu exact qui sera appliqué (lu depuis l'agent, pas une copie) :
+            </p>
+            {changes.map((c) => (
+              <div key={c.path}>
+                <div className="text-[10px] font-mono text-muted-foreground mb-1">{c.path}</div>
+                <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded bg-black/90 text-emerald-200 p-2">
+                  {c.content}
+                </pre>
+              </div>
+            ))}
+            {note && (
+              <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-[11px] text-muted-foreground">
+                {note}
+              </div>
+            )}
+          </div>
+          {/* Pied : Retour / Appliquer */}
+          <div className="flex justify-end gap-2 px-4 py-3 border-t border-border shrink-0">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={applying} icon={<ArrowLeft />}>
+              Retour
+            </Button>
+            <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
+              {applyLabel}
+            </Button>
+          </div>
         </div>
-      ))}
-      {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
-      <div className="flex justify-end">
-        <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
-          {applyLabel}
-        </Button>
       </div>
     </div>
   );
