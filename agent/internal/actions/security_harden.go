@@ -144,7 +144,13 @@ func (a *EnableAutoUpdatesAction) ID() string                          { return 
 func (a *EnableAutoUpdatesAction) Capability() string                  { return "security" }
 func (a *EnableAutoUpdatesAction) Validate(_ map[string]interface{}) error { return nil }
 
-func (a *EnableAutoUpdatesAction) Execute(_ map[string]interface{}) (interface{}, error) {
+func (a *EnableAutoUpdatesAction) Execute(params map[string]interface{}) (interface{}, error) {
+	if isDryRun(params) {
+		return dryRunChanges(
+			"Installe unattended-upgrades si absent et active le service.",
+			[2]string{autoUpdatesConfPath, autoUpdatesConf},
+		), nil
+	}
 	if !fileExists("/usr/bin/unattended-upgrade") && !fileExists("/usr/bin/unattended-upgrades") {
 		if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "unattended-upgrades"); err != nil {
 			return nil, fmt.Errorf("installation unattended-upgrades: %w", err)
@@ -223,7 +229,14 @@ func (a *DisableCoreDumpsAction) ID() string                              { retu
 func (a *DisableCoreDumpsAction) Capability() string                      { return "security" }
 func (a *DisableCoreDumpsAction) Validate(_ map[string]interface{}) error { return nil }
 
-func (a *DisableCoreDumpsAction) Execute(_ map[string]interface{}) (interface{}, error) {
+func (a *DisableCoreDumpsAction) Execute(params map[string]interface{}) (interface{}, error) {
+	if isDryRun(params) {
+		return dryRunChanges(
+			"Puis `sysctl -p` pour application immédiate. Sans incidence sur les services.",
+			[2]string{nocoreLimitsPath, nocoreConf},
+			[2]string{coredumpSysctlPath, coredumpSysctl},
+		), nil
+	}
 	if err := installRootFile(nocoreConf, "sec-nocore-*.tmp", nocoreLimitsPath); err != nil {
 		return nil, err
 	}
@@ -252,7 +265,17 @@ func (a *HardenLoginDefsAction) ID() string                              { retur
 func (a *HardenLoginDefsAction) Capability() string                      { return "security" }
 func (a *HardenLoginDefsAction) Validate(_ map[string]interface{}) error { return nil }
 
-func (a *HardenLoginDefsAction) Execute(_ map[string]interface{}) (interface{}, error) {
+func (a *HardenLoginDefsAction) Execute(params map[string]interface{}) (interface{}, error) {
+	if isDryRun(params) {
+		var b strings.Builder
+		for _, kv := range loginDefsSettings {
+			fmt.Fprintf(&b, "%s\t%s\n", kv[0], kv[1])
+		}
+		return dryRunChanges(
+			"Édition en place : seules ces directives sont (ré)écrites, le reste de /etc/login.defs est conservé. N'affecte que les NOUVEAUX comptes/mots de passe.",
+			[2]string{loginDefsPath, b.String()},
+		), nil
+	}
 	data, err := os.ReadFile(loginDefsPath) // world-readable
 	if err != nil {
 		return nil, fmt.Errorf("lecture %s: %w", loginDefsPath, err)
@@ -303,6 +326,22 @@ func loginDefsHardened() bool {
 }
 
 // ───────────────────────── helpers ─────────────────────────
+
+// dryRunChanges construit la réponse d'aperçu uniforme : la liste des fichiers
+// (et leur contenu exact) qui SERAIENT écrits, sans rien appliquer. Permet à
+// l'UI d'afficher le détail avant confirmation, pour toutes les remédiations.
+func dryRunChanges(note string, changes ...[2]string) map[string]interface{} {
+	list := make([]map[string]string, 0, len(changes))
+	for _, c := range changes {
+		list = append(list, map[string]string{"path": c[0], "content": c[1]})
+	}
+	return map[string]interface{}{"dry_run": true, "changes": list, "note": note}
+}
+
+func isDryRun(params map[string]interface{}) bool {
+	dr, _ := params["dry_run"].(bool)
+	return dr
+}
 
 // installRootFile écrit le contenu dans un tempfile (/var/lib/nexus-agent) puis
 // le déplace en root via `sudo install` (chemin de destination fixe whitelisté).

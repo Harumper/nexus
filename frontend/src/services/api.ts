@@ -778,16 +778,16 @@ class ApiClient {
     );
   }
 
-  // Aperçu du durcissement SSH : renvoie le contenu exact du drop-in qui serait
-  // écrit, sans rien appliquer (dry_run côté agent).
-  async sshdHardenPreview(id: string) {
-    return this.request<{ success: boolean; data: { dropin: string; content: string; watchdog_expires_in: number } }>(
-      `/machines/${id}/actions/sync`,
-      {
-        method: "POST",
-        body: JSON.stringify({ action_id: "sshd.harden", params: { dry_run: true }, timeout: 15000 }),
-      }
-    );
+  // Aperçu générique (dry-run) d'une remédiation : renvoie les fichiers/directives
+  // qui seraient écrits, sans rien appliquer.
+  async remediationPreview(id: string, actionId: string) {
+    return this.request<{
+      success: boolean;
+      data: { changes: { path: string; content: string }[]; note?: string };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionId, params: { dry_run: true }, timeout: 15000 }),
+    });
   }
 
   // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
