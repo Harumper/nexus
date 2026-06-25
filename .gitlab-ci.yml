@@ -34,6 +34,7 @@ version:
     GIT_DEPTH: 0 # clone complet : indispensable pour récupérer les tags
   before_script:
     - apk add --no-cache git
+  script:
     # Version AGENT : DOIT changer uniquement quand le code de l'agent change
     # (sinon un commit backend/frontend signalerait une "MAJ dispo" sur tous les
     # agents alors que le binaire est identique). On combine :
