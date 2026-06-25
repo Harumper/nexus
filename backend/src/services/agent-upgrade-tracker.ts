@@ -55,26 +55,21 @@ export function getServerAgentVersion(): string | null {
   return process.env.AGENT_VERSION || null;
 }
 
-// Normalise une version pour la comparaison "MAJ dispo" :
-//  - retire les métadonnées de build semver (tout après '+'), p.ex. le sha de
-//    commit → 0.0.0-dev+abc et 0.0.0-dev+def deviennent identiques ;
-//  - retire le suffixe git-describe "-<n>-g<sha>" (commits depuis le dernier tag)
-//    → v1.2.3-5-gabcdef devient v1.2.3.
-// Conséquence voulue : pas de bruit entre deux builds de dev ; une MAJ n'est
-// signalée que sur un vrai changement de version (= tag).
+// Normalise une version pour la comparaison "MAJ dispo" : simple trim (+ retrait
+// d'un éventuel suffixe "-dirty" d'un build non commité). On NE retire PAS les
+// métadonnées de build "+agent.<sha>" : c'est justement elles qui portent
+// l'information "le code de l'agent a changé" (voir job version de la CI).
 export function normalizeAgentVersion(v: string): string {
-  return v
-    .split("+")[0]
-    .replace(/-\d+-g[0-9a-f]+$/i, "")
-    .trim();
+  return v.trim().replace(/-dirty$/i, "");
 }
 
 // Cœur de la décision "MAJ dispo", purement synchrone : les routes pré-calculent
 // servedVersion (sync) et targetSha (cache) une fois, puis l'appellent par machine
-// dans un .map sans I/O. Préfère la comparaison par VERSION (ignore le sha de
-// build) ; repli sur le SHA (comportement historique) si la version servie ou
-// celle de l'agent est inconnue (vieux déploiement sans ENV AGENT_VERSION, ou
-// agent n'ayant pas encore reporté sa version).
+// dans un .map sans I/O. Comparaison DIRECTE de la version servie par le backend
+// vs celle reportée par l'agent : différentes → MAJ dispo, identiques → à jour.
+// La version étant calculée pour ne bouger que sur un changement agent (ou un
+// tag), un commit backend/frontend ne déclenche aucun faux positif. Repli sur le
+// SHA si une version est inconnue (vieux déploiement / agent pas encore reporté).
 export function computeAgentUpdateAvailable(
   servedVersion: string | null,
   targetSha: string | null,
@@ -83,7 +78,7 @@ export function computeAgentUpdateAvailable(
 ): boolean {
   if (servedVersion && agentVersion) {
     return (
-      normalizeAgentVersion(agentVersion) !== normalizeAgentVersion(servedVersion)
+      normalizeAgentVersion(servedVersion) !== normalizeAgentVersion(agentVersion)
     );
   }
   return !!agentSha256 && !!targetSha && agentSha256 !== targetSha;
