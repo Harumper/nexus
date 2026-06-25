@@ -628,12 +628,18 @@ describe("Durcissement SSH : aperçu (dry-run) avant application", () => {
     expect(s).toContain('params["dry_run"]');
     expect(s).toContain('"content":');
   });
-  it("frontend: aperçu SSH + application en 2 temps", () => {
+  it("agent: dry-run générique (core-dumps/login.defs/auto-updates)", () => {
+    const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
+    expect(h).toContain("func dryRunChanges");
+    expect(h).toContain("func isDryRun");
+  });
+
+  it("frontend: aperçu inline générique (dry-run) + bouton Voir + panneau", () => {
     const api = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    expect(api).toContain("sshdHardenPreview");
+    expect(api).toContain("remediationPreview");
     expect(api).toContain("dry_run: true");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
-    expect(tab).toContain("openSshPreview");
-    expect(tab).toContain("aperçu avant application");
+    expect(tab).toContain("togglePreview");
+    expect(tab).toContain("PreviewPanel");
   });
 });

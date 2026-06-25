@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { api } from "../services/api";
@@ -72,9 +72,16 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   // Posture modifiée par une remédiation mais audit pas encore relancé
   // (indice/findings non recalculés) → bandeau "relancer un audit".
   const [postureDirty, setPostureDirty] = useState(false);
-  const [sshOpen, setSshOpen] = useState(false);
-  const [sshLoading, setSshLoading] = useState(false);
-  const [sshPreview, setSshPreview] = useState<{ dropin: string; content: string; watchdog_expires_in: number } | null>(null);
+  // Aperçu inline (dry-run) déplié sous une remédiation. `previewLoading` = clé
+  // en cours de chargement de l'aperçu.
+  const [preview, setPreview] = useState<{
+    key: string;
+    changes: { path: string; content: string }[];
+    note?: string;
+    applyLabel: string;
+    onApply: () => void;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
 
   // Historique des scans (tendance de l'indice). Chargé au montage.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
@@ -172,20 +179,42 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     }
   };
 
-  const applyRemediation = async (
+  // Ouvre/replie l'aperçu inline d'une remédiation (dry-run côté agent → contenu
+  // exact, sans rien appliquer). Re-cliquer sur la même clé referme.
+  const togglePreview = async (
     key: string,
-    opts: { title: string; description: string },
-    fn: () => Promise<unknown>,
-    patch: Partial<SecurityAuditResult> = {}
+    actionId: string,
+    applyLabel: string,
+    onApply: () => void
   ) => {
-    if (!(await confirm({ title: opts.title, description: opts.description, confirmLabel: "Appliquer" }))) {
+    if (preview?.key === key) {
+      setPreview(null);
       return;
     }
+    setPreviewLoading(key);
+    try {
+      const res = await api.remediationPreview(machineId, actionId);
+      setPreview({ key, changes: res.data.changes, note: res.data.note, applyLabel, onApply });
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Échec de l'aperçu"));
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
+
+  // Application "instantanée" depuis l'aperçu (core-dumps, login.defs, auto-updates) :
+  // patch optimiste + posture marquée à rafraîchir (pas de re-scan immédiat).
+  const applyFromPreview = async (
+    key: string,
+    fn: () => Promise<unknown>,
+    patch: Partial<SecurityAuditResult>
+  ) => {
     setApplying(key);
     try {
       await fn();
-      toast.success("Remédiation appliquée.");
       markApplied(patch);
+      setPreview(null);
+      toast.success("Remédiation appliquée.");
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec de la remédiation"));
     } finally {
@@ -193,30 +222,13 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
     }
   };
 
-  // Durcissement SSH : watchdog-revert (comme netplan/firewall). On NE relance
-  // PAS l'audit immédiatement — on attend la confirmation (ou le revert auto).
-  // Étape 1 : aperçu (dry-run) — récupère le drop-in EXACT qui sera écrit, sans
-  // rien appliquer, et ouvre la modal de prévisualisation.
-  const openSshPreview = async () => {
-    setSshLoading(true);
-    try {
-      const res = await api.sshdHardenPreview(machineId);
-      setSshPreview(res.data);
-      setSshOpen(true);
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de l'aperçu SSH"));
-    } finally {
-      setSshLoading(false);
-    }
-  };
-
-  // Étape 2 : application réelle (confirmée via la modal d'aperçu), avec watchdog.
+  // SSH : application réelle (watchdog-revert) depuis l'aperçu.
   const doSshHarden = async () => {
     setApplying("sshd");
     try {
       const res = await api.sshdHarden(machineId);
       setPending({ kind: "sshd", requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
-      setSshOpen(false);
+      setPreview(null);
       toast.success("Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).");
     } catch (err) {
       toast.error(getErrorMessage(err, "Échec du durcissement SSH"));
@@ -455,36 +467,42 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 disabled={!canRemediate}
                 onApply={() => setF2bOpen(true)}
               />
+
               <RemediationRow
                 label="Mises à jour de sécurité automatiques (unattended-upgrades)"
                 active={result.auto_updates_active}
                 activeLabel="Actif"
-                actionLabel="Activer"
                 busy={applying === "autoupd"}
+                previewLoading={previewLoading === "autoupd"}
+                previewing={preview?.key === "autoupd"}
                 disabled={!canRemediate}
-                onApply={() =>
-                  applyRemediation(
-                    "autoupd",
-                    {
-                      title: "Activer les mises à jour automatiques ?",
-                      description:
-                        "Installe unattended-upgrades (si absent) et active l'application automatique des mises à jour de sécurité.",
-                    },
-                    () => api.enableAutoUpdates(machineId),
-                    { auto_updates_active: true }
+                onPreview={() =>
+                  togglePreview("autoupd", "security.enable_auto_updates", "Activer", () =>
+                    applyFromPreview("autoupd", () => api.enableAutoUpdates(machineId), { auto_updates_active: true })
                   )
                 }
               />
+              {preview?.key === "autoupd" && (
+                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
+                  applying={applying === "autoupd"} disabled={!canRemediate} onApply={preview.onApply} />
+              )}
+
               <RemediationRow
                 label="Durcir SSH (algos modernes + limites)"
                 icon={KeyRound}
                 active={result.ssh_hardened}
                 activeLabel="Durci"
-                actionLabel="Voir & durcir"
-                busy={applying === "sshd" || sshLoading}
+                busy={applying === "sshd"}
+                previewLoading={previewLoading === "sshd"}
+                previewing={preview?.key === "sshd"}
                 disabled={!canRemediate || pending !== null}
-                onApply={openSshPreview}
+                onPreview={() => togglePreview("sshd", "sshd.harden", "Appliquer (watchdog 120s)", doSshHarden)}
               />
+              {preview?.key === "sshd" && (
+                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
+                  applying={applying === "sshd"} disabled={!canRemediate || pending !== null} onApply={preview.onApply} />
+              )}
+
               <RemediationRow
                 label="Bannière légale (/etc/issue, /etc/issue.net)"
                 active={!!result.login_banner_set}
@@ -494,46 +512,44 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 disabled={!canRemediate}
                 onApply={() => setBannerOpen(true)}
               />
+
               <RemediationRow
                 label="Désactiver les core dumps"
                 active={!!result.core_dumps_disabled}
                 activeLabel="Désactivés"
-                actionLabel="Désactiver"
                 busy={applying === "nocore"}
+                previewLoading={previewLoading === "nocore"}
+                previewing={preview?.key === "nocore"}
                 disabled={!canRemediate}
-                onApply={() =>
-                  applyRemediation(
-                    "nocore",
-                    {
-                      title: "Désactiver les core dumps ?",
-                      description:
-                        "Dépose limits.d + sysctl (fs.suid_dumpable=0) pour empêcher les vidages mémoire (qui peuvent contenir des secrets). Sans incidence sur les services.",
-                    },
-                    () => api.disableCoreDumps(machineId),
-                    { core_dumps_disabled: true }
+                onPreview={() =>
+                  togglePreview("nocore", "security.disable_core_dumps", "Désactiver", () =>
+                    applyFromPreview("nocore", () => api.disableCoreDumps(machineId), { core_dumps_disabled: true })
                   )
                 }
               />
+              {preview?.key === "nocore" && (
+                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
+                  applying={applying === "nocore"} disabled={!canRemediate} onApply={preview.onApply} />
+              )}
+
               <RemediationRow
                 label="Durcir /etc/login.defs (umask 027 + âges de mot de passe)"
                 active={!!result.login_defs_hardened}
                 activeLabel="Durci"
-                actionLabel="Durcir"
                 busy={applying === "logindefs"}
+                previewLoading={previewLoading === "logindefs"}
+                previewing={preview?.key === "logindefs"}
                 disabled={!canRemediate}
-                onApply={() =>
-                  applyRemediation(
-                    "logindefs",
-                    {
-                      title: "Durcir /etc/login.defs ?",
-                      description:
-                        "Applique umask 027, âges de mot de passe (max 90j / min 1j / avertissement 14j) et rounds de hachage SHA. N'affecte que les NOUVEAUX comptes/mots de passe — les comptes existants ne sont pas verrouillés.",
-                    },
-                    () => api.hardenLoginDefs(machineId),
-                    { login_defs_hardened: true }
+                onPreview={() =>
+                  togglePreview("logindefs", "security.harden_login_defs", "Durcir", () =>
+                    applyFromPreview("logindefs", () => api.hardenLoginDefs(machineId), { login_defs_hardened: true })
                   )
                 }
               />
+              {preview?.key === "logindefs" && (
+                <PreviewPanel changes={preview.changes} note={preview.note} applyLabel={preview.applyLabel}
+                  applying={applying === "logindefs"} disabled={!canRemediate} onApply={preview.onApply} />
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
@@ -764,46 +780,6 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           </p>
         </div>
       </Dialog>
-
-      <Dialog
-        open={sshOpen}
-        onClose={() => setSshOpen(false)}
-        size="lg"
-        title="Durcissement SSH — aperçu avant application"
-        description={sshPreview ? `Sera écrit dans ${sshPreview.dropin}` : undefined}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setSshOpen(false)} disabled={applying === "sshd"}>
-              Annuler
-            </Button>
-            <Button
-              variant="warning"
-              onClick={doSshHarden}
-              loading={applying === "sshd"}
-              disabled={!canRemediate || pending !== null}
-              icon={<KeyRound />}
-            >
-              Appliquer (watchdog {sshPreview?.watchdog_expires_in ?? 120}s)
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Contenu exact qui sera déposé (lu depuis l'agent, pas une copie) :
-          </p>
-          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-200 p-3 max-h-72 overflow-y-auto">
-            {sshPreview?.content || "…"}
-          </pre>
-          <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-[11px] text-muted-foreground">
-            Anti-lock-out : <code>sshd -t</code> valide la config <strong>avant</strong> rechargement,
-            le reload se fait par SIGHUP (ne coupe pas ta session), et un <strong>watchdog
-            {" "}{sshPreview?.watchdog_expires_in ?? 120}s</strong> restaure l'état précédent
-            si tu ne confirmes pas. <strong>PasswordAuthentication / PermitRootLogin ne sont PAS
-            modifiés.</strong> Garde une session SSH ouverte pour tester avant de confirmer.
-          </div>
-        </div>
-      </Dialog>
     </div>
   );
 }
@@ -817,15 +793,23 @@ function RemediationRow({
   busy,
   disabled,
   onApply,
+  onPreview,
+  previewing,
+  previewLoading,
 }: {
   label: string;
   icon?: typeof AlertTriangle;
   active: boolean;
   activeLabel: string;
-  actionLabel: string;
+  actionLabel?: string;
   busy: boolean;
   disabled?: boolean;
-  onApply: () => void;
+  onApply?: () => void;
+  // Si fourni : bouton « Voir » qui déplie un aperçu inline (l'application se
+  // fait depuis le panneau, jamais à l'aveugle).
+  onPreview?: () => void;
+  previewing?: boolean;
+  previewLoading?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
@@ -833,22 +817,81 @@ function RemediationRow({
         {Icon && <Icon className="w-4 h-4" style={{ color: "var(--nx-text-weak)" }} />}
         {label}
       </span>
-      {active ? (
-        <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium" style={{ color: "var(--nx-success)" }}>
-          <Check className="w-4 h-4" /> {activeLabel}
-        </span>
-      ) : (
-        <button
-          onClick={onApply}
-          disabled={busy || disabled}
-          title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : undefined}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-          style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
-        >
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
-          {actionLabel}
-        </button>
-      )}
+      <div className="shrink-0 flex items-center gap-2">
+        {active && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: "var(--nx-success)" }}>
+            <Check className="w-4 h-4" /> {activeLabel}
+          </span>
+        )}
+        {onPreview ? (
+          <button
+            onClick={onPreview}
+            disabled={disabled || busy}
+            title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : "Voir ce qui sera appliqué"}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+            style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+          >
+            {previewLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : previewing ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+            {previewing ? "Masquer" : "Voir"}
+          </button>
+        ) : (
+          !active && (
+            <button
+              onClick={onApply}
+              disabled={busy || disabled}
+              title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : undefined}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+              style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
+              {actionLabel}
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Panneau d'aperçu inline (déplié sous une remédiation) : montre le contenu
+// EXACT qui sera écrit (lu depuis l'agent), puis le bouton d'application.
+function PreviewPanel({
+  changes,
+  note,
+  applying,
+  disabled,
+  applyLabel,
+  onApply,
+}: {
+  changes: { path: string; content: string }[];
+  note?: string;
+  applying: boolean;
+  disabled?: boolean;
+  applyLabel: string;
+  onApply: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-elevated p-3 space-y-2 -mt-1">
+      {changes.map((c) => (
+        <div key={c.path}>
+          <div className="text-[10px] font-mono text-muted-foreground mb-1">{c.path}</div>
+          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded bg-black/90 text-emerald-200 p-2 max-h-60 overflow-y-auto">
+            {c.content}
+          </pre>
+        </div>
+      ))}
+      {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
+      <div className="flex justify-end">
+        <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
+          {applyLabel}
+        </Button>
+      </div>
     </div>
   );
 }
