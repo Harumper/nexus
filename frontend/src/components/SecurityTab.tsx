@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp, ArrowLeft } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp, ChevronDown, ArrowLeft, X } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { api } from "../services/api";
@@ -72,6 +72,9 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
   // Posture modifiée par une remédiation mais audit pas encore relancé
   // (indice/findings non recalculés) → bandeau "relancer un audit".
   const [postureDirty, setPostureDirty] = useState(false);
+  // Vue d'ensemble (graph de tendance + stats) repliée par défaut : la page
+  // s'ouvre directement sur la liste des remédiations (meilleure concentration).
+  const [overviewOpen, setOverviewOpen] = useState(false);
   // Aperçu inline (dry-run) déplié sous une remédiation. `previewLoading` = clé
   // en cours de chargement de l'aperçu.
   const [preview, setPreview] = useState<{
@@ -413,9 +416,6 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
         />
       )}
 
-      {/* Tendance de l'indice de durcissement (historique) */}
-      <HardeningTrend history={history} />
-
       {/* État initial */}
       {!result && !auditOpen && (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
@@ -440,21 +440,47 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
               </span>
             </div>
           )}
-          {/* Score + parefeu */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <HardeningScore index={result.hardening_index} />
-            <StatCard
-              label="Avertissements"
-              value={result.warning_count}
-              tone={result.warning_count > 0 ? "danger" : "ok"}
-              icon={AlertTriangle}
-            />
-            <StatCard
-              label="Suggestions"
-              value={result.suggestion_count}
-              tone={result.suggestion_count > 0 ? "warning" : "ok"}
-              icon={Lightbulb}
-            />
+          {/* Vue d'ensemble (repliée par défaut) : indice + stats + tendance.
+              On garde le focus sur la liste des remédiations en dessous. */}
+          <div className="rounded-xl border border-border bg-card">
+            <button
+              onClick={() => setOverviewOpen((o) => !o)}
+              className="w-full flex items-center justify-between gap-2 px-5 py-3 text-left"
+              aria-expanded={overviewOpen}
+            >
+              <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
+                Vue d'ensemble
+                <span className="text-xs font-normal text-muted-foreground">
+                  · indice {result.hardening_index} · {result.warning_count} avert. · {result.suggestion_count} sugg.
+                </span>
+              </span>
+              {overviewOpen ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {overviewOpen && (
+              <div className="px-5 pb-5 space-y-4 border-t border-border pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <HardeningScore index={result.hardening_index} />
+                  <StatCard
+                    label="Avertissements"
+                    value={result.warning_count}
+                    tone={result.warning_count > 0 ? "danger" : "ok"}
+                    icon={AlertTriangle}
+                  />
+                  <StatCard
+                    label="Suggestions"
+                    value={result.suggestion_count}
+                    tone={result.suggestion_count > 0 ? "warning" : "ok"}
+                    icon={Lightbulb}
+                  />
+                </div>
+                <HardeningTrend history={history} />
+              </div>
+            )}
           </div>
 
           {/* Parefeu (résumé rapide) */}
@@ -860,11 +886,10 @@ function RemediationRow({
   );
 }
 
-// Panneau d'aperçu inline (déplié sous une remédiation) : montre le contenu
-// EXACT qui sera écrit (lu depuis l'agent), puis le bouton d'application.
-// Overlay couvrant la zone de contenu de l'onglet : montre le contenu EXACT
-// (lu depuis l'agent) avant d'appliquer, avec Retour / Appliquer. Le panneau est
-// `sticky` pour rester visible quel que soit le défilement.
+// Aperçu d'une remédiation : side sheet (drawer) qui glisse de la droite, façon
+// Stripe/Linear. Montre le contenu EXACT qui sera écrit (lu depuis l'agent) avant
+// d'appliquer. Fixe au viewport → toujours pleinement visible, la liste reste
+// visible derrière (contexte préservé). Voile léger, fermeture clic/Échap.
 function PreviewOverlay({
   title,
   changes,
@@ -884,22 +909,41 @@ function PreviewOverlay({
   onApply: () => void;
   onClose: () => void;
 }) {
+  // Animation d'entrée (slide depuis la droite) + fermeture à la touche Échap.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    setShown(true);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !applying) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [applying, onClose]);
+
   return (
-    // Panneau plein : couvre la zone de contenu de l'onglet de façon opaque
-    // (pas une carte centrée). `sticky top-0` garde le panneau dans le viewport
-    // quel que soit le défilement de la page.
-    <div className="absolute inset-0 z-30 bg-background">
-      <div className="sticky top-0 flex flex-col h-[80vh] rounded-xl border border-border bg-card overflow-hidden">
+    <>
+      {/* Voile léger (pas un fond opaque de modal) : clic = fermer */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/20 transition-opacity duration-200 ${shown ? "opacity-100" : "opacity-0"}`}
+        onClick={() => !applying && onClose()}
+        aria-hidden="true"
+      />
+      {/* Drawer à droite */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-xl flex flex-col bg-card border-l border-border shadow-2xl transform transition-transform duration-200 ${shown ? "translate-x-0" : "translate-x-full"}`}
+      >
         {/* En-tête */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0 bg-elevated">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0 bg-elevated">
+          <h3 className="text-sm font-semibold text-foreground truncate">{title} — aperçu</h3>
           <button
             onClick={onClose}
-            aria-label="Retour"
-            className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            aria-label="Fermer"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors shrink-0"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
-          <h3 className="text-sm font-semibold text-foreground">{title} — aperçu</h3>
         </div>
         {/* Corps : le contenu exact qui sera écrit */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -930,7 +974,7 @@ function PreviewOverlay({
           </Button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
