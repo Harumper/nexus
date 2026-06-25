@@ -141,6 +141,7 @@ export interface SecurityAuditResult {
   fail2ban_active: boolean;
   auto_updates_active: boolean;
   ssh_hardened: boolean;
+  login_banner_set?: boolean;
 }
 
 export interface MetricsResponse {

@@ -359,6 +359,9 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl 
 # fail2ban (anti-bruteforce) et unattended-upgrades (MAJ auto). Destinations fixes.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-fail2ban-*.tmp /etc/fail2ban/jail.local
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-autoupd-*.tmp /etc/apt/apt.conf.d/20auto-upgrades
+# Bannière légale (security.set_login_banner) : /etc/issue + /etc/issue.net
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue.net
 
 # === Assistant pare-feu : sockets en écoute (lecture seule) ===
 # ss -p (noms de process) nécessite root. Chemins selon packaging (sbin/bin).

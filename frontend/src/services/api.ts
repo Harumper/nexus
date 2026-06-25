@@ -741,6 +741,16 @@ class ApiClient {
     );
   }
 
+  async setLoginBanner(id: string) {
+    return this.request<{ success: boolean; data: { login_banner_set: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.set_login_banner", params: {}, timeout: 30000 }),
+      }
+    );
+  }
+
   // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
   async sshdHarden(id: string) {
     return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(

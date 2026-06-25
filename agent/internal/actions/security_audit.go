@@ -190,6 +190,7 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	parsed["fail2ban_active"] = systemctlActive("fail2ban")
 	parsed["auto_updates_active"] = autoUpdatesActive()
 	parsed["ssh_hardened"] = fileExists(sshdDropinPath)
+	parsed["login_banner_set"] = loginBannerSet()
 	return parsed, nil
 }
 

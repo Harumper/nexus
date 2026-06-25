@@ -10,7 +10,15 @@ import (
 func init() {
 	Register(&HardenFail2banAction{})
 	Register(&EnableAutoUpdatesAction{})
+	Register(&SetLoginBannerAction{})
 }
+
+// Bannière légale (BANN-7126/7130). La 1ʳᵉ ligne sert de marqueur de détection.
+const loginBannerMarker = "Acces restreint - Nexus"
+const loginBanner = `*** Acces restreint - Nexus ***
+Tout acces non autorise a ce systeme est interdit et peut faire l'objet de
+poursuites. Toutes les activites peuvent etre journalisees et surveillees.
+`
 
 // ═══════════════════════════════════════════════════════════════
 // Remédiations de durcissement « installer un utilitaire » (Phase 2).
@@ -99,6 +107,37 @@ func (a *EnableAutoUpdatesAction) Execute(_ map[string]interface{}) (interface{}
 		"auto_updates_active": autoUpdatesActive(),
 		"config":              autoUpdatesConfPath,
 	}, nil
+}
+
+// ──────────────────── bannière légale ────────────────────
+
+type SetLoginBannerAction struct{}
+
+func (a *SetLoginBannerAction) ID() string                              { return "security.set_login_banner" }
+func (a *SetLoginBannerAction) Capability() string                      { return "security" }
+func (a *SetLoginBannerAction) Validate(_ map[string]interface{}) error { return nil }
+
+func (a *SetLoginBannerAction) Execute(_ map[string]interface{}) (interface{}, error) {
+	// /etc/issue (console locale) ET /etc/issue.net (connexions réseau/SSH).
+	if err := installRootFile(loginBanner, "sec-banner-*.tmp", "/etc/issue"); err != nil {
+		return nil, err
+	}
+	if err := installRootFile(loginBanner, "sec-banner-*.tmp", "/etc/issue.net"); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"login_banner_set": true,
+		"files":            []string{"/etc/issue", "/etc/issue.net"},
+	}, nil
+}
+
+// loginBannerSet : la bannière Nexus est en place si /etc/issue contient le marqueur.
+func loginBannerSet() bool {
+	data, err := os.ReadFile("/etc/issue")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), loginBannerMarker)
 }
 
 // ───────────────────────── helpers ─────────────────────────

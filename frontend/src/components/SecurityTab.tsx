@@ -423,6 +423,25 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 disabled={!canRemediate || pending !== null}
                 onApply={applySshHarden}
               />
+              <RemediationRow
+                label="Bannière légale (/etc/issue, /etc/issue.net)"
+                active={!!result.login_banner_set}
+                activeLabel="En place"
+                actionLabel="Déposer"
+                busy={applying === "banner"}
+                disabled={!canRemediate}
+                onApply={() =>
+                  applyRemediation(
+                    "banner",
+                    {
+                      title: "Déposer la bannière légale ?",
+                      description:
+                        "Écrit un avertissement d'accès restreint dans /etc/issue et /etc/issue.net (affiché avant connexion). Aucune incidence sur l'accès.",
+                    },
+                    () => api.setLoginBanner(machineId)
+                  )
+                }
+              />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
