@@ -2,7 +2,30 @@ import { prisma } from "./database.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 import { dispatchActionSync } from "./action-sync.js";
 import { dispatchNotifications } from "./notifications.js";
-import type { AlertConditionType, AlertSeverity } from "@prisma/client";
+import type { AlertConditionType, AlertSeverity, AlertRule } from "@prisma/client";
+
+// Cache mémoire des règles activées : evaluateMetrics tourne à CHAQUE rapport de
+// métriques (toutes les ~60s/machine) et faisait un findMany à chaque fois.
+// On garde un superset court (TTL 30s) invalidé explicitement sur mutation de
+// règle (voir invalidateAlertRulesCache dans routes/alerts.ts). Le filtrage
+// par machine se fait en mémoire. Le TTL est un filet si une invalidation manque.
+let rulesCache: AlertRule[] | null = null;
+let rulesCacheAt = 0;
+const RULES_CACHE_TTL_MS = 30_000;
+
+export function invalidateAlertRulesCache(): void {
+  rulesCache = null;
+}
+
+async function getEnabledRules(): Promise<AlertRule[]> {
+  const now = Date.now();
+  if (rulesCache && now - rulesCacheAt < RULES_CACHE_TTL_MS) {
+    return rulesCache;
+  }
+  rulesCache = await prisma.alertRule.findMany({ where: { enabled: true } });
+  rulesCacheAt = now;
+  return rulesCache;
+}
 
 // Conditions qui necessitent un poll actif (dispatch action vers l'agent)
 const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
@@ -50,16 +73,12 @@ export async function evaluateMetrics(
     load_avg_1?: number;
   }
 ): Promise<void> {
-  // Récupérer toutes les règles actives qui concernent cette machine
-  const rules = await prisma.alertRule.findMany({
-    where: {
-      enabled: true,
-      OR: [
-        { machineIds: { isEmpty: true } }, // Toutes les machines
-        { machineIds: { has: machineId } }, // Cette machine spécifiquement
-      ],
-    },
-  });
+  // Règles actives concernant cette machine, filtrées en mémoire depuis le
+  // cache (évite un findMany par rapport de métriques sur le chemin chaud).
+  const enabled = await getEnabledRules();
+  const rules = enabled.filter(
+    (r) => r.machineIds.length === 0 || r.machineIds.includes(machineId)
+  );
 
   for (const rule of rules) {
     const triggered = checkCondition(rule.conditionType, rule.threshold, metrics);

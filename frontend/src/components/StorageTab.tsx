@@ -152,24 +152,24 @@ export default function StorageTab({ machineId }: Props) {
           <Empty label="LVM non utilisé sur cette machine" />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <LvmCard title="Physical Volumes" count={lvm.pvs.length}>
-              {lvm.pvs.map((p, i) => (
+            <LvmCard title="Physical Volumes" count={(lvm.pvs ?? []).length}>
+              {(lvm.pvs ?? []).map((p, i) => (
                 <div key={i} className="flex justify-between gap-2 py-1 text-xs border-b last:border-0" style={{ borderColor: "var(--nx-border)" }}>
                   <span className="font-mono truncate">{p.pv_name}</span>
                   <span style={{ color: "var(--nx-text-weak)" }}>{formatBytes(p.pv_size)}</span>
                 </div>
               ))}
             </LvmCard>
-            <LvmCard title="Volume Groups" count={lvm.vgs.length}>
-              {lvm.vgs.map((v, i) => (
+            <LvmCard title="Volume Groups" count={(lvm.vgs ?? []).length}>
+              {(lvm.vgs ?? []).map((v, i) => (
                 <div key={i} className="flex justify-between gap-2 py-1 text-xs border-b last:border-0" style={{ borderColor: "var(--nx-border)" }}>
                   <span className="font-mono truncate">{v.vg_name}</span>
                   <span style={{ color: "var(--nx-text-weak)" }}>{formatBytes(v.vg_size)} ({v.lv_count} LV)</span>
                 </div>
               ))}
             </LvmCard>
-            <LvmCard title="Logical Volumes" count={lvm.lvs.length}>
-              {lvm.lvs.map((l, i) => (
+            <LvmCard title="Logical Volumes" count={(lvm.lvs ?? []).length}>
+              {(lvm.lvs ?? []).map((l, i) => (
                 <div key={i} className="flex justify-between gap-2 py-1 text-xs border-b last:border-0" style={{ borderColor: "var(--nx-border)" }}>
                   <span className="font-mono truncate" title={l.lv_path}>{l.vg_name}/{l.lv_name}</span>
                   <span style={{ color: "var(--nx-text-weak)" }}>{formatBytes(l.lv_size)}</span>

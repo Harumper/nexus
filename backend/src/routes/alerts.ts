@@ -3,6 +3,7 @@ import { prisma } from "../services/database.js";
 import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/auth.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 import { testAlertRule, ChannelType } from "../services/notifications.js";
+import { invalidateAlertRulesCache } from "../services/alert-engine.js";
 
 const ALLOWED_CHANNEL_TYPES: ChannelType[] = ["DISCORD", "SLACK", "TEAMS", "EMAIL", "WEBHOOK"];
 
@@ -136,6 +137,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
+      invalidateAlertRulesCache();
       return reply.code(201).send(rule);
     }
   );
@@ -179,6 +181,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
         data: body,
       });
 
+      invalidateAlertRulesCache();
       return reply.send(rule);
     }
   );
@@ -213,6 +216,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       await prisma.alertRule.delete({ where: { id } });
+      invalidateAlertRulesCache();
       return reply.code(204).send();
     }
   );

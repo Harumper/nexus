@@ -15,6 +15,27 @@ import { getAgentSession } from "../websocket/sessions.js";
 import type { DispatchActionBody } from "../types/index.js";
 import { actionsDispatched } from "./prometheus.js";
 
+// Suivi des request_id dispatchés en INTERNE (sondes de l'alert-engine : pas de
+// userId). Sert à NE PAS auditer ces actions automatiques (sinon ~2 lignes
+// AuditLog/machine/5min noient l'audit réel — ~200M lignes/an à 1000 machines).
+// TTL de garde au cas où une réponse n'arrive jamais (timeout) → pas de fuite.
+const internalRequests = new Map<string, number>();
+const INTERNAL_TTL_MS = 60_000;
+
+function markInternalRequest(requestId: string): void {
+  const now = Date.now();
+  for (const [id, at] of internalRequests) {
+    if (now - at > INTERNAL_TTL_MS) internalRequests.delete(id);
+  }
+  internalRequests.set(requestId, now);
+}
+
+// consumeInternalRequest renvoie true (et oublie l'id) si la requête était
+// interne. Appelé par le handler de réponse pour sauter l'audit ACTION_COMPLETE.
+export function consumeInternalRequest(requestId: string): boolean {
+  return internalRequests.delete(requestId);
+}
+
 export async function dispatchAction(
   machineId: string,
   action: DispatchActionBody,
@@ -115,21 +136,26 @@ export async function dispatchAction(
   session.ws.send(wsMessage);
   actionsDispatched.inc();
 
-  // 7. Audit log
-  await prisma.auditLog.create({
-    data: {
-      action: "ACTION_REQUEST",
-      resource: "machine",
-      resourceId: machineId,
-      machineId,
-      userId,
-      details: {
-        request_id: requestId,
-        action_id: action.action_id,
-        params: action.params || {},
-      } as any,
-    },
-  });
+  // 7. Audit log — SAUF pour les dispatchs internes (sondes alert-engine, sans
+  // userId) : on les marque pour sauter aussi l'ACTION_COMPLETE côté handler.
+  if (userId) {
+    await prisma.auditLog.create({
+      data: {
+        action: "ACTION_REQUEST",
+        resource: "machine",
+        resourceId: machineId,
+        machineId,
+        userId,
+        details: {
+          request_id: requestId,
+          action_id: action.action_id,
+          params: action.params || {},
+        } as any,
+      },
+    });
+  } else {
+    markInternalRequest(requestId);
+  }
 
   return { success: true, requestId };
 }
