@@ -51,23 +51,27 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
       id: "binary",
       title: "Télécharger le binaire de l'agent",
       description: "Récupère le binaire nexus-agent depuis le serveur dans /tmp.",
-      command: `curl -fSL "${backendUrl}/api/agents/download?token=${binaryToken}" \\
+      // rm -f d'abord : sur un hôte ayant déjà un /tmp/nexus-agent d'un run
+      // précédent (propriétaire différent), fs.protected_regular refuse l'écriture
+      // même à root. On supprime donc avant de re-télécharger.
+      command: `sudo rm -f /tmp/nexus-agent && curl -fSL "${backendUrl}/api/agents/download?token=${binaryToken}" \\
   -o /tmp/nexus-agent && chmod +x /tmp/nexus-agent`,
     },
     {
       id: "script",
       title: "Télécharger le script d'installation",
       description: "Récupère le script install-agent.sh qui configure user Linux, sudoers et systemd.",
-      command: `curl -fSL "${backendUrl}/api/agents/install-script?token=${scriptToken}" \\
+      command: `sudo rm -f /tmp/install-agent.sh && curl -fSL "${backendUrl}/api/agents/install-script?token=${scriptToken}" \\
   -o /tmp/install-agent.sh && chmod +x /tmp/install-agent.sh`,
     },
     {
       id: "run",
       title: reenroll ? "Purger, réinstaller et ré-enrôler l'agent" : "Installer et démarrer l'agent",
       description: reenroll
-        ? "Purge l'identité résiduelle (clés, shared secret, snapshots) puis réinstalle et ré-enrôle proprement."
+        ? "TABLE RASE (binaire, clés, secret, config, sudoers, utilisateur ; logs conservés) puis réinstall + ré-enrôl propre."
         : "Écrit la clé publique du serveur dans un fichier temporaire puis lance l'installation.",
-      command: `sudo tee /tmp/nexus-pubkey.pem > /dev/null <<'NEXUS_PUBKEY_EOF'
+      command: `sudo rm -f /tmp/nexus-pubkey.pem
+sudo tee /tmp/nexus-pubkey.pem > /dev/null <<'NEXUS_PUBKEY_EOF'
 ${backendPublicKey.trimEnd()}
 NEXUS_PUBKEY_EOF
 sudo /tmp/install-agent.sh \\
