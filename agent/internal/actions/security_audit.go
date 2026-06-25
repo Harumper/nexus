@@ -146,6 +146,7 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 		return nil, fmt.Errorf("pipe lynis: %w", pipeErr)
 	}
 	cmd.Stderr = cmd.Stdout // combiner stderr (ex. refus sudo) dans le flux
+	auditStart := time.Now()
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("lancement de lynis échoué: %w", err)
 	}
@@ -162,6 +163,14 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	_ = cmd.Wait()
 	if ctx.Err() == context.DeadlineExceeded {
 		return nil, fmt.Errorf("audit Lynis interrompu : timeout (5 min) dépassé")
+	}
+
+	// Garde-fou : si le rapport n'a pas été RÉ-écrit par cette exécution (mtime
+	// antérieur au lancement), c'est que lynis n'a pas pu tourner (typiquement
+	// "sudo: a password is required" → sudoers obsolètes). On refuse de renvoyer
+	// l'ancien rapport comme s'il était frais.
+	if fi, statErr := os.Stat(lynisReportPath); statErr != nil || fi.ModTime().Before(auditStart) {
+		return nil, fmt.Errorf("Lynis n'a pas pu s'exécuter (droits sudo insuffisants ? sudoers obsolètes — ré-installer/ré-enrôler l'agent). Aucun rapport frais produit.")
 	}
 
 	report, err := readLynisReport()
