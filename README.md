@@ -53,6 +53,23 @@ Notifications: HMAC-signed webhooks + SMTP email + WebSocket real-time broadcast
 - Sudoers whitelist (no wildcards on dangerous commands, NOEXEC where relevant)
 - Systemd hardening: `StateDirectory`, `Protect*`, no ambient capabilities
 
+### Agent key at rest — what it protects (and what it does NOT)
+The agent's identity key (`agent.key`) is **encrypted at rest** with a software
+machine-bound key (HKDF over `/etc/machine-id` + a per-install salt in
+`/etc/nexus/agent-keysalt`, AES-256-GCM). This protects against a **stray copy of
+the key file alone** (without the machine context) and against **reuse on another
+machine**.
+
+> ⚠️ **It does NOT protect a full disk image / VM snapshot / whole-filesystem backup
+> (e.g. Proxmox snapshots, PBS backups).** The `machine-id` and the salt travel
+> *with* the disk, so an attacker holding a complete image can re-derive the
+> wrapping key and decrypt `agent.key`. Treat full snapshots/backups of an agent
+> host as containing its identity. Closing this case requires **TPM 2.0 sealing**
+> (planned, opt-in for hosts that have a usable TPM) — it is **not** provided by the
+> software path. A live root (or `nexus-agent`-user) compromise can likewise
+> re-derive the key; the blanket-file-read capability that would bypass file
+> permissions has been dropped from the agent unit.
+
 ## Quick start
 
 ### Server (Docker Compose)
