@@ -68,21 +68,28 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
       // d'un message non vérifié. Sinon un attaquant peut envoyer un message
       // forgé portant le machine_id d'une autre machine et fermer sa session
       // légitime (DoS ciblé), car registerSession() ferme la session existante.
+      // NEXUS-CRYPTO-003 — vérifier la signature ECDSA (+ timestamp + nonce) de
+      // CHAQUE message, pas seulement du premier. Avant ce fix, dès qu'une session
+      // était liée, les frames suivantes étaient routées sans re-vérification
+      // (rejeu/injection possible sur la connexion établie). La liaison de session
+      // reste, elle, gated (cf. plus bas) — on ne (re)lie pas sur un message non
+      // vérifié. La (ré)authentification par message s'appuie sur la clé
+      // long-terme stockée (invalidée par teardown de session sur revoke/réenrôl).
+      const verification = await verifyAgentMessage(msg);
+      if (!verification.valid) {
+        console.warn(
+          `[WS] Message verification failed for ${msg.machine_id}: ${verification.error}`
+        );
+        ws.send(JSON.stringify({ type: "error", error: verification.error || "Not authenticated" }));
+        return;
+      }
+
       const existing = getAgentSession(msg.machine_id);
       const isBoundAuthedSession = existing?.ws === ws && existing.authenticated;
 
       if (!isBoundAuthedSession) {
-        // 1) Prouver l'identité par la signature ECDSA AVANT toute mutation de session
-        const verification = await verifyAgentMessage(msg);
-        if (!verification.valid) {
-          console.warn(
-            `[WS] Message verification failed for ${msg.machine_id}: ${verification.error}`
-          );
-          ws.send(JSON.stringify({ type: "error", error: verification.error || "Not authenticated" }));
-          return;
-        }
-
-        // 2) Vérifier l'IP binding
+        // IP binding + (re)liaison de session : réservé au 1er message d'une
+        // connexion (ou à un changement de connexion du MÊME agent légitime).
         const ipValid = await verifyAgentIp(msg.machine_id, ip);
         if (!ipValid) {
           console.warn(`[WS] IP mismatch for ${msg.machine_id}: ${ip}`);
@@ -91,8 +98,6 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
           return;
         }
 
-        // 3) Seulement maintenant : lier cette connexion comme session authentifiée
-        //    (remplace une éventuelle ancienne connexion du MÊME agent légitime).
         machineId = msg.machine_id;
         registerSession(msg.machine_id, ws, ip);
         authenticateSession(msg.machine_id);
