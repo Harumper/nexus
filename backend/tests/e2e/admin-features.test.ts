@@ -32,11 +32,11 @@ describe("Admin Features — Reboot + Services", () => {
     expect(content).toContain('"nexus-agent"');
   });
 
-  it("should have system.reboot in PROBE_ALLOWED_ACTIONS policy", () => {
-    // Avec le retrait du modele Capability, le controle d'acces est base sur Machine.type.
-    // system.reboot doit etre absent de la whitelist PROBE (mutation).
+  it("should NOT classify system.reboot as read-only (it mutates)", () => {
+    // L'accès est borné par le RBAC central (READ_ONLY_ACTIONS = source unique des
+    // actions read-only). system.reboot étant une mutation, il en est absent.
     const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
-    expect(content).toContain("PROBE_ALLOWED_ACTIONS");
+    expect(content).toContain("READ_ONLY_ACTIONS");
     expect(content).not.toContain("system.reboot");
   });
 
@@ -85,7 +85,7 @@ describe("Admin Features — Journalctl", () => {
     expect(content).toContain("usermod -a -G systemd-journal");
   });
 
-  it("should allow system.logs on PROBE machines (read-only)", () => {
+  it("should classify system.logs as read-only", () => {
     const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
     expect(content).toContain('"system.logs"');
   });
@@ -118,7 +118,7 @@ describe("Admin Features — Firewall ufw with watchdog", () => {
     expect(content).toContain("iptables-restore");
   });
 
-  it("should allow firewall.status (read) but not firewall.allow (mutation) on PROBE", () => {
+  it("classifies firewall.status as read-only but not firewall.allow (mutation)", () => {
     const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
     expect(content).toContain('"firewall.status"');
     expect(content).not.toContain('"firewall.allow"');

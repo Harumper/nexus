@@ -49,7 +49,7 @@ var fsDenyPathPrefixes = []string{
 	// Répertoires de clés/secrets de l'agent Nexus. ATTENTION : le répertoire
 	// réel des clés est /var/lib/nexus/keys (KEY_DIR dans install-agent.sh),
 	// PAS /var/lib/nexus-agent/keys. shared.secret (clé AES du canal) y vit ;
-	// sans ces préfixes un fs.read (autorisé en PROBE/READONLY) l'exfiltrerait.
+	// sans ces préfixes un fs.read (action en lecture seule) l'exfiltrerait.
 	"/var/lib/nexus/keys/",
 	"/var/lib/nexus/",
 	"/opt/nexus/keys/",

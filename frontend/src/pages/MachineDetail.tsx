@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
-  Activity, Network, ListTree, Download, Radio,
+  Activity, Network, ListTree, Download,
   RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen,
 } from "lucide-react";
 import { api } from "../services/api";
@@ -71,7 +71,7 @@ export default function MachineDetail() {
   // (dans la Vue d'ensemble) via prop drilling — évite le double fetch.
   const attention = useMachineAttention(
     id ?? "",
-    Boolean(id && machine?.type === "AGENT" && machine.status === "ONLINE")
+    Boolean(id && machine?.status === "ONLINE")
   );
 
   // Load machine data
@@ -99,7 +99,7 @@ export default function MachineDetail() {
   // de la modal d'upgrade (onSuccess) et au montage quand la machine est un
   // agent en ligne.
   const refreshAgentStatus = useCallback(() => {
-    if (!id || machine?.type !== "AGENT" || machine?.status !== "ONLINE") {
+    if (!id || machine?.status !== "ONLINE") {
       setAgentUpdateAvailable(false);
       setAgentUpToDate(null);
       return;
@@ -114,7 +114,7 @@ export default function MachineDetail() {
         setAgentUpdateAvailable(false);
         setAgentUpToDate(null);
       });
-  }, [id, machine?.type, machine?.status]);
+  }, [id, machine?.status]);
 
   useEffect(() => {
     refreshAgentStatus();
@@ -217,12 +217,10 @@ export default function MachineDetail() {
   const status = statusColor(machine.status);
   const isAdmin = user?.role === "ADMIN";
   const isOnline = machine.status === "ONLINE";
-  const isProbe = machine.type === "PROBE";
-  const isAgent = machine.type === "AGENT";
   // Gestion des clés SSH / sudo : activée par flag backend ET réservée ADMIN.
   // Cosmétique — le vrai contrôle est appliqué dans dispatchAction() côté backend.
   const canManagePrivileges =
-    isAgent && isAdmin && authConfig?.features?.userPrivilegeMgmt === true;
+    isAdmin && authConfig?.features?.userPrivilegeMgmt === true;
 
   const tabGroups: {
     label: string;
@@ -245,7 +243,7 @@ export default function MachineDetail() {
     {
       label: "Système",
       tabs: [
-        { id: "services", label: "Services", icon: Cog, show: isOnline && isAgent, tooltip: "systemd : start/stop/restart, lien vers logs journalctl" },
+        { id: "services", label: "Services", icon: Cog, show: isOnline, tooltip: "systemd : start/stop/restart, lien vers logs journalctl" },
         { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline, tooltip: "Cron jobs (lecture) + systemd timers (enable/disable)" },
         { id: "users", label: "Utilisateurs", icon: Server, show: isOnline, tooltip: "Linux users UID≥1000, sudo membership, clés SSH" },
         { id: "files", label: "Fichiers", icon: FolderOpen, show: isOnline, tooltip: "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées" },
@@ -255,15 +253,15 @@ export default function MachineDetail() {
       label: "Réseau",
       tabs: [
         { id: "network", label: "Interfaces", icon: Network, show: isOnline, tooltip: "ip addr / routes / DNS (lecture seule)" },
-        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline && isAgent, tooltip: "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
-        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline && isAgent, tooltip: "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
+        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline, tooltip: "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
+        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline, tooltip: "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
       ],
     },
     {
       label: "Logiciels",
       tabs: [
-        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline && isAgent, tooltip: "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
-        { id: "packages", label: "Paquets", icon: Download, show: isOnline && isAgent, tooltip: "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
+        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline, tooltip: "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
+        { id: "packages", label: "Paquets", icon: Download, show: isOnline, tooltip: "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
       ],
     },
     {
@@ -286,8 +284,7 @@ export default function MachineDetail() {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: "var(--nx-bg-elevated)" }}>
-              {isProbe ? <Radio className="w-7 h-7" style={{ color: "var(--nx-info)" }} />
-                : <Server className="w-7 h-7" style={{ color: "var(--nx-text-weak)" }} />}
+              <Server className="w-7 h-7" style={{ color: "var(--nx-text-weak)" }} />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
@@ -310,7 +307,6 @@ export default function MachineDetail() {
                     Reconnexion
                   </span>
                 )}
-                {isProbe && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>Probe</span>}
                 {machine.isCritical && (
                   <span
                     className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1"
@@ -385,7 +381,7 @@ export default function MachineDetail() {
                 </Tooltip>
               )}
 
-              {isOnline && isAgent && (
+              {isOnline && (
                 <Tooltip
                   content={
                     agentUpToDate === true
@@ -429,7 +425,7 @@ export default function MachineDetail() {
                 </Tooltip>
               )}
 
-              {isOnline && isAgent && !machine.isCritical && (
+              {isOnline && !machine.isCritical && (
                 <Tooltip content="Redémarrer la machine">
                   <button onClick={handleReboot} aria-label="Redémarrer" className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                     <Power className="w-4 h-4" />
@@ -628,27 +624,26 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "scheduling" && isOnline && (
-          <SchedulingTab machineId={machine.id} canMutate={isAgent} />
+          <SchedulingTab machineId={machine.id} />
         )}
 
         {activeTab === "users" && isOnline && (
           <UsersTab
             machineId={machine.id}
-            canMutate={isAgent}
             canManagePrivileges={canManagePrivileges}
           />
         )}
 
         {activeTab === "files" && isOnline && (
-          <FilesTab machine={machine} canUpload={isAgent} />
+          <FilesTab machine={machine} />
         )}
 
         {activeTab === "security" && isOnline && (
-          <SecurityTab machineId={machine.id} canRemediate={isAgent} />
+          <SecurityTab machineId={machine.id} />
         )}
 
         {activeTab === "netplan" && isOnline && (
-          <NetworkConfigTab machineId={machine.id} canMutate={isAgent} />
+          <NetworkConfigTab machineId={machine.id} />
         )}
 
         {activeTab === "network" && isOnline && (
@@ -703,7 +698,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
   onShowFailedServices?: () => void;
   attention: ReturnType<typeof useMachineAttention>;
 }) {
-  const isOnlineAgent = machine.type === "AGENT" && machine.status === "ONLINE";
+  const isOnlineAgent = machine.status === "ONLINE";
 
   return (
     <div className="space-y-4">
@@ -749,7 +744,6 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
             <InfoRow label="Architecture" value={machine.arch || "?"} />
             <InfoRow label="Hostname" value={machine.hostname || "?"} />
             <InfoRow label="Agent" value={machine.agentVersion || "?"} />
-            <InfoRow label="Type" value={machine.type === "PROBE" ? "Probe (monitoring)" : "Agent (complet)"} />
             <InfoRow label="Uptime" value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
           </div>
         </div>

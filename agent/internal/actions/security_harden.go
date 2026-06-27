@@ -47,8 +47,7 @@ poursuites. Toutes les activites peuvent etre journalisees et surveillees.
 
 // ═══════════════════════════════════════════════════════════════
 // Remédiations de durcissement « installer un utilitaire » (Phase 2).
-// Mutations -> réservées aux machines AGENT (PAS dans la whitelist PROBE).
-// Passent par dispatchAction (RBAC + confirmation côté UI).
+// Mutations : passent par dispatchAction (RBAC + confirmation côté UI).
 // ═══════════════════════════════════════════════════════════════
 
 const autoUpdatesConfPath = "/etc/apt/apt.conf.d/20auto-upgrades"

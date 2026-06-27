@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight } from "lucide-react";
 
-type Section = "start" | "agent" | "probe" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security";
+type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security";
 
 const sections: { id: Section; label: string; icon: typeof Book }[] = [
   { id: "start", label: "Démarrage rapide", icon: Book },
   { id: "agent", label: "Installation Agent", icon: Terminal },
-  { id: "probe", label: "Mode Probe", icon: Network },
   { id: "self", label: "Self-monitoring", icon: Server },
   { id: "machines", label: "Gestion des machines", icon: Server },
   { id: "tags", label: "Tags & Groupes", icon: Tag },
@@ -21,7 +20,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "probe", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "api"];
+    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -68,7 +67,6 @@ function DocContent({ section }: { section: Section }) {
   switch (section) {
     case "start": return <StartDoc />;
     case "agent": return <AgentDoc />;
-    case "probe": return <ProbeDoc />;
     case "self": return <SelfDoc />;
     case "machines": return <MachinesDoc />;
     case "tags": return <TagsDoc />;
@@ -125,7 +123,6 @@ function StartDoc() {
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">Serveur Nexus</strong> — Backend Fastify + Frontend React, déployé via Docker Compose</li>
       <li><strong className="text-foreground">Agent Nexus</strong> — Binaire Go installé sur chaque machine à gérer (service systemd)</li>
-      <li><strong className="text-foreground">Probe Nexus</strong> — Version légère de l'agent (monitoring uniquement, pas d'actions)</li>
     </ul>
 
     <H2>Prérequis</H2>
@@ -164,7 +161,7 @@ function AgentDoc() {
     <P>L'agent Nexus est un binaire Go léger qui s'installe comme service systemd sur chaque machine à gérer.</P>
 
     <H2>1. Créer la machine dans Nexus</H2>
-    <P>Depuis l'interface web, allez dans Machines → Ajouter une machine. Choisissez un nom et un type (<strong>AGENT</strong> complet ou <strong>PROBE</strong> monitoring read-only). Nexus vous donne :</P>
+    <P>Depuis l'interface web, allez dans Machines → Ajouter une machine. Choisissez un nom. Nexus vous donne :</P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
       <li><strong className="text-foreground">Machine ID</strong> — Identifiant unique</li>
       <li><strong className="text-foreground">Enrollment Token</strong> — Token d'authentification (valable 24h)</li>
@@ -223,13 +220,8 @@ sudo journalctl -u nexus-agent -f`}</Code>
 
     <Tip>L'enrollment est automatique au premier démarrage. Les clés sont stockées dans /opt/nexus/keys/ et réutilisées aux démarrages suivants.</Tip>
 
-    <H2>Type de machine</H2>
-    <P>Le type détermine ce que l'agent peut faire :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">AGENT</strong> — Accès complet : métriques, mises à jour, services, firewall, netplan, users, paquets, reboot, etc.</li>
-      <li><strong className="text-foreground">PROBE</strong> — Monitoring en lecture seule uniquement (métriques, logs, statuts). Aucune mutation possible.</li>
-    </ul>
-    <P>Le type est défini à la création de la machine et peut être changé dans la section <em>Paramètres</em> de la vue d'ensemble.</P>
+    <H2>Capacités de l'agent</H2>
+    <P>Un agent enrôlé a un accès complet : métriques, mises à jour, services, firewall, netplan, users, paquets, reboot, etc. Ce que chaque utilisateur peut réellement déclencher dépend de son rôle (ADMIN/OPERATOR/READONLY) et du flag « machine critique ». Les capacités root de l'agent sont définies par le sudoers généré à l'installation.</P>
 
     <H2>Flag "Machine critique"</H2>
     <P>Dans <em>Paramètres</em>, cochez <strong>⚠ Machine critique</strong> pour les machines sensibles (serveur Nexus, prod DB, etc.). Cela bloque :</P>
@@ -295,56 +287,6 @@ sudo /tmp/install-agent.sh --uninstall
       puis une nouvelle install — ou directement <code>install-agent.sh --reenroll ...</code>
       avec le nouveau token.
     </P>
-  </>);
-}
-
-function ProbeDoc() {
-  return (<>
-    <H1>Mode Probe</H1>
-    <P>La probe est une version allégée de l'agent, limitée au monitoring. Elle ne peut pas exécuter d'actions dangereuses (mises à jour, installation de packages, scripts).</P>
-
-    <H2>Quand utiliser une Probe ?</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li>Machines en production critique où vous ne voulez pas d'actions à distance</li>
-      <li>Surveillance passive uniquement (métriques, alertes)</li>
-      <li>Environnements à sécurité renforcée</li>
-    </ul>
-
-    <H2>Déploiement Docker</H2>
-    <Code>{`# La probe est disponible via docker-compose
-docker compose --profile probe up -d`}</Code>
-
-    <H2>Déploiement natif</H2>
-    <P>Utilisez le même binaire agent avec la variable d'environnement :</P>
-    <Code>{`NEXUS_AGENT_TYPE=probe`}</Code>
-
-    <H2>Différences Agent vs Probe</H2>
-    <div className="rounded-lg overflow-hidden mb-4" style={{ border: "1px solid var(--nx-border)" }}>
-      <table className="w-full text-xs">
-        <thead><tr style={{ background: "var(--nx-bg-elevated)" }}>
-          <th className="text-left px-3 py-2 text-muted-foreground">Fonctionnalité</th>
-          <th className="text-center px-3 py-2 text-muted-foreground">Agent</th>
-          <th className="text-center px-3 py-2 text-muted-foreground">Probe</th>
-        </tr></thead>
-        <tbody>
-          {[
-            ["Métriques CPU/RAM/Disk/Réseau", true, true],
-            ["Liste des processus", true, true],
-            ["Détection reboot requis", true, true],
-            ["Mises à jour système", true, false],
-            ["Installation de packages", true, false],
-            ["Exécution de scripts", true, false],
-            ["Kill de processus", true, false],
-          ].map(([feat, agent, probe], i) => (
-            <tr key={i} style={{ borderTop: "1px solid var(--nx-border)" }}>
-              <td className="px-3 py-1.5 text-foreground">{feat as string}</td>
-              <td className="px-3 py-1.5 text-center">{agent ? "✅" : "❌"}</td>
-              <td className="px-3 py-1.5 text-center">{probe ? "✅" : "❌"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   </>);
 }
 

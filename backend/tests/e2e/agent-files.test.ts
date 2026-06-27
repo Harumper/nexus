@@ -5,13 +5,12 @@ import { resolve } from "path";
 const agentDir = resolve(__dirname, "../../../agent");
 
 describe("Agent Go Files - Phase 4", () => {
-  describe("Probe vs Agent split", () => {
-    it("should have AgentType in config.go", () => {
+  describe("Single agent type (PROBE removed)", () => {
+    it("config.go has no agent-type concept anymore", () => {
       const path = resolve(agentDir, "internal/config/config.go");
       const content = readFileSync(path, "utf8");
-      expect(content).toContain("AgentType");
-      expect(content).toContain("NEXUS_AGENT_TYPE");
-      expect(content).toContain('"agent"'); // default value
+      expect(content).not.toContain("AgentType");
+      expect(content).not.toContain("NEXUS_AGENT_TYPE");
     });
 
     it("should have ProcessInterval in config.go", () => {
@@ -21,12 +20,11 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("NEXUS_PROCESS_INTERVAL");
     });
 
-    it("should have probe mode whitelist in main.go", () => {
+    it("main.go has no agent-side probe whitelist/gate", () => {
       const path = resolve(agentDir, "cmd/nexus-agent/main.go");
       const content = readFileSync(path, "utf8");
-      expect(content).toContain("probeAllowedActions");
-      expect(content).toContain("probe");
-      expect(content).toContain("action not allowed in probe mode");
+      expect(content).not.toContain("probeAllowedActions");
+      expect(content).not.toContain("action not allowed in probe mode");
     });
   });
 
@@ -36,7 +34,6 @@ describe("Agent Go Files - Phase 4", () => {
       const content = readFileSync(path, "utf8");
       expect(content).toContain("reboot-required");
       expect(content).toContain("reboot_required");
-      expect(content).toContain("agent_type");
     });
   });
 
@@ -154,14 +151,13 @@ describe("Agent Go Files - Phase 4", () => {
     });
   });
 
-  describe("Docker compose probe rename", () => {
-    it("should have probe service instead of agent", () => {
+  describe("Docker compose — no probe service (PROBE removed)", () => {
+    it("should not define a probe service or agent-type env", () => {
       const path = resolve(__dirname, "../../../docker-compose.yml");
       const content = readFileSync(path, "utf8");
-      expect(content).toContain("probe:");
-      expect(content).toContain("NEXUS_AGENT_TYPE: probe");
-      expect(content).toContain("nexus-probe-local");
-      expect(content).not.toContain("nexus-agent-local");
+      expect(content).not.toContain("NEXUS_AGENT_TYPE");
+      expect(content).not.toContain("nexus-probe-local");
+      expect(content).not.toMatch(/^\s*probe:/m);
     });
   });
 
@@ -243,23 +239,19 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("actions.CleanupInbox()");
     });
 
-    it("should expose fs.list and fs.read in probe whitelist but NOT fs.upload", () => {
-      const path = resolve(agentDir, "cmd/nexus-agent/main.go");
+    it("should register fs.list / fs.read / fs.upload agent actions", () => {
+      const path = resolve(agentDir, "internal/actions/files.go");
       const content = readFileSync(path, "utf8");
-      // Extrait juste le bloc probeAllowedActions pour des assertions précises
-      const block = content.match(/probeAllowedActions\s*=\s*map\[string\]bool\{([\s\S]*?)\}/);
-      expect(block).not.toBeNull();
-      const body = block![1];
-      expect(body).toContain('"fs.list"');
-      expect(body).toContain('"fs.read"');
-      expect(body).not.toContain('"fs.upload"');
+      expect(content).toContain('return "fs.list"');
+      expect(content).toContain('return "fs.read"');
+      expect(content).toContain('return "fs.upload"');
     });
 
-    it("should mirror fs.list and fs.read (NOT fs.upload) in backend PROBE_ALLOWED_ACTIONS", () => {
+    it("should classify fs.list and fs.read as read-only (NOT fs.upload) in READ_ONLY_ACTIONS", () => {
       const path = resolve(__dirname, "../../../backend/src/services/machine-manager.ts");
       const content = readFileSync(path, "utf8");
-      // Extrait le bloc PROBE_ALLOWED_ACTIONS = [ ... ]
-      const block = content.match(/PROBE_ALLOWED_ACTIONS\s*=\s*\[([\s\S]*?)\]/);
+      // Extrait le bloc READ_ONLY_ACTIONS = [ ... ]
+      const block = content.match(/READ_ONLY_ACTIONS\s*=\s*\[([\s\S]*?)\]/);
       expect(block).not.toBeNull();
       const body = block![1];
       expect(body).toContain('"fs.list"');
@@ -292,9 +284,9 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("TooLargeModal");
     });
 
-    it("should hide the upload zone outside of inbox and for PROBE machines", () => {
+    it("should hide the upload zone outside of the inbox", () => {
       const content = readFileSync(tabPath, "utf8");
-      expect(content).toContain("showUpload = canUpload && isInbox");
+      expect(content).toContain("showUpload = isInbox");
     });
 
     it("should be wired in MachineDetail", () => {
@@ -302,7 +294,6 @@ describe("Agent Go Files - Phase 4", () => {
       const content = readFileSync(detailPath, "utf8");
       expect(content).toContain('import FilesTab from "../components/FilesTab"');
       expect(content).toContain('activeTab === "files"');
-      expect(content).toContain('canUpload={isAgent}');
     });
 
     it("should preview images and text in-place before downloading", () => {

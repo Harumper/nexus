@@ -7,7 +7,6 @@ import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machineId: string;
-  canMutate: boolean;
 }
 
 interface NetplanFile {
@@ -15,7 +14,7 @@ interface NetplanFile {
   content: string;
 }
 
-export default function NetworkConfigTab({ machineId, canMutate }: Props) {
+export default function NetworkConfigTab({ machineId }: Props) {
   const [files, setFiles] = useState<NetplanFile[]>([]);
   const [targetFile, setTargetFile] = useState("99-nexus.yaml");
   const [selectedFile, setSelectedFile] = useState("99-nexus.yaml");
@@ -106,7 +105,6 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
   }, [pending]);
 
   const handleApply = async () => {
-    if (!canMutate) return;
     if (!(await confirm({
       title: "Appliquer cette configuration réseau ?",
       description:
@@ -207,7 +205,7 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
           <textarea
             value={editorContent}
             onChange={(e) => setEditorContent(e.target.value)}
-            disabled={!isEditable || !canMutate || !!pending}
+            disabled={!isEditable || !!pending}
             spellCheck={false}
             rows={18}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono resize-y disabled:opacity-90"
@@ -225,7 +223,7 @@ export default function NetworkConfigTab({ machineId, canMutate }: Props) {
             </div>
           )}
 
-          {canMutate && isEditable && (
+          {isEditable && (
             <div className="flex items-center justify-between">
               <div className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
                 {isDirty ? "Modifications non appliquées" : "Synchronisé"}

@@ -170,7 +170,6 @@ export async function evaluateHealthAlerts(): Promise<void> {
   const machines = await prisma.machine.findMany({
     where: {
       status: "ONLINE",
-      type: "AGENT", // Les probes n'ont pas ces actions
       ...(needAllMachines ? {} : { id: { in: Array.from(specificIds) } }),
     },
     select: { id: true, name: true },

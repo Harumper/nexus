@@ -11,7 +11,7 @@
 // Le contrôle est appliqué dans dispatchAction() — donc il couvre TOUS les
 // chemins de dispatch (/actions/sync, /actions, /bulk, batch).
 
-import { PROBE_ALLOWED_ACTIONS } from "./machine-manager.js";
+import { READ_ONLY_ACTIONS as READ_ONLY_ACTION_LIST } from "./machine-manager.js";
 
 export const PRIVILEGED_USER_ACTIONS = new Set<string>([
   "user.update_sudo",
@@ -19,9 +19,9 @@ export const PRIVILEGED_USER_ACTIONS = new Set<string>([
   "sshkey.remove",
 ]);
 
-// Actions en lecture seule = la liste PROBE (source unique de vérité). Un
+// Actions en lecture seule (source unique de vérité, machine-manager.ts). Un
 // utilisateur READONLY ne peut invoquer QUE celles-ci.
-const READ_ONLY_ACTIONS = new Set<string>(PROBE_ALLOWED_ACTIONS);
+const READ_ONLY_ACTIONS = new Set<string>(READ_ONLY_ACTION_LIST);
 
 // Actions si dangereuses qu'elles exigent ADMIN même si elles restent dans le
 // périmètre Nexus (révocables, tracées) : script.execute = exécution root

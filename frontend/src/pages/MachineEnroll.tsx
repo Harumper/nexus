@@ -28,7 +28,6 @@ export default function MachineEnroll() {
 
   const [step, setStep] = useState<Step>(isRegenerateMode ? 2 : 1);
   const [name, setName] = useState("");
-  const [machineType, setMachineType] = useState<"AGENT" | "PROBE">("AGENT");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -125,7 +124,7 @@ export default function MachineEnroll() {
     setError("");
     setLoading(true);
     try {
-      const res: CreateMachineResponse = await api.createMachine(name, machineType);
+      const res: CreateMachineResponse = await api.createMachine(name);
       setMachineId(res.id);
       setEnrollmentToken(res.enrollmentToken);
       setBootstrap(res.bootstrap);
@@ -139,7 +138,6 @@ export default function MachineEnroll() {
         ipAddress: null,
         agentVersion: null,
         status: "ENROLLMENT_PENDING",
-        type: machineType,
         sshUser: null,
         isCritical: false,
         lastHeartbeat: null,
@@ -220,42 +218,6 @@ export default function MachineEnroll() {
               required
               autoFocus
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Type de machine
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setMachineType("AGENT")}
-                className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors ${
-                  machineType === "AGENT"
-                    ? "bg-primary/10 border-primary/30"
-                    : "bg-muted border-border hover:bg-muted/80"
-                }`}
-              >
-                <span className="text-sm font-semibold text-foreground">Agent</span>
-                <span className="text-xs text-muted-foreground">
-                  Toutes les actions : metriques, updates, services, pare-feu, paquets, reboot.
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMachineType("PROBE")}
-                className={`flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors ${
-                  machineType === "PROBE"
-                    ? "bg-primary/10 border-primary/30"
-                    : "bg-muted border-border hover:bg-muted/80"
-                }`}
-              >
-                <span className="text-sm font-semibold text-foreground">Probe</span>
-                <span className="text-xs text-muted-foreground">
-                  Monitoring en lecture seule uniquement, aucune mutation.
-                </span>
-              </button>
-            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
