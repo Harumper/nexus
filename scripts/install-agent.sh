@@ -628,6 +628,22 @@ if [ -n "${SCRIPT_SIGNING_PUBKEY:-}" ]; then
     chmod 644 "$SCRIPT_SIGNING_PUBKEY_FILE"
 fi
 
+# NEXUS-CRYPTO-001 — sel par-install pour le chiffrement au repos de agent.key
+# (machine-binding logiciel : HKDF(machine-id, sel)). Scope-split VOLONTAIRE :
+# le sel vit dans $CONFIG_DIR (/etc/nexus), la clé dans $KEY_DIR (/var/lib/nexus/
+# keys) → une exfil scopée d'un seul dir rate une moitié. root:nexus-agent 0640 :
+# l'agent le lit par groupe (pas de sudo, pas de cap). Généré une seule fois et
+# CONSERVÉ en refresh (sinon la clé existante deviendrait indéchiffrable) ;
+# régénéré au --reenroll (table rase de $CONFIG_DIR → nouvelle identité, nouveau sel).
+# LIMITE : un snapshot/backup disque complet contient sel + machine-id → la clé
+# reste re-dérivable. Seul le TPM fermerait ce cas (non couvert ici).
+KEY_SALT_FILE="$CONFIG_DIR/agent-keysalt"
+if [ ! -f "$KEY_SALT_FILE" ]; then
+    head -c 32 /dev/urandom | base64 > "$KEY_SALT_FILE"
+    chown root:"$AGENT_GROUP" "$KEY_SALT_FILE"
+    chmod 640 "$KEY_SALT_FILE"
+fi
+
 cat > "$CONFIG_DIR/agent.env" << EOF
 # Nexus Agent Configuration
 # Généré par install-agent.sh le $(date -Iseconds)
