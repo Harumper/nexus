@@ -75,16 +75,19 @@ func VerifyServerMessage(msg VerifyServerMessageInput, serverPubKey *ecdsa.Publi
 		return fmt.Errorf("timestamp outside valid window: %s", msg.Timestamp)
 	}
 
-	if !rememberNonce(msg.Nonce) {
-		return fmt.Errorf("duplicate nonce (replay): %s", msg.Nonce)
-	}
-
 	sigPayload := BuildSignaturePayload(
 		msg.V, msg.Type, msg.RequestID, msg.MachineID,
 		msg.Timestamp, msg.Nonce, msg.Payload,
 	)
 	if !VerifySignature(sigPayload, msg.Signature, serverPubKey) {
 		return fmt.Errorf("invalid server signature")
+	}
+
+	// NEXUS-CRYPTO-005 (mirror agent) : on n'enregistre le nonce qu'APRÈS la
+	// vérification de signature, pour qu'un message non authentifié ne puisse pas
+	// empoisonner le cache anti-replay côté agent (défense en profondeur).
+	if !rememberNonce(msg.Nonce) {
+		return fmt.Errorf("duplicate nonce (replay): %s", msg.Nonce)
 	}
 
 	return nil
