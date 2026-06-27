@@ -160,7 +160,6 @@ model Machine {
   @@index([name])
   @@index([lastHeartbeat])
   @@index([enrollmentToken])
-  @@index([type])
 }
 
 // Historique des audits de durcissement (Lynis) : un enregistrement par scan,
