@@ -165,14 +165,31 @@ export function setupWebSocketServer(app: FastifyInstance): void {
   console.log("[WS] WebSocket server initialized on /ws/agent and /ws/dashboard");
 }
 
+// CONTROL-PLANE-006 — number of trusted reverse-proxy hops that APPEND to
+// X-Forwarded-For. The genuine client is this many positions from the right;
+// everything to its left is client-supplied and must NOT be trusted.
+const TRUSTED_PROXY_HOPS = Math.max(
+  0,
+  parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0,
+);
+
 function extractClientIp(request: IncomingMessage): string {
+  // Resolve from the RIGHT past the known number of trusted hops. Never take the
+  // leftmost (attacker-controlled) value, which would let a client spoof boundIp
+  // (verifyAgentIp), defeat per-IP rate-limiting, and poison audit logs.
   const forwarded = request.headers["x-forwarded-for"];
   if (typeof forwarded === "string") {
-    return forwarded.split(",")[0].trim();
+    const chain = forwarded
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const idx = chain.length - TRUSTED_PROXY_HOPS - 1;
+    if (idx >= 0) {
+      return chain[idx];
+    }
   }
-  const realIp = request.headers["x-real-ip"];
-  if (typeof realIp === "string") {
-    return realIp;
-  }
+  // No usable XFF: fall back to the socket peer (the proxy itself, or the direct
+  // client when no proxy is in front). X-Real-IP is intentionally NOT trusted —
+  // it is as forgeable as the leftmost XFF.
   return request.socket.remoteAddress || "unknown";
 }
