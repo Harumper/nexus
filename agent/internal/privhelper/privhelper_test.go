@@ -99,3 +99,36 @@ func TestUseraddRejectsOptionInjection(t *testing.T) {
 		}
 	}
 }
+
+// NEXUS-AGENT-006 — le wrapper svc refuse en CODE (avant tout exec) les unités
+// protégées sur les verbes destructeurs, les unités à tiret initial (injection
+// d'option) et les verbes inconnus. doSvc renvoie 2 (fail) sur ces cas.
+func TestDoSvc_RefusesProtectedAndMalformed(t *testing.T) {
+	refused := [][]string{
+		{"stop", "ssh"},         // lock-out admin
+		{"restart", "sshd"},     // lock-out admin
+		{"stop", "nexus-agent"}, // self-DoS (cohérence AGENT-004)
+		{"reload", "ssh.service"},
+		{"disable", "sshd"},
+		{"stop", "--no-ask-password"}, // tiret initial → rejet (pas d'option injectable)
+		{"stop", "-x"},
+		{"bogus", "foo"}, // verbe non énuméré
+		{"stop"},         // arité invalide
+		{"stop", "a b"},  // espace → pas un token unique
+	}
+	for _, args := range refused {
+		if rc := doSvc(args); rc == 0 {
+			t.Errorf("doSvc(%v) = 0, attendu refus (rc != 0)", args)
+		}
+	}
+}
+
+// Les unités protégées restent autorisées en START/ENABLE (non destructeur) —
+// la validation passe (l'exec systemctl peut échouer en CI, hors périmètre).
+func TestDoSvc_AllowsStartOnProtected_PassesValidation(t *testing.T) {
+	// On ne vérifie QUE que la validation ne refuse pas (rc==2 = fail validation).
+	// start sur ssh est légitime (démarrer, pas arrêter).
+	if rc := doSvc([]string{"start", "ssh"}); rc == 2 {
+		t.Errorf("doSvc(start ssh) refusé en validation alors qu'un start est permis")
+	}
+}

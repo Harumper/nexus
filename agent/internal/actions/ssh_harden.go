@@ -173,7 +173,8 @@ func registerPendingSshd(requestID string) (*PendingSshd, error) {
 }
 
 // reloadSshd recharge la config sshd via SIGHUP au master (pas de coupure des
-// sessions en cours). `systemctl reload ssh` est volontairement bloqué en sudoers.
+// sessions en cours). `systemctl reload ssh` est volontairement refusé (privhelper
+// svc, AGENT-006 : ssh/sshd protégés contre stop/restart/reload/disable).
 func reloadSshd() error {
 	pid := sshdMasterPID()
 	if pid == "" {
