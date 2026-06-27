@@ -1,6 +1,7 @@
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
 import { prisma } from "./database.js";
+import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
 // Repos Ubuntu a ingerer. Chaque combinaison (suite × component × arch) donne un Packages.gz.
 interface Source {
@@ -80,7 +81,13 @@ function parseParagraph(para: string, source: Source): ParsedPackage | null {
 
 async function downloadPackages(source: Source): Promise<string> {
   const url = `${source.baseUrl}/dists/${source.suite}/${source.component}/binary-${source.arch}/Packages.gz`;
-  const res = await fetch(url);
+  // WEB-AUTHZ-001 — invariant « toute URL sortante est validée, sans exception » :
+  // le miroir APT (baseUrl) passe par le même egress guard que les webhooks. Bloque
+  // les cibles en réseau privé / métadonnées même si la surface qui définit baseUrl
+  // évolue. Les défauts (archive/security.ubuntu.com) sont publics → aucun impact ;
+  // un miroir interne (10.x) sera couvert par la future allow-list opérateur.
+  assertSafeOutboundUrl(url);
+  const res = await safeFetch(url);
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} for ${url}`);
   }
