@@ -31,9 +31,14 @@ export async function sendWebhook(
 
   const body = JSON.stringify(payload);
   const timestamp = new Date().toISOString();
+  // WEB-AUTHZ-002: authenticate the timestamp, not just the body. HMAC over
+  // `${timestamp}.${body}` (Stripe-style) so a receiver can bind the timestamp to
+  // the signature and reject replays. Header: `t=<ts>,v1=<hmac>`.
+  const signedPayload = `${timestamp}.${body}`;
   const signature = createHmac("sha256", secret)
-    .update(body)
+    .update(signedPayload)
     .digest("hex");
+  const signatureHeader = `t=${timestamp},v1=${signature}`;
 
   try {
     const controller = new AbortController();
@@ -43,7 +48,7 @@ export async function sendWebhook(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Nexus-Signature": `sha256=${signature}`,
+        "X-Nexus-Signature": signatureHeader,
         "X-Nexus-Timestamp": timestamp,
         "User-Agent": "Nexus-Webhook/1.0",
       },
@@ -67,7 +72,7 @@ export async function sendWebhook(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Nexus-Signature": `sha256=${signature}`,
+          "X-Nexus-Signature": signatureHeader,
           "X-Nexus-Timestamp": timestamp,
           "User-Agent": "Nexus-Webhook/1.0",
         },
