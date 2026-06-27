@@ -66,6 +66,7 @@ export async function createMachineWithEnrollment(
   return {
     id: machine.id,
     name: machine.name,
+    type: machine.type,
     enrollmentToken,
     backendPublicKey: publicKey,
     expiresAt: expiresAt.toISOString(),
