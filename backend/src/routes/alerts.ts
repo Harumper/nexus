@@ -150,6 +150,9 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         body: {
           type: "object",
+          // NEXUS-WEB-AUTHZ-003 — reject unknown keys at the schema door (Fastify
+          // does not strip them by default).
+          additionalProperties: false,
           properties: {
             name: { type: "string", minLength: 1 },
             description: { type: "string" },
@@ -176,9 +179,22 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
         if (!c.ok) return reply.code(400).send({ error: c.error });
       }
 
+      // NEXUS-WEB-AUTHZ-003 — never spread the raw body into Prisma. Build `data`
+      // from an explicit allow-list so no unexpected column can be mass-assigned,
+      // even if a future schema change forgets additionalProperties:false.
+      const UPDATABLE_RULE_FIELDS = [
+        "name", "description", "enabled", "severity", "threshold",
+        "targetPattern", "durationSeconds", "machineIds", "cooldownSeconds",
+        "notifyEmail", "notifyWebhook", "channels",
+      ];
+      const data: Record<string, unknown> = {};
+      for (const f of UPDATABLE_RULE_FIELDS) {
+        if (body[f] !== undefined) data[f] = body[f];
+      }
+
       const rule = await prisma.alertRule.update({
         where: { id },
-        data: body,
+        data,
       });
 
       invalidateAlertRulesCache();
