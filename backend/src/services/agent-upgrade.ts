@@ -5,6 +5,7 @@ import { dispatchAction } from "./action-dispatcher.js";
 import { getAgentBackendUrl } from "./agent-bootstrap.js";
 import {
   getServerBinarySHA256,
+  getServerAgentVersion,
   beginUpgrade,
 } from "./agent-upgrade-tracker.js";
 
@@ -74,6 +75,8 @@ export async function dispatchAgentUpgrade(
         token: rawToken,
         sha256: sha256 || undefined,
         signature,
+        // SELF-UPGRADE-002 : version cible (plancher anti-rollback côté agent).
+        target_version: getServerAgentVersion() || undefined,
       },
     },
     userId
