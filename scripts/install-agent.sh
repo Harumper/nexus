@@ -384,6 +384,15 @@ Defaults:nexus-agent secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
 
 # === APT ===
+# NEXUS-AGENT-010 — PÉRIMÈTRE de NOEXEC (à ne pas surinterpréter) : NOEXEC n'est
+# PAS un pilier de confinement général. Il ne s'applique QU'aux lignes
+# install/remove des gestionnaires de paquets (apt-get/dnf/yum, ~6 lignes), comme
+# BACKSTOP ciblé du wildcard de noms de paquets : il empêche qu'un paquet/hook
+# déclenche l'exécution d'un sous-processus arbitraire (style `-o
+# DPkg::Pre-Invoke=`). Les ~44 autres lignes ne reposent PAS sur NOEXEC mais sur
+# des chemins fixes, des arguments EXACTS, le privhelper compilé, et les regex de
+# validation côté Go. NOEXEC est un filet sur une seule primitive, pas la garantie
+# d'ensemble.
 # upgrade/update : arguments EXACTS (pas de wildcard) — sinon `-o
 # DPkg::Pre-Invoke=...` permettrait l'exécution de commandes root arbitraires.
 # install/remove gardent un wildcard (noms de paquets, validés en Go par
