@@ -53,6 +53,19 @@ Notifications: HMAC-signed webhooks + SMTP email + WebSocket real-time broadcast
 - Sudoers whitelist (no wildcards on dangerous commands, NOEXEC where relevant)
 - Systemd hardening: `StateDirectory`, `Protect*`, no ambient capabilities
 
+### Authorization model — no tenant isolation (one instance = one trust domain)
+Nexus has **no per-user / per-tenant isolation**. Authorization is a single global
+RBAC ladder (`ADMIN` > `OPERATOR` > `READONLY`); there is **no `ownerId`/`projectId`
+on machines**, so **every authenticated account sees and (per its role) acts on the
+entire fleet**. There is no per-user object boundary to break out of — and so no
+"IDOR on machines" — *by design*.
+
+> ⚠️ **One Nexus instance = one trust domain.** Do **not** put machines belonging to
+> different teams/customers behind a single instance expecting them to be isolated:
+> any OPERATOR can act on any host, any READONLY can read every host. For separate
+> trust domains, run **separate Nexus instances**. If you self-host for multiple
+> tenants, this is the security model you are accepting.
+
 ### Agent key at rest — what it protects (and what it does NOT)
 The agent's identity key (`agent.key`) is **encrypted at rest** with a software
 machine-bound key (HKDF over `/etc/machine-id` + a per-install salt in
