@@ -30,8 +30,18 @@ import type {
   MetricsReport,
 } from "../types/index.js";
 
+// CONTROL-PLANE-004 — per-socket throttle on the UNAUTHENTICATED path. Each
+// enrollment.request triggers DB lookups + ECDSA verification; a single socket
+// replaying them is a CPU/DB amplification the per-IP connection cap does not
+// cover. Cap unauthenticated attempts, then close the socket.
+const WS_MAX_UNAUTH_MSG = parseInt(
+  process.env.WS_MAX_UNAUTH_MSG_PER_SOCKET || "30",
+  10
+);
+
 export function handleAgentConnection(ws: WebSocket, ip: string): void {
   let machineId: string | null = null;
+  let unauthMsgCount = 0;
 
   ws.on("message", async (raw: Buffer) => {
     try {
@@ -59,6 +69,13 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
       // enregistrée qu'APRÈS un enrollment réussi (la preuve ECDSA y est
       // vérifiée), jamais sur la simple réception du message.
       if (UNAUTHENTICATED_TYPES.has(msg.type)) {
+        if (++unauthMsgCount > WS_MAX_UNAUTH_MSG) {
+          console.warn(
+            `[WS] Unauthenticated-path flood from ${ip} (${unauthMsgCount}) → closing`
+          );
+          ws.close(1008, "rate limited");
+          return;
+        }
         const enrolled = await handleUnauthenticatedMessage(msg, ws, ip);
         if (enrolled) machineId = msg.machine_id;
         return;
