@@ -4,6 +4,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { handleAgentConnection } from "./handler.js";
 import { addDashboardClient } from "./dashboard.js";
+import { prisma } from "../services/database.js";
 import {
   isKeycloakEnabled,
   isLocalAuthEnabled,
@@ -48,24 +49,33 @@ function extractTokenFromCookie(request: IncomingMessage): string | null {
 async function verifyDashboardToken(
   token: string,
   app: FastifyInstance
-): Promise<boolean> {
+): Promise<{ valid: boolean; exp?: number }> {
   // 1. Essayer Keycloak si activé
   if (isKeycloakEnabled()) {
     const result = await verifyKeycloakToken(token);
-    if (result.valid) return true;
+    if (result.valid) return { valid: true, exp: result.payload?.exp };
   }
 
   // 2. Essayer le JWT local si activé
   if (isLocalAuthEnabled()) {
     try {
-      app.jwt.verify(token);
-      return true;
+      const payload = app.jwt.verify(token) as { sub?: string; exp?: number };
+      // CONTROL-PLANE-002 — revalider l'état du compte en DB comme le middleware
+      // HTTP authenticate() : un compte désactivé/supprimé ne doit pas garder un
+      // WebSocket dashboard authentifié jusqu'à l'expiration du token (jusqu'à 4h).
+      const dbUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { isActive: true },
+      });
+      if (dbUser && dbUser.isActive) {
+        return { valid: true, exp: payload.exp };
+      }
     } catch {
       // JWT local invalide
     }
   }
 
-  return false;
+  return { valid: false };
 }
 
 /**
@@ -204,8 +214,8 @@ export function setupWebSocketServer(app: FastifyInstance): void {
       }
 
       verifyDashboardToken(token, app)
-        .then((valid) => {
-          if (!valid) {
+        .then((res) => {
+          if (!res.valid) {
             console.warn("[WS] Dashboard connection rejected: invalid token");
             rejectUpgrade(socket, 401, "Unauthorized");
             return;
@@ -216,7 +226,7 @@ export function setupWebSocketServer(app: FastifyInstance): void {
             acquireConnSlot(ip);
             onSocketClosed(ws, ip);
             console.log("[WS] Dashboard client authenticated and connected");
-            addDashboardClient(ws);
+            addDashboardClient(ws, res.exp);
           });
         })
         .catch((err) => {

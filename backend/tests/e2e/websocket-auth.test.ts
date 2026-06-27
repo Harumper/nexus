@@ -1,7 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import Fastify from "fastify";
 import jwt from "@fastify/jwt";
 import WebSocket from "ws";
+
+// CONTROL-PLANE-002 — the dashboard WS now revalidates the local account in the
+// DB (isActive) like the HTTP middleware. Provide an active user for the valid
+// token (and only that id) so the upgrade is accepted for a live account.
+vi.mock("../../src/services/database.js", () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === "test-user-id" ? { isActive: true } : null
+      ),
+    },
+  },
+}));
+
 import { setupWebSocketServer } from "../../src/websocket/server.js";
 
 const JWT_SECRET = "test-secret-for-e2e";
