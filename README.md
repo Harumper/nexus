@@ -50,7 +50,7 @@ Notifications: HMAC-signed webhooks + SMTP email + WebSocket real-time broadcast
 - **Machine types**: PROBE (read-only monitoring) / AGENT (full access)
 - **Critical flag** (`isCritical`): blocks `reboot`, `service_stop/restart` on critical services (docker/nginx/ssh/postgres), `package.remove` on critical packages
 - **Watchdog-revert**: snapshot before mutation + 60s/120s timer + dead-man's switch at agent boot
-- Sudoers whitelist (no wildcards on dangerous commands, NOEXEC where relevant)
+- Sudoers whitelist (fixed paths, exact args, compiled privhelper for the risky ops). `NOEXEC` is a **targeted backstop on the package-manager `install`/`remove` wildcard only** (blocks `Pre-Invoke`-style shell-outs) — not a blanket confinement; the other lines rely on fixed paths / exact args / privhelper
 - Systemd hardening: `StateDirectory`, `Protect*`, no ambient capabilities
 
 ### Authorization model — no tenant isolation (one instance = one trust domain)
