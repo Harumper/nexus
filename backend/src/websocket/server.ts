@@ -86,6 +86,48 @@ const WS_PING_INTERVAL_MS = parseInt(
   10
 );
 
+// CONTROL-PLANE-004 — the raw `upgrade` handler runs BEFORE Fastify routing, so
+// @fastify/rate-limit never sees WebSocket upgrades. Without a cap, an
+// unauthenticated client can flood `new WebSocket(.../ws/agent)` and exhaust
+// fds/memory (each socket also joins the keepalive ping loop). We cap live
+// connections per source IP and globally, and release the slot on close.
+const WS_MAX_CONN_PER_IP = parseInt(process.env.WS_MAX_CONN_PER_IP || "20", 10);
+const WS_MAX_CONN_TOTAL = parseInt(process.env.WS_MAX_CONN_TOTAL || "2000", 10);
+
+const connByIp = new Map<string, number>();
+let connTotal = 0;
+
+// Soft cap: returns false when the IP (or the whole server) is at its live-socket
+// limit. Checked before handleUpgrade; the slot is only acquired once the socket
+// actually opens (no leak if the handshake fails).
+function connCapReached(ip: string): boolean {
+  return connTotal >= WS_MAX_CONN_TOTAL || (connByIp.get(ip) || 0) >= WS_MAX_CONN_PER_IP;
+}
+
+function acquireConnSlot(ip: string): void {
+  connByIp.set(ip, (connByIp.get(ip) || 0) + 1);
+  connTotal++;
+}
+
+function releaseConnSlot(ip: string): void {
+  const cur = connByIp.get(ip) || 0;
+  if (cur <= 1) connByIp.delete(ip);
+  else connByIp.set(ip, cur - 1);
+  if (connTotal > 0) connTotal--;
+}
+
+// Release exactly once per socket (both "close" and "error" can fire).
+function onSocketClosed(ws: { on: (ev: string, cb: () => void) => void }, ip: string): void {
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    releaseConnSlot(ip);
+  };
+  ws.on("close", release);
+  ws.on("error", release);
+}
+
 export function setupWebSocketServer(app: FastifyInstance): void {
   const agentWss = new WebSocketServer({ noServer: true });
   const dashboardWss = new WebSocketServer({ noServer: true });
@@ -114,10 +156,23 @@ export function setupWebSocketServer(app: FastifyInstance): void {
   app.server.on("upgrade", (request: IncomingMessage, socket: Duplex, head) => {
     const url = request.url || "";
     const pathname = url.split("?")[0];
+    const ip = extractClientIp(request);
+
+    // CONTROL-PLANE-004: cap live connections per IP before doing any upgrade
+    // work (handshake, token verification). Reject the flood at the door.
+    if (
+      (pathname === "/ws/agent" || pathname === "/ws/dashboard") &&
+      connCapReached(ip)
+    ) {
+      console.warn(`[WS] Connection cap reached for ${ip} → 429`);
+      rejectUpgrade(socket, 429, "Too Many Requests");
+      return;
+    }
 
     if (pathname === "/ws/agent") {
       agentWss.handleUpgrade(request, socket, head, (ws) => {
-        const ip = extractClientIp(request);
+        acquireConnSlot(ip);
+        onSocketClosed(ws, ip);
         console.log(`[WS] New agent connection from ${ip}`);
         // Marqueur de vivacité pour le keepalive ping/pong ci-dessus.
         const sock = ws as typeof ws & { isAlive?: boolean };
@@ -149,6 +204,8 @@ export function setupWebSocketServer(app: FastifyInstance): void {
 
           // Token valide — accepter la connexion avec le sous-protocole nexus-auth
           dashboardWss.handleUpgrade(request, socket, head, (ws) => {
+            acquireConnSlot(ip);
+            onSocketClosed(ws, ip);
             console.log("[WS] Dashboard client authenticated and connected");
             addDashboardClient(ws);
           });
