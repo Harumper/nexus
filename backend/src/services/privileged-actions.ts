@@ -33,8 +33,10 @@ export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute"]);
 // voie d'exécution de script, même pour un ADMIN, tant que le flag est off. Verrou
 // indépendant de la signature (clé locale, côté agent) et de la capacité sudoers
 // (ligne omise à l'install) — les trois doivent être réunis. process.kill
-// rejoindra cet ensemble en 0.8 (AGENT-004), hors périmètre de ce fix.
-export const REMOTE_SCRIPT_ACTIONS = new Set<string>(["script.execute"]);
+// NEXUS-AGENT-004 (0.8) : process.kill rejoint l'ensemble — opt-in default-off,
+// comme script.execute (kill brut de PID = primitive dangereuse ; la garde Go
+// process_kill.go refuse en plus l'agent et les services critiques).
+export const REMOTE_SCRIPT_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
 
 // Activé uniquement si ALLOW_REMOTE_SCRIPT vaut explicitement "true".
 export function isRemoteScriptAllowed(): boolean {
