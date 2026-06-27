@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { prisma } from "./database.js";
+import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
 export async function sendWebhook(
   url: string,
@@ -24,6 +25,10 @@ export async function sendWebhook(
     secret = typeof secretSetting.value === "string" ? secretSetting.value : String(secretSetting.value);
   }
 
+  // WEB-AUTHZ-001: fail fast on a hostile webhook URL (scheme/credentials) before
+  // any work; safeFetch additionally pins the connection to a validated address.
+  assertSafeOutboundUrl(url);
+
   const body = JSON.stringify(payload);
   const timestamp = new Date().toISOString();
   const signature = createHmac("sha256", secret)
@@ -34,7 +39,7 @@ export async function sendWebhook(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,7 +63,7 @@ export async function sendWebhook(
     // Retry once after 2s
     try {
       await new Promise(r => setTimeout(r, 2000));
-      await fetch(url, {
+      await safeFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
