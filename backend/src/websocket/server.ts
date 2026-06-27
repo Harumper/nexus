@@ -128,9 +128,18 @@ function onSocketClosed(ws: { on: (ev: string, cb: () => void) => void }, ip: st
   ws.on("error", release);
 }
 
+// CONTROL-PLANE-003 — the `ws` default maxPayload is 100 MiB, and /ws/agent
+// JSON.parse()s its first frame BEFORE any signature is verified. Cap the frame
+// size so an unauthenticated client can't force the server to buffer/parse a
+// ~100 MB message. Legitimate agent/dashboard frames are well under 1 MiB.
+const WS_MAX_PAYLOAD_BYTES = parseInt(
+  process.env.WS_MAX_PAYLOAD_BYTES || String(1024 * 1024),
+  10
+);
+
 export function setupWebSocketServer(app: FastifyInstance): void {
-  const agentWss = new WebSocketServer({ noServer: true });
-  const dashboardWss = new WebSocketServer({ noServer: true });
+  const agentWss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
+  const dashboardWss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
   // Heartbeat ping/pong sur les connexions agents (anti-timeout proxy).
   const pingInterval = setInterval(() => {
