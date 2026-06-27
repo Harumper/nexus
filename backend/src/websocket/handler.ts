@@ -188,9 +188,12 @@ async function handleUnauthenticatedMessage(
   ip: string
 ): Promise<boolean> {
   if (msg.type === MSG_TYPES.ENROLLMENT_REQUEST) {
-    let requestData: EnrollmentRequest;
+    // ENROLLMENT-001 (seal) : le payload est l'enveloppe scellée { eph_pub, sealed }.
+    // processEnrollment ouvre le seal (tag GCM vérifié) AVANT d'exploiter le token
+    // ou la pubkey — aucun plaintext touché avant authentification du seal.
+    let sealedRequest: { eph_pub?: string; sealed?: string };
     try {
-      requestData = JSON.parse(msg.payload);
+      sealedRequest = JSON.parse(msg.payload);
     } catch {
       ws.send(
         JSON.stringify({
@@ -201,9 +204,7 @@ async function handleUnauthenticatedMessage(
       return false;
     }
 
-    // processEnrollment vérifie la preuve ECDSA + le token : l'identité est
-    // donc prouvée ici. On peut enregistrer la session en toute sécurité.
-    const result = await processEnrollment(msg.machine_id, requestData, ip);
+    const result = await processEnrollment(msg.machine_id, sealedRequest, ip);
 
     if (result.success && result.response) {
       registerSession(msg.machine_id, ws, ip);
