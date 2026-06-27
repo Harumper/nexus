@@ -1,5 +1,6 @@
 import { prisma } from "./database.js";
 import { decryptAES } from "./crypto.js";
+import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
 // Settings keys utilises pour l'integration Nautilus
 export const NAUTILUS_SETTINGS_KEYS = {
@@ -142,6 +143,9 @@ export async function fetchNautilusSnapshot(): Promise<NautilusSnapshot> {
   if (!cfg.url) {
     throw new Error("Nautilus URL is not configured");
   }
+  // WEB-AUTHZ-001: the integration URL is operator-supplied config — same SSRF
+  // egress guard as the alert webhooks.
+  assertSafeOutboundUrl(cfg.url);
 
   const start = Date.now();
   const headers: Record<string, string> = {};
@@ -152,7 +156,7 @@ export async function fetchNautilusSnapshot(): Promise<NautilusSnapshot> {
 
   let text: string;
   try {
-    const res = await fetch(cfg.url, { headers, signal: controller.signal });
+    const res = await safeFetch(cfg.url, { headers, signal: controller.signal });
     if (!res.ok) {
       throw new Error(`Nautilus returned HTTP ${res.status}: ${await res.text()}`);
     }
