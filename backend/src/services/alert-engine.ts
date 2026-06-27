@@ -287,7 +287,6 @@ export async function evaluateCertAlerts(): Promise<void> {
   const machines = await prisma.machine.findMany({
     where: {
       status: "ONLINE",
-      type: "AGENT",
       ...(needAllMachines ? {} : { id: { in: Array.from(specificIds) } }),
     },
     select: { id: true, name: true },
