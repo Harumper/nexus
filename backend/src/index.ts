@@ -72,7 +72,10 @@ async function main() {
     logger: {
       level: process.env.NODE_ENV === "development" ? "debug" : "info",
     },
-    trustProxy: true,
+    // CONTROL-PLANE-006: trust an explicit number of reverse-proxy hops rather
+    // than the entire X-Forwarded-For chain (`true`), which would let a client
+    // forge request.ip. Keep this in sync with extractClientIp's hop count.
+    trustProxy: Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0),
   });
 
   // ===================== Plugins =====================
