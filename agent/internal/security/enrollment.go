@@ -93,13 +93,40 @@ func Enroll(
 		return nil, err
 	}
 
+	// PINNING STRICT : la clé serveur est OBLIGATOIRE (isolation entre projets /
+	// MITM bootstrap) ET nécessaire ICI pour sceller la requête.
+	if serverPublicKeyPEM == "" {
+		return nil, fmt.Errorf("clé publique serveur obligatoire pour l'enrollement (pinning)")
+	}
+	pinnedServerKey, err := ParsePublicKeyPEM(serverPublicKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server public key: %w", err)
+	}
+
+	// NEXUS-ENROLLMENT-001 (seal) : sceller la requête (token + clé publique agent
+	// + proof) vers la clé serveur PINNÉE (ECIES P-256). Confidentialité du token +
+	// intégrité de la pubkey, même si TLS est strippé/terminé au proxy — un
+	// attaquant on-path sans la clé privée serveur ne peut ni lire le token ni
+	// substituer la pubkey agent.
+	ephPubPEM, sealed, err := SealToServer(payloadJSON, pinnedServerKey, machineID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seal enrollment request: %w", err)
+	}
+	sealedEnvelope, err := json.Marshal(map[string]string{
+		"eph_pub": ephPubPEM,
+		"sealed":  sealed,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	msg := EnrollmentMessage{
 		V:         ProtocolVersion,
 		Type:      "enrollment.request",
 		MachineID: machineID,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Nonce:     GenerateNonce(),
-		Payload:   string(payloadJSON),
+		Payload:   string(sealedEnvelope),
 		Signature: "",
 	}
 
@@ -139,17 +166,9 @@ func Enroll(
 		return nil, fmt.Errorf("unsupported protocol version %d in enrollment response (expected %d) — re-enroll", response.V, ProtocolVersion)
 	}
 
-	// 8. Vérifier la signature du serveur — PINNING STRICT : la clé serveur est
-	// OBLIGATOIRE. Sans elle, un serveur non authentifié pourrait enrôler l'agent
-	// (rupture d'isolation entre projets / MITM sur l'enrollement).
-	if serverPublicKeyPEM == "" {
-		return nil, fmt.Errorf("clé publique serveur obligatoire pour l'enrollement (pinning)")
-	}
-	pinnedServerKey, err := ParsePublicKeyPEM(serverPublicKeyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server public key: %w", err)
-	}
-
+	// 8. Vérifier la signature du serveur avec la clé PINNÉE (déjà parsée plus haut
+	// pour sceller la requête). La signature prouve que la réponse vient du
+	// détenteur de la clé pinnée.
 	sigPayload := BuildSignaturePayload(
 		response.V, response.Type, "", response.MachineID,
 		response.Timestamp, response.Nonce, response.Payload,

@@ -10,6 +10,7 @@ import {
   generateNonce,
 } from "./crypto.js";
 import { PROTOCOL_VERSION } from "../websocket/protocol.js";
+import { openEnrollmentSeal } from "./enrollment-seal.js";
 import type { EnrollmentRequest, WSMessage } from "../types/index.js";
 
 const ENROLLMENT_EXPIRY_HOURS = parseInt(
@@ -52,14 +53,14 @@ export async function createMachineWithEnrollment(
 
 export async function processEnrollment(
   machineId: string,
-  request: EnrollmentRequest,
+  sealedRequest: { eph_pub?: string; sealed?: string },
   agentIp: string
 ): Promise<{
   success: boolean;
   error?: string;
   response?: WSMessage;
 }> {
-  // 1. Trouver la machine
+  // 1. Trouver la machine (par machine_id en clair — non secret)
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
   });
@@ -73,17 +74,43 @@ export async function processEnrollment(
     return { success: false, error: "Machine is not in enrollment pending state" };
   }
 
-  // 3. Vérifier le token
+  if (!machine.backendPrivateKey) {
+    return { success: false, error: "Machine has no backend key" };
+  }
+  const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey);
+
+  // 3. NEXUS-ENROLLMENT-001 (seal) : OUVRIR le seal AVANT d'exploiter le moindre
+  // contenu. openEnrollmentSeal LÈVE si le tag GCM est invalide → on rejette
+  // immédiatement, AUCUN octet du plaintext (token, pubkey, proof) n'est touché
+  // tant que l'authenticité du seal n'est pas prouvée. Un attaquant on-path sans
+  // la clé privée serveur ne peut ni lire le token ni substituer la pubkey.
+  if (!sealedRequest.eph_pub || !sealedRequest.sealed) {
+    return { success: false, error: "Enrollment request not sealed (re-enroll with a v2 agent)" };
+  }
+  let request: EnrollmentRequest;
+  try {
+    const opened = openEnrollmentSeal(
+      backendPrivateKey,
+      sealedRequest.eph_pub,
+      sealedRequest.sealed,
+      machineId
+    );
+    request = JSON.parse(opened) as EnrollmentRequest;
+  } catch {
+    return { success: false, error: "Enrollment seal verification failed" };
+  }
+
+  // 4. Vérifier le token (désormais issu du seal authentifié)
   if (machine.enrollmentToken !== request.enrollment_token) {
     return { success: false, error: "Invalid enrollment token" };
   }
 
-  // 4. Vérifier l'expiration
+  // 5. Vérifier l'expiration
   if (machine.enrollmentExpiry && machine.enrollmentExpiry < new Date()) {
     return { success: false, error: "Enrollment token has expired" };
   }
 
-  // 5. Vérifier la preuve ECDSA (l'agent signe son machine_id avec sa clé privée)
+  // 6. Vérifier la preuve ECDSA (l'agent signe son machine_id avec sa clé privée)
   const proofValid = verifySignature(
     machineId,
     request.proof,
@@ -93,12 +120,9 @@ export async function processEnrollment(
     return { success: false, error: "Invalid ECDSA proof" };
   }
 
-  // 6. CRYPTO-004 : plus de secret de canal dérivé/persisté à l'enrôlement.
+  // CRYPTO-004 : plus de secret de canal dérivé/persisté à l'enrôlement.
   // L'enrôlement n'établit que l'IDENTITÉ (agentPublicKey ↔ machine) ; la clé de
-  // session AES est négociée à chaque connexion par le handshake ECDHE éphémère
-  // (forward secrecy). On a juste besoin de la clé privée backend pour signer la
-  // réponse enrollment.complete.
-  const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey!);
+  // session AES est négociée à chaque connexion par le handshake ECDHE éphémère.
 
   // 8. Mettre à jour la machine
   await prisma.machine.update({
