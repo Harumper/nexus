@@ -224,6 +224,7 @@ export function generateNonce(): string {
 // ===================== Message Signing =====================
 
 export function buildSignaturePayload(msg: {
+  v: number;
   type: string;
   request_id?: string;
   machine_id: string;
@@ -231,7 +232,8 @@ export function buildSignaturePayload(msg: {
   nonce: string;
   payload: string;
 }): string {
-  return `${msg.type}:${msg.request_id || ""}:${msg.machine_id}:${msg.timestamp}:${msg.nonce}:${msg.payload}`;
+  // La version est liée EN TÊTE du payload signé : pas de downgrade silencieux.
+  return `${msg.v}:${msg.type}:${msg.request_id || ""}:${msg.machine_id}:${msg.timestamp}:${msg.nonce}:${msg.payload}`;
 }
 
 export function isTimestampValid(

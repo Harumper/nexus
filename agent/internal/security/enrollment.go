@@ -24,6 +24,7 @@ type EnrollResult struct {
 // EnrollmentMessage reproduit la structure d'un message WS
 // sans importer le package transport (éviter le cycle)
 type EnrollmentMessage struct {
+	V         int    `json:"v"`
 	Type      string `json:"type"`
 	MachineID string `json:"machine_id"`
 	Timestamp string `json:"timestamp"`
@@ -94,6 +95,7 @@ func Enroll(
 	}
 
 	msg := EnrollmentMessage{
+		V:         ProtocolVersion,
 		Type:      "enrollment.request",
 		MachineID: machineID,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -133,6 +135,11 @@ func Enroll(
 		return nil, fmt.Errorf("unexpected response type: %s", response.Type)
 	}
 
+	// Version de protocole de la réponse serveur : rejet explicite d'un backend v1.
+	if response.V != ProtocolVersion {
+		return nil, fmt.Errorf("unsupported protocol version %d in enrollment response (expected %d) — re-enroll", response.V, ProtocolVersion)
+	}
+
 	// 8. Vérifier la signature du serveur — PINNING STRICT : la clé serveur est
 	// OBLIGATOIRE. Sans elle, un serveur non authentifié pourrait enrôler l'agent
 	// (rupture d'isolation entre projets / MITM sur l'enrollement).
@@ -145,7 +152,7 @@ func Enroll(
 	}
 
 	sigPayload := BuildSignaturePayload(
-		response.Type, "", response.MachineID,
+		response.V, response.Type, "", response.MachineID,
 		response.Timestamp, response.Nonce, response.Payload,
 	)
 	if !VerifySignature(sigPayload, response.Signature, pinnedServerKey) {

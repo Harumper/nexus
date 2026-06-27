@@ -1,5 +1,10 @@
 // Types de messages WebSocket
 
+// Version du protocole de canal (enveloppe + handshake). Liée DANS la signature de
+// chaque message pour empêcher tout downgrade. Doit rester en phase avec
+// transport.ProtocolVersion et security.ProtocolVersion côté agent. v1 est rejeté.
+export const PROTOCOL_VERSION = 2;
+
 export const MSG_TYPES = {
   // Agent -> Server
   ENROLLMENT_REQUEST: "enrollment.request",

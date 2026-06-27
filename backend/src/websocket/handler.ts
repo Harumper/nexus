@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import { MSG_TYPES, UNAUTHENTICATED_TYPES } from "./protocol.js";
+import { MSG_TYPES, UNAUTHENTICATED_TYPES, PROTOCOL_VERSION } from "./protocol.js";
 import {
   registerSession,
   authenticateSession,
@@ -38,6 +38,19 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
 
       if (!msg.type || !msg.machine_id) {
         ws.send(JSON.stringify({ type: "error", error: "Missing type or machine_id" }));
+        return;
+      }
+
+      // Gate de version de protocole : un agent v1 (sans champ v, ou v != 2) est
+      // rejeté EXPLICITEMENT et de façon diagnosticable, pas traité à l'aveugle.
+      // Procédure de remédiation : ré-enrôler l'agent (install-agent.sh --reenroll).
+      if (msg.v !== PROTOCOL_VERSION) {
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            error: `protocol v${msg.v ?? 1} unsupported (server requires v${PROTOCOL_VERSION}) — re-enroll this agent`,
+          })
+        );
         return;
       }
 

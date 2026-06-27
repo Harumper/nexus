@@ -3,6 +3,7 @@ import { prisma } from "./database.js";
 import { isActionAllowed } from "./machine-manager.js";
 import { checkCriticalProtection } from "./machine-protection.js";
 import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction } from "./privileged-actions.js";
+import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -120,6 +121,7 @@ export async function dispatchAction(
   const timestamp = new Date().toISOString();
 
   const msgForSig = buildSignaturePayload({
+    v: PROTOCOL_VERSION,
     type: "action.request",
     request_id: requestId,
     machine_id: machineId,
@@ -132,6 +134,7 @@ export async function dispatchAction(
 
   // 6. Envoyer via WebSocket
   const wsMessage = JSON.stringify({
+    v: PROTOCOL_VERSION,
     type: "action.request",
     request_id: requestId,
     machine_id: machineId,
