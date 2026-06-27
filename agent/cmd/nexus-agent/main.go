@@ -235,6 +235,8 @@ func main() {
 	}
 	cfg.Version = Version
 	agentType = cfg.AgentType
+	// Origine pinnée pour l'auto-upgrade (SELF-UPGRADE-003).
+	actions.PinnedServerURL = cfg.ServerURL
 
 	logPrefix := "[Nexus Agent]"
 	if agentType == "probe" {

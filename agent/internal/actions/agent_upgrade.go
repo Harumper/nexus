@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -19,6 +20,35 @@ import (
 // main.Version au build, propagée par main.go au démarrage). "dev" = build local
 // non estampillé. Sert de plancher anti-rollback (NEXUS-SELF-UPGRADE-002).
 var RunningVersion = "dev"
+
+// PinnedServerURL est l'URL du backend ENRÔLÉ (cfg.ServerURL, wss://host/…),
+// propagée par main.go. L'auto-upgrade n'accepte de télécharger (et d'envoyer son
+// token bearer) QUE vers cet hôte, en https (NEXUS-SELF-UPGRADE-003).
+var PinnedServerURL string
+
+// validateDownloadURL épingle l'origine du download sur le backend pinné : https
+// + même hôte + chemin /api/agents/download. Renvoie l'erreur AVANT que le token
+// bearer ne soit attaché ou la requête émise.
+func validateDownloadURL(downloadURL string) error {
+	pinned, perr := url.Parse(PinnedServerURL)
+	if perr != nil || pinned.Host == "" {
+		return fmt.Errorf("URL serveur pinnée indisponible/invalide")
+	}
+	du, derr := url.Parse(downloadURL)
+	if derr != nil {
+		return fmt.Errorf("download_url invalide : %w", derr)
+	}
+	if du.Scheme != "https" {
+		return fmt.Errorf("download_url doit être https:// (origine pinnée), schéma=%q", du.Scheme)
+	}
+	if !strings.EqualFold(du.Host, pinned.Host) {
+		return fmt.Errorf("download_url hôte non pinné : %q (attendu %q)", du.Host, pinned.Host)
+	}
+	if !strings.HasPrefix(du.Path, "/api/agents/download") {
+		return fmt.Errorf("download_url chemin non autorisé : %q", du.Path)
+	}
+	return nil
+}
 
 // parseSemver extrait (major, minor, patch) d'une version "X.Y.Z[-N-gSHA][+meta]".
 // ok=false si non parsable (ex. "dev", version vide).
@@ -195,6 +225,13 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 			return nil, fmt.Errorf("downgrade refusé : cible %s < courant %s (allow_downgrade explicite requis)", target, RunningVersion)
 		}
 		upgradeProgress(fmt.Sprintf("⚠️ DOWNGRADE explicite %s → %s (allow_downgrade)", RunningVersion, target), 5)
+	}
+
+	// NEXUS-SELF-UPGRADE-003 — épingler l'origine AVANT d'envoyer le token bearer :
+	// un download_url vers un hôte arbitraire exfiltrerait le token et ferait de
+	// chaque agent un pivot SSRF (endpoints internes / metadata cloud).
+	if err := validateDownloadURL(downloadURL); err != nil {
+		return nil, fmt.Errorf("origine de téléchargement refusée : %w", err)
 	}
 
 	newBinPath := "/var/lib/nexus-agent/nexus-agent.new"
