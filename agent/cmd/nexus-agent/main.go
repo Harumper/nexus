@@ -214,6 +214,14 @@ func main() {
 		os.Exit(privhelper.Run(os.Args[2:]))
 	}
 
+	// `--version` : utilisé par l'auto-upgrade pour lier la version à l'artefact
+	// (SELF-UPGRADE-002). Imprime la version injectée au build et sort.
+	if len(os.Args) >= 2 && os.Args[1] == "--version" {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
+	actions.RunningVersion = Version
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Capturer NOTIFY_SOCKET et le retirer de l'env AVANT de lancer le moindre

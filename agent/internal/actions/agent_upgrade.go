@@ -8,11 +8,59 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"aead.dev/minisign"
 )
+
+// RunningVersion est la version de l'agent EN COURS d'exécution (injectée via
+// main.Version au build, propagée par main.go au démarrage). "dev" = build local
+// non estampillé. Sert de plancher anti-rollback (NEXUS-SELF-UPGRADE-002).
+var RunningVersion = "dev"
+
+// parseSemver extrait (major, minor, patch) d'une version "X.Y.Z[-N-gSHA][+meta]".
+// ok=false si non parsable (ex. "dev", version vide).
+func parseSemver(v string) (maj, min, pat int, ok bool) {
+	core := strings.TrimSpace(v)
+	if i := strings.IndexAny(core, "-+"); i >= 0 {
+		core = core[:i]
+	}
+	parts := strings.Split(core, ".")
+	if len(parts) != 3 {
+		return 0, 0, 0, false
+	}
+	var err error
+	if maj, err = strconv.Atoi(parts[0]); err != nil {
+		return 0, 0, 0, false
+	}
+	if min, err = strconv.Atoi(parts[1]); err != nil {
+		return 0, 0, 0, false
+	}
+	if pat, err = strconv.Atoi(parts[2]); err != nil {
+		return 0, 0, 0, false
+	}
+	return maj, min, pat, true
+}
+
+// isDowngrade renvoie true si target < current (comparaison semver). Si l'une des
+// deux versions n'est pas parsable (ex. current "dev"), on NE bloque PAS — le
+// build dev / version inconnue n'a pas de plancher.
+func isDowngrade(target, current string) bool {
+	tm, tn, tp, tok := parseSemver(target)
+	cm, cn, cp, cok := parseSemver(current)
+	if !tok || !cok {
+		return false
+	}
+	if tm != cm {
+		return tm < cm
+	}
+	if tn != cn {
+		return tn < cn
+	}
+	return tp < cp
+}
 
 func init() { Register(&AgentUpgradeAction{}) }
 
@@ -133,6 +181,22 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("signature de release manquante : mise à jour refusée")
 	}
 
+	// NEXUS-SELF-UPGRADE-002 — anti-rollback (plancher de version). Même un binaire
+	// validement SIGNÉ d'une ancienne release reste signé à vie → la signature seule
+	// n'empêche pas un downgrade vers une version vulnérable. On exige la version
+	// cible et on refuse target < courant, sauf break-glass explicite et tracé.
+	target, _ := params["target_version"].(string)
+	allowDowngrade, _ := params["allow_downgrade"].(bool)
+	if target == "" {
+		return nil, fmt.Errorf("target_version manquant : mise à jour refusée (anti-rollback)")
+	}
+	if isDowngrade(target, RunningVersion) {
+		if !allowDowngrade {
+			return nil, fmt.Errorf("downgrade refusé : cible %s < courant %s (allow_downgrade explicite requis)", target, RunningVersion)
+		}
+		upgradeProgress(fmt.Sprintf("⚠️ DOWNGRADE explicite %s → %s (allow_downgrade)", RunningVersion, target), 5)
+	}
+
 	newBinPath := "/var/lib/nexus-agent/nexus-agent.new"
 	finalBinPath := "/usr/local/bin/nexus-agent"
 
@@ -199,6 +263,17 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	// chmod +x
 	if err := os.Chmod(newBinPath, 0755); err != nil {
 		return nil, fmt.Errorf("chmod: %w", err)
+	}
+
+	// SELF-UPGRADE-002 — lier l'assertion de version à l'ARTEFACT vérifié, pas juste
+	// au param : lire la version du binaire (maintenant SIGNÉ → exécution sûre) et
+	// exiger qu'elle == la cible signée. Empêche un backend de prétendre une version
+	// tout en servant un autre binaire (signé) plus ancien.
+	verOut, verErr := exec.Command(newBinPath, "--version").Output()
+	gotVer := strings.TrimSpace(string(verOut))
+	if verErr != nil || gotVer != strings.TrimSpace(target) {
+		os.Remove(newBinPath)
+		return nil, fmt.Errorf("version du binaire (%q) ≠ cible signée %q : mise à jour refusée", gotVer, target)
 	}
 
 	// 3. Remplacer le binaire actuel via sudo install (atomic)
