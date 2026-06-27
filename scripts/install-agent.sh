@@ -700,10 +700,24 @@ LockPersonality=true
 # lire les interfaces réseau (ip addr), AF_UNIX pour systemd/journald.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
-# Capabilities Linux minimales pour le monitoring
-# Ambient: promues au non-root nexus-agent
-# Pas de CapabilityBoundingSet : apt/sudo ont besoin du full set (chown, fowner, etc.)
-AmbientCapabilities=CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+# NEXUS-AGENT-002 — Capabilities Linux au strict minimum.
+# Le process agent (non-root) n'a besoin d'AUCUNE capability ambiante : monitoring
+# via /proc (lecture standard), fichiers via DAC, réseau en TCP sortant. Les
+# opérations privilégiées passent par sudo (enfants root via setuid). Les lectures
+# root légitimes (certs) ont un fallback `sudo cat` ciblé (ssl_scan.go), donc on
+# n'a plus besoin de CAP_DAC_READ_SEARCH (override aveugle de DAC).
+AmbientCapabilities=
+# Drift-guard CIBLÉ : on retire du bounding set de TOUTE l'unité (process agent ET
+# enfants sudo) les 2 capabilities d'attaque que l'agent ne doit JAMAIS détenir —
+#  - CAP_DAC_READ_SEARCH : lecture de N'IMPORTE quel fichier en ignorant DAC
+#    (court-circuitait le sudoers et aurait défait le chiffrement au repos de
+#     CRYPTO-001) ;
+#  - CAP_SYS_PTRACE : attache ptrace inter-process (lecture mémoire des daemons root).
+# Syntaxe `~` = « toutes SAUF celles-ci » : les enfants sudo (apt/netplan/useradd…)
+# conservent CHOWN/FOWNER/DAC_OVERRIDE/SETUID/SETGID… dont ils ont besoin. Un
+# bounding set en allow-list (ex. CAP_NET_RAW seul) plafonnerait AUSSI les enfants
+# sudo et casserait les actions privilégiées sur tout le parc.
+CapabilityBoundingSet=~CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 
 # SystemCallFilter retire : interfere avec sudo (audit syscalls) et apt-get
 # La protection reste via les autres directives (Protect*, capabilities, sudoers)
