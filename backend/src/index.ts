@@ -79,11 +79,45 @@ function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () =
   };
 }
 
+// CONTROL-PLANE-001 — footgun de déploiement : FRONTEND_URL gouverne l'allowlist
+// d'Origin du WS dashboard (CSWSH). Si elle reste sur un fallback localhost, le
+// dashboard rejette SILENCIEUSEMENT le vrai domaine ("forbidden origin" en boucle,
+// sans indice au boot). On AVERTIT bruyamment au démarrage — un défaut qui casse en
+// silence est pire qu'un échec bruyant.
+function warnIfFrontendUrlLooksLocal(): void {
+  const v = process.env.FRONTEND_URL;
+  const origins = (v || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const hasRealOrigin = origins.some((o) => {
+    try {
+      const h = new URL(o).hostname;
+      return h !== "localhost" && h !== "127.0.0.1" && h !== "::1";
+    } catch {
+      return false; // origine non parsable → ne compte pas comme « vrai domaine »
+    }
+  });
+  if (!hasRealOrigin) {
+    console.warn(
+      [
+        "",
+        `⚠️  [Nexus] FRONTEND_URL absent ou local (${v || "non défini"}).`,
+        "    → Le WebSocket du dashboard REJETTERA toute origine réelle (CSWSH / CONTROL-PLANE-001) :",
+        "      erreurs 'forbidden origin' en boucle dès l'ouverture de l'UI sur un vrai domaine.",
+        "    → Déploiement derrière un domaine : définis",
+        "          FRONTEND_URL=https://ton-domaine",
+        "      (origine COMPLÈTE, sans slash final, sans :443, byte-identique à l'Origin du navigateur).",
+        "",
+      ].join("\n"),
+    );
+  }
+}
+
 async function main() {
   // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
   requireStrongSecret("JWT_SECRET");
   requireStrongSecret("ECDSA_MASTER_SECRET");
   requireEnv("DATABASE_URL");
+  // Non fatal (localhost est valide en dev local), mais visible au boot.
+  warnIfFrontendUrlLooksLocal();
 
   const app = Fastify({
     logger: {
