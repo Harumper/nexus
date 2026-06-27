@@ -266,6 +266,7 @@ func main() {
 	actions.RecoverPendingSnapshots()
 	actions.RecoverPendingNetplan()
 	actions.RecoverPendingSshd()
+	actions.RecoverPendingUpgrade() // SELF-UPGRADE-005 : dead-man's switch de l'auto-upgrade
 
 	// Cleanup périodique de l'inbox fs.upload (fichiers > 7j). Une fois au boot
 	// puis toutes les 24h. Pas critique si rate (les fichiers seront pris au
@@ -350,6 +351,10 @@ func main() {
 		log.Fatalf("Session handshake failed: %v", err)
 	}
 	client.SetKeys(keystore.GetPrivateKey(), sessionKey)
+
+	// SELF-UPGRADE-005 — reconnexion + auth réussies : confirmer un éventuel
+	// upgrade en attente (annule le dead-man's switch, garde le nouveau binaire).
+	actions.ConfirmUpgrade()
 
 	log.Printf("[Agent] Authenticated (type=%s)", agentType)
 	// Propager le mode PROBE au package actions (effets de bord lecture-seule,
