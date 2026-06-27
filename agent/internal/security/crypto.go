@@ -188,6 +188,15 @@ func BuildSignaturePayload(version int, msgType, requestID, machineID, timestamp
 	return fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s", version, msgType, requestID, machineID, timestamp, nonce, payload)
 }
 
+// BuildEnrollmentProofPayload — NEXUS-ENROLLMENT-002. Canonical, domain-separated
+// payload that the agent signs as its enrollment proof. Binding the proof to the
+// enrollment token + nonce + timestamp (not just the static machineID) makes it
+// fresh and non-replayable. The backend MUST rebuild this byte-for-byte
+// (enrollment.ts buildEnrollmentProofPayload) to verify.
+func BuildEnrollmentProofPayload(machineID, enrollmentToken, nonce, timestamp string) string {
+	return fmt.Sprintf("nexus-enroll-proof:v2:%s:%s:%s:%s", machineID, enrollmentToken, nonce, timestamp)
+}
+
 // IsTimestampValid vérifie que le timestamp est dans la fenêtre acceptable
 func IsTimestampValid(timestamp string, maxSkew time.Duration) bool {
 	t, err := time.Parse(time.RFC3339, timestamp)

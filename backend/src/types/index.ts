@@ -14,7 +14,12 @@ export interface WSMessage {
 export interface EnrollmentRequest {
   enrollment_token: string;
   agent_public_key: string;
-  proof: string; // ECDSA signature of machine_id with agent's private key
+  proof: string; // ECDSA signature of the composite enrollment-proof payload
+  // NEXUS-ENROLLMENT-002 — freshness sealed inside the request: the proof is
+  // bound to (machine_id|token|nonce|timestamp), and the backend rejects a stale
+  // timestamp or a replayed nonce.
+  nonce: string;
+  timestamp: string;
   system_info: SystemInfo;
 }
 

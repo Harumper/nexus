@@ -8,15 +8,36 @@ import {
   signPayload,
   buildSignaturePayload,
   generateNonce,
+  isTimestampValid,
 } from "./crypto.js";
 import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import { openEnrollmentSeal } from "./enrollment-seal.js";
 import type { EnrollmentRequest, WSMessage } from "../types/index.js";
+import { LRUCache } from "lru-cache";
 
 const ENROLLMENT_EXPIRY_HOURS = parseInt(
   process.env.ENROLLMENT_TOKEN_EXPIRY_HOURS || "24",
   10
 );
+
+// NEXUS-ENROLLMENT-002 — anti-replay sur l'enrôlement, même discipline que
+// verifyAgentMessage (security.ts) : TTL aligné sur la fenêtre isTimestampValid
+// (5 min). Un enrollment.request rejoué (nonce déjà vu) est rejeté.
+const recentNonces = new LRUCache<string, true>({
+  max: 50_000,
+  ttl: 5 * 60 * 1000,
+});
+
+// Payload canonique du proof d'enrôlement. DOIT être identique, octet pour octet,
+// à BuildEnrollmentProofPayload côté agent (agent/internal/security/crypto.go).
+function buildEnrollmentProofPayload(
+  machineId: string,
+  enrollmentToken: string,
+  nonce: string,
+  timestamp: string
+): string {
+  return `nexus-enroll-proof:v2:${machineId}:${enrollmentToken}:${nonce}:${timestamp}`;
+}
 
 export async function createMachineWithEnrollment(
   name: string,
@@ -110,23 +131,47 @@ export async function processEnrollment(
     return { success: false, error: "Enrollment token has expired" };
   }
 
-  // 6. Vérifier la preuve ECDSA (l'agent signe son machine_id avec sa clé privée)
-  const proofValid = verifySignature(
+  // 5b. NEXUS-ENROLLMENT-002 — anti-replay (depuis le seal authentifié) : fenêtre
+  // temporelle + nonce non vu, AVANT toute vérification de proof coûteuse.
+  if (!request.timestamp || !isTimestampValid(request.timestamp)) {
+    return { success: false, error: "Enrollment timestamp outside valid window" };
+  }
+  const nonceKey = `${machineId}:${request.nonce}`;
+  if (!request.nonce || recentNonces.has(nonceKey)) {
+    return { success: false, error: "Duplicate enrollment nonce (replay)" };
+  }
+
+  // 6. Vérifier la preuve ECDSA : l'agent signe le payload composite
+  // (machine_id|token|nonce|timestamp), pas le seul machine_id statique → frais
+  // et non rejouable, et lié à CET enrôlement.
+  const proofPayload = buildEnrollmentProofPayload(
     machineId,
+    request.enrollment_token,
+    request.nonce,
+    request.timestamp
+  );
+  const proofValid = verifySignature(
+    proofPayload,
     request.proof,
     request.agent_public_key
   );
   if (!proofValid) {
     return { success: false, error: "Invalid ECDSA proof" };
   }
+  // Le proof est valide et frais : mémoriser le nonce (après preuve d'authenticité,
+  // comme CRYPTO-005 — un attaquant ne peut pas empoisonner le cache avant la vérif).
+  recentNonces.set(nonceKey, true);
 
   // CRYPTO-004 : plus de secret de canal dérivé/persisté à l'enrôlement.
   // L'enrôlement n'établit que l'IDENTITÉ (agentPublicKey ↔ machine) ; la clé de
   // session AES est négociée à chaque connexion par le handshake ECDHE éphémère.
 
-  // 8. Mettre à jour la machine
-  await prisma.machine.update({
-    where: { id: machineId },
+  // 8. Mettre à jour la machine — NEXUS-ENROLLMENT-002 : updateMany CONDITIONNEL
+  // sur status=ENROLLMENT_PENDING pour fermer la course TOCTOU (deux requêtes
+  // concurrentes lisent ENROLLMENT_PENDING avant qu'un update ne tombe). Seul le
+  // premier update voit la ligne PENDING ; le second obtient count=0 → rejet.
+  const claimed = await prisma.machine.updateMany({
+    where: { id: machineId, status: "ENROLLMENT_PENDING" },
     data: {
       status: "ONLINE",
       agentPublicKey: request.agent_public_key,
@@ -142,6 +187,9 @@ export async function processEnrollment(
       lastHeartbeat: new Date(),
     },
   });
+  if (claimed.count !== 1) {
+    return { success: false, error: "Enrollment already completed (concurrent request)" };
+  }
 
   // 9. Log audit
   await prisma.auditLog.create({
