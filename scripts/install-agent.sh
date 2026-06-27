@@ -122,6 +122,7 @@ SERVER_URL=""
 MACHINE_ID=""
 ENROLLMENT_TOKEN=""
 SERVER_PUBLIC_KEY=""
+RELEASE_PUBKEY=""
 AGENT_BINARY=""
 HEARTBEAT_INTERVAL=30
 METRICS_INTERVAL=60
@@ -140,6 +141,17 @@ while [[ $# -gt 0 ]]; do
             fi
             SERVER_PUBLIC_KEY="$(cat "$2")"
             shift 2 ;;
+        --release-pubkey-file)
+            # Accept-list minisign des clés publiques de release (auto-upgrade).
+            # Clé(s) générée(s) hors-ligne par l'opérateur ; seule la moitié
+            # publique est déposée ici. Sans ce fichier, l'agent refuse toute
+            # auto-mise-à-jour (fail-closed).
+            if [ ! -f "$2" ]; then
+                error "Fichier clé publique de release introuvable: $2"
+                exit 1
+            fi
+            RELEASE_PUBKEY="$(cat "$2")"
+            shift 2 ;;
         --binary)           AGENT_BINARY="$2";      shift 2 ;;
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;
@@ -149,7 +161,8 @@ while [[ $# -gt 0 ]]; do
         --reenroll)         MODE="reenroll";        shift ;;
         -h|--help)
             echo "Usage:"
-            echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F]"
+            echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F] [--release-pubkey-file F]"
+            echo "       --release-pubkey-file F : clé(s) publique(s) minisign de release → /etc/nexus/release.pub (auto-upgrade signé ; sans elle, l'auto-upgrade est refusé)"
             echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
             echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # TABLE RASE (sudoers/user/binaire, logs gardés) + réinstall"
             echo "  install-agent.sh --uninstall                                                                   # suppression complète"
@@ -534,6 +547,20 @@ if [ -n "${SERVER_PUBLIC_KEY:-}" ]; then
     printf '%s\n' "$SERVER_PUBLIC_KEY" > "$SERVER_PUBKEY_FILE"
     chown root:"$AGENT_GROUP" "$SERVER_PUBKEY_FILE"
     chmod 640 "$SERVER_PUBKEY_FILE"
+fi
+
+# Accept-list des clés publiques de release (vérification de l'auto-upgrade,
+# indépendante du canal). root:root 0644 : seul root écrit, l'agent (non-root)
+# la lit. Absente ⇒ l'agent refuse l'auto-upgrade (fail-closed), mais tourne
+# normalement pour tout le reste. En REFRESH (identité locale présente, pas de
+# --release-pubkey-file), le fichier existant est conservé tel quel ; un
+# ré-enrôlement/uninstall fait table rase de $CONFIG_DIR et impose de le
+# re-fournir.
+RELEASE_PUBKEY_FILE="$CONFIG_DIR/release.pub"
+if [ -n "${RELEASE_PUBKEY:-}" ]; then
+    printf '%s\n' "$RELEASE_PUBKEY" > "$RELEASE_PUBKEY_FILE"
+    chown root:root "$RELEASE_PUBKEY_FILE"
+    chmod 644 "$RELEASE_PUBKEY_FILE"
 fi
 
 cat > "$CONFIG_DIR/agent.env" << EOF

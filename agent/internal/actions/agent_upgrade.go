@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
+
+	"aead.dev/minisign"
 )
 
 func init() { Register(&AgentUpgradeAction{}) }
@@ -23,6 +26,58 @@ func upgradeProgress(line string, percent int) {
 	if OnAgentUpgradeProgress != nil {
 		OnAgentUpgradeProgress(line, percent)
 	}
+}
+
+// releasePubKeyPath est l'accept-list minisign des clés publiques de release,
+// déposée par l'OPÉRATEUR à l'installation (root:root 0644, sibling de
+// server-public-key.pem). Elle est LOCALE et de confiance ; le backend n'y
+// touche jamais — c'est ce qui rend l'authenticité de l'auto-upgrade
+// indépendante du canal de commande (un backend compromis ne détient pas la
+// clé privée hors-ligne et ne peut donc pas signer un binaire trojané).
+const releasePubKeyPath = "/etc/nexus/release.pub"
+
+// loadReleasePubKeys lit et parse l'accept-list locale : une clé publique
+// minisign par ligne non vide. Les lignes vides, les commentaires (`#`) et la
+// ligne d'en-tête `untrusted comment:` d'un fichier .pub collé tel quel sont
+// ignorés. La fonction renvoie TOUJOURS une erreur plutôt qu'une liste vide
+// silencieuse, de sorte que l'appelant échoue fermé : fichier absent, illisible,
+// vide ou contenant une clé non parsable ⇒ erreur ⇒ upgrade refusé. Aucune
+// variable d'env, aucun flag, aucun fallback.
+func loadReleasePubKeys() ([]minisign.PublicKey, error) {
+	data, err := os.ReadFile(releasePubKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("lecture %s : %w", releasePubKeyPath, err)
+	}
+	var keys []minisign.PublicKey
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "untrusted comment:") {
+			continue
+		}
+		var pk minisign.PublicKey
+		if err := pk.UnmarshalText([]byte(line)); err != nil {
+			return nil, fmt.Errorf("clé publique invalide dans %s : %w", releasePubKeyPath, err)
+		}
+		keys = append(keys, pk) // accept-list = liste dès la 1re entrée (current[, next] pour la rotation)
+	}
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("%s ne contient aucune clé publique utilisable", releasePubKeyPath)
+	}
+	return keys, nil
+}
+
+// verifyAnyReleaseKey applique un OR logique sur l'accept-list : la signature
+// minisign détachée est acceptée si N'IMPORTE quelle clé de la liste la valide.
+// minisign.Verify gère de façon transparente le format brut (Ed) comme le format
+// pré-hashé Blake2b-512 (ED), et vérifie aussi la signature globale du trusted
+// comment.
+func verifyAnyReleaseKey(keys []minisign.PublicKey, message, sig []byte) bool {
+	for _, pk := range keys {
+		if minisign.Verify(pk, message, sig) {
+			return true
+		}
+	}
+	return false
 }
 
 // AgentUpgradeAction met a jour le binaire de l'agent lui-meme.
@@ -52,13 +107,30 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	downloadURL := params["download_url"].(string)
 	token := params["token"].(string)
 	expectedSHA256, _ := params["sha256"].(string)
+	signature, _ := params["signature"].(string)
 
-	// Intégrité OBLIGATOIRE : on installe un binaire root, jamais sans contrôle.
-	// Le backend calcule toujours le SHA du binaire servi ; un sha256 vide
-	// signifie un backend incohérent → on refuse plutôt que d'installer à
-	// l'aveugle (angle mort supply-chain dans une base au pinning aussi strict).
+	// ---- POINT DE DÉCISION FAIL-CLOSED UNIQUE (indépendant du canal) ----
+	// Le binaire installé doit être signé par une clé de release HORS-LIGNE dont
+	// la moitié publique est déposée LOCALEMENT par l'opérateur (release.pub,
+	// root:root 0644). Le backend ne fournit jamais cette clé : il signe le canal
+	// WS, sert le binaire et son SHA, mais ne détient pas la clé privée hors-ligne
+	// — il ne peut donc pas pousser de code. On charge l'accept-list locale
+	// d'abord ; absence/illisibilité/vacuité ⇒ refus, sans échappatoire.
+	releaseKeys, err := loadReleasePubKeys()
+	if err != nil {
+		return nil, fmt.Errorf("clé(s) de release introuvable(s)/invalide(s) : mise à jour refusée : %w", err)
+	}
+	// Le SHA-256 fourni par le backend reste un PRÉ-CHECK de corruption transit,
+	// JAMAIS l'autorité de validation : l'autorité est la signature minisign
+	// vérifiée plus bas contre la clé locale. Un sha256 vide = backend incohérent.
 	if expectedSHA256 == "" {
 		return nil, fmt.Errorf("sha256 attendu manquant : mise à jour refusée (intégrité non vérifiable)")
+	}
+	// La signature détachée est obligatoire (relayée par le backend depuis le
+	// .minisig servi à côté du binaire ; le backend la transporte mais ne peut
+	// pas la forger sans la clé privée hors-ligne).
+	if signature == "" {
+		return nil, fmt.Errorf("signature de release manquante : mise à jour refusée")
 	}
 
 	newBinPath := "/var/lib/nexus-agent/nexus-agent.new"
@@ -102,11 +174,26 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
 	upgradeProgress(fmt.Sprintf("Téléchargé : %d octets", written), 45)
 
-	// 2. Verifier le SHA256 (obligatoire, contrôlé non-vide plus haut)
+	// 2. Pré-check SHA256 (corruption transit uniquement, NON autorité).
 	upgradeProgress("Vérification de l'intégrité (SHA256)…", 55)
 	if expectedSHA256 != actualSHA256 {
 		os.Remove(newBinPath)
 		return nil, fmt.Errorf("sha256 mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
+	}
+
+	// 2b. AUTORITÉ DE VALIDATION : signature minisign détachée du binaire
+	// téléchargé, vérifiée contre l'accept-list LOCALE, AVANT toute installation.
+	// Indépendante du canal : même un backend entièrement compromis ne peut pas
+	// faire passer un binaire non signé par la clé hors-ligne de l'opérateur.
+	upgradeProgress("Vérification de la signature de release…", 65)
+	staged, err := os.ReadFile(newBinPath) // fenêtre verify→install : TOCTOU traitée par SELF-UPGRADE-004
+	if err != nil {
+		os.Remove(newBinPath)
+		return nil, fmt.Errorf("relecture du binaire stagé : %w", err)
+	}
+	if !verifyAnyReleaseKey(releaseKeys, staged, []byte(signature)) {
+		os.Remove(newBinPath)
+		return nil, fmt.Errorf("signature de release invalide : mise à jour refusée")
 	}
 
 	// chmod +x
