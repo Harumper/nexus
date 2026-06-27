@@ -123,6 +123,8 @@ MACHINE_ID=""
 ENROLLMENT_TOKEN=""
 SERVER_PUBLIC_KEY=""
 RELEASE_PUBKEY=""
+SCRIPT_SIGNING_PUBKEY=""
+ALLOW_REMOTE_SCRIPT="false"   # opt-in : émet la ligne sudoers bash nexus-script
 AGENT_BINARY=""
 HEARTBEAT_INTERVAL=30
 METRICS_INTERVAL=60
@@ -152,6 +154,21 @@ while [[ $# -gt 0 ]]; do
             fi
             RELEASE_PUBKEY="$(cat "$2")"
             shift 2 ;;
+        --script-signing-pubkey-file)
+            # Accept-list minisign DÉDIÉE à la signature de script (distincte de
+            # la clé serveur et de la clé de release). Privée hors-ligne côté
+            # opérateur ; seule la moitié publique est déposée ici.
+            if [ ! -f "$2" ]; then
+                error "Fichier clé publique de signature de script introuvable: $2"
+                exit 1
+            fi
+            SCRIPT_SIGNING_PUBKEY="$(cat "$2")"
+            shift 2 ;;
+        --allow-remote-script)
+            # Opt-in EXPLICITE : sans ce flag, la ligne sudoers permettant
+            # `sudo /bin/bash nexus-script-*.sh` n'est PAS écrite → la capacité
+            # root-RCE n'existe pas sur le système (pas seulement un flag refusé).
+            ALLOW_REMOTE_SCRIPT="true"; shift ;;
         --binary)           AGENT_BINARY="$2";      shift 2 ;;
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;
@@ -163,6 +180,8 @@ while [[ $# -gt 0 ]]; do
             echo "Usage:"
             echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F] [--release-pubkey-file F]"
             echo "       --release-pubkey-file F : clé(s) publique(s) minisign de release → /etc/nexus/release.pub (auto-upgrade signé ; sans elle, l'auto-upgrade est refusé)"
+            echo "       --script-signing-pubkey-file F : clé(s) publique(s) minisign de signature de script → /etc/nexus/script-signing.pub"
+            echo "       --allow-remote-script : émet la ligne sudoers autorisant script.execute (OFF par défaut ; capacité root-RCE absente sinon)"
             echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
             echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # TABLE RASE (sudoers/user/binaire, logs gardés) + réinstall"
             echo "  install-agent.sh --uninstall                                                                   # suppression complète"
@@ -340,8 +359,10 @@ nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGINT [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
-# === Scripts Nexus (répertoire dédié, pas /tmp) ===
-nexus-agent ALL=(root) NOPASSWD: /bin/bash /var/lib/nexus-agent/nexus-script-*.sh
+# === Exécution de script : règle volontairement ABSENTE de ce heredoc statique ===
+# La règle d'exécution de script n'est émise qu'en opt-in (--allow-remote-script),
+# appendée hors de ce bloc juste avant `visudo`. Quand off, la capacité root-RCE
+# correspondante n'existe nulle part dans ce fichier.
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
@@ -460,6 +481,17 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexu
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexus-agent/sshkey-*.tmp /root/.ssh/authorized_keys
 SUDOERS
 
+# === Opt-in script.execute : capacité root-RCE émise SEULEMENT si demandée ===
+# Append hors du heredoc statique. Sans --allow-remote-script, le mot
+# "nexus-script" n'apparaît NULLE PART dans le sudoers → `sudo /bin/bash
+# nexus-script-*.sh` est refusé par sudo lui-même (commande hors whitelist).
+# C'est une capacité RETIRÉE du système, pas un flag applicatif contournable.
+if [ "$ALLOW_REMOTE_SCRIPT" = "true" ]; then
+    printf '\n# === Scripts Nexus (opt-in --allow-remote-script ; scripts signés, vérifiés côté agent) ===\nnexus-agent ALL=(root) NOPASSWD: /bin/bash %s/nexus-script-*.sh\n' \
+        "$AGENT_SCRIPT_DIR" >> "$SUDOERS_TEMP"
+    warn "Exécution distante de script ACTIVÉE (--allow-remote-script) : capacité root-RCE émise dans le sudoers."
+fi
+
 # Valider la syntaxe AVANT d'appliquer
 if visudo -cf "$SUDOERS_TEMP"; then
     install -m 0440 -o root -g root "$SUDOERS_TEMP" "$SUDOERS_FILE"
@@ -561,6 +593,18 @@ if [ -n "${RELEASE_PUBKEY:-}" ]; then
     printf '%s\n' "$RELEASE_PUBKEY" > "$RELEASE_PUBKEY_FILE"
     chown root:root "$RELEASE_PUBKEY_FILE"
     chmod 644 "$RELEASE_PUBKEY_FILE"
+fi
+
+# Accept-list DÉDIÉE à la signature de script (verrou indépendant du canal pour
+# script.execute). Même modèle que release.pub : root:root 0644 (world-readable →
+# l'agent non-root la lit sans CAP_DAC_READ_SEARCH, donc indépendant d'AGENT-002).
+# Clé distincte de la clé serveur et de la clé de release. Conservée en REFRESH,
+# re-fournir sur reenroll/uninstall.
+SCRIPT_SIGNING_PUBKEY_FILE="$CONFIG_DIR/script-signing.pub"
+if [ -n "${SCRIPT_SIGNING_PUBKEY:-}" ]; then
+    printf '%s\n' "$SCRIPT_SIGNING_PUBKEY" > "$SCRIPT_SIGNING_PUBKEY_FILE"
+    chown root:root "$SCRIPT_SIGNING_PUBKEY_FILE"
+    chmod 644 "$SCRIPT_SIGNING_PUBKEY_FILE"
 fi
 
 cat > "$CONFIG_DIR/agent.env" << EOF

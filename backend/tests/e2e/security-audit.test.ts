@@ -141,8 +141,14 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("NOEXEC:");
     // kill should use explicit signals
     expect(content).toContain("/bin/kill -SIGTERM");
-    // Scripts in dedicated dir, not /tmp
-    expect(content).toContain("/var/lib/nexus-agent/nexus-script");
+    // Scripts in dedicated dir, not /tmp. Depuis NEXUS-AGENT-005 la règle sudoers
+    // `bash …/nexus-script-*.sh` est OPT-IN (--allow-remote-script) et émise via
+    // $AGENT_SCRIPT_DIR hors du heredoc statique : on ne vérifie donc plus un
+    // chemin littéral toujours présent, mais que le répertoire d'état dédié et le
+    // motif de nom restent utilisés (la garantie « pas /tmp » côté agent est
+    // testée séparément sur script_execute.go).
+    expect(content).toMatch(/AGENT_SCRIPT_DIR="\/var\/lib\/nexus-agent"/);
+    expect(content).toContain("nexus-script-*.sh");
     // Uses mktemp instead of hardcoded /tmp path
     expect(content).toContain("mktemp");
     // upgrade/update must use EXACT args (no trailing wildcard → pas d'injection -o)
