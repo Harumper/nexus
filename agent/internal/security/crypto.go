@@ -151,13 +151,15 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Supporter nonce de 12 bytes (Go standard) et 16 bytes (Node.js IV_LENGTH)
-	var gcm cipher.AEAD
-	if len(nonce) == 12 {
-		gcm, err = cipher.NewGCM(block)
-	} else {
-		gcm, err = cipher.NewGCMWithNonceSize(block, len(nonce))
+	// NEXUS-CRYPTO-006 — format canonique : nonce GCM de 12 octets (96 bits)
+	// UNIQUEMENT. On n'accepte plus une longueur de nonce arbitraire issue du blob
+	// (dériver la taille GCM depuis le blob transformait une primitive en parseur
+	// réglable par l'attaquant et faisait varier la dérivation J0/GHASH). Une
+	// longueur ≠ 12 est rejetée d'emblée.
+	if len(nonce) != 12 {
+		return "", fmt.Errorf("invalid GCM nonce length %d (expected 12)", len(nonce))
 	}
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return "", err
 	}

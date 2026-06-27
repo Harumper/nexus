@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 16;
+// NEXUS-CRYPTO-006 — nonce GCM canonique de 12 octets (96 bits), la taille
+// standard/optimale pour AES-GCM (J0 dérivé directement, sans GHASH). decryptAES
+// lit l'IV DEPUIS le blob, donc les anciennes données à 16 octets se déchiffrent
+// encore : seul le format des NOUVEAUX chiffrements change.
+const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURVE = "prime256v1"; // P-256
 
