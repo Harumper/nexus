@@ -32,8 +32,9 @@ function extractTokenFromProtocol(request: IncomingMessage): string | null {
 
 /**
  * Extraire le token JWT depuis le cookie httpOnly nexus_token.
- * Le navigateur envoie automatiquement les cookies same-origin sur
- * l'upgrade WebSocket — pas besoin que le frontend les transmette.
+ * Le navigateur envoie automatiquement les cookies de même provenance
+ * (same-site) lors de l'upgrade WebSocket — pas besoin que le frontend
+ * les transmette.
  */
 function extractTokenFromCookie(request: IncomingMessage): string | null {
   const cookieHeader = request.headers.cookie;
@@ -106,6 +107,16 @@ const WS_MAX_CONN_TOTAL = parseInt(process.env.WS_MAX_CONN_TOTAL || "2000", 10);
 
 const connByIp = new Map<string, number>();
 let connTotal = 0;
+
+// CONTROL-PLANE-001 — exact-match Origin allowlist for the dashboard upgrade.
+// Browsers always send Origin on a WS handshake; a malicious site driving the
+// victim's browser would carry the real Origin, so an exact allowlist defeats
+// CSWSH as defense-in-depth beyond the SameSite=Strict cookie. Agents (/ws/agent)
+// are non-browser clients (no Origin) and are intentionally not subject to this.
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:26032")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 // Soft cap: returns false when the IP (or the whole server) is at its live-socket
 // limit. Checked before handleUpgrade; the slot is only acquired once the socket
@@ -210,6 +221,16 @@ export function setupWebSocketServer(app: FastifyInstance): void {
       if (!token) {
         console.warn("[WS] Dashboard connection rejected: no token provided");
         rejectUpgrade(socket, 401, "Unauthorized");
+        return;
+      }
+
+      // CONTROL-PLANE-001 — CSWSH: exact-match the Origin against the allowlist
+      // before accepting the dashboard socket. Exact equality only (no
+      // endsWith/includes/wildcard substring matching).
+      const origin = request.headers["origin"];
+      if (typeof origin !== "string" || !allowedOrigins.some((o) => o === origin)) {
+        console.warn(`[WS] Dashboard upgrade rejected: forbidden origin ${origin}`);
+        rejectUpgrade(socket, 403, "Forbidden origin");
         return;
       }
 

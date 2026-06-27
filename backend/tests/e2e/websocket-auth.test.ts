@@ -41,10 +41,18 @@ afterAll(async () => {
   await app.close();
 });
 
-function connectWS(protocols?: string[]): Promise<{ ws: WebSocket; error?: Error }> {
+// Default test Origin matches the FRONTEND_URL fallback (CONTROL-PLANE-001
+// requires an allowlisted Origin on the dashboard upgrade). Pass a different
+// origin to exercise the CSWSH rejection.
+const ALLOWED_ORIGIN = "http://localhost:26032";
+
+function connectWS(
+  protocols?: string[],
+  origin: string = ALLOWED_ORIGIN
+): Promise<{ ws: WebSocket; error?: Error }> {
   return new Promise((resolve) => {
     const url = `ws://127.0.0.1:${port}/ws/dashboard`;
-    const ws = new WebSocket(url, protocols);
+    const ws = new WebSocket(url, protocols, { origin });
 
     const timeout = setTimeout(() => {
       ws.close();
@@ -93,6 +101,22 @@ describe("WebSocket Dashboard Authentication", () => {
     expect(error).toBeUndefined();
     expect(ws.readyState).toBe(WebSocket.OPEN);
     ws.close();
+  });
+
+  it("should reject a forbidden Origin (CSWSH) with 403", async () => {
+    const token = app.jwt.sign({
+      sub: "test-user-id",
+      username: "testuser",
+      role: "ADMIN",
+      provider: "local",
+    });
+
+    const { error } = await connectWS(
+      ["nexus-auth", token],
+      "https://evil.example.com"
+    );
+    expect(error).toBeDefined();
+    expect(error!.message).toContain("403");
   });
 
   it("should reject connection with expired JWT token", async () => {
