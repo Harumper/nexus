@@ -346,6 +346,16 @@ cat > "$SUDOERS_TEMP" << 'SUDOERS'
 # Commandes autorisées pour l'agent Nexus (sans mot de passe)
 # Généré par install-agent.sh — NE PAS MODIFIER MANUELLEMENT
 
+# === NEXUS-AGENT-009 : posture d'environnement épinglée pour ce drop-in ===
+# Le confinement de l'agent ne doit PAS dépendre d'un invariant tenu dans
+# /etc/sudoers (qu'un opérateur peut légitimement personnaliser). On scope donc
+# env_reset + secure_path à nexus-agent ici. Aucun env_keep dangereux
+# (LD_PRELOAD/BASH_ENV/ENV) n'est jamais ajouté — un .so injecté ou un BASH_ENV
+# sourcé en root via `sudo /bin/bash nexus-script-*.sh` resterait bloqué même si
+# le global /etc/sudoers était affaibli.
+Defaults:nexus-agent env_reset
+Defaults:nexus-agent secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # === Package management (APT) ===
 # === Self-introspection (lecture sudoers pour detecter drift) ===
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
