@@ -47,6 +47,22 @@ function requireEnv(key: string): void {
   }
 }
 
+// CONTROL-PLANE-005 — presence is not enough for signing secrets: a short/weak
+// JWT_SECRET or ECDSA_MASTER_SECRET is brute-forceable offline, letting an
+// attacker forge arbitrary tokens (incl. role:"ADMIN"). Enforce a minimum length
+// at boot. 32 chars ≈ 256 bits if hex/base64 — the floor for HS256/ECDSA secrets.
+function requireStrongSecret(key: string): void {
+  const val = process.env[key];
+  if (!val) {
+    throw new Error(`${key} environment variable is required. Set it before starting the server.`);
+  }
+  if (val.length < 32) {
+    throw new Error(
+      `${key} is too weak: ${val.length} chars, minimum 32 required. Generate one with e.g. \`openssl rand -hex 32\`.`,
+    );
+  }
+}
+
 // Démarre un setInterval avec un offset aléatoire initial (jitter) pour
 // éviter le thundering herd : sans jitter, tous les intervals fixes démarrent
 // au même tick et créent des spikes CPU/DB synchronisés.
@@ -64,8 +80,8 @@ function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () =
 
 async function main() {
   // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
-  requireEnv("JWT_SECRET");
-  requireEnv("ECDSA_MASTER_SECRET");
+  requireStrongSecret("JWT_SECRET");
+  requireStrongSecret("ECDSA_MASTER_SECRET");
   requireEnv("DATABASE_URL");
 
   const app = Fastify({
