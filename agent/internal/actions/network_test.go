@@ -76,8 +76,8 @@ func TestHandleNetplanConfirmUnknownIDIsSafe(t *testing.T) {
 
 func TestNetplanActionsMetadata(t *testing.T) {
 	// Verif rapide que les ID/Capability sont cohérents — un drift entre
-	// ces strings et la PROBE allow-list ou la sudoers cause des bugs
-	// silencieux.
+	// ces strings et la READ_ONLY_ACTIONS (backend) ou la sudoers cause des
+	// bugs silencieux.
 	cases := []struct {
 		action     interface{ ID() string; Capability() string }
 		wantID     string

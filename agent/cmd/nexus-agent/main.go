@@ -161,48 +161,11 @@ func runWatchdog() {
 var (
 	// Version est injectée au build via -ldflags "-X main.Version=...".
 	// "dev" = binaire compilé sans estampillage (build local).
-	Version   = "dev"
-	agentType string
+	Version = "dev"
 
 	// serverPublicKey est la cle publique ECDSA du backend, parsee une fois
 	// au boot et utilisee pour verifier les messages serveur (action.confirm).
 	serverPublicKey *ecdsa.PublicKey
-
-	// probeAllowedActions is the whitelist of actions allowed in probe mode.
-	// Doit correspondre a PROBE_ALLOWED_ACTIONS cote backend (machine-manager.ts).
-	probeAllowedActions = map[string]bool{
-		"system.metrics":            true,
-		"system.info":               true,
-		"system.processes":          true,
-		"system.heartbeat":          true,
-		"system.logs":               true,
-		"system.services_list":      true,
-		"system.service_status":     true,
-		"system.package_list":       true,
-		"firewall.status":           true,
-		"storage.lvm_list":          true,
-		"storage.block_devices":     true,
-		"storage.filesystem_usage":  true,
-		"cron.list":                 true,
-		"timer.list":                true,
-		"user.list":                 true,
-		"sshkey.list":               true,
-		"network.status":            true,
-		"network.interfaces":        true,
-		"network.listening_services": true,
-		"netplan.get":               true,
-		"package.holds_list":        true,
-		"system.services_failed":    true,
-		"system.timers_failed":      true,
-		"system.updates_available":  true,
-		"system.health_summary":     true,
-		"ssl.scan":                  true,
-		"security.audit":            true,
-		"agent.sudoers_check":       true,
-		"fs.list":                   true,
-		"fs.read":                   true,
-		// fs.upload volontairement absent : interdit en mode probe
-	}
 )
 
 func main() {
@@ -234,15 +197,10 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	cfg.Version = Version
-	agentType = cfg.AgentType
 	// Origine pinnée pour l'auto-upgrade (SELF-UPGRADE-003).
 	actions.PinnedServerURL = cfg.ServerURL
 
-	logPrefix := "[Nexus Agent]"
-	if agentType == "probe" {
-		logPrefix = "[Nexus Probe]"
-	}
-	log.Printf("%s Version %s starting...", logPrefix, Version)
+	log.Printf("[Nexus Agent] Version %s starting...", Version)
 
 	// Parser la cle publique du serveur une fois au boot. Utilisee pour
 	// verifier les messages action.confirm (annulation watchdog firewall/netplan).
@@ -305,20 +263,15 @@ func main() {
 		// Démarrer la lecture en background pour recevoir la réponse d'enrollment
 		go client.ReadLoop()
 
-		result, err := security.Enroll(
+		if err := security.Enroll(
 			client.SendRaw,
 			client.ReceiveRaw,
 			cfg.MachineID,
 			cfg.EnrollmentToken,
 			cfg.ServerPublicKey,
 			keystore,
-		)
-		if err != nil {
+		); err != nil {
 			log.Fatalf("Enrollment failed: %v", err)
-		}
-
-		if result.MachineType != "" {
-			agentType = result.MachineType
 		}
 
 		// Après enrollment, se reconnecter pour un flux propre (nouveau WS).
@@ -356,10 +309,7 @@ func main() {
 	// upgrade en attente (annule le dead-man's switch, garde le nouveau binaire).
 	actions.ConfirmUpgrade()
 
-	log.Printf("[Agent] Authenticated (type=%s)", agentType)
-	// Propager le mode PROBE au package actions (effets de bord lecture-seule,
-	// ex. security.audit qui ne doit pas installer lynis en PROBE).
-	actions.SetProbeMode(strings.EqualFold(agentType, "probe"))
+	log.Printf("[Agent] Authenticated")
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
 	// Connecter le callback de progression des mises à jour système (apt)
@@ -561,14 +511,6 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 		return
 	}
 
-	// In probe mode, only allow whitelisted actions
-	if strings.EqualFold(agentType, "probe") {
-		if !probeAllowedActions[request.ActionID] {
-			sendActionResponse(client, request.RequestID, request.ActionID, false, nil, "action not allowed in probe mode")
-			return
-		}
-	}
-
 	action, ok := actions.Get(request.ActionID)
 	if !ok {
 		sendActionResponse(client, request.RequestID, request.ActionID, false, nil, "unknown action")
@@ -637,7 +579,6 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 	data := map[string]interface{}{
 		"uptime":          0,
 		"agent_version":   cfg.Version,
-		"agent_type":      cfg.AgentType,
 		"reboot_required": rebootRequired,
 		"sudoers_hash":    actions.GetSudoersHash(),
 		// SHA256 du binaire en cours d'exécution : permet au backend de

@@ -126,11 +126,6 @@ RELEASE_PUBKEY=""
 SCRIPT_SIGNING_PUBKEY=""
 ALLOW_REMOTE_SCRIPT="false"   # opt-in : émet la ligne sudoers bash nexus-script
 INSECURE="false"             # opt-in dev : autorise un server-url non-wss:// (NEXUS_ALLOW_INSECURE)
-# NEXUS-AGENT-007 — type d'agent gouvernant le PÉRIMÈTRE du sudoers. agent =
-# sudoers complet (mutations) ; probe = sudoers réduit strictement lecture seule.
-# Fail-safe : toute valeur absente/invalide retombe sur "probe" (moins de
-# privilèges en cas de doute). Passé par la commande de bootstrap backend.
-AGENT_TYPE="probe"
 AGENT_BINARY=""
 HEARTBEAT_INTERVAL=30
 METRICS_INTERVAL=60
@@ -170,14 +165,6 @@ while [[ $# -gt 0 ]]; do
             fi
             SCRIPT_SIGNING_PUBKEY="$(cat "$2")"
             shift 2 ;;
-        --type)
-            # Fail-safe : seul "agent" élargit au sudoers complet ; toute autre
-            # valeur (y compris "probe", vide, inconnue) → sudoers PROBE réduit.
-            case "$2" in
-                agent|AGENT) AGENT_TYPE="agent" ;;
-                *)           AGENT_TYPE="probe" ;;
-            esac
-            shift 2 ;;
         --allow-remote-script)
             # Opt-in EXPLICITE : sans ce flag, la ligne sudoers permettant
             # `sudo /bin/bash nexus-script-*.sh` n'est PAS écrite → la capacité
@@ -199,7 +186,6 @@ while [[ $# -gt 0 ]]; do
             echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F] [--release-pubkey-file F]"
             echo "       --release-pubkey-file F : clé(s) publique(s) minisign de release → /etc/nexus/release.pub (auto-upgrade signé ; sans elle, l'auto-upgrade est refusé)"
             echo "       --script-signing-pubkey-file F : clé(s) publique(s) minisign de signature de script → /etc/nexus/script-signing.pub"
-            echo "       --type agent|probe : périmètre du sudoers. agent = mutations ; probe = lecture seule stricte (défaut fail-safe si absent/invalide)"
             echo "       --allow-remote-script : émet la ligne sudoers autorisant script.execute (OFF par défaut ; capacité root-RCE absente sinon)"
             echo "       --insecure : autorise un --server-url non-wss:// (NEXUS_ALLOW_INSECURE=1 ; WARNING à chaque boot) — DEV LOCAL uniquement"
             echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
@@ -355,17 +341,8 @@ chmod 0750 "$AGENT_SCRIPT_DIR/inbox"
 SUDOERS_TEMP=$(mktemp -t nexus-agent-sudoers.XXXXXX)
 trap "rm -f '$SUDOERS_TEMP'" EXIT
 
-# NEXUS-AGENT-007 — le PÉRIMÈTRE du sudoers dépend du type d'agent. Un PROBE est
-# strictement lecture seule : il ne doit JAMAIS recevoir les primitives de
-# mutation (bash nexus-script, privhelper useradd/install, kill, install /etc,
-# ufw allow/deny, netplan apply, self-upgrade install, userdel/gpasswd...). On
-# génère donc deux fichiers distincts. La distinction n'est plus un seul booléen
-# Go (probeAllowedActions) au-dessus de primitives root latentes : le PROBE ne
-# porte tout simplement pas ces primitives sur disque.
-if [ "$AGENT_TYPE" = "agent" ]; then
-ok "Sudoers : profil AGENT (mutations autorisées)"
 cat > "$SUDOERS_TEMP" << 'SUDOERS'
-# Nexus Agent - Sudoers (profil AGENT)
+# Nexus Agent - Sudoers
 # Commandes autorisées pour l'agent Nexus (sans mot de passe)
 # Généré par install-agent.sh — NE PAS MODIFIER MANUELLEMENT
 
@@ -558,75 +535,10 @@ SUDOERS
 # "nexus-script" n'apparaît NULLE PART dans le sudoers → `sudo /bin/bash
 # nexus-script-*.sh` est refusé par sudo lui-même (commande hors whitelist).
 # C'est une capacité RETIRÉE du système, pas un flag applicatif contournable.
-# Réservée au profil AGENT : un PROBE ne reçoit jamais cette capacité.
 if [ "$ALLOW_REMOTE_SCRIPT" = "true" ]; then
     printf '\n# === Scripts Nexus (opt-in --allow-remote-script ; scripts signés, vérifiés côté agent) ===\nnexus-agent ALL=(root) NOPASSWD: /bin/bash %s/nexus-script-*.sh\n' \
         "$AGENT_SCRIPT_DIR" >> "$SUDOERS_TEMP"
     warn "Exécution distante de script ACTIVÉE (--allow-remote-script) : capacité root-RCE émise dans le sudoers."
-fi
-
-else
-ok "Sudoers : profil PROBE (lecture seule stricte)"
-# NEXUS-AGENT-007 — sudoers PROBE : UNIQUEMENT les commandes root en LECTURE SEULE
-# qu'invoquent les actions PROBE-allowed (probeAllowedActions). Zéro mutation : pas
-# d'apt/dnf install, pas de privhelper, pas de kill, pas d'écriture /etc, pas d'ufw
-# allow/deny, pas de netplan apply, pas de self-upgrade, pas de userdel/gpasswd, pas
-# de bash nexus-script. Les lignes ci-dessous sont byte-identiques à leurs équivalents
-# du profil AGENT (mêmes prédicats épinglés : find AGENT-001, lynis, ss, certs).
-# Une omission éventuelle DÉGRADE proprement (l'action perd l'enrichissement root :
-# ss sans -p, cat de cert refusé ignoré) sans casser ni élever les privilèges.
-cat > "$SUDOERS_TEMP" << 'PROBE_SUDOERS'
-# Nexus Agent - Sudoers (profil PROBE — LECTURE SEULE)
-# Généré par install-agent.sh — NE PAS MODIFIER MANUELLEMENT
-
-# Posture d'environnement épinglée (NEXUS-AGENT-009)
-Defaults:nexus-agent env_reset
-Defaults:nexus-agent secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-# Self-introspection du sudoers (agent.sudoers_check)
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
-
-# Pare-feu — état seul (firewall.status). AUCUN allow/deny/enable/disable.
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-save
-
-# Sockets en écoute (network.listening_services) — ss -p nécessite root.
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ss -Htlnp
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/ss -Htlnp
-
-# Rapport LVM (storage.lvm_list) — reporting seul.
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --nosuffix -o *
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
-
-# Netplan — lecture seule (netplan.get). PAS de `netplan apply` ni `rm`.
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/netplan/*.yaml
-
-# Holds de paquets — lecture seule (package.holds_list).
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark showhold
-
-# Clés SSH — listage seul (sshkey.list). PAS d'ajout/suppression.
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /home/*/.ssh/authorized_keys
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /root/.ssh/authorized_keys
-
-# Scan SSL (ssl.scan) — NEXUS-AGENT-001 : prédicat ÉPINGLÉ byte-identique au profil
-# AGENT (racines figées, -maxdepth/-type/-name, pas de queue ouverte).
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs -maxdepth 4 -type f -name *.pem -o -type f -name *.crt
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/fullchain.pem
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/cert.pem
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/chain.pem
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/nginx/ssl/*.crt
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/apache2/ssl/*.crt
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/haproxy/certs/*.crt
-
-# Audit Lynis (security.audit) — LECTURE SEULE : audit + lecture du rapport.
-# NEXUS-AGENT-007 : security.audit n'installe JAMAIS Lynis (provisioning opérateur).
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lynis audit system --quick --no-colors
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/lynis audit system --quick --no-colors
-nexus-agent ALL=(root) NOPASSWD: /bin/cat /var/log/lynis-report.dat
-PROBE_SUDOERS
-
 fi
 
 # Valider la syntaxe AVANT d'appliquer

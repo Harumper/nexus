@@ -26,7 +26,6 @@ type Config struct {
 	MetricsInterval   int
 
 	// Agent
-	AgentType       string
 	ProcessInterval int
 	Version         string
 }
@@ -43,7 +42,6 @@ func Load() (*Config, error) {
 		ModulesDir:        getEnv("NEXUS_MODULES_DIR", "/opt/nexus/modules"),
 		HeartbeatInterval: getEnvInt("NEXUS_HEARTBEAT_INTERVAL", 30),
 		MetricsInterval:   getEnvInt("NEXUS_METRICS_INTERVAL", 60),
-		AgentType:         getEnv("NEXUS_AGENT_TYPE", "agent"),
 		ProcessInterval:   getEnvInt("NEXUS_PROCESS_INTERVAL", 600),
 		Version:           "dev", // écrasé par main.Version (injecté au build)
 	}

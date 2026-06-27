@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { prisma } from "./database.js";
-import { isActionAllowed } from "./machine-manager.js";
 import { checkCriticalProtection } from "./machine-protection.js";
 import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction } from "./privileged-actions.js";
 import { PROTOCOL_VERSION } from "../websocket/protocol.js";
@@ -43,14 +42,6 @@ export async function dispatchAction(
   userId?: string,
   userRole?: string
 ): Promise<{ success: boolean; error?: string; requestId?: string }> {
-  // 1. Verifier que l'action est autorisee pour le type de machine (PROBE=readonly, AGENT=all)
-  if (!(await isActionAllowed(machineId, action.action_id))) {
-    return {
-      success: false,
-      error: `Action '${action.action_id}' is not allowed for this machine type`,
-    };
-  }
-
   // 1a. RBAC par action : READONLY = lecture seule, OPERATOR = mutations sauf
   // ADMIN-only (script.execute), ADMIN = tout. userRole undefined = appel
   // système interne (de confiance). Voir privileged-actions.ts.

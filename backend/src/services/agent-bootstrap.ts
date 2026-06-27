@@ -32,8 +32,6 @@ interface GenerateStepsParams {
   machineName: string;
   enrollmentToken: string;
   backendPublicKey: string;
-  // NEXUS-AGENT-007 — type d'agent : gouverne --type agent|probe (périmètre sudoers).
-  machineType: "AGENT" | "PROBE";
   binaryToken: string;
   scriptToken: string;
   backendUrl: string;
@@ -43,13 +41,10 @@ interface GenerateStepsParams {
 }
 
 export function generateInstallSteps(params: GenerateStepsParams): InstallStep[] {
-  const { machineId, enrollmentToken, backendPublicKey, machineType, binaryToken, scriptToken, backendUrl, reenroll } =
+  const { machineId, enrollmentToken, backendPublicKey, binaryToken, scriptToken, backendUrl, reenroll } =
     params;
   const wsUrl = getWsAgentUrl(backendUrl);
   const reenrollFlag = reenroll ? " \\\n  --reenroll" : "";
-  // NEXUS-AGENT-007 — un PROBE reçoit le sudoers réduit (lecture seule). Le type
-  // est explicite ; l'installeur retombe de toute façon sur "probe" si absent.
-  const typeFlag = machineType === "AGENT" ? "agent" : "probe";
 
   return [
     {
@@ -84,7 +79,6 @@ sudo /tmp/install-agent.sh \\
   --machine-id "${machineId}" \\
   --enrollment-token "${enrollmentToken}" \\
   --server-public-key-file /tmp/nexus-pubkey.pem \\
-  --type "${typeFlag}" \\
   --binary /tmp/nexus-agent${reenrollFlag}`,
     },
   ];

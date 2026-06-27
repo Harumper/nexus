@@ -65,35 +65,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Probe locale (monitoring only, pas d'actions dangereuses)
-  probe:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-      args:
-        AGENT_VERSION: ${AGENT_VERSION:-0.1.0+local}
-    container_name: nexus-probe-local
-    restart: unless-stopped
-    environment:
-      NEXUS_SERVER_URL: ws://backend:3000/ws/agent
-      NEXUS_MACHINE_ID: ${PROBE_MACHINE_ID:-${AGENT_MACHINE_ID:-}}
-      NEXUS_ENROLLMENT_TOKEN: ${PROBE_ENROLLMENT_TOKEN:-${AGENT_ENROLLMENT_TOKEN:-}}
-      NEXUS_SERVER_PUBLIC_KEY: ${PROBE_SERVER_PUBLIC_KEY:-${AGENT_SERVER_PUBLIC_KEY:-}}
-      NEXUS_KEY_PATH: /opt/nexus/keys
-      NEXUS_HEARTBEAT_INTERVAL: ${HEARTBEAT_INTERVAL:-30}
-      NEXUS_METRICS_INTERVAL: ${METRICS_INTERVAL:-60}
-      NEXUS_AGENT_TYPE: probe
-    volumes:
-      - probe_keys:/opt/nexus/keys
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-    networks:
-      - nexus
-    depends_on:
-      - backend
-    profiles:
-      - probe
-
   # Frontend
   frontend:
     build:
@@ -120,7 +91,6 @@ services:
 
 volumes:
   postgres_data:
-  probe_keys:
 
 networks:
   nexus:

@@ -24,7 +24,6 @@ export interface EnrollmentRequest {
 }
 
 export interface EnrollmentComplete {
-  machine_type: "AGENT" | "PROBE";
   server_public_key: string;
   shared_secret_encrypted: string; // Agent's public key encrypted shared secret
 }
@@ -96,7 +95,6 @@ export interface ActionResponse {
 
 export interface CreateMachineBody {
   name: string;
-  type?: "AGENT" | "PROBE";
 }
 
 export interface LoginBody {

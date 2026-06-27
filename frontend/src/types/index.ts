@@ -17,7 +17,6 @@ export interface Machine {
   ipAddress: string | null;
   agentVersion: string | null;
   status: MachineStatus;
-  type: "AGENT" | "PROBE";
   sshUser: string | null;
   isCritical: boolean;
   sudoersHash?: string | null;

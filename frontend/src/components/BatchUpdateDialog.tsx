@@ -23,9 +23,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
     failed: number;
   } | null>(null);
 
-  const onlineMachines = machines.filter(
-    (m) => m.status === "ONLINE" && m.type === "AGENT"
-  );
+  const onlineMachines = machines.filter((m) => m.status === "ONLINE");
 
   // WebSocket pour le streaming
   const handleWsMessage = useCallback((msg: WSDashboardMessage) => {

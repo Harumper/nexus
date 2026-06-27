@@ -39,10 +39,7 @@ function buildEnrollmentProofPayload(
   return `nexus-enroll-proof:v2:${machineId}:${enrollmentToken}:${nonce}:${timestamp}`;
 }
 
-export async function createMachineWithEnrollment(
-  name: string,
-  type: "AGENT" | "PROBE" = "AGENT"
-) {
+export async function createMachineWithEnrollment(name: string) {
   // Générer la paire ECDSA pour le backend (pour cette machine)
   const { publicKey, privateKey } = generateEcdsaKeypair();
   const enrollmentToken = generateToken("enroll");
@@ -54,7 +51,6 @@ export async function createMachineWithEnrollment(
   const machine = await prisma.machine.create({
     data: {
       name,
-      type,
       status: "ENROLLMENT_PENDING",
       enrollmentToken,
       enrollmentExpiry: expiresAt,
@@ -66,7 +62,6 @@ export async function createMachineWithEnrollment(
   return {
     id: machine.id,
     name: machine.name,
-    type: machine.type,
     enrollmentToken,
     backendPublicKey: publicKey,
     expiresAt: expiresAt.toISOString(),
@@ -203,7 +198,6 @@ export async function processEnrollment(
       details: {
         hostname: request.system_info.hostname,
         os: request.system_info.os,
-        type: machine.type,
       },
     },
   });
@@ -212,7 +206,6 @@ export async function processEnrollment(
   const nonce = generateNonce();
   const timestamp = new Date().toISOString();
   const responsePayload = JSON.stringify({
-    machine_type: machine.type,
     server_public_key: machine.backendPublicKey,
   });
 

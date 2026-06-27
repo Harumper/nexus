@@ -58,10 +58,10 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 		OnSecurityProgress("Lancement de l'audit Lynis…", 2)
 	}
 	// NEXUS-AGENT-007 — un audit OBSERVE, il ne MUTE jamais la machine auditée.
-	// security.audit n'installe plus Lynis (ni en AGENT ni en PROBE) : c'est un
-	// défaut de conception qu'un audit altère son sujet. Si Lynis est absent, on
-	// dégrade proprement avec un message actionnable — son installation relève du
-	// provisioning opérateur (apt/dnf install lynis), hors du périmètre agent.
+	// security.audit n'installe plus Lynis : c'est un défaut de conception qu'un
+	// audit altère son sujet. Si Lynis est absent, on dégrade proprement avec un
+	// message actionnable — son installation relève du provisioning opérateur
+	// (apt/dnf install lynis), hors du périmètre agent.
 	installed := false // cette action n'installe jamais rien
 	bin := lynisPath()
 	if bin == "" {

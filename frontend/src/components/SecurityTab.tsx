@@ -15,7 +15,6 @@ import type { SecurityAuditResult, ListeningService, SecurityScanPoint } from ".
 
 interface SecurityTabProps {
   machineId: string;
-  canRemediate?: boolean;
 }
 
 type Pending = { kind: "sshd" | "firewall"; requestId: string; expiresAt: number };
@@ -47,7 +46,7 @@ function scanPointToResult(p: SecurityScanPoint): SecurityAuditResult {
 
 // Onglet « Durcissement » : audit Lynis (lecture seule) + remédiations 1-clic
 // (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
-export default function SecurityTab({ machineId, canRemediate = true }: SecurityTabProps) {
+export default function SecurityTab({ machineId }: SecurityTabProps) {
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
   // result reconstitué depuis l'historique (détail warnings/suggestions absent).
   const [resultStale, setResultStale] = useState(false);
@@ -334,7 +333,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
           note={preview.note}
           applyLabel={preview.applyLabel}
           applying={applying === preview.key}
-          disabled={!canRemediate || (preview.key === "sshd" && pending !== null)}
+          disabled={preview.key === "sshd" && pending !== null}
           onApply={preview.onApply}
           onClose={() => setPreview(null)}
         />
@@ -507,9 +506,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 active={result.fail2ban_active}
                 activeLabel={result.fail2ban_installed && !result.fail2ban_active ? "Installé, inactif" : "Actif"}
                 actionLabel={result.fail2ban_installed ? "Configurer" : "Installer + configurer"}
-                busy={applying === "fail2ban"}
-                disabled={!canRemediate}
-                onApply={() => setF2bOpen(true)}
+                busy={applying === "fail2ban"}                onApply={() => setF2bOpen(true)}
               />
 
               <RemediationRow
@@ -518,9 +515,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 activeLabel="Actif"
                 busy={applying === "autoupd"}
                 previewLoading={previewLoading === "autoupd"}
-                previewing={preview?.key === "autoupd"}
-                disabled={!canRemediate}
-                onPreview={() =>
+                previewing={preview?.key === "autoupd"}                onPreview={() =>
                   togglePreview("autoupd", "security.enable_auto_updates", "Mises à jour automatiques", "Activer", () =>
                     applyFromPreview("autoupd", () => api.enableAutoUpdates(machineId), { auto_updates_active: true })
                   )
@@ -535,7 +530,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 busy={applying === "sshd"}
                 previewLoading={previewLoading === "sshd"}
                 previewing={preview?.key === "sshd"}
-                disabled={!canRemediate || pending !== null}
+                disabled={pending !== null}
                 onPreview={() => togglePreview("sshd", "sshd.harden", "Durcissement SSH", "Appliquer (watchdog 120s)", doSshHarden)}
               />
 
@@ -544,9 +539,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 active={!!result.login_banner_set}
                 activeLabel="En place"
                 actionLabel="Configurer"
-                busy={applying === "banner"}
-                disabled={!canRemediate}
-                onApply={() => setBannerOpen(true)}
+                busy={applying === "banner"}                onApply={() => setBannerOpen(true)}
               />
 
               <RemediationRow
@@ -555,9 +548,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 activeLabel="Désactivés"
                 busy={applying === "nocore"}
                 previewLoading={previewLoading === "nocore"}
-                previewing={preview?.key === "nocore"}
-                disabled={!canRemediate}
-                onPreview={() =>
+                previewing={preview?.key === "nocore"}                onPreview={() =>
                   togglePreview("nocore", "security.disable_core_dumps", "Désactiver les core dumps", "Désactiver", () =>
                     applyFromPreview("nocore", () => api.disableCoreDumps(machineId), { core_dumps_disabled: true })
                   )
@@ -570,9 +561,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                 activeLabel="Durci"
                 busy={applying === "logindefs"}
                 previewLoading={previewLoading === "logindefs"}
-                previewing={preview?.key === "logindefs"}
-                disabled={!canRemediate}
-                onPreview={() =>
+                previewing={preview?.key === "logindefs"}                onPreview={() =>
                   togglePreview("logindefs", "security.harden_login_defs", "Durcir /etc/login.defs", "Durcir", () =>
                     applyFromPreview("logindefs", () => api.hardenLoginDefs(machineId), { login_defs_hardened: true })
                   )
@@ -647,7 +636,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                       <input
                         type="checkbox"
                         checked={fwSelected.has(s.port)}
-                        disabled={s.is_ssh || !canRemediate || pending !== null}
+                        disabled={s.is_ssh || pending !== null}
                         onChange={() => toggleFwPort(s)}
                       />
                       <span className="font-mono text-xs" style={{ color: "var(--nx-text)" }}>
@@ -669,7 +658,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
                   </p>
                   <button
                     onClick={applyFirewallPolicy}
-                    disabled={!canRemediate || pending !== null || applying === "firewall"}
+                    disabled={pending !== null || applying === "firewall"}
                     className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                     style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
                   >
@@ -748,7 +737,7 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
               variant="primary"
               onClick={applyBanner}
               loading={applying === "banner"}
-              disabled={!canRemediate || bannerText.trim() === ""}
+              disabled={bannerText.trim() === ""}
             >
               Déposer
             </Button>
@@ -782,7 +771,6 @@ export default function SecurityTab({ machineId, canRemediate = true }: Security
               variant="primary"
               onClick={applyFail2ban}
               loading={applying === "fail2ban"}
-              disabled={!canRemediate}
             >
               Appliquer
             </Button>
