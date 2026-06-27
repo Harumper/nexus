@@ -142,6 +142,11 @@ async function main() {
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET!,
+    // CONTROL-PLANE-008 — defense-in-depth: pin the local verifier to HS256 so a
+    // token can't be accepted under a different algorithm (alg confusion / none).
+    // The local path only ever issues HS256; refuse anything else outright.
+    verify: { algorithms: ["HS256"] },
+    sign: { algorithm: "HS256" },
     // Lire le JWT depuis le cookie httpOnly en plus du header Authorization.
     // Le cookie est défini par /api/auth/login après auth locale réussie.
     cookie: {
