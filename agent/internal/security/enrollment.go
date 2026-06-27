@@ -61,8 +61,19 @@ func Enroll(
 		return nil, err
 	}
 
-	// 3. Signer le machineID comme preuve
-	proof, err := SignPayload(machineID, keystore.GetPrivateKey())
+	// NEXUS-ENROLLMENT-002 — freshness générée AVANT le proof et liée DANS le seal
+	// authentifié (pas l'enveloppe externe, modifiable on-path). Le proof signe un
+	// payload composite (machineID|token|nonce|timestamp) au lieu du seul machineID
+	// statique : il devient frais et non rejouable, et lie la possession de la clé
+	// à CET enrôlement précis.
+	nonce := GenerateNonce()
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// 3. Signer le payload composite comme preuve (lié au token + nonce + timestamp)
+	proof, err := SignPayload(
+		BuildEnrollmentProofPayload(machineID, enrollmentToken, nonce, timestamp),
+		keystore.GetPrivateKey(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign proof: %w", err)
 	}
@@ -73,11 +84,15 @@ func Enroll(
 		sysInfo = &collector.SystemInfo{OS: "unknown", Hostname: "unknown"}
 	}
 
-	// 5. Construire le message d'enrollment
+	// 5. Construire le message d'enrollment. nonce + timestamp sont placés DANS le
+	// payload scellé : le backend les lit depuis le seal authentifié pour valider
+	// la fenêtre temporelle et l'anti-replay, et pour reconstruire le proof.
 	enrollPayload := map[string]interface{}{
 		"enrollment_token": enrollmentToken,
 		"agent_public_key": agentPubPEM,
 		"proof":            proof,
+		"nonce":            nonce,
+		"timestamp":        timestamp,
 		"system_info": map[string]interface{}{
 			"os":         sysInfo.OS,
 			"os_version": sysInfo.OSVersion,
@@ -124,8 +139,10 @@ func Enroll(
 		V:         ProtocolVersion,
 		Type:      "enrollment.request",
 		MachineID: machineID,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		Nonce:     GenerateNonce(),
+		// Mêmes nonce/timestamp que ceux scellés et signés dans le proof (cohérence).
+		// Le backend valide la freshness sur les copies SCELLÉES, pas sur l'enveloppe.
+		Timestamp: timestamp,
+		Nonce:     nonce,
 		Payload:   string(sealedEnvelope),
 		Signature: "",
 	}
