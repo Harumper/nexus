@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -31,7 +33,7 @@ type Config struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		ServerURL:         getEnv("NEXUS_SERVER_URL", "ws://localhost:26031/ws/agent"),
+		ServerURL:         getEnv("NEXUS_SERVER_URL", "wss://localhost:26031/ws/agent"),
 		MachineID:         getEnv("NEXUS_MACHINE_ID", ""),
 		EnrollmentToken:   getEnv("NEXUS_ENROLLMENT_TOKEN", ""),
 		ServerPublicKey:   loadServerPublicKey(),
@@ -48,6 +50,26 @@ func Load() (*Config, error) {
 
 	if cfg.ServerURL == "" {
 		return nil, fmt.Errorf("NEXUS_SERVER_URL is required")
+	}
+
+	// NEXUS-ENROLLMENT-001 — couche 1 : forcer wss:// (TLS obligatoire pour le
+	// bootstrap). La requête d'enrôlement porte le token single-use ET la clé
+	// publique de l'agent en clair au niveau applicatif ; sans TLS, un attaquant
+	// on-path lit le token et substitue sa propre clé. Le pinning de la clé serveur
+	// ne protège que la RÉPONSE, pas cette requête. Fail-closed : tout schéma ≠
+	// wss:// est refusé au boot, sauf override EXPLICITE NEXUS_ALLOW_INSECURE=1
+	// (dev local sur réseau de confiance uniquement).
+	allowInsecure := getEnv("NEXUS_ALLOW_INSECURE", "") == "1"
+	if !strings.HasPrefix(cfg.ServerURL, "wss://") {
+		if !allowInsecure {
+			return nil, fmt.Errorf("NEXUS_SERVER_URL doit utiliser wss:// (TLS obligatoire pour le bootstrap) ; schéma fourni: %q. "+
+				"Posez NEXUS_ALLOW_INSECURE=1 pour le dev local uniquement", cfg.ServerURL)
+		}
+		// Override actif ET transport en clair : avertir BRUYAMMENT à CHAQUE boot,
+		// jamais une échappatoire silencieuse.
+		log.Printf("[Agent] ⚠️  SÉCURITÉ: NEXUS_ALLOW_INSECURE=1 — transport NON CHIFFRÉ (%s). "+
+			"Le token d'enrôlement et la clé publique de l'agent transitent EN CLAIR (MITM possible au bootstrap). "+
+			"À réserver au dev local sur réseau de confiance ; utilisez wss:// en production.", cfg.ServerURL)
 	}
 
 	return cfg, nil

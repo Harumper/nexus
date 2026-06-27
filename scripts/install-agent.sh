@@ -125,6 +125,7 @@ SERVER_PUBLIC_KEY=""
 RELEASE_PUBKEY=""
 SCRIPT_SIGNING_PUBKEY=""
 ALLOW_REMOTE_SCRIPT="false"   # opt-in : émet la ligne sudoers bash nexus-script
+INSECURE="false"             # opt-in dev : autorise un server-url non-wss:// (NEXUS_ALLOW_INSECURE)
 AGENT_BINARY=""
 HEARTBEAT_INTERVAL=30
 METRICS_INTERVAL=60
@@ -169,6 +170,10 @@ while [[ $# -gt 0 ]]; do
             # `sudo /bin/bash nexus-script-*.sh` n'est PAS écrite → la capacité
             # root-RCE n'existe pas sur le système (pas seulement un flag refusé).
             ALLOW_REMOTE_SCRIPT="true"; shift ;;
+        --insecure)
+            # Opt-in DEV uniquement : autorise un --server-url non-wss:// et pose
+            # NEXUS_ALLOW_INSECURE=1 (l'agent loggue alors un WARNING à chaque boot).
+            INSECURE="true"; shift ;;
         --binary)           AGENT_BINARY="$2";      shift 2 ;;
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;
@@ -182,6 +187,7 @@ while [[ $# -gt 0 ]]; do
             echo "       --release-pubkey-file F : clé(s) publique(s) minisign de release → /etc/nexus/release.pub (auto-upgrade signé ; sans elle, l'auto-upgrade est refusé)"
             echo "       --script-signing-pubkey-file F : clé(s) publique(s) minisign de signature de script → /etc/nexus/script-signing.pub"
             echo "       --allow-remote-script : émet la ligne sudoers autorisant script.execute (OFF par défaut ; capacité root-RCE absente sinon)"
+            echo "       --insecure : autorise un --server-url non-wss:// (NEXUS_ALLOW_INSECURE=1 ; WARNING à chaque boot) — DEV LOCAL uniquement"
             echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
             echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # TABLE RASE (sudoers/user/binaire, logs gardés) + réinstall"
             echo "  install-agent.sh --uninstall                                                                   # suppression complète"
@@ -228,6 +234,21 @@ if [ -z "$SERVER_URL" ] || [ -z "$MACHINE_ID" ]; then
     error "server-url et machine-id sont requis."
     exit 1
 fi
+
+# NEXUS-ENROLLMENT-001 — garde wss:// au moment de l'install (miroir de la garde
+# agent), pour échouer ici plutôt que silencieusement au runtime. Un --server-url
+# en clair (ws://, http://) n'est accepté qu'avec --insecure (dev local).
+case "$SERVER_URL" in
+    wss://*) ;;
+    *)
+        if [ "$INSECURE" != "true" ]; then
+            error "--server-url doit utiliser wss:// (TLS obligatoire pour le bootstrap) : '$SERVER_URL'."
+            error "Le token et la clé publique de l'agent transiteraient en clair. Utilisez wss://, ou --insecure pour le dev local uniquement."
+            exit 1
+        fi
+        warn "Transport NON CHIFFRÉ accepté (--insecure) : '$SERVER_URL'. NEXUS_ALLOW_INSECURE=1 sera posé ; l'agent loggue un WARNING à chaque boot. Dev local uniquement."
+        ;;
+esac
 
 if [ -z "$ENROLLMENT_TOKEN" ] && [ "$HAS_LOCAL_IDENTITY" = false ]; then
     error "enrollment-token requis (aucune identité locale dans $KEY_DIR). Utilisez --reenroll pour repartir de zéro."
@@ -621,6 +642,12 @@ NEXUS_HOST_IPS=$IPS_DETECTED
 NEXUS_HEARTBEAT_INTERVAL=$HEARTBEAT_INTERVAL
 NEXUS_METRICS_INTERVAL=$METRICS_INTERVAL
 EOF
+
+# Transport en clair autorisé uniquement si --insecure (dev local). Écrit seulement
+# quand actif → l'agent loggue alors un WARNING à chaque boot (cf. config.go).
+if [ "$INSECURE" = "true" ]; then
+    printf 'NEXUS_ALLOW_INSECURE=1\n' >> "$CONFIG_DIR/agent.env"
+fi
 
 chown root:"$AGENT_GROUP" "$CONFIG_DIR/agent.env"
 chmod 640 "$CONFIG_DIR/agent.env"
