@@ -53,10 +53,9 @@ describe("Prisma Schema - Phase 2 Models", () => {
       expect(schema).toContain("ARCHIVED");
     });
 
-    it("should have MachineType enum with AGENT and PROBE", () => {
-      expect(schema).toContain("enum MachineType {");
-      expect(schema).toContain("AGENT");
-      expect(schema).toContain("PROBE");
+    it("should NOT have a MachineType enum (PROBE removed, single agent type)", () => {
+      expect(schema).not.toContain("enum MachineType");
+      expect(schema).not.toContain("PROBE");
     });
 
     it("should have rebootRequired field", () => {
@@ -67,8 +66,8 @@ describe("Prisma Schema - Phase 2 Models", () => {
       expect(schema).toContain("archivedAt      DateTime?");
     });
 
-    it("should have type field", () => {
-      expect(schema).toContain("type            MachineType");
+    it("should NOT have a Machine.type field anymore", () => {
+      expect(schema).not.toContain("MachineType");
     });
 
     it("should have tags and groupMembers relations", () => {
