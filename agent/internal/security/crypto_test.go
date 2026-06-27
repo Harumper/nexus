@@ -85,6 +85,7 @@ func TestVerifyServerMessage(t *testing.T) {
 
 	build := func() VerifyServerMessageInput {
 		msg := VerifyServerMessageInput{
+			V:         ProtocolVersion,
 			Type:      "action.confirm",
 			RequestID: "req_test",
 			MachineID: "machine-1",
@@ -92,7 +93,7 @@ func TestVerifyServerMessage(t *testing.T) {
 			Nonce:     GenerateNonce(),
 			Payload:   "encrypted-blob",
 		}
-		sigPayload := BuildSignaturePayload(msg.Type, msg.RequestID, msg.MachineID, msg.Timestamp, msg.Nonce, msg.Payload)
+		sigPayload := BuildSignaturePayload(msg.V, msg.Type, msg.RequestID, msg.MachineID, msg.Timestamp, msg.Nonce, msg.Payload)
 		sig, err := SignPayload(sigPayload, server)
 		if err != nil {
 			t.Fatalf("sign: %v", err)
@@ -130,5 +131,12 @@ func TestVerifyServerMessage(t *testing.T) {
 	stale.Timestamp = time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
 	if err := VerifyServerMessage(stale, &server.PublicKey); err == nil {
 		t.Fatal("message à timestamp périmé accepté")
+	}
+
+	// 6. Version de protocole non supportée (v1 / champ v absent) → rejeté
+	badVersion := build()
+	badVersion.V = 1
+	if err := VerifyServerMessage(badVersion, &server.PublicKey); err == nil {
+		t.Fatal("message à version de protocole non supportée accepté")
 	}
 }

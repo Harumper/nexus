@@ -1,6 +1,7 @@
 // ===================== WebSocket Protocol =====================
 
 export interface WSMessage {
+  v: number; // version de protocole de canal (liée dans la signature ; v1 rejeté)
   type: string;
   request_id?: string;
   machine_id: string;

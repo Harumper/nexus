@@ -198,9 +198,15 @@ func GenerateNonce() string {
 	return fmt.Sprintf("%x", b)
 }
 
-// BuildSignaturePayload construit le payload à signer
-func BuildSignaturePayload(msgType, requestID, machineID, timestamp, nonce, payload string) string {
-	return fmt.Sprintf("%s:%s:%s:%s:%s:%s", msgType, requestID, machineID, timestamp, nonce, payload)
+// ProtocolVersion est la version du protocole de canal vérifiée côté agent.
+// Doit rester en phase avec transport.ProtocolVersion et le backend.
+const ProtocolVersion = 2
+
+// BuildSignaturePayload construit le payload à signer. La version est liée EN TÊTE
+// du payload signé : un attaquant ne peut pas downgrader le protocole sans casser
+// la signature.
+func BuildSignaturePayload(version int, msgType, requestID, machineID, timestamp, nonce, payload string) string {
+	return fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s", version, msgType, requestID, machineID, timestamp, nonce, payload)
 }
 
 // IsTimestampValid vérifie que le timestamp est dans la fenêtre acceptable

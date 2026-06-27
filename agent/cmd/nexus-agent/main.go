@@ -408,6 +408,7 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			return
 		}
 		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			V:         msg.V,
 			Type:      msg.Type,
 			RequestID: msg.RequestID,
 			MachineID: msg.MachineID,
@@ -431,6 +432,7 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			return
 		}
 		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			V:         msg.V,
 			Type:      msg.Type,
 			RequestID: msg.RequestID,
 			MachineID: msg.MachineID,

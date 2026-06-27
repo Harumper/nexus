@@ -173,8 +173,8 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 	nonce := generateNonce()
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
-	sigPayload := fmt.Sprintf("%s:%s:%s:%s:%s:%s",
-		msgType, requestID, c.machineID, timestamp, nonce, payload)
+	sigPayload := fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s",
+		ProtocolVersion, msgType, requestID, c.machineID, timestamp, nonce, payload)
 
 	signature, err := signPayload(sigPayload, privateKey)
 	if err != nil {
@@ -182,6 +182,7 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 	}
 
 	msg := Message{
+		V:         ProtocolVersion,
 		Type:      msgType,
 		RequestID: requestID,
 		MachineID: c.machineID,

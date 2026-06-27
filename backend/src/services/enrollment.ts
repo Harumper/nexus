@@ -11,6 +11,7 @@ import {
   buildSignaturePayload,
   generateNonce,
 } from "./crypto.js";
+import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import type { EnrollmentRequest, WSMessage } from "../types/index.js";
 
 const ENROLLMENT_EXPIRY_HOURS = parseInt(
@@ -146,6 +147,7 @@ export async function processEnrollment(
   });
 
   const msgForSig = buildSignaturePayload({
+    v: PROTOCOL_VERSION,
     type: "enrollment.complete",
     machine_id: machineId,
     timestamp,
@@ -158,6 +160,7 @@ export async function processEnrollment(
   return {
     success: true,
     response: {
+      v: PROTOCOL_VERSION,
       type: "enrollment.complete",
       machine_id: machineId,
       timestamp,
