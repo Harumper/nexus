@@ -393,6 +393,23 @@ func main() {
 }
 
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {
+	// Gate de version de protocole (fondation v2) : tout message serveur DOIT
+	// porter v == ProtocolVersion, sinon il est rejeté ici, avant tout traitement.
+	//
+	// EXCEPTION UNIQUE ET VOLONTAIRE : TypeError. C'est le canal par lequel le
+	// backend renvoie le message expliquant un rejet de version — exiger v2 dessus
+	// serait circulaire (l'agent ne pourrait pas recevoir l'explication de son
+	// propre rejet v1). Aucune autre exception : tout autre type (y compris
+	// TypePing, aujourd'hui non émis par le backend) est gaté, par DÉCISION — on
+	// ferme la porte gratuitement plutôt que de dépendre de « ce chemin ne fait
+	// rien aujourd'hui », qui casse à la prochaine évolution. Quiconque ajoute un
+	// handler ci-dessous verra ce gate et son unique exception justifiée.
+	if msg.Type != transport.TypeError && msg.V != security.ProtocolVersion {
+		log.Printf("[Agent] Rejected %q: unsupported protocol version %d (expected %d) — re-enroll",
+			msg.Type, msg.V, security.ProtocolVersion)
+		return
+	}
+
 	switch msg.Type {
 	case transport.TypeActionRequest:
 		// SECURITE CRITIQUE : action.request dispatche TOUTES les actions
