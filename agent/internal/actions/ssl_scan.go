@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -27,10 +28,17 @@ func (a *SslScanAction) ID() string                                 { return "ss
 func (a *SslScanAction) Capability() string                         { return "monitoring" }
 func (a *SslScanAction) Validate(_ map[string]interface{}) error    { return nil }
 
-// Emplacements scannes par defaut.
+// Emplacements scannes par defaut — CERTIFICATS PUBLICS uniquement.
+// /etc/ssl/private (répertoire de clés privées par définition) est volontairement
+// EXCLU : ssl.scan ne parse que des certificats, et le lister via sudo find serait
+// la sur-lecture que NEXUS-AGENT-001/002 ferment.
+//
+// IMPORTANT (NEXUS-AGENT-001) : cette liste est FIGÉE et passée TELLE QUELLE à
+// `sudo find` (pas de filtrage par existence), pour matcher byte-identiquement la
+// ligne sudoers à prédicat épinglé. find tolère une racine absente (il liste les
+// autres). Toute modif ici doit être répercutée dans scripts/install-agent.sh.
 var sslScanPaths = []string{
 	"/etc/letsencrypt/live",
-	"/etc/ssl/private",
 	"/etc/ssl/certs/ssl-cert-snakeoil.pem", // souvent present
 	"/etc/nginx/ssl",
 	"/etc/apache2/ssl",
@@ -102,28 +110,18 @@ func (a *SslScanAction) Execute(_ map[string]interface{}) (interface{}, error) {
 // dans les emplacements courants. Retourne une liste deduplique.
 func listCandidateCertFiles() []string {
 	seen := map[string]bool{}
-	// find avec -name pour chaque pattern, limite depth a 4
+	// NEXUS-AGENT-001 — prédicat ÉPINGLÉ, byte-identique à la ligne sudoers :
+	// racines FIGÉES (pas de filtrage), -maxdepth/-type/-name, AUCUNE queue ouverte
+	// (pas de ` *` final), PAS de parens (pour rester parsable par sudoers). Le `*`
+	// précédence : `(-type f -name *.pem) OR (-type f -name *.crt)`, -maxdepth est
+	// une option globale. → impossible d'appender -exec/-fprintf/-execdir.
 	args := []string{"-n", "/usr/bin/find"}
-	// Filtrer les paths qui existent
-	for _, root := range sslScanPaths {
-		if _, err := os.Stat(root); err == nil {
-			args = append(args, root)
-		}
-	}
-	if len(args) == 2 {
-		return nil
-	}
-	args = append(args, "-maxdepth", "4", "-type", "f",
-		"(", "-name", "fullchain.pem",
-		"-o", "-name", "cert.pem",
-		"-o", "-name", "*.crt",
-		"-o", "-name", "*.pem",
-		")")
+	args = append(args, sslScanPaths...)
+	args = append(args, "-maxdepth", "4", "-type", "f", "-name", "*.pem", "-o", "-type", "f", "-name", "*.crt")
 	cmd := exec.Command("sudo", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
+	cmd.Stderr = io.Discard // une racine absente fait sortir find ≠ 0 + un message ; on l'ignore
+	// find liste les racines existantes sur stdout même si une autre manque (exit ≠ 0).
+	out, _ := cmd.Output()
 	paths := []string{}
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)

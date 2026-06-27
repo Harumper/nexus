@@ -454,10 +454,13 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --n
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 
-# === SSL cert scanning ===
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/private /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs *
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/private /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs *
+# === SSL cert scanning (NEXUS-AGENT-001 : prédicat ÉPINGLÉ, pas de queue ouverte) ===
+# Racines FIGÉES + -maxdepth/-type/-name, SANS ` *` final → -exec/-fprintf/-execdir
+# inappendables (plus de GTFOBins find -exec root-shell). Doit rester byte-identique
+# aux args construits par ssl_scan.go listCandidateCertFiles. /etc/ssl/private RETIRÉ
+# (clés privées). Pas de parens (sudoers ne les parse pas) : précédence find
+# (-type f -name *.pem) OR (-type f -name *.crt), -maxdepth global.
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs -maxdepth 4 -type f -name *.pem -o -type f -name *.crt
 # CERTIFICATS uniquement — JAMAIS les clés privées. On exclut privkey.pem
 # (Let's Encrypt), tout /etc/ssl/private (répertoire de clés par définition) et
 # les globs trop larges (/etc/nginx/ssl/* lirait les .key). ssl.scan ne parse
