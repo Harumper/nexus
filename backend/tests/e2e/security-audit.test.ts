@@ -368,7 +368,10 @@ describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)"
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     expect(content).toContain("/etc/fail2ban/jail.local");
     expect(content).toContain("/etc/apt/apt.conf.d/20auto-upgrades");
-    expect(content).toContain("/usr/bin/systemctl enable *");
+    // AGENT-006: fail2ban/unattended-upgrades enable now goes through the
+    // compiled privhelper svc op (no raw `systemctl enable *` in sudoers).
+    const harden = readFileSync(resolve(rootDir, "agent/internal/actions/security_harden.go"), "utf8");
+    expect(harden).toMatch(/privhelper", "svc", "enable", "fail2ban"/);
   });
 
   it("should wire 1-click remediation in the frontend (api + SecurityTab)", () => {
@@ -409,8 +412,13 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     // sshd -t + drop-in install/rm whitelistés
     expect(content).toContain("/usr/sbin/sshd -t");
     expect(content).toContain("/etc/ssh/sshd_config.d/99-nexus-hardening.conf");
-    // ssh reload/restart restent dans la liste bloquée
-    expect(content).toMatch(/systemctl restart ssh\*/);
+    // AGENT-006: anti-lockout now enforced in the compiled privhelper (option-
+    // injection-proof), not an option-sensitive sudoers pattern. ssh/sshd are
+    // refused for stop/restart/reload/disable in code.
+    const priv = readFileSync(resolve(rootDir, "agent/internal/privhelper/privhelper.go"), "utf8");
+    expect(priv).toMatch(/svcProtectedUnits/);
+    expect(priv).toMatch(/"ssh":\s*true/);
+    expect(priv).toMatch(/"sshd":\s*true/);
   });
 
   it("should NOT expose sshd.harden in PROBE mode (mutation)", () => {

@@ -29,7 +29,24 @@ var (
 
 	loginRe       = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`) // POSIX login
 	netplanNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+\.yaml$`)  // nom de fichier netplan sûr
+
+	// NEXUS-AGENT-006 — contrôle de service via wrapper compilé. Le verbe est
+	// énuméré et l'unité est un SEUL token sans tiret en tête : aucune option
+	// (`--no-ask-password`, `-f`, …) ne peut être injectée entre le verbe et
+	// l'unité (le bug qui contournait le blocklist sudoers `systemctl stop ssh*`).
+	svcVerbRe = regexp.MustCompile(`^(start|stop|restart|reload|enable|disable)$`)
+	svcUnitRe = regexp.MustCompile(`^[a-zA-Z0-9@_.][a-zA-Z0-9@_.\-]{0,127}$`)
 )
+
+// Unités que l'agent ne doit JAMAIS arrêter/perturber, même si la couche Go est
+// contournée (attaquant disposant d'un shell nexus-agent) : ssh/sshd (lock-out
+// admin) et nexus-agent lui-même (self-DoS, cohérence avec le self-guard
+// AGENT-004). Bloqué pour les verbes destructeurs uniquement.
+var svcProtectedUnits = map[string]bool{
+	"ssh":         true,
+	"sshd":        true,
+	"nexus-agent": true,
+}
 
 // Run dispatche la sous-commande privhelper. args = os.Args[2:].
 func Run(args []string) int {
@@ -46,6 +63,8 @@ func Run(args []string) int {
 		return doInstallSshd(rest)
 	case "install-authkeys":
 		return doInstallAuthkeys(rest)
+	case "svc":
+		return doSvc(rest)
 	default:
 		return fail("privhelper: unknown operation " + op)
 	}
@@ -192,6 +211,32 @@ func run(name string, args ...string) int {
 		return 1
 	}
 	return 0
+}
+
+// doSvc — NEXUS-AGENT-006. Contrôle de service systemd canonicalisé : verbe
+// énuméré + unité validée (un token, pas de tiret en tête), exécutés en arguments
+// POSITIONNELS FIXES `systemctl <verb> <unit>`. Aucune option ne peut s'intercaler
+// (ferme le bypass `systemctl stop --no-ask-password ssh`). Les verbes destructeurs
+// sur ssh/sshd/nexus-agent sont refusés en code.
+func doSvc(args []string) int {
+	if len(args) != 2 {
+		return fail("usage: privhelper svc <verb> <unit>")
+	}
+	verb, unit := args[0], args[1]
+	if !svcVerbRe.MatchString(verb) {
+		return fail("svc: invalid verb")
+	}
+	if !svcUnitRe.MatchString(unit) {
+		return fail("svc: invalid unit name")
+	}
+	// base = nom sans suffixe .service pour la comparaison aux unités protégées.
+	base := strings.TrimSuffix(unit, ".service")
+	if verb == "stop" || verb == "restart" || verb == "reload" || verb == "disable" {
+		if svcProtectedUnits[base] {
+			return fail("svc: refusing " + verb + " on protected unit " + unit)
+		}
+	}
+	return run("/usr/bin/systemctl", verb, unit)
 }
 
 func fail(msg string) int {

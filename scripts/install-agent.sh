@@ -406,24 +406,14 @@ nexus-agent ALL=(root) NOPASSWD: /usr/local/bin/nexus-agent privhelper *
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
 
-# === Services systemd (start/stop/restart/reload) ===
-# Services protégés : ssh/sshd (lock-out admin) et nexus-agent (self-DoS).
-# La protection est en couches : sudoers ici (ligne de défense ultime), puis
-# isCritical côté backend (machine-protection.ts) qui bloque docker/postgres/etc.
-Cmnd_Alias NEXUS_BLOCKED_SVC = /usr/bin/systemctl stop ssh*, \
-                                /usr/bin/systemctl stop sshd*, \
-                                /usr/bin/systemctl restart ssh*, \
-                                /usr/bin/systemctl restart sshd*, \
-                                /usr/bin/systemctl reload ssh*, \
-                                /usr/bin/systemctl reload sshd*, \
-                                /usr/bin/systemctl disable ssh*, \
-                                /usr/bin/systemctl disable sshd*, \
-                                /usr/bin/systemctl stop nexus-agent*, \
-                                /usr/bin/systemctl restart nexus-agent*, \
-                                /usr/bin/systemctl reload nexus-agent*, \
-                                /usr/bin/systemctl disable nexus-agent*
-
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *, /usr/bin/systemctl reload *, /usr/bin/systemctl enable *, !NEXUS_BLOCKED_SVC
+# === Services systemd (start/stop/restart/reload/enable/disable) ===
+# NEXUS-AGENT-006 — plus de `systemctl <verb> *` brut en sudoers (le blocklist
+# `systemctl stop ssh*` se contournait par insertion d'option :
+# `systemctl stop --no-ask-password ssh` matchait `stop *` mais pas la négation).
+# Tout le contrôle de service passe par le privhelper compilé (déjà autorisé plus
+# haut : `nexus-agent privhelper *`), qui canonicalise verbe+unité et refuse en
+# code les options injectées et les unités protégées (ssh/sshd/nexus-agent). La
+# protection ne dépend donc plus d'un motif sudoers option-sensible.
 
 # === Remédiations de durcissement (Phase 2 — écriture de configs) ===
 # fail2ban (anti-bruteforce) et unattended-upgrades (MAJ auto). Destinations fixes.

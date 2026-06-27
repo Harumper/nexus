@@ -40,11 +40,17 @@ describe("Admin Features — Reboot + Services", () => {
     expect(content).not.toContain("system.reboot");
   });
 
-  it("should have sudoers for systemctl start/stop/restart", () => {
-    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    expect(content).toContain("systemctl start *");
-    expect(content).toContain("systemctl stop *");
-    expect(content).toContain("systemctl restart *");
+  it("routes service control through the compiled privhelper (AGENT-006)", () => {
+    // AGENT-006: no more raw `systemctl <verb> *` in sudoers (option-injection
+    // bypassed the ssh blocklist). Service control goes through the compiled
+    // privhelper svc op, which is what sudoers authorizes.
+    const services = readFileSync(resolve(rootDir, "agent/internal/actions/services.go"), "utf8");
+    expect(services).toMatch(/privhelper", "svc", "start"/);
+    expect(services).toMatch(/privhelper", "svc", "stop"/);
+    expect(services).toMatch(/privhelper", "svc", "restart"/);
+    const sudoers = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    expect(sudoers).toContain("/usr/local/bin/nexus-agent privhelper *");
+    expect(sudoers).not.toMatch(/systemctl stop \*/);
   });
 
   it("should have ServicesTab frontend component", () => {

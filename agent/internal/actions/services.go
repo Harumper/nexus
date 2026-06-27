@@ -102,7 +102,7 @@ func (a *ServiceStartAction) Validate(params map[string]interface{}) error {
 }
 func (a *ServiceStartAction) Execute(params map[string]interface{}) (interface{}, error) {
 	name, _ := validateServiceName(params)
-	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/systemctl", "start", name)
+	cmd := exec.Command("/usr/bin/sudo", "-n", nexusAgentBin, "privhelper", "svc", "start", name)
 	output, err := cmd.CombinedOutput()
 	return map[string]interface{}{
 		"service": name,
@@ -129,7 +129,7 @@ func (a *ServiceStopAction) Validate(params map[string]interface{}) error {
 }
 func (a *ServiceStopAction) Execute(params map[string]interface{}) (interface{}, error) {
 	name, _ := validateServiceName(params)
-	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/systemctl", "stop", name)
+	cmd := exec.Command("/usr/bin/sudo", "-n", nexusAgentBin, "privhelper", "svc", "stop", name)
 	output, err := cmd.CombinedOutput()
 	return map[string]interface{}{
 		"service": name,
@@ -156,7 +156,7 @@ func (a *ServiceRestartAction) Validate(params map[string]interface{}) error {
 }
 func (a *ServiceRestartAction) Execute(params map[string]interface{}) (interface{}, error) {
 	name, _ := validateServiceName(params)
-	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/systemctl", "restart", name)
+	cmd := exec.Command("/usr/bin/sudo", "-n", nexusAgentBin, "privhelper", "svc", "restart", name)
 	output, err := cmd.CombinedOutput()
 	return map[string]interface{}{
 		"service": name,
