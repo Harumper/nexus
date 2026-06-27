@@ -313,11 +313,39 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("version du binaire (%q) ≠ cible signée %q : mise à jour refusée", gotVer, target)
 	}
 
+	// SELF-UPGRADE-004 (anti-TOCTOU, front) — re-hash le binaire stagé IMMÉDIATEMENT
+	// avant install : si nexus-agent l'a swappé depuis la vérif signature, l'install
+	// ne copierait pas les octets vérifiés. Mismatch → refus.
+	recheck, rerr := os.ReadFile(newBinPath)
+	if rerr != nil {
+		os.Remove(newBinPath)
+		return nil, fmt.Errorf("relecture pré-install : %w", rerr)
+	}
+	rh := sha256.Sum256(recheck)
+	if hex.EncodeToString(rh[:]) != actualSHA256 {
+		os.Remove(newBinPath)
+		return nil, fmt.Errorf("binaire stagé modifié avant install (TOCTOU) : mise à jour refusée")
+	}
+
 	// 3. Remplacer le binaire actuel via sudo install (atomic)
 	upgradeProgress("Installation du binaire (atomique)…", 75)
 	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", newBinPath, finalBinPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("install failed: %w: %s", err, string(output))
+	}
+
+	// SELF-UPGRADE-004 (anti-TOCTOU, back) — re-vérifier le binaire INSTALLÉ avant
+	// de redémarrer dedans : on lit /usr/local/bin/nexus-agent et on exige que son
+	// SHA == celui vérifié. Sinon on REFUSE l'exit (pas de redémarrage dans un
+	// binaire trafiqué), même si l'install a "réussi".
+	installed, ierr := os.ReadFile(finalBinPath)
+	if ierr != nil {
+		return nil, fmt.Errorf("relecture du binaire installé : %w", ierr)
+	}
+	ih := sha256.Sum256(installed)
+	installedSHA := hex.EncodeToString(ih[:])
+	if installedSHA != actualSHA256 {
+		return nil, fmt.Errorf("binaire installé (%s) ≠ vérifié (%s) : redémarrage REFUSÉ (TOCTOU)", installedSHA, actualSHA256)
 	}
 
 	// Nettoyer le fichier temporaire
