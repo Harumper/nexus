@@ -21,6 +21,7 @@ import (
 	"github.com/nexus/agent/internal/actions"
 	"github.com/nexus/agent/internal/collector"
 	"github.com/nexus/agent/internal/config"
+	"github.com/nexus/agent/internal/privhelper"
 	"github.com/nexus/agent/internal/security"
 	"github.com/nexus/agent/internal/transport"
 )
@@ -205,6 +206,14 @@ var (
 )
 
 func main() {
+	// NEXUS-AGENT-003/008 — mode privhelper (wrapper root COMPILÉ) : invoqué via
+	// `sudo nexus-agent privhelper <op> …`, il exécute une opération privilégiée
+	// strictement validée puis sort. AVANT tout le reste (pas de config, pas de
+	// systemd notify) : c'est un sous-processus root court-vécu, pas l'agent.
+	if len(os.Args) >= 2 && os.Args[1] == "privhelper" {
+		os.Exit(privhelper.Run(os.Args[2:]))
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Capturer NOTIFY_SOCKET et le retirer de l'env AVANT de lancer le moindre

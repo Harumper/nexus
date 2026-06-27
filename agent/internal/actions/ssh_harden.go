@@ -120,7 +120,7 @@ func snapshotSshd(requestID string) (string, error) {
 func restoreSshdFromSnapshot(snapDir string) error {
 	snapFile := filepath.Join(snapDir, sshdDropinName)
 	if _, err := os.Stat(snapFile); err == nil {
-		if err := sudoRun("/usr/bin/install", "-m", "644", "-o", "root", "-g", "root", snapFile, sshdDropinPath); err != nil {
+		if err := sudoRun(nexusAgentBin, "privhelper", "install-sshd", snapFile); err != nil {
 			return fmt.Errorf("restore install: %w", err)
 		}
 	} else {
@@ -257,7 +257,7 @@ func (a *SshHardenAction) Execute(params map[string]interface{}) (interface{}, e
 	tmp.Close()
 	defer os.Remove(tmp.Name())
 
-	if err := sudoRun("/usr/bin/install", "-m", "644", "-o", "root", "-g", "root", tmp.Name(), sshdDropinPath); err != nil {
+	if err := sudoRun(nexusAgentBin, "privhelper", "install-sshd", tmp.Name()); err != nil {
 		HandleSshdConfirm(reqID)
 		return nil, fmt.Errorf("install drop-in: %w", err)
 	}
