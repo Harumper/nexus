@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
-import { requireAuth, requireAdmin, getUserFromRequest } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, requireOperator, getUserFromRequest } from "../middleware/auth.js";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 import { testAlertRule, ChannelType } from "../services/notifications.js";
 import { invalidateAlertRulesCache } from "../services/alert-engine.js";
@@ -277,7 +277,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
   // Acknowledge alert
   app.post(
     "/api/alerts/:id/acknowledge",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireOperator] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const user = getUserFromRequest(request);
@@ -303,7 +303,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
   // Resolve alert manually
   app.post(
     "/api/alerts/:id/resolve",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireOperator] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
