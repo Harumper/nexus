@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -327,6 +328,14 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("binaire stagé modifié avant install (TOCTOU) : mise à jour refusée")
 	}
 
+	// SELF-UPGRADE-005 — snapshot (backup) du binaire COURANT en nexus-agent.prev
+	// AVANT de l'écraser : on ne supprime JAMAIS la seule copie de secours. Le
+	// dead-man's switch au boot restaurera nexus-agent.prev si le nouveau binaire
+	// ne confirme pas sa reconnexion.
+	if err := snapshotPreviousBinary(); err != nil {
+		return nil, fmt.Errorf("snapshot du binaire courant (watchdog) : %w", err)
+	}
+
 	// 3. Remplacer le binaire actuel via sudo install (atomic)
 	upgradeProgress("Installation du binaire (atomique)…", 75)
 	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", newBinPath, finalBinPath)
@@ -348,7 +357,15 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("binaire installé (%s) ≠ vérifié (%s) : redémarrage REFUSÉ (TOCTOU)", installedSHA, actualSHA256)
 	}
 
-	// Nettoyer le fichier temporaire
+	// SELF-UPGRADE-005 — marquer l'upgrade en attente (SHA attendu) : au boot,
+	// RecoverPendingUpgrade armera le dead-man's switch et restaurera .prev si le
+	// nouveau binaire ne confirme pas sa reconnexion dans le délai de grâce
+	// (ConfirmUpgrade annule le revert). Voir agent_upgrade_watchdog.go.
+	if err := markUpgradePending(actualSHA256); err != nil {
+		log.Printf("[Upgrade] avertissement : marqueur watchdog non écrit (%v) — .prev reste le fallback", err)
+	}
+
+	// Nettoyer le fichier temporaire (.new, PAS le fallback .prev)
 	os.Remove(newBinPath)
 
 	// 4. Lancer un exit differe (apres avoir retourne la reponse)
