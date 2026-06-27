@@ -380,6 +380,14 @@ nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGINT [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
+# === Privhelper compilé (NEXUS-AGENT-003/008 : wrapper root du binaire agent) ===
+# Le binaire agent, invoqué `privhelper <op>`, exécute en root des opérations
+# privilégiées STRICTEMENT validées en Go (création user avec `--`, écritures avec
+# realpath + dest littérale) — remplace les anciennes lignes `useradd *` /
+# `install … */…*` exploitables. Aucun shell/interpréteur invocable (binaire
+# compilé root:root 0755). Le `*` ici porte sur les args, validés par le binaire.
+nexus-agent ALL=(root) NOPASSWD: /usr/local/bin/nexus-agent privhelper *
+
 # === Exécution de script : règle volontairement ABSENTE de ce heredoc statique ===
 # La règle d'exécution de script n'est émise qu'en opt-in (--allow-remote-script),
 # appendée hors de ce bloc juste avant `visudo`. Quand off, la capacité root-RCE
@@ -432,7 +440,9 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/ss -Htlnp
 # reste BLOQUÉ pour éviter le lock-out. /bin/cat lecture du drop-in pour snapshot.
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sshd -t
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/ssh/sshd_config.d/99-nexus-hardening.conf
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/* /etc/ssh/sshd_config.d/99-nexus-hardening.conf
+# NEXUS-AGENT-008 : l'écriture du drop-in sshd passe par `privhelper install-sshd`
+# (source realpath-validée sous /var/lib/nexus-agent/, dest FIXE) — la ligne
+# `install … /var/lib/nexus-agent/* …` à wildcard source est retirée.
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/ssh/sshd_config.d/99-nexus-hardening.conf
 
 # === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
@@ -489,20 +499,21 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark unhold *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/netplan apply
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/netplan/*.yaml
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/netplan/*.yaml
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o root -g root /var/lib/nexus-agent/* /etc/netplan/*.yaml
+# NEXUS-AGENT-008 : l'écriture netplan passe par `privhelper install-netplan`
+# (src realpath sous staging + dst *.yaml DIRECTEMENT sous /etc/netplan, sans
+# traversal) — la ligne `install … /etc/netplan/*.yaml` (dest wildcard) est retirée.
 
 # === Users Linux + SSH keys ===
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash *
-nexus-agent ALL=(root) NOPASSWD: /usr/sbin/useradd -m -s /bin/bash -c * *
+# NEXUS-AGENT-003 : la création d'utilisateur passe par `privhelper useradd`
+# (login validé + `--` → pas de `-o -u 0`) — les lignes `useradd *` sont retirées.
+# NEXUS-AGENT-008 : .ssh + authorized_keys passent par `privhelper install-authkeys`
+# (home résolu par getent, dest dérivée non globée) — les lignes `install … /home/*`
+# / `/root/*` sont retirées.
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/userdel -r *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -a * sudo
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -d * sudo
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /home/*/.ssh/authorized_keys
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /root/.ssh/authorized_keys
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -d -m 700 -o * -g * /home/*/.ssh
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -d -m 700 -o * -g * /root/.ssh
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexus-agent/sshkey-*.tmp /home/*/.ssh/authorized_keys
-nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 600 -o * -g * /var/lib/nexus-agent/sshkey-*.tmp /root/.ssh/authorized_keys
 SUDOERS
 
 # === Opt-in script.execute : capacité root-RCE émise SEULEMENT si demandée ===
