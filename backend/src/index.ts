@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -170,7 +171,28 @@ async function main() {
 
   // ===================== Prometheus /metrics =====================
 
-  app.get("/metrics", async (_request, reply) => {
+  // NEXUS-WEB-AUTHZ-005 — /metrics exposes per-machine telemetry (machine_id,
+  // hostname, live CPU/mem/disk) for the whole fleet — a credential-free recon
+  // feed if reachable unauthenticated. Two valid controls, pick per deployment:
+  //  (A) set METRICS_TOKEN → this handler enforces a constant-time bearer check
+  //      and Prometheus scrapes with `authorization.credentials`.
+  //  (B) leave METRICS_TOKEN unset and NETWORK-SCOPE the exposure: do NOT route
+  //      /metrics through the public Traefik entrypoint — scrape it over the
+  //      internal network / localhost only (Prometheus-idiomatic). This is a
+  //      deliberate, internal-only exposure, not an oversight.
+  const METRICS_TOKEN = process.env.METRICS_TOKEN || "";
+  app.get("/metrics", async (request, reply) => {
+    if (METRICS_TOKEN) {
+      const header = request.headers.authorization || "";
+      const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
+      const expected = Buffer.from(METRICS_TOKEN);
+      const got = Buffer.from(presented);
+      const ok =
+        got.length === expected.length && timingSafeEqual(got, expected);
+      if (!ok) {
+        return reply.code(401).send("Unauthorized");
+      }
+    }
     reply.header("Content-Type", register.contentType);
     return register.metrics();
   });
