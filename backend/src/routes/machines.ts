@@ -30,6 +30,8 @@ interface MachineForBootstrap {
   name: string;
   enrollmentToken: string;
   backendPublicKey: string;
+  // NEXUS-AGENT-007 — gouverne le périmètre du sudoers (--type agent|probe).
+  type: "AGENT" | "PROBE";
 }
 
 async function buildBootstrapArtifacts(
@@ -52,6 +54,7 @@ async function buildBootstrapArtifacts(
     machineName: machine.name,
     enrollmentToken: machine.enrollmentToken,
     backendPublicKey: machine.backendPublicKey,
+    machineType: machine.type,
     binaryToken: binaryTok.rawToken,
     scriptToken: scriptTok.rawToken,
     backendUrl,
@@ -312,6 +315,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         select: {
           id: true,
           name: true,
+          type: true,
           enrollmentToken: true,
           backendPublicKey: true,
         },
@@ -337,6 +341,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const bootstrap = await buildBootstrapArtifacts({
         id: machine.id,
         name: machine.name,
+        type: machine.type,
         enrollmentToken: machine.enrollmentToken,
         backendPublicKey: machine.backendPublicKey,
       });
@@ -433,7 +438,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const user = getUserFromRequest(request);
 
-      const machine = await prisma.machine.findUnique({ where: { id }, select: { id: true, name: true } });
+      const machine = await prisma.machine.findUnique({ where: { id }, select: { id: true, name: true, type: true } });
       if (!machine) {
         return reply.code(404).send({ error: "Machine not found" });
       }
@@ -449,7 +454,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       // Commande d'install complète avec --reenroll (purge côté machine)
       const bootstrap = await buildBootstrapArtifacts(
-        { id: machine.id, name: machine.name, enrollmentToken: result.enrollmentToken, backendPublicKey: result.backendPublicKey },
+        { id: machine.id, name: machine.name, type: machine.type, enrollmentToken: result.enrollmentToken, backendPublicKey: result.backendPublicKey },
         { reenroll: true }
       );
 
