@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -47,6 +48,22 @@ function requireEnv(key: string): void {
   }
 }
 
+// CONTROL-PLANE-005 — presence is not enough for signing secrets: a short/weak
+// JWT_SECRET or ECDSA_MASTER_SECRET is brute-forceable offline, letting an
+// attacker forge arbitrary tokens (incl. role:"ADMIN"). Enforce a minimum length
+// at boot. 32 chars ≈ 256 bits if hex/base64 — the floor for HS256/ECDSA secrets.
+function requireStrongSecret(key: string): void {
+  const val = process.env[key];
+  if (!val) {
+    throw new Error(`${key} environment variable is required. Set it before starting the server.`);
+  }
+  if (val.length < 32) {
+    throw new Error(
+      `${key} is too weak: ${val.length} chars, minimum 32 required. Generate one with e.g. \`openssl rand -hex 32\`.`,
+    );
+  }
+}
+
 // Démarre un setInterval avec un offset aléatoire initial (jitter) pour
 // éviter le thundering herd : sans jitter, tous les intervals fixes démarrent
 // au même tick et créent des spikes CPU/DB synchronisés.
@@ -64,15 +81,18 @@ function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () =
 
 async function main() {
   // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
-  requireEnv("JWT_SECRET");
-  requireEnv("ECDSA_MASTER_SECRET");
+  requireStrongSecret("JWT_SECRET");
+  requireStrongSecret("ECDSA_MASTER_SECRET");
   requireEnv("DATABASE_URL");
 
   const app = Fastify({
     logger: {
       level: process.env.NODE_ENV === "development" ? "debug" : "info",
     },
-    trustProxy: true,
+    // CONTROL-PLANE-006: trust an explicit number of reverse-proxy hops rather
+    // than the entire X-Forwarded-For chain (`true`), which would let a client
+    // forge request.ip. Keep this in sync with extractClientIp's hop count.
+    trustProxy: Math.max(0, parseInt(process.env.TRUSTED_PROXY_HOPS || "1", 10) || 0),
   });
 
   // ===================== Plugins =====================
@@ -123,6 +143,11 @@ async function main() {
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET!,
+    // CONTROL-PLANE-008 — defense-in-depth: pin the local verifier to HS256 so a
+    // token can't be accepted under a different algorithm (alg confusion / none).
+    // The local path only ever issues HS256; refuse anything else outright.
+    verify: { algorithms: ["HS256"] },
+    sign: { algorithm: "HS256" },
     // Lire le JWT depuis le cookie httpOnly en plus du header Authorization.
     // Le cookie est défini par /api/auth/login après auth locale réussie.
     cookie: {
@@ -146,7 +171,28 @@ async function main() {
 
   // ===================== Prometheus /metrics =====================
 
-  app.get("/metrics", async (_request, reply) => {
+  // NEXUS-WEB-AUTHZ-005 — /metrics exposes per-machine telemetry (machine_id,
+  // hostname, live CPU/mem/disk) for the whole fleet — a credential-free recon
+  // feed if reachable unauthenticated. Two valid controls, pick per deployment:
+  //  (A) set METRICS_TOKEN → this handler enforces a constant-time bearer check
+  //      and Prometheus scrapes with `authorization.credentials`.
+  //  (B) leave METRICS_TOKEN unset and NETWORK-SCOPE the exposure: do NOT route
+  //      /metrics through the public Traefik entrypoint — scrape it over the
+  //      internal network / localhost only (Prometheus-idiomatic). This is a
+  //      deliberate, internal-only exposure, not an oversight.
+  const METRICS_TOKEN = process.env.METRICS_TOKEN || "";
+  app.get("/metrics", async (request, reply) => {
+    if (METRICS_TOKEN) {
+      const header = request.headers.authorization || "";
+      const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
+      const expected = Buffer.from(METRICS_TOKEN);
+      const got = Buffer.from(presented);
+      const ok =
+        got.length === expected.length && timingSafeEqual(got, expected);
+      if (!ok) {
+        return reply.code(401).send("Unauthorized");
+      }
+    }
     reply.header("Content-Type", register.contentType);
     return register.metrics();
   });

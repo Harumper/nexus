@@ -1,6 +1,8 @@
 package security
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
 	"testing"
 	"time"
 )
@@ -50,19 +52,34 @@ func TestPublicKeyPEMRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDeriveSharedSecretSymmetry(t *testing.T) {
-	a, _ := GenerateECDSAKeypair()
-	b, _ := GenerateECDSAKeypair()
-	sa, err := DeriveSharedSecret(a, &b.PublicKey)
+// CRYPTO-004 : la clé de session est dérivée d'un ECDHE X25519 éphémère. Les deux
+// parties (agent ea, backend eb) doivent dériver le MÊME K ; un machine_id
+// différent doit donner un K différent (domain-separation HKDF).
+func TestSessionKeyDerivationSymmetry(t *testing.T) {
+	ea, _ := ecdh.X25519().GenerateKey(rand.Reader)
+	eb, _ := ecdh.X25519().GenerateKey(rand.Reader)
+	sa, err := ea.ECDH(eb.PublicKey())
 	if err != nil {
-		t.Fatalf("derive a: %v", err)
+		t.Fatalf("ECDH a: %v", err)
 	}
-	sb, err := DeriveSharedSecret(b, &a.PublicKey)
+	sb, err := eb.ECDH(ea.PublicKey())
 	if err != nil {
-		t.Fatalf("derive b: %v", err)
+		t.Fatalf("ECDH b: %v", err)
 	}
-	if len(sa) == 0 || string(sa) != string(sb) {
-		t.Fatal("ECDH non symétrique (les deux côtés doivent dériver le même secret)")
+	ka, err := deriveSessionKey(sa, "m1")
+	if err != nil {
+		t.Fatalf("deriveSessionKey a: %v", err)
+	}
+	kb, err := deriveSessionKey(sb, "m1")
+	if err != nil {
+		t.Fatalf("deriveSessionKey b: %v", err)
+	}
+	if len(ka) != 32 || string(ka) != string(kb) {
+		t.Fatal("clé de session non symétrique entre les deux parties éphémères")
+	}
+	kc, _ := deriveSessionKey(sa, "m2")
+	if string(ka) == string(kc) {
+		t.Fatal("domain-separation par machine_id absente (HKDF info)")
 	}
 }
 
@@ -85,6 +102,7 @@ func TestVerifyServerMessage(t *testing.T) {
 
 	build := func() VerifyServerMessageInput {
 		msg := VerifyServerMessageInput{
+			V:         ProtocolVersion,
 			Type:      "action.confirm",
 			RequestID: "req_test",
 			MachineID: "machine-1",
@@ -92,7 +110,7 @@ func TestVerifyServerMessage(t *testing.T) {
 			Nonce:     GenerateNonce(),
 			Payload:   "encrypted-blob",
 		}
-		sigPayload := BuildSignaturePayload(msg.Type, msg.RequestID, msg.MachineID, msg.Timestamp, msg.Nonce, msg.Payload)
+		sigPayload := BuildSignaturePayload(msg.V, msg.Type, msg.RequestID, msg.MachineID, msg.Timestamp, msg.Nonce, msg.Payload)
 		sig, err := SignPayload(sigPayload, server)
 		if err != nil {
 			t.Fatalf("sign: %v", err)
@@ -130,5 +148,12 @@ func TestVerifyServerMessage(t *testing.T) {
 	stale.Timestamp = time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
 	if err := VerifyServerMessage(stale, &server.PublicKey); err == nil {
 		t.Fatal("message à timestamp périmé accepté")
+	}
+
+	// 6. Version de protocole non supportée (v1 / champ v absent) → rejeté
+	badVersion := build()
+	badVersion.V = 1
+	if err := VerifyServerMessage(badVersion, &server.PublicKey); err == nil {
+		t.Fatal("message à version de protocole non supportée accepté")
 	}
 }

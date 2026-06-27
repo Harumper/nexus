@@ -50,8 +50,38 @@ Notifications: HMAC-signed webhooks + SMTP email + WebSocket real-time broadcast
 - **Machine types**: PROBE (read-only monitoring) / AGENT (full access)
 - **Critical flag** (`isCritical`): blocks `reboot`, `service_stop/restart` on critical services (docker/nginx/ssh/postgres), `package.remove` on critical packages
 - **Watchdog-revert**: snapshot before mutation + 60s/120s timer + dead-man's switch at agent boot
-- Sudoers whitelist (no wildcards on dangerous commands, NOEXEC where relevant)
+- Sudoers whitelist (fixed paths, exact args, compiled privhelper for the risky ops). `NOEXEC` is a **targeted backstop on the package-manager `install`/`remove` wildcard only** (blocks `Pre-Invoke`-style shell-outs) — not a blanket confinement; the other lines rely on fixed paths / exact args / privhelper
 - Systemd hardening: `StateDirectory`, `Protect*`, no ambient capabilities
+
+### Authorization model — no tenant isolation (one instance = one trust domain)
+Nexus has **no per-user / per-tenant isolation**. Authorization is a single global
+RBAC ladder (`ADMIN` > `OPERATOR` > `READONLY`); there is **no `ownerId`/`projectId`
+on machines**, so **every authenticated account sees and (per its role) acts on the
+entire fleet**. There is no per-user object boundary to break out of — and so no
+"IDOR on machines" — *by design*.
+
+> ⚠️ **One Nexus instance = one trust domain.** Do **not** put machines belonging to
+> different teams/customers behind a single instance expecting them to be isolated:
+> any OPERATOR can act on any host, any READONLY can read every host. For separate
+> trust domains, run **separate Nexus instances**. If you self-host for multiple
+> tenants, this is the security model you are accepting.
+
+### Agent key at rest — what it protects (and what it does NOT)
+The agent's identity key (`agent.key`) is **encrypted at rest** with a software
+machine-bound key (HKDF over `/etc/machine-id` + a per-install salt in
+`/etc/nexus/agent-keysalt`, AES-256-GCM). This protects against a **stray copy of
+the key file alone** (without the machine context) and against **reuse on another
+machine**.
+
+> ⚠️ **It does NOT protect a full disk image / VM snapshot / whole-filesystem backup
+> (e.g. Proxmox snapshots, PBS backups).** The `machine-id` and the salt travel
+> *with* the disk, so an attacker holding a complete image can re-derive the
+> wrapping key and decrypt `agent.key`. Treat full snapshots/backups of an agent
+> host as containing its identity. Closing this case requires **TPM 2.0 sealing**
+> (planned, opt-in for hosts that have a usable TPM) — it is **not** provided by the
+> software path. A live root (or `nexus-agent`-user) compromise can likewise
+> re-derive the key; the blanket-file-read capability that would bypass file
+> permissions has been dropped from the agent unit.
 
 ## Quick start
 

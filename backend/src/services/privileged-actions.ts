@@ -11,7 +11,7 @@
 // Le contrôle est appliqué dans dispatchAction() — donc il couvre TOUS les
 // chemins de dispatch (/actions/sync, /actions, /bulk, batch).
 
-import { PROBE_ALLOWED_ACTIONS } from "./machine-manager.js";
+import { READ_ONLY_ACTIONS as READ_ONLY_ACTION_LIST } from "./machine-manager.js";
 
 export const PRIVILEGED_USER_ACTIONS = new Set<string>([
   "user.update_sudo",
@@ -19,14 +19,46 @@ export const PRIVILEGED_USER_ACTIONS = new Set<string>([
   "sshkey.remove",
 ]);
 
-// Actions en lecture seule = la liste PROBE (source unique de vérité). Un
+// Actions en lecture seule (source unique de vérité, machine-manager.ts). Un
 // utilisateur READONLY ne peut invoquer QUE celles-ci.
-const READ_ONLY_ACTIONS = new Set<string>(PROBE_ALLOWED_ACTIONS);
+const READ_ONLY_ACTIONS = new Set<string>(READ_ONLY_ACTION_LIST);
 
 // Actions si dangereuses qu'elles exigent ADMIN même si elles restent dans le
 // périmètre Nexus (révocables, tracées) : script.execute = exécution root
 // arbitraire sur la machine cible.
 export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute"]);
+
+// Exécution distante de script = root arbitraire (amplificateur de kill-chain).
+// Opt-in DÉSACTIVÉ par défaut, en plus d'ADMIN-only : un parc confiné n'a aucune
+// voie d'exécution de script, même pour un ADMIN, tant que le flag est off. Verrou
+// indépendant de la signature (clé locale, côté agent) et de la capacité sudoers
+// (ligne omise à l'install) — les trois doivent être réunis. process.kill
+// NEXUS-AGENT-004 (0.8) : process.kill rejoint l'ensemble — opt-in default-off,
+// comme script.execute (kill brut de PID = primitive dangereuse ; la garde Go
+// process_kill.go refuse en plus l'agent et les services critiques).
+export const REMOTE_SCRIPT_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
+
+// Activé uniquement si ALLOW_REMOTE_SCRIPT vaut explicitement "true".
+export function isRemoteScriptAllowed(): boolean {
+  return (process.env.ALLOW_REMOTE_SCRIPT || "").toLowerCase() === "true";
+}
+
+// Gate central (appliqué dans dispatchAction → couvre sync/async/bulk/batch) :
+// quand le flag est off, l'action est refusée pour TOUS (y compris appels
+// internes), car la fonctionnalité entière est désactivée.
+export function checkRemoteScriptAction(actionId: string): {
+  allowed: boolean;
+  reason?: string;
+} {
+  if (!REMOTE_SCRIPT_ACTIONS.has(actionId)) return { allowed: true };
+  if (!isRemoteScriptAllowed()) {
+    return {
+      allowed: false,
+      reason: `Action '${actionId}' is disabled. Set ALLOW_REMOTE_SCRIPT=true to enable remote script execution (ADMIN-only, signed scripts).`,
+    };
+  }
+  return { allowed: true };
+}
 
 // RBAC par action, appliqué centralement dans dispatchAction() — couvre donc
 // TOUS les chemins de dispatch (/actions/sync, /actions, /bulk, batch).

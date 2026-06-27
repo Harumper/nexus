@@ -97,6 +97,8 @@ export interface KeycloakTokenPayload {
     roles: string[];
   };
   resource_access?: Record<string, { roles: string[] }>;
+  // CONTROL-PLANE-002 — propagated so the dashboard WS can sweep expired sockets.
+  exp?: number;
 }
 
 export async function verifyKeycloakToken(
@@ -121,6 +123,7 @@ export async function verifyKeycloakToken(
     const p = payload as unknown as {
       sub: string;
       azp?: string;
+      exp?: number;
       preferred_username?: string;
       email?: string;
       name?: string;
@@ -156,6 +159,7 @@ export async function verifyKeycloakToken(
         name: p.name,
         realm_access: p.realm_access,
         resource_access: p.resource_access,
+        exp: p.exp,
       },
     };
   } catch (err: any) {

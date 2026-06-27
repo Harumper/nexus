@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 16;
+// NEXUS-CRYPTO-006 — nonce GCM canonique de 12 octets (96 bits), la taille
+// standard/optimale pour AES-GCM (J0 dérivé directement, sans GHASH). decryptAES
+// lit l'IV DEPUIS le blob, donc les anciennes données à 16 octets se déchiffrent
+// encore : seul le format des NOUVEAUX chiffrements change.
+const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURVE = "prime256v1"; // P-256
 
@@ -110,23 +114,15 @@ function rawSigToDer(raw: Buffer): Buffer {
   return Buffer.concat([Buffer.from([0x30, seq.length]), seq]);
 }
 
-// ===================== ECDH Shared Secret Derivation =====================
+// ===================== Session Key Derivation (CRYPTO-004) =====================
 
-export function deriveSharedSecret(
-  privateKeyPem: string,
-  peerPublicKeyPem: string
-): Buffer {
-  const privateKey = crypto.createPrivateKey(privateKeyPem);
-  const publicKey = crypto.createPublicKey(peerPublicKeyPem);
-
-  const ecdh = crypto.diffieHellman({
-    privateKey,
-    publicKey,
-  });
-
-  // Derive a 256-bit key using HKDF
+// Dérive la clé de session AES-256 à partir d'un secret ECDH X25519 éphémère,
+// avec domain-separation par machine_id (info="nexus-session:<id>", salt vide).
+// Identique à l'agent (agent/internal/security/handshake.go deriveSessionKey) —
+// interop vérifiée par vecteurs croisés Go↔Node.
+export function deriveSessionKey(ecdhSecret: Buffer, machineId: string): Buffer {
   return Buffer.from(
-    crypto.hkdfSync("sha256", ecdh, "", "nexus-shared-secret", 32)
+    crypto.hkdfSync("sha256", ecdhSecret, "", `nexus-session:${machineId}`, 32)
   );
 }
 
@@ -224,6 +220,7 @@ export function generateNonce(): string {
 // ===================== Message Signing =====================
 
 export function buildSignaturePayload(msg: {
+  v: number;
   type: string;
   request_id?: string;
   machine_id: string;
@@ -231,7 +228,8 @@ export function buildSignaturePayload(msg: {
   nonce: string;
   payload: string;
 }): string {
-  return `${msg.type}:${msg.request_id || ""}:${msg.machine_id}:${msg.timestamp}:${msg.nonce}:${msg.payload}`;
+  // La version est liée EN TÊTE du payload signé : pas de downgrade silencieux.
+  return `${msg.v}:${msg.type}:${msg.request_id || ""}:${msg.machine_id}:${msg.timestamp}:${msg.nonce}:${msg.payload}`;
 }
 
 export function isTimestampValid(

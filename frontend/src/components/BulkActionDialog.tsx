@@ -43,7 +43,6 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
 
   const action = BULK_ACTIONS.find((a) => a.id === actionId);
   const onlineMachines = machines.filter((m) => m.status === "ONLINE");
-  const nonAgent = machines.filter((m) => m.type !== "AGENT");
   const critical = machines.filter((m) => m.isCritical);
 
   const handleRun = async () => {
@@ -126,16 +125,6 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
     >
       {results === null && !running && (
         <div className="space-y-4">
-          {nonAgent.length > 0 && (
-            <div className="rounded-lg p-3 text-xs flex items-start gap-2 bg-warning-subtle text-warning">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                {nonAgent.length} machine{nonAgent.length > 1 ? "s" : ""} de type PROBE :
-                les actions de mutation seront refusées.
-              </div>
-            </div>
-          )}
-
           {critical.length > 0 && (
             <div className="rounded-lg p-3 text-xs flex items-start gap-2 bg-warning-subtle text-warning">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />

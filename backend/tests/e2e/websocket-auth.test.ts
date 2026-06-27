@@ -1,7 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import Fastify from "fastify";
 import jwt from "@fastify/jwt";
 import WebSocket from "ws";
+
+// CONTROL-PLANE-002 — the dashboard WS now revalidates the local account in the
+// DB (isActive) like the HTTP middleware. Provide an active user for the valid
+// token (and only that id) so the upgrade is accepted for a live account.
+vi.mock("../../src/services/database.js", () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === "test-user-id" ? { isActive: true } : null
+      ),
+    },
+  },
+}));
+
 import { setupWebSocketServer } from "../../src/websocket/server.js";
 
 const JWT_SECRET = "test-secret-for-e2e";
@@ -27,10 +41,18 @@ afterAll(async () => {
   await app.close();
 });
 
-function connectWS(protocols?: string[]): Promise<{ ws: WebSocket; error?: Error }> {
+// Default test Origin matches the FRONTEND_URL fallback (CONTROL-PLANE-001
+// requires an allowlisted Origin on the dashboard upgrade). Pass a different
+// origin to exercise the CSWSH rejection.
+const ALLOWED_ORIGIN = "http://localhost:26032";
+
+function connectWS(
+  protocols?: string[],
+  origin: string = ALLOWED_ORIGIN
+): Promise<{ ws: WebSocket; error?: Error }> {
   return new Promise((resolve) => {
     const url = `ws://127.0.0.1:${port}/ws/dashboard`;
-    const ws = new WebSocket(url, protocols);
+    const ws = new WebSocket(url, protocols, { origin });
 
     const timeout = setTimeout(() => {
       ws.close();
@@ -79,6 +101,22 @@ describe("WebSocket Dashboard Authentication", () => {
     expect(error).toBeUndefined();
     expect(ws.readyState).toBe(WebSocket.OPEN);
     ws.close();
+  });
+
+  it("should reject a forbidden Origin (CSWSH) with 403", async () => {
+    const token = app.jwt.sign({
+      sub: "test-user-id",
+      username: "testuser",
+      role: "ADMIN",
+      provider: "local",
+    });
+
+    const { error } = await connectWS(
+      ["nexus-auth", token],
+      "https://evil.example.com"
+    );
+    expect(error).toBeDefined();
+    expect(error!.message).toContain("403");
   });
 
   it("should reject connection with expired JWT token", async () => {

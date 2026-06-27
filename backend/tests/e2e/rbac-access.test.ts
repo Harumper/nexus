@@ -5,14 +5,14 @@ import {
   isPrivilegedUserAction,
   ADMIN_ONLY_ACTIONS,
 } from "../../src/services/privileged-actions.js";
-import { PROBE_ALLOWED_ACTIONS } from "../../src/services/machine-manager.js";
+import { READ_ONLY_ACTIONS } from "../../src/services/machine-manager.js";
 
 // Test COMPORTEMENTAL du RBAC central (les fonctions réellement appelées par
 // dispatchAction). Un bug ici = RCE root / escalade ; les 74 tests structurels
 // "sécu" ne le détecteraient pas (ils ne font que du toContain sur le source).
 
-const READ_ONLY = PROBE_ALLOWED_ACTIONS[0]; // une action lecture seule réelle
-const MUTATION = "firewall.allow"; // mutation, absente de la liste PROBE
+const READ_ONLY = READ_ONLY_ACTIONS[0]; // une action lecture seule réelle
+const MUTATION = "firewall.allow"; // mutation, absente de la liste read-only
 const ADMIN_ONLY = [...ADMIN_ONLY_ACTIONS][0]; // ex. script.execute
 
 describe("checkRoleForAction — RBAC par rôle", () => {

@@ -10,6 +10,7 @@ import (
 // VerifyServerMessageInput regroupe les champs verifies d'un message
 // reçu du backend. Decouple de transport.Message pour eviter le cycle import.
 type VerifyServerMessageInput struct {
+	V         int
 	Type      string
 	RequestID string
 	MachineID string
@@ -64,20 +65,29 @@ func rememberNonce(nonce string) bool {
 // A appeler AVANT toute action sensible (notamment action.confirm qui
 // annule un watchdog-revert firewall/netplan).
 func VerifyServerMessage(msg VerifyServerMessageInput, serverPubKey *ecdsa.PublicKey) error {
+	// Version de protocole d'abord : un message d'un backend v1 (ou sans champ v)
+	// est rejeté explicitement, pas traité à l'aveugle.
+	if msg.V != ProtocolVersion {
+		return fmt.Errorf("unsupported protocol version %d (expected %d)", msg.V, ProtocolVersion)
+	}
+
 	if !IsTimestampValid(msg.Timestamp, 5*time.Minute) {
 		return fmt.Errorf("timestamp outside valid window: %s", msg.Timestamp)
 	}
 
-	if !rememberNonce(msg.Nonce) {
-		return fmt.Errorf("duplicate nonce (replay): %s", msg.Nonce)
-	}
-
 	sigPayload := BuildSignaturePayload(
-		msg.Type, msg.RequestID, msg.MachineID,
+		msg.V, msg.Type, msg.RequestID, msg.MachineID,
 		msg.Timestamp, msg.Nonce, msg.Payload,
 	)
 	if !VerifySignature(sigPayload, msg.Signature, serverPubKey) {
 		return fmt.Errorf("invalid server signature")
+	}
+
+	// NEXUS-CRYPTO-005 (mirror agent) : on n'enregistre le nonce qu'APRÈS la
+	// vérification de signature, pour qu'un message non authentifié ne puisse pas
+	// empoisonner le cache anti-replay côté agent (défense en profondeur).
+	if !rememberNonce(msg.Nonce) {
+		return fmt.Errorf("duplicate nonce (replay): %s", msg.Nonce)
 	}
 
 	return nil

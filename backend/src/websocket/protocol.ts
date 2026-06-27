@@ -1,5 +1,10 @@
 // Types de messages WebSocket
 
+// Version du protocole de canal (enveloppe + handshake). Liée DANS la signature de
+// chaque message pour empêcher tout downgrade. Doit rester en phase avec
+// transport.ProtocolVersion et security.ProtocolVersion côté agent. v1 est rejeté.
+export const PROTOCOL_VERSION = 2;
+
 export const MSG_TYPES = {
   // Agent -> Server
   ENROLLMENT_REQUEST: "enrollment.request",
@@ -10,6 +15,10 @@ export const MSG_TYPES = {
   UPDATE_PROGRESS: "update.progress",
   AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress",
   SECURITY_PROGRESS: "security.audit.progress",
+
+  // Handshake de session (ECDHE X25519, forward secrecy)
+  SESSION_HELLO: "session.hello",          // Agent -> Server
+  SESSION_HELLO_ACK: "session.hello.ack",  // Server -> Agent
 
   // Server -> Agent
   ENROLLMENT_COMPLETE: "enrollment.complete",

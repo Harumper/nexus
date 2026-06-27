@@ -4,6 +4,7 @@
 import { sendWebhook } from "./webhook.js";
 import { sendAlertEmail } from "./email.js";
 import { prisma } from "./database.js";
+import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -347,10 +348,13 @@ function formatDetails(details: Record<string, any>): string {
 }
 
 async function postJson(url: string, payload: unknown, timeoutMs: number): Promise<void> {
+  // WEB-AUTHZ-001: Slack/Discord/Teams/generic webhook URLs are operator-supplied
+  // config — guard against SSRF (private/metadata ranges, rebinding, redirects).
+  assertSafeOutboundUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

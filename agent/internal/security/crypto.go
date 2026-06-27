@@ -11,12 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"math/big"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/hkdf"
 )
 
 // GenerateECDSAKeypair génère une paire de clés ECDSA P-256
@@ -107,24 +104,6 @@ func VerifySignature(payload, signature string, publicKey *ecdsa.PublicKey) bool
 	return ecdsa.Verify(publicKey, hash[:], r, s)
 }
 
-// DeriveSharedSecret dérive un secret partagé via ECDH
-func DeriveSharedSecret(privateKey *ecdsa.PrivateKey, peerPublicKey *ecdsa.PublicKey) ([]byte, error) {
-	// ECDH: multiply peer's public point by our private scalar
-	x, _ := peerPublicKey.Curve.ScalarMult(peerPublicKey.X, peerPublicKey.Y, privateKey.D.Bytes())
-	if x == nil {
-		return nil, fmt.Errorf("ECDH failed")
-	}
-
-	// Derive 256-bit key using HKDF
-	// Note: pas de salt pour correspondre au backend (crypto.hkdfSync avec salt="")
-	hkdfReader := hkdf.New(sha256.New, x.Bytes(), nil, []byte("nexus-shared-secret"))
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(hkdfReader, key); err != nil {
-		return nil, fmt.Errorf("HKDF failed: %w", err)
-	}
-	return key, nil
-}
-
 // DecryptAES déchiffre avec AES-256-GCM
 // Supporte 2 formats :
 //   - Go:   nonce:ciphertext+tag (2 parties)
@@ -172,13 +151,15 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Supporter nonce de 12 bytes (Go standard) et 16 bytes (Node.js IV_LENGTH)
-	var gcm cipher.AEAD
-	if len(nonce) == 12 {
-		gcm, err = cipher.NewGCM(block)
-	} else {
-		gcm, err = cipher.NewGCMWithNonceSize(block, len(nonce))
+	// NEXUS-CRYPTO-006 — format canonique : nonce GCM de 12 octets (96 bits)
+	// UNIQUEMENT. On n'accepte plus une longueur de nonce arbitraire issue du blob
+	// (dériver la taille GCM depuis le blob transformait une primitive en parseur
+	// réglable par l'attaquant et faisait varier la dérivation J0/GHASH). Une
+	// longueur ≠ 12 est rejetée d'emblée.
+	if len(nonce) != 12 {
+		return "", fmt.Errorf("invalid GCM nonce length %d (expected 12)", len(nonce))
 	}
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return "", err
 	}
@@ -198,9 +179,24 @@ func GenerateNonce() string {
 	return fmt.Sprintf("%x", b)
 }
 
-// BuildSignaturePayload construit le payload à signer
-func BuildSignaturePayload(msgType, requestID, machineID, timestamp, nonce, payload string) string {
-	return fmt.Sprintf("%s:%s:%s:%s:%s:%s", msgType, requestID, machineID, timestamp, nonce, payload)
+// ProtocolVersion est la version du protocole de canal vérifiée côté agent.
+// Doit rester en phase avec transport.ProtocolVersion et le backend.
+const ProtocolVersion = 2
+
+// BuildSignaturePayload construit le payload à signer. La version est liée EN TÊTE
+// du payload signé : un attaquant ne peut pas downgrader le protocole sans casser
+// la signature.
+func BuildSignaturePayload(version int, msgType, requestID, machineID, timestamp, nonce, payload string) string {
+	return fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s", version, msgType, requestID, machineID, timestamp, nonce, payload)
+}
+
+// BuildEnrollmentProofPayload — NEXUS-ENROLLMENT-002. Canonical, domain-separated
+// payload that the agent signs as its enrollment proof. Binding the proof to the
+// enrollment token + nonce + timestamp (not just the static machineID) makes it
+// fresh and non-replayable. The backend MUST rebuild this byte-for-byte
+// (enrollment.ts buildEnrollmentProofPayload) to verify.
+func BuildEnrollmentProofPayload(machineID, enrollmentToken, nonce, timestamp string) string {
+	return fmt.Sprintf("nexus-enroll-proof:v2:%s:%s:%s:%s", machineID, enrollmentToken, nonce, timestamp)
 }
 
 // IsTimestampValid vérifie que le timestamp est dans la fenêtre acceptable

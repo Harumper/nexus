@@ -162,20 +162,18 @@ func (a *UserCreateAction) Validate(params map[string]interface{}) error {
 
 func (a *UserCreateAction) Execute(params map[string]interface{}) (interface{}, error) {
 	username := params["username"].(string)
-	args := []string{"-n", "/usr/sbin/useradd", "-m", "-s", "/bin/bash"}
-
+	// NEXUS-AGENT-003 : via le privhelper compilé (login validé + `--`), plus de
+	// ligne sudoers `useradd *` à wildcard d'options (UID-0 backdoor fermé).
+	helperArgs := []string{"privhelper", "useradd", username}
 	if g, ok := params["gecos"].(string); ok && g != "" {
 		if len(g) > 128 || strings.ContainsAny(g, ":\n") {
 			return nil, fmt.Errorf("invalid gecos")
 		}
-		args = append(args, "-c", g)
+		helperArgs = append(helperArgs, g)
 	}
-	args = append(args, username)
 
-	cmd := exec.Command("sudo", args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("useradd failed: %s", strings.TrimSpace(string(out)))
+	if err := sudoRun(nexusAgentBin, helperArgs...); err != nil {
+		return nil, fmt.Errorf("useradd failed: %w", err)
 	}
 
 	// Ajouter au groupe sudo si demande
@@ -334,13 +332,8 @@ func (a *SshKeyAddAction) Execute(params map[string]interface{}) (interface{}, e
 	username := params["username"].(string)
 	key := strings.TrimSpace(params["key"].(string))
 
-	u, err := user.Lookup(username)
-	if err != nil {
-		return nil, fmt.Errorf("user %s not found", username)
-	}
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	authFile := filepath.Join(sshDir, "authorized_keys")
-
+	// Le home / .ssh / authorized_keys sont résolus et écrits par le privhelper
+	// (getent + install). Ici on ne fait que lire l'état courant et reconstruire.
 	// Lire l'etat actuel
 	existing, err := readAuthorizedKeys(username)
 	if err != nil {
@@ -373,12 +366,10 @@ func (a *SshKeyAddAction) Execute(params map[string]interface{}) (interface{}, e
 	}
 	tmp.Close()
 
-	// 1. Creer le .ssh directory si absent (700, owned by user)
-	if err := sudoRun("/usr/bin/install", "-d", "-m", "700", "-o", username, "-g", username, sshDir); err != nil {
-		return nil, fmt.Errorf("mkdir .ssh: %w", err)
-	}
-	// 2. Installer le tempfile en tant que authorized_keys (600, owned by user)
-	if err := sudoRun("/usr/bin/install", "-m", "600", "-o", username, "-g", username, tmp.Name(), authFile); err != nil {
+	// NEXUS-AGENT-008 : via le privhelper compilé (login validé + home résolu par
+	// getent + .ssh créé + authorized_keys posé). Plus de ligne sudoers
+	// `install … /home/*/.ssh/authorized_keys` à destination wildcard (traversal).
+	if err := sudoRun(nexusAgentBin, "privhelper", "install-authkeys", username, tmp.Name()); err != nil {
 		return nil, fmt.Errorf("install authorized_keys: %w", err)
 	}
 
@@ -428,13 +419,7 @@ func (a *SshKeyRemoveAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("key with fingerprint %s not found", targetFp)
 	}
 
-	u, err := user.Lookup(username)
-	if err != nil {
-		return nil, fmt.Errorf("user %s not found", username)
-	}
-	authFile := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-
-	// Reecrire via tempfile + sudo install
+	// Reecrire via tempfile + privhelper (home résolu + dest fixe, AGENT-008)
 	var newContent string
 	if len(filtered) > 0 {
 		newContent = strings.Join(filtered, "\n") + "\n"
@@ -447,7 +432,7 @@ func (a *SshKeyRemoveAction) Execute(params map[string]interface{}) (interface{}
 	tmp.WriteString(newContent)
 	tmp.Close()
 
-	if err := sudoRun("/usr/bin/install", "-m", "600", "-o", username, "-g", username, tmp.Name(), authFile); err != nil {
+	if err := sudoRun(nexusAgentBin, "privhelper", "install-authkeys", username, tmp.Name()); err != nil {
 		return nil, fmt.Errorf("install authorized_keys: %w", err)
 	}
 
@@ -457,6 +442,11 @@ func (a *SshKeyRemoveAction) Execute(params map[string]interface{}) (interface{}
 		"removed":     true,
 	}, nil
 }
+
+// nexusAgentBin : chemin déployé du binaire agent, qui sert AUSSI de privhelper
+// root compilé (sous-commande `privhelper`). Doit matcher la ligne sudoers
+// `/usr/local/bin/nexus-agent privhelper *`.
+const nexusAgentBin = "/usr/local/bin/nexus-agent"
 
 // sudoRun execute une commande via sudo -n et retourne une erreur lisible
 func sudoRun(cmd string, args ...string) error {

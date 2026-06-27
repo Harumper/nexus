@@ -125,7 +125,9 @@ func restoreNetplanFromSnapshot(snapDir string) error {
 		}
 		src := filepath.Join(snapDir, e.Name())
 		dst := filepath.Join(netplanDir, e.Name())
-		if err := sudoRun("/usr/bin/install", "-m", "600", "-o", "root", "-g", "root", src, dst); err != nil {
+		// AGENT-008 : privhelper (src realpath sous staging + dst validée sous
+		// /etc/netplan, *.yaml, sans traversal).
+		if err := sudoRun(nexusAgentBin, "privhelper", "install-netplan", src, dst); err != nil {
 			return fmt.Errorf("install %s: %w", dst, err)
 		}
 	}
@@ -342,7 +344,7 @@ func (a *NetplanApplyAction) Execute(params map[string]interface{}) (interface{}
 	defer os.Remove(tmp.Name())
 
 	targetPath := filepath.Join(netplanDir, netplanTargetFilename)
-	if err := sudoRun("/usr/bin/install", "-m", "600", "-o", "root", "-g", "root", tmp.Name(), targetPath); err != nil {
+	if err := sudoRun(nexusAgentBin, "privhelper", "install-netplan", tmp.Name(), targetPath); err != nil {
 		HandleNetplanConfirm(reqID)
 		return nil, fmt.Errorf("install yaml: %w", err)
 	}
