@@ -4,12 +4,10 @@ Context for AI assistants working on this codebase. Human contributors should re
 
 ## Architecture invariants
 
-- **Capability model was REMOVED** (commit `f651d5f`). Access control is now based on `Machine.type` (PROBE=read-only, AGENT=full). Do NOT re-introduce `Capability`/`MachineCapability` tables. If you find references to `capabilities[]` in old code or docs, they're bugs.
+- **Capability model was REMOVED** (commit `f651d5f`). Do NOT re-introduce `Capability`/`MachineCapability` tables. If you find references to `capabilities[]` in old code or docs, they're bugs.
+- **The PROBE/AGENT machine type was REMOVED** (AGENT-007). There is now **ONE agent type**, fully capable; its root capabilities are defined by the sudoers generated at install. Do NOT re-introduce a `Machine.type`/`MachineType` enum, a `probeAllowedActions` map, an `IsProbeMode`, a `--type` installer flag, or a `NEXUS_AGENT_TYPE` env. The read-only/write distinction is enforced by **central RBAC** (role-based), not by machine type.
 - **Actions Go have a `Capability() string` method** — this is a metadata label for logging, NOT a runtime check. Don't wire it to any access control.
-- **PROBE allow-list** lives in two places that must stay in sync:
-  - `backend/src/services/machine-manager.ts` → `PROBE_ALLOWED_ACTIONS`
-  - `agent/cmd/nexus-agent/main.go` → `probeAllowedActions`
-  When adding a read-only action, update both.
+- **`READ_ONLY_ACTIONS`** (`backend/src/services/machine-manager.ts`) is the single source of truth for which actions are reads (vs mutations). It gates `READONLY` users in `privileged-actions.ts` (WEB-AUTHZ). When adding a read-only action, add it here. It lives **backend-only** now (no agent-side mirror).
 - **Server key pinning is MANDATORY** (isolation entre projets). The agent `log.Fatal`s at boot if no server public key is configured (`main.go`), and `Enroll()` refuses to enroll without it (`enrollment.go`). The ECDH shared secret is derived against the *pinned* key, not the one echoed in the enrollment response. `install-agent.sh` requires `--server-public-key-file` for any (re-)enrollment. Don't reintroduce an optional/warning fallback.
 - **One Nexus agent per machine.** Agent paths/identity are NOT namespaced (`nexus-agent` user, `/var/lib/nexus`, `/etc/nexus`, `/etc/sudoers.d/nexus-agent`, service `nexus-agent`). A second deployment installing an agent on the same host would collide. If multi-instance is ever needed, namespace these by deployment id.
 - **Action idempotency**: the agent dedups by `request_id` (`idemCache` in `main.go`, 10-min TTL) and re-sends the memorized response instead of re-executing. Never re-execute a mutating action on redelivery. The frontend dispatch retry (`b898f9f`) must only retry on pre-send errors (`not connected`), never after the message is sent.
@@ -41,7 +39,7 @@ Onglet `SecurityTab` sur MachineDetail. Audit **Lynis** (FOSS) en lecture seule 
 - `sshd.harden` : drop-in `/etc/ssh/sshd_config.d/99-nexus-hardening.conf`, **`sshd -t` avant reload**, reload par **SIGHUP** (`systemctl reload ssh` reste bloqué en sudoers), watchdog 120s.
 - `firewall.apply_policy` : `network.listening_services` (`ss`, lecture seule) propose les ports → ufw allow + enable, watchdog 60s. SSH toujours autorisé (anti-lockout).
 
-Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, toujours watchdog + `sshd -t`. Quand tu ajoutes une remédiation : action Go (`security`/`firewall` capability), **sudoers aux 2 endroits**, lecture seule → ajouter aux 2 allow-lists PROBE, mutation → NE PAS l'ajouter.
+Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, toujours watchdog + `sshd -t`. Quand tu ajoutes une remédiation : action Go (`security`/`firewall` capability), **sudoers aux 2 endroits**, lecture seule → ajouter à `READ_ONLY_ACTIONS` (backend), mutation → NE PAS l'ajouter.
 
 ## Security rules
 
@@ -66,7 +64,7 @@ Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, 
 - **Prisma types after schema change**: run `npx prisma generate` in `backend/`, then `npx tsc --noEmit` to surface type errors in routes/services.
 - **Agent rebuild required** for Go code changes. The CI builds and embeds the binary via `agent-download` route. Local dev: `CGO_ENABLED=0 go build -o /tmp/nexus-agent ./cmd/nexus-agent`.
 - **Agent versioning** is semver driven by git tags. `main.Version` defaults to `"dev"` and is injected at build via `-ldflags "-X main.Version=$AGENT_VERSION"`. The CI `version` job runs `git describe --tags` and propagates `AGENT_VERSION` (dotenv) to the backend/agent image builds. **To release: `git tag vX.Y.Z && git push origin vX.Y.Z`** → tag pipeline builds images stamped `X.Y.Z`. Untagged master builds get `X.Y.Z-N-g<sha>`. The agent reports this version in its heartbeat (`agent_version`); upgrade completion is detected by **binary SHA match**, not the version string, so it's robust even if the version is unchanged.
-- **PROBE and AGENT machines**: check `isActionAllowed(machineId, actionId)` in `action-dispatcher.ts`. If PROBE tries a mutation, the dispatcher returns an error *before* sending to agent.
+- **Access control is RBAC-only** (no machine type): `dispatchAction` enforces `checkRoleForAction` (READONLY bound to `READ_ONLY_ACTIONS`, OPERATOR for mutations, ADMIN for `script.execute`) + `checkPrivilegedAction` + `checkCriticalProtection`. There is no per-machine-type gate.
 - **Bulk dispatch** (`/api/bulk/dispatch`) has its own `BULK_ALLOWED_ACTIONS` whitelist. Netplan/firewall excluded because they need individual confirmation.
 
 ## Alerting

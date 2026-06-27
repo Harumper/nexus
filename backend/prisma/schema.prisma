@@ -25,11 +25,6 @@ enum MachineStatus {
   ARCHIVED
 }
 
-enum MachineType {
-  AGENT
-  PROBE
-}
-
 enum GroupType {
   STATIC
   DYNAMIC
@@ -138,8 +133,7 @@ model Machine {
   lastHeartbeat DateTime?
   lastMetrics   DateTime?
 
-  // Type et état
-  type            MachineType @default(AGENT)
+  // État
   rebootRequired  Boolean     @default(false)
   archivedAt      DateTime?
 
