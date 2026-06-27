@@ -19,7 +19,8 @@ import {
 } from "../services/machine-manager.js";
 import { onAgentHeartbeat } from "../services/agent-upgrade-tracker.js";
 import { prisma } from "../services/database.js";
-import { deriveSharedKey, decryptWithSharedKey } from "../services/security.js";
+import { decryptWithSharedKey } from "../services/security.js";
+import { processSessionHello } from "../services/session-handshake.js";
 import { recordSecurityScan } from "../services/security-scan.js";
 import { updateMachineMetrics, actionsFailed } from "../services/prometheus.js";
 import type {
@@ -69,12 +70,11 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
       // forgé portant le machine_id d'une autre machine et fermer sa session
       // légitime (DoS ciblé), car registerSession() ferme la session existante.
       // NEXUS-CRYPTO-003 — vérifier la signature ECDSA (+ timestamp + nonce) de
-      // CHAQUE message, pas seulement du premier. Avant ce fix, dès qu'une session
-      // était liée, les frames suivantes étaient routées sans re-vérification
-      // (rejeu/injection possible sur la connexion établie). La liaison de session
-      // reste, elle, gated (cf. plus bas) — on ne (re)lie pas sur un message non
-      // vérifié. La (ré)authentification par message s'appuie sur la clé
-      // long-terme stockée (invalidée par teardown de session sur revoke/réenrôl).
+      // CHAQUE message, pas seulement du premier. La (ré)authentification par
+      // message s'appuie sur la clé long-terme stockée, relue en DB fraîche à
+      // chaque message : pas de cache pubkey → un agent révoqué/réenrôlé/roté est
+      // rejeté dès le message suivant, même session ouverte (invalidation par
+      // construction, cf. CRYPTO-004).
       const verification = await verifyAgentMessage(msg);
       if (!verification.valid) {
         console.warn(
@@ -85,11 +85,13 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
       }
 
       const existing = getAgentSession(msg.machine_id);
-      const isBoundAuthedSession = existing?.ws === ws && existing.authenticated;
+      const isBoundAuthedSession =
+        existing?.ws === ws && existing.authenticated && existing.established === true;
 
-      if (!isBoundAuthedSession) {
-        // IP binding + (re)liaison de session : réservé au 1er message d'une
-        // connexion (ou à un changement de connexion du MÊME agent légitime).
+      // CRYPTO-004 — handshake ECDHE X25519. session.hello (re)lie la connexion et
+      // dérive la clé de session K éphémère. C'est le SEUL message accepté avant
+      // l'établissement (avec enrollment.request, traité plus haut).
+      if (msg.type === MSG_TYPES.SESSION_HELLO) {
         const ipValid = await verifyAgentIp(msg.machine_id, ip);
         if (!ipValid) {
           console.warn(`[WS] IP mismatch for ${msg.machine_id}: ${ip}`);
@@ -97,51 +99,57 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
           ws.close(1008, "IP binding violation");
           return;
         }
-
+        let helloPayload: any;
+        try {
+          helloPayload = JSON.parse(msg.payload); // session.hello : payload en clair (pas encore de K)
+        } catch {
+          ws.send(JSON.stringify({ type: "error", error: "Invalid session.hello payload" }));
+          return;
+        }
+        const hs = await processSessionHello(msg.machine_id, helloPayload.ephemeral_pub);
+        if (!hs.success) {
+          ws.send(JSON.stringify({ type: "error", error: hs.error }));
+          return;
+        }
         machineId = msg.machine_id;
         registerSession(msg.machine_id, ws, ip);
         authenticateSession(msg.machine_id);
-        console.log(`[WS] Authenticated ${msg.machine_id} via ECDSA signature`);
+        const s = getAgentSession(msg.machine_id);
+        if (s) {
+          s.sessionKey = hs.sessionKey; // K éphémère, mémoire seule
+          s.established = true;
+        }
+        ws.send(JSON.stringify(hs.response));
+        console.log(`[WS] Session established (ECDHE) for ${msg.machine_id}`);
+        return;
       }
 
-      // Décrypter le payload. Chemin chaud : la clé AES est mise en cache sur la
-      // session (déchiffrée du master une seule fois) → 0 requête DB et 1 seule
-      // opération AES par message en régime établi.
+      // Message MÉTIER (tout type ≠ session.hello / enrollment.request) : exige une
+      // session ÉTABLIE sur CETTE connexion. Couvre TOUS les types métier — aucun
+      // n'est traité avant le handshake.
+      if (!isBoundAuthedSession) {
+        ws.send(
+          JSON.stringify({ type: "error", error: "session not established; send session.hello" })
+        );
+        return;
+      }
+
+      // Déchiffrer le payload avec la clé de SESSION éphémère (K du handshake,
+      // mémoire seule). FAIL-CLOSED : un agent établi chiffre TOUJOURS son payload
+      // (AES-GCM via K). Échec de déchiffrement → rejet, pas de fallback clair.
       const session = getAgentSession(msg.machine_id);
-      let sharedKey = session?.sharedSecretKey;
-      if (!sharedKey) {
-        const machine = await prisma.machine.findUnique({
-          where: { id: msg.machine_id },
-          select: { sharedSecret: true },
-        });
-        if (machine?.sharedSecret) {
-          sharedKey = deriveSharedKey(machine.sharedSecret);
-          if (session) session.sharedSecretKey = sharedKey;
-        }
+      const sessionKey = session?.sessionKey;
+      if (!sessionKey) {
+        ws.send(JSON.stringify({ type: "error", error: "session not established; send session.hello" }));
+        return;
       }
-
       let payload: any;
-      if (sharedKey) {
-        // FAIL-CLOSED : un agent enrôlé chiffre TOUJOURS son payload (AES-GCM via
-        // le shared secret, cf. transport/client.go SendSigned). Si le
-        // déchiffrement échoue, on rejette — pas de fallback "clair" qui
-        // contournerait la confidentialité/intégrité GCM.
-        try {
-          payload = JSON.parse(decryptWithSharedKey(msg.payload, sharedKey));
-        } catch {
-          console.warn(`[WS] Payload decryption failed for ${msg.machine_id} — rejected (no cleartext fallback)`);
-          ws.send(JSON.stringify({ type: "error", error: "Invalid encrypted payload" }));
-          return;
-        }
-      } else {
-        // Pas de shared secret connu (ne devrait pas arriver pour un message
-        // authentifié d'un agent enrôlé).
-        try {
-          payload = JSON.parse(msg.payload);
-        } catch {
-          ws.send(JSON.stringify({ type: "error", error: "Invalid payload" }));
-          return;
-        }
+      try {
+        payload = JSON.parse(decryptWithSharedKey(msg.payload, sessionKey));
+      } catch {
+        console.warn(`[WS] Payload decryption failed for ${msg.machine_id} — rejected (no cleartext fallback)`);
+        ws.send(JSON.stringify({ type: "error", error: "Invalid encrypted payload" }));
+        return;
       }
 
       // Router le message

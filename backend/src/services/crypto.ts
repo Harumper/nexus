@@ -110,23 +110,15 @@ function rawSigToDer(raw: Buffer): Buffer {
   return Buffer.concat([Buffer.from([0x30, seq.length]), seq]);
 }
 
-// ===================== ECDH Shared Secret Derivation =====================
+// ===================== Session Key Derivation (CRYPTO-004) =====================
 
-export function deriveSharedSecret(
-  privateKeyPem: string,
-  peerPublicKeyPem: string
-): Buffer {
-  const privateKey = crypto.createPrivateKey(privateKeyPem);
-  const publicKey = crypto.createPublicKey(peerPublicKeyPem);
-
-  const ecdh = crypto.diffieHellman({
-    privateKey,
-    publicKey,
-  });
-
-  // Derive a 256-bit key using HKDF
+// Dérive la clé de session AES-256 à partir d'un secret ECDH X25519 éphémère,
+// avec domain-separation par machine_id (info="nexus-session:<id>", salt vide).
+// Identique à l'agent (agent/internal/security/handshake.go deriveSessionKey) —
+// interop vérifiée par vecteurs croisés Go↔Node.
+export function deriveSessionKey(ecdhSecret: Buffer, machineId: string): Buffer {
   return Buffer.from(
-    crypto.hkdfSync("sha256", ecdh, "", "nexus-shared-secret", 32)
+    crypto.hkdfSync("sha256", ecdhSecret, "", `nexus-session:${machineId}`, 32)
   );
 }
 

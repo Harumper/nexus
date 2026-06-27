@@ -1,6 +1,8 @@
 package security
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
 	"testing"
 	"time"
 )
@@ -50,19 +52,34 @@ func TestPublicKeyPEMRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDeriveSharedSecretSymmetry(t *testing.T) {
-	a, _ := GenerateECDSAKeypair()
-	b, _ := GenerateECDSAKeypair()
-	sa, err := DeriveSharedSecret(a, &b.PublicKey)
+// CRYPTO-004 : la clé de session est dérivée d'un ECDHE X25519 éphémère. Les deux
+// parties (agent ea, backend eb) doivent dériver le MÊME K ; un machine_id
+// différent doit donner un K différent (domain-separation HKDF).
+func TestSessionKeyDerivationSymmetry(t *testing.T) {
+	ea, _ := ecdh.X25519().GenerateKey(rand.Reader)
+	eb, _ := ecdh.X25519().GenerateKey(rand.Reader)
+	sa, err := ea.ECDH(eb.PublicKey())
 	if err != nil {
-		t.Fatalf("derive a: %v", err)
+		t.Fatalf("ECDH a: %v", err)
 	}
-	sb, err := DeriveSharedSecret(b, &a.PublicKey)
+	sb, err := eb.ECDH(ea.PublicKey())
 	if err != nil {
-		t.Fatalf("derive b: %v", err)
+		t.Fatalf("ECDH b: %v", err)
 	}
-	if len(sa) == 0 || string(sa) != string(sb) {
-		t.Fatal("ECDH non symétrique (les deux côtés doivent dériver le même secret)")
+	ka, err := deriveSessionKey(sa, "m1")
+	if err != nil {
+		t.Fatalf("deriveSessionKey a: %v", err)
+	}
+	kb, err := deriveSessionKey(sb, "m1")
+	if err != nil {
+		t.Fatalf("deriveSessionKey b: %v", err)
+	}
+	if len(ka) != 32 || string(ka) != string(kb) {
+		t.Fatal("clé de session non symétrique entre les deux parties éphémères")
+	}
+	kc, _ := deriveSessionKey(sa, "m2")
+	if string(ka) == string(kc) {
+		t.Fatal("domain-separation par machine_id absente (HKDF info)")
 	}
 }
 

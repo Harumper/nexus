@@ -16,6 +16,10 @@ export const MSG_TYPES = {
   AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress",
   SECURITY_PROGRESS: "security.audit.progress",
 
+  // Handshake de session (ECDHE X25519, forward secrecy)
+  SESSION_HELLO: "session.hello",          // Agent -> Server
+  SESSION_HELLO_ACK: "session.hello.ack",  // Server -> Agent
+
   // Server -> Agent
   ENROLLMENT_COMPLETE: "enrollment.complete",
   ENROLLMENT_REJECTED: "enrollment.rejected",

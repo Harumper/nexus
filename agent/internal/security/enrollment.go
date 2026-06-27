@@ -17,8 +17,7 @@ type ReceiveFunc func(timeout time.Duration) ([]byte, error)
 
 // EnrollResult contient le résultat de l'enrollment
 type EnrollResult struct {
-	MachineType  string
-	SharedSecret []byte
+	MachineType string
 }
 
 // EnrollmentMessage reproduit la structure d'un message WS
@@ -181,20 +180,17 @@ func Enroll(
 		}
 	}
 
-	sharedSecret, err := DeriveSharedSecret(keystore.GetPrivateKey(), pinnedServerKey)
-	if err != nil {
-		return nil, fmt.Errorf("ECDH failed: %w", err)
-	}
-
-	// 11. Sauvegarder
-	if err := keystore.SaveSharedSecret(sharedSecret); err != nil {
-		return nil, fmt.Errorf("failed to save shared secret: %w", err)
+	// Protocole v2 (CRYPTO-004) : plus de dérivation/persistance de secret de canal
+	// à l'enrôlement. L'enrôlement n'établit que l'IDENTITÉ (agent.key ↔ machine
+	// côté backend) ; la clé de session AES sera dérivée à chaque connexion par le
+	// handshake ECDHE éphémère. On marque seulement l'enrôlement réussi.
+	if err := keystore.MarkEnrolled(); err != nil {
+		return nil, fmt.Errorf("failed to mark enrolled: %w", err)
 	}
 
 	log.Printf("[Enrollment] Complete! Machine type: %s", responseData.MachineType)
 
 	return &EnrollResult{
-		MachineType:  responseData.MachineType,
-		SharedSecret: sharedSecret,
+		MachineType: responseData.MachineType,
 	}, nil
 }

@@ -79,10 +79,13 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toMatch(/if.*err.*:=.*rand\.Read/);
   });
 
-  it("should document HKDF context label in DeriveSharedSecret", () => {
-    const content = readFileSync(resolve(agentDir, "internal/security/crypto.go"), "utf8");
-    // Backend et agent utilisent tous les deux un salt vide — doit matcher
-    expect(content).toContain("nexus-shared-secret");
+  it("should derive the session key with a domain-separated HKDF label (ECDHE)", () => {
+    // CRYPTO-004 : l'ancien ECDH statique (label "nexus-shared-secret") est
+    // remplacé par un handshake ECDHE X25519 éphémère ; la clé de session est
+    // dérivée via HKDF avec domain-separation par machine_id ("nexus-session:<id>"),
+    // identique côté backend (interop vérifiée). Salt vide des deux côtés.
+    const agentHs = readFileSync(resolve(agentDir, "internal/security/handshake.go"), "utf8");
+    expect(agentHs).toContain("nexus-session:");
   });
 
   it("should fully verify incoming action.request (signature + nonce + timestamp)", () => {
