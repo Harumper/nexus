@@ -92,7 +92,6 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           ipAddress: true,
           agentVersion: true,
           status: true,
-          type: true,
           isCritical: true,
           sudoersHash: true,
           agentSha256: true,
@@ -124,11 +123,14 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           tags: m.tags.map((t) => t.tag),
           sudoersOutdated: isSudoersOutdated(m.sudoersHash),
           isConnected: connectedIds.has(m.id),
-          // MAJ agent dispo = version servie ≠ version en cours (agents seulement) ;
-          // ignore le sha de build pour ne pas signaler à chaque commit.
-          agentUpdateAvailable:
-            m.type === "AGENT" &&
-            computeAgentUpdateAvailable(servedVersion, targetSha, m.agentVersion, agentSha256),
+          // MAJ agent dispo = version servie ≠ version en cours ; ignore le sha
+          // de build pour ne pas signaler à chaque commit.
+          agentUpdateAvailable: computeAgentUpdateAvailable(
+            servedVersion,
+            targetSha,
+            m.agentVersion,
+            agentSha256
+          ),
         };
       });
 
@@ -159,7 +161,6 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           ipAddress: true,
           agentVersion: true,
           status: true,
-          type: true,
           sshUser: true,
           isCritical: true,
           sudoersHash: true,
@@ -192,9 +193,12 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         // Live WS presence — voir route /api/machines pour le pourquoi
         isConnected: getAgentSession(id)?.authenticated === true,
         // MAJ par comparaison de version (ignore le sha de build) — voir liste.
-        agentUpdateAvailable:
-          machine.type === "AGENT" &&
-          computeAgentUpdateAvailable(servedVersion, targetSha, machine.agentVersion, agentSha256),
+        agentUpdateAvailable: computeAgentUpdateAvailable(
+          servedVersion,
+          targetSha,
+          machine.agentVersion,
+          agentSha256
+        ),
       });
     }
   );
@@ -210,19 +214,15 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           required: ["name"],
           properties: {
             name: { type: "string", minLength: 1, maxLength: 100 },
-            type: { type: "string", enum: ["AGENT", "PROBE"], default: "AGENT" },
           },
         },
       },
     },
     async (request, reply) => {
-      const { name, type } = request.body as {
-        name: string;
-        type?: "AGENT" | "PROBE";
-      };
+      const { name } = request.body as { name: string };
       const user = getUserFromRequest(request);
 
-      const result = await createMachineWithEnrollment(name, type || "AGENT");
+      const result = await createMachineWithEnrollment(name);
 
       await logAudit({
         action: "MACHINE_CREATE",
@@ -230,7 +230,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         resourceId: result.id,
         userId: user?.sub,
         ipAddress: request.ip,
-        details: { name, type: type || "AGENT" },
+        details: { name },
       });
 
       // Generer les artifacts d'installation (binaire + script + commandes)
@@ -279,7 +279,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         const updated = await prisma.machine.update({
           where: { id },
           data,
-          select: { id: true, name: true, sshUser: true, isCritical: true, type: true },
+          select: { id: true, name: true, sshUser: true, isCritical: true },
         });
         await logAudit({
           action: "MACHINE_UPDATE",

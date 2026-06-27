@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { prisma } from "./database.js";
-import { isActionAllowed } from "./machine-manager.js";
 import { checkCriticalProtection } from "./machine-protection.js";
-import { checkPrivilegedAction, checkRoleForAction } from "./privileged-actions.js";
+import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction } from "./privileged-actions.js";
+import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -42,14 +42,6 @@ export async function dispatchAction(
   userId?: string,
   userRole?: string
 ): Promise<{ success: boolean; error?: string; requestId?: string }> {
-  // 1. Verifier que l'action est autorisee pour le type de machine (PROBE=readonly, AGENT=all)
-  if (!(await isActionAllowed(machineId, action.action_id))) {
-    return {
-      success: false,
-      error: `Action '${action.action_id}' is not allowed for this machine type`,
-    };
-  }
-
   // 1a. RBAC par action : READONLY = lecture seule, OPERATOR = mutations sauf
   // ADMIN-only (script.execute), ADMIN = tout. userRole undefined = appel
   // système interne (de confiance). Voir privileged-actions.ts.
@@ -69,19 +61,28 @@ export async function dispatchAction(
     return { success: false, error: privileged.reason };
   }
 
-  // 2. Vérifier que l'agent est connecté
-  const session = getAgentSession(machineId);
-  if (!session || !session.authenticated) {
-    return { success: false, error: "Agent is not connected" };
+  // 1c. Exécution distante de script : opt-in désactivé par défaut
+  // (ALLOW_REMOTE_SCRIPT). Verrou indépendant de la signature (côté agent) et de
+  // la capacité sudoers (omise à l'install). Voir privileged-actions.ts.
+  const remoteScript = checkRemoteScriptAction(action.action_id);
+  if (!remoteScript.allowed) {
+    return { success: false, error: remoteScript.reason };
   }
 
-  // 3. Récupérer les clés de la machine + flag critique
+  // 2. Vérifier que l'agent est connecté ET que le handshake ECDHE est complété
+  // (clé de session K présente). Sans handshake établi, pas de clé pour chiffrer.
+  const session = getAgentSession(machineId);
+  if (!session || !session.authenticated || !session.established || !session.sessionKey) {
+    return { success: false, error: "Agent is not connected (session not established)" };
+  }
+
+  // 3. Récupérer la clé privée backend (signature) + flag critique
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
-    select: { backendPrivateKey: true, sharedSecret: true, isCritical: true },
+    select: { backendPrivateKey: true, isCritical: true },
   });
 
-  if (!machine?.backendPrivateKey || !machine?.sharedSecret) {
+  if (!machine?.backendPrivateKey) {
     return { success: false, error: "Machine keys not found" };
   }
 
@@ -93,10 +94,9 @@ export async function dispatchAction(
 
   const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey);
 
-  // 4. Chiffrer le payload avec le secret partagé
-  const masterSecret = process.env.ECDSA_MASTER_SECRET!;
-  const sharedSecretB64 = decryptAES(machine.sharedSecret, masterSecret);
-  const sharedSecret = Buffer.from(sharedSecretB64, "base64");
+  // 4. Chiffrer le payload avec la clé de SESSION éphémère (K du handshake,
+  // mémoire seule) — CRYPTO-004 forward secrecy.
+  const sessionKey = session.sessionKey;
 
   const requestId = `req_${crypto.randomBytes(16).toString("hex")}`;
   const actionPayload = JSON.stringify({
@@ -105,13 +105,14 @@ export async function dispatchAction(
     params: action.params || {},
   });
 
-  const encryptedPayload = encryptAES(actionPayload, sharedSecret);
+  const encryptedPayload = encryptAES(actionPayload, sessionKey);
 
   // 5. Signer le message
   const nonce = generateNonce();
   const timestamp = new Date().toISOString();
 
   const msgForSig = buildSignaturePayload({
+    v: PROTOCOL_VERSION,
     type: "action.request",
     request_id: requestId,
     machine_id: machineId,
@@ -124,6 +125,7 @@ export async function dispatchAction(
 
   // 6. Envoyer via WebSocket
   const wsMessage = JSON.stringify({
+    v: PROTOCOL_VERSION,
     type: "action.request",
     request_id: requestId,
     machine_id: machineId,

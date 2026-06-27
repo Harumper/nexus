@@ -195,7 +195,9 @@ func runTimerCommand(verb string, params map[string]interface{}) (interface{}, e
 	if !strings.HasSuffix(name, ".timer") {
 		name = name + ".timer"
 	}
-	cmd := exec.Command("sudo", "-n", "/usr/bin/systemctl", verb, name)
+	// NEXUS-AGENT-006 : contrôle de service via le privhelper compilé (verbe +
+	// unité canonicalisés, options non injectables).
+	cmd := exec.Command("sudo", "-n", nexusAgentBin, "privhelper", "svc", verb, name)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("systemctl %s %s failed: %s", verb, name, strings.TrimSpace(string(out)))

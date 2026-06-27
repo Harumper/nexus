@@ -79,10 +79,13 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toMatch(/if.*err.*:=.*rand\.Read/);
   });
 
-  it("should document HKDF context label in DeriveSharedSecret", () => {
-    const content = readFileSync(resolve(agentDir, "internal/security/crypto.go"), "utf8");
-    // Backend et agent utilisent tous les deux un salt vide — doit matcher
-    expect(content).toContain("nexus-shared-secret");
+  it("should derive the session key with a domain-separated HKDF label (ECDHE)", () => {
+    // CRYPTO-004 : l'ancien ECDH statique (label "nexus-shared-secret") est
+    // remplacé par un handshake ECDHE X25519 éphémère ; la clé de session est
+    // dérivée via HKDF avec domain-separation par machine_id ("nexus-session:<id>"),
+    // identique côté backend (interop vérifiée). Salt vide des deux côtés.
+    const agentHs = readFileSync(resolve(agentDir, "internal/security/handshake.go"), "utf8");
+    expect(agentHs).toContain("nexus-session:");
   });
 
   it("should fully verify incoming action.request (signature + nonce + timestamp)", () => {
@@ -113,17 +116,24 @@ describe("Security Audit — Agent Hardening", () => {
     // script.execute doit etre reserve ADMIN.
     expect(priv).toContain("ADMIN_ONLY_ACTIONS");
     expect(priv).toMatch(/ADMIN_ONLY_ACTIONS[\s\S]*script\.execute/);
-    // READONLY borne a la liste lecture seule (source unique : PROBE_ALLOWED_ACTIONS).
+    // READONLY borné à la liste lecture seule (source unique : READ_ONLY_ACTIONS,
+    // machine-manager.ts — anciennement PROBE_ALLOWED_ACTIONS avant le retrait du
+    // type PROBE ; même liste, vrai rôle « read-only »).
     expect(priv).toContain("READ_ONLY_ACTIONS");
-    expect(priv).toContain("PROBE_ALLOWED_ACTIONS");
   });
 
-  it("should enforce PROBE whitelist cote agent", () => {
-    // Le modele Capability a ete retire : le controle d'acces repose sur Machine.type.
-    // L'agent doit filtrer les actions en mode probe via probeAllowedActions.
-    const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(content).toContain("probeAllowedActions");
-    expect(content).toContain("action not allowed in probe mode");
+  it("enforces access centrally at backend dispatch (single agent type, no agent-side probe gate)", () => {
+    // Le type PROBE a été retiré : un seul type d'agent. Le contrôle d'accès n'est
+    // plus une whitelist dupliquée côté agent (defense-in-depth supprimée avec le
+    // PROBE) mais le RBAC central de dispatchAction (READONLY borné à READ_ONLY_ACTIONS,
+    // OPERATOR aux mutations, ADMIN-only sur script.execute). On vérifie que l'agent
+    // ne porte PLUS de gate de type, et que le backend porte la frontière.
+    const mainGo = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
+    expect(mainGo).not.toContain("probeAllowedActions");
+    expect(mainGo).not.toContain("action not allowed in probe mode");
+    const mm = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mm).toContain("READ_ONLY_ACTIONS");
+    expect(mm).not.toContain("PROBE_ALLOWED_ACTIONS");
   });
 
   it("should use /var/lib/nexus-agent (StateDirectory) for scripts instead of /tmp", () => {
@@ -141,8 +151,14 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("NOEXEC:");
     // kill should use explicit signals
     expect(content).toContain("/bin/kill -SIGTERM");
-    // Scripts in dedicated dir, not /tmp
-    expect(content).toContain("/var/lib/nexus-agent/nexus-script");
+    // Scripts in dedicated dir, not /tmp. Depuis NEXUS-AGENT-005 la règle sudoers
+    // `bash …/nexus-script-*.sh` est OPT-IN (--allow-remote-script) et émise via
+    // $AGENT_SCRIPT_DIR hors du heredoc statique : on ne vérifie donc plus un
+    // chemin littéral toujours présent, mais que le répertoire d'état dédié et le
+    // motif de nom restent utilisés (la garantie « pas /tmp » côté agent est
+    // testée séparément sur script_execute.go).
+    expect(content).toMatch(/AGENT_SCRIPT_DIR="\/var\/lib\/nexus-agent"/);
+    expect(content).toContain("nexus-script-*.sh");
     // Uses mktemp instead of hardcoded /tmp path
     expect(content).toContain("mktemp");
     // upgrade/update must use EXACT args (no trailing wildcard → pas d'injection -o)
@@ -174,11 +190,14 @@ describe("Security Audit — Agent Hardening", () => {
   it("should have restricted systemd sandbox without blocking sudo/apt", () => {
     // Unité systemd embarquée dans le script d'install réellement servi.
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    // AmbientCapabilities donnent les caps au non-root agent
-    expect(content).toContain("AmbientCapabilities");
-    expect(content).toContain("CAP_NET_RAW");
-    // Pas de CapabilityBoundingSet : bloquerait sudo+apt (chown, fowner, etc.)
-    expect(content).not.toContain("CapabilityBoundingSet=");
+    // NEXUS-AGENT-002 — least-privilege : le process agent non-root n'a AUCUNE
+    // capability ambiante dangereuse (DAC_READ_SEARCH / SYS_PTRACE retirées).
+    const ambient = content.split("\n").find((l) => l.startsWith("AmbientCapabilities=")) ?? "";
+    expect(ambient).not.toMatch(/CAP_DAC_READ_SEARCH|CAP_SYS_PTRACE/);
+    // Bounding set en NÉGATION (~) : retire les 2 caps d'attaque de toute l'unité
+    // (drift-guard) SANS plafonner les enfants sudo — un allow-list aurait cassé
+    // apt/netplan/useradd (chown, fowner, dac_override, setuid…).
+    expect(content).toMatch(/CapabilityBoundingSet=~[^\n]*CAP_DAC_READ_SEARCH[^\n]*CAP_SYS_PTRACE/);
     // Pas de ProtectSystem=strict : casserait les écritures sudo (apt/netplan/users)
     expect(content).not.toContain("ProtectSystem=strict");
     // Sandbox reste actif via les autres directives
@@ -312,10 +331,9 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
     expect(content).toContain("OnSecurityProgress"); // streaming console live
   });
 
-  it("should classify security.audit as read-only (allowed in PROBE mode) in both lists", () => {
-    const agentMain = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(agentMain).toMatch(/"security\.audit":\s*true/);
+  it("should classify security.audit as read-only (READ_ONLY_ACTIONS)", () => {
     const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).toContain("READ_ONLY_ACTIONS");
     expect(mgr).toContain('"security.audit"');
   });
 
@@ -346,17 +364,20 @@ describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)"
     expect(content).toContain("unattended-upgrades");
   });
 
-  it("should NOT expose remediation actions in PROBE mode (mutations, AGENT-only)", () => {
-    const agentMain = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(agentMain).not.toContain("security.harden_fail2ban");
-    expect(agentMain).not.toContain("security.enable_auto_updates");
+  it("should NOT classify the remediation actions as read-only (they mutate)", () => {
+    const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).not.toContain("security.harden_fail2ban");
+    expect(mgr).not.toContain("security.enable_auto_updates");
   });
 
   it("should whitelist the remediation file writes + systemctl enable in sudoers", () => {
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     expect(content).toContain("/etc/fail2ban/jail.local");
     expect(content).toContain("/etc/apt/apt.conf.d/20auto-upgrades");
-    expect(content).toContain("/usr/bin/systemctl enable *");
+    // AGENT-006: fail2ban/unattended-upgrades enable now goes through the
+    // compiled privhelper svc op (no raw `systemctl enable *` in sudoers).
+    const harden = readFileSync(resolve(rootDir, "agent/internal/actions/security_harden.go"), "utf8");
+    expect(harden).toMatch(/privhelper", "svc", "enable", "fail2ban"/);
   });
 
   it("should wire 1-click remediation in the frontend (api + SecurityTab)", () => {
@@ -397,13 +418,18 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     // sshd -t + drop-in install/rm whitelistés
     expect(content).toContain("/usr/sbin/sshd -t");
     expect(content).toContain("/etc/ssh/sshd_config.d/99-nexus-hardening.conf");
-    // ssh reload/restart restent dans la liste bloquée
-    expect(content).toMatch(/systemctl restart ssh\*/);
+    // AGENT-006: anti-lockout now enforced in the compiled privhelper (option-
+    // injection-proof), not an option-sensitive sudoers pattern. ssh/sshd are
+    // refused for stop/restart/reload/disable in code.
+    const priv = readFileSync(resolve(rootDir, "agent/internal/privhelper/privhelper.go"), "utf8");
+    expect(priv).toMatch(/svcProtectedUnits/);
+    expect(priv).toMatch(/"ssh":\s*true/);
+    expect(priv).toMatch(/"sshd":\s*true/);
   });
 
-  it("should NOT expose sshd.harden in PROBE mode (mutation)", () => {
-    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(main).not.toContain('"sshd.harden"');
+  it("should NOT classify sshd.harden as read-only (it mutates)", () => {
+    const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).not.toContain('"sshd.harden"');
   });
 
   it("should expose a signed sshd/confirm backend route", () => {
@@ -433,10 +459,9 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
     expect(content).toContain("isExposedAddr");
   });
 
-  it("should classify listening_services as read-only (PROBE) in both lists", () => {
-    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(main).toMatch(/"network\.listening_services":\s*true/);
+  it("should classify listening_services as read-only (READ_ONLY_ACTIONS)", () => {
     const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).toContain("READ_ONLY_ACTIONS");
     expect(mgr).toContain('"network.listening_services"');
   });
 
@@ -448,9 +473,9 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
     expect(content).toContain("firewallPortRegex"); // validation stricte des ports
   });
 
-  it("should NOT expose firewall.apply_policy in PROBE mode (mutation)", () => {
-    const main = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    expect(main).not.toContain("firewall.apply_policy");
+  it("should NOT classify firewall.apply_policy as read-only (it mutates)", () => {
+    const mgr = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mgr).not.toContain("firewall.apply_policy");
   });
 
   it("should whitelist ss in sudoers (read-only, fixed args)", () => {

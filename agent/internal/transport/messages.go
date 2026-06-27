@@ -1,7 +1,14 @@
 package transport
 
+// ProtocolVersion est la version du protocole de canal (enveloppe + handshake).
+// Liée DANS la signature de chaque message (cf. SendSigned / BuildSignaturePayload)
+// pour empêcher tout downgrade. Doit rester en phase avec security.ProtocolVersion
+// (côté vérification) et PROTOCOL_VERSION (backend). v1 (sans ce champ) est rejeté.
+const ProtocolVersion = 2
+
 // Message représente un message WebSocket
 type Message struct {
+	V         int    `json:"v"`
 	Type      string `json:"type"`
 	RequestID string `json:"request_id,omitempty"`
 	MachineID string `json:"machine_id"`
@@ -31,6 +38,8 @@ const (
 	TypeEnrollmentRequest  = "enrollment.request"
 	TypeEnrollmentComplete = "enrollment.complete"
 	TypeEnrollmentRejected = "enrollment.rejected"
+	TypeSessionHello       = "session.hello"
+	TypeSessionHelloAck    = "session.hello.ack"
 	TypeHeartbeat          = "heartbeat"
 	TypeMetricsReport      = "metrics.report"
 	TypeActionRequest      = "action.request"

@@ -1,0 +1,16 @@
+{
+  "x25519": {
+    "ea_pub": "THDE5GBqvQxfFSPM6YB5VMWANJCcR1fh0Lm37071FwY=",
+    "eb_priv": "IYcuHSvd+VeAaU8zcvp4+c5rkNjTNrLAuuEZsQYiOEw=",
+    "eb_pub": "zSklfvcGrWN5yJNssGliFZut0965xXFVfzFGRPf9Izw=",
+    "machine_id": "machine-interop-x25519",
+    "k_hex": "2f3d7f86543ec9ae2244e669a5835adc7d81bc524fa4874cb9593c72cdbe48be"
+  },
+  "seal": {
+    "server_priv_pem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgWUW3/HmSFebmSWFt\nJq8iQimxKszpfa9mOdhAS4X14qmhRANCAAQ7o+2NnIrpFdzKR1zam3tdgnqhCgG2\ndtPN38vx5nDpHh1bE52nsJzgHTjhEMW3le04mZwv/xXo0/d8stwMoHMA\n-----END PRIVATE KEY-----\n",
+    "eph_pub_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaUiMrs1Pt8g69KjSs1zPKADNswne\n887Mf02K84uN2wTArxv6m4o+663LRmXJjPcATBMzdsWivOr9at0D7ipdaw==\n-----END PUBLIC KEY-----\n",
+    "sealed": "y+uyLP2JI/itg7zl:YahJg2F8XrHmm80IsFQJZg+xPKqL16oErR4isrViRLc2qIJra68P9hhFQip9xFHspeFcYz9LCV0WB9pf7iZcbQBXiFquvr8lT0F6Cp4EF0WZ",
+    "machine_id": "machine-interop-seal",
+    "plaintext_b64": "eyJlbnJvbGxtZW50X3Rva2VuIjoidG9rX2ludGVyb3AiLCJhZ2VudF9wdWJsaWNfa2V5IjoiQUdFTlRfUFVCIn0="
+  }
+}

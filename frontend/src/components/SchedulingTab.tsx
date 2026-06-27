@@ -7,10 +7,9 @@ import { getErrorMessage } from "../services/errors";
 
 interface Props {
   machineId: string;
-  canMutate: boolean;
 }
 
-export default function SchedulingTab({ machineId, canMutate }: Props) {
+export default function SchedulingTab({ machineId }: Props) {
   const [cronJobs, setCronJobs] = useState<any[]>([]);
   const [timers, setTimers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +38,6 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [machineId]);
 
   const toggle = async (name: string, enabled: boolean) => {
-    if (!canMutate) return;
     const verb = enabled ? "disable" : "enable";
     const label = verb === "enable" ? "Activer" : "Désactiver";
     if (!(await confirm({ title: `${label} le timer ${name} ?`, confirmLabel: label, variant: "primary" }))) return;
@@ -101,7 +99,7 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
                   <Th>Dernier</Th>
                   <Th>Active</Th>
                   <Th>Enabled</Th>
-                  {canMutate && <Th />}
+                  <Th />
                 </tr>
               </thead>
               <tbody>
@@ -129,19 +127,17 @@ export default function SchedulingTab({ machineId, canMutate }: Props) {
                           {t.enabled_state || "?"}
                         </span>
                       </Td>
-                      {canMutate && (
-                        <Td>
-                          <button
-                            onClick={() => toggle(unit, enabled)}
-                            disabled={acting === unit}
-                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
-                            style={{ border: `1px solid ${enabled ? "var(--nx-warning)" : "var(--nx-success)"}`, color: enabled ? "var(--nx-warning)" : "var(--nx-success)" }}
-                          >
-                            {acting === unit ? <Loader2 className="w-3 h-3 animate-spin" /> : enabled ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-                            {enabled ? "Disable" : "Enable"}
-                          </button>
-                        </Td>
-                      )}
+                      <Td>
+                        <button
+                          onClick={() => toggle(unit, enabled)}
+                          disabled={acting === unit}
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
+                          style={{ border: `1px solid ${enabled ? "var(--nx-warning)" : "var(--nx-success)"}`, color: enabled ? "var(--nx-warning)" : "var(--nx-success)" }}
+                        >
+                          {acting === unit ? <Loader2 className="w-3 h-3 animate-spin" /> : enabled ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
+                          {enabled ? "Disable" : "Enable"}
+                        </button>
+                      </Td>
                     </tr>
                   );
                 })}

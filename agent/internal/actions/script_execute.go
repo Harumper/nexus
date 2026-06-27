@@ -2,11 +2,22 @@ package actions
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/nexus/agent/internal/security"
 )
+
+// scriptSigningPubKeyPath : clé(s) publique(s) minisign DÉDIÉE(S) à la signature
+// de script (verrou indépendant du canal), déposée(s) par l'opérateur à
+// l'installation (root:root 0644). Distincte de la clé serveur pinnée (canal) et
+// de la clé de release (binaire) : keypair propre, révocable indépendamment.
+const scriptSigningPubKeyPath = "/etc/nexus/script-signing.pub"
 
 func init() { Register(&ScriptExecuteAction{}) }
 
@@ -28,6 +39,33 @@ func (a *ScriptExecuteAction) Validate(params map[string]interface{}) error {
 
 func (a *ScriptExecuteAction) Execute(params map[string]interface{}) (interface{}, error) {
 	script := params["script"].(string)
+	scriptSig, _ := params["script_sig"].(string)
+
+	// ---- VERROU INDÉPENDANT DU CANAL : signature de script ----
+	// On vérifie une signature minisign détachée des octets EXACTS du script
+	// (avant tout ajout de shebang) contre une accept-list LOCALE déposée par
+	// l'opérateur. Le backend relaie `script_sig` mais ne détient pas la clé
+	// privée hors-ligne → un canal compromis ne peut pas injecter de script.
+	// Fail-closed : clé absente/illisible/vide, signature absente ou invalide
+	// ⇒ refus, AVANT toute écriture sur disque ou exécution.
+	keys, err := security.LoadMinisignAcceptList(scriptSigningPubKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("clé de signature de script absente/invalide : exécution refusée : %w", err)
+	}
+	sigOK, signerID := false, uint64(0)
+	if scriptSig != "" {
+		sigOK, signerID = security.VerifyMinisignAny(keys, []byte(script), []byte(scriptSig))
+	}
+	if !sigOK {
+		return nil, fmt.Errorf("script signature invalid — refusing to execute")
+	}
+
+	// Audit append-only : journald (store root:systemd-journal ; nexus-agent y a
+	// un accès LECTURE seule → peut émettre mais pas réécrire/tronquer le passé).
+	// Le principal (utilisateur web) est journalisé côté backend (AuditLog).
+	scriptHash := sha256.Sum256([]byte(script))
+	log.Printf("AUDIT script.execute hash=%s signer_keyid=%016x bytes=%d",
+		hex.EncodeToString(scriptHash[:]), signerID, len(script))
 
 	timeoutSec := 30
 	if t, ok := params["timeout"].(float64); ok && t > 0 {

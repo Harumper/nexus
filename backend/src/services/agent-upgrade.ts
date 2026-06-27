@@ -1,15 +1,23 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { prisma } from "./database.js";
 import { generateBootstrapToken } from "./bootstrap.js";
 import { dispatchAction } from "./action-dispatcher.js";
 import { getAgentBackendUrl } from "./agent-bootstrap.js";
 import {
   getServerBinarySHA256,
+  getServerAgentVersion,
   beginUpgrade,
 } from "./agent-upgrade-tracker.js";
 
 const AGENT_BINARY_PATH =
   process.env.NEXUS_AGENT_BINARY_PATH || "/app/agent/nexus-agent";
+
+// Signature minisign détachée, produite hors-ligne par l'opérateur et publiée
+// par le pipeline de release À CÔTÉ du binaire. Le backend la RELAIE seulement :
+// il ne peut pas la forger (la clé privée vit hors du backend). L'agent la
+// vérifie contre sa clé publique locale (/etc/nexus/release.pub) avant install.
+const AGENT_SIGNATURE_PATH =
+  process.env.NEXUS_AGENT_SIGNATURE_PATH || `${AGENT_BINARY_PATH}.minisig`;
 
 export async function dispatchAgentUpgrade(
   machineId: string,
@@ -29,6 +37,18 @@ export async function dispatchAgentUpgrade(
   if (!existsSync(AGENT_BINARY_PATH)) {
     return { success: false, error: "Agent binary not available on server" };
   }
+
+  // La signature détachée DOIT être présente : l'agent refusera tout binaire non
+  // signé (fail-closed). On échoue tôt ici avec un message clair plutôt que de
+  // dispatcher un upgrade que l'agent rejettera.
+  if (!existsSync(AGENT_SIGNATURE_PATH)) {
+    return {
+      success: false,
+      error:
+        "Agent release signature (.minisig) not available on server — refusing to dispatch an unsigned upgrade",
+    };
+  }
+  const signature = readFileSync(AGENT_SIGNATURE_PATH, "utf8");
 
   // Construire l'URL de download
   let backendUrl: string;
@@ -54,6 +74,9 @@ export async function dispatchAgentUpgrade(
         download_url: `${backendUrl}/api/agents/download`,
         token: rawToken,
         sha256: sha256 || undefined,
+        signature,
+        // SELF-UPGRADE-002 : version cible (plancher anti-rollback côté agent).
+        target_version: getServerAgentVersion() || undefined,
       },
     },
     userId

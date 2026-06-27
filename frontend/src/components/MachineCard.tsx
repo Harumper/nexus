@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Server, Cpu, MemoryStick, HardDrive, Clock, Radio, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
+import { Server, Cpu, MemoryStick, HardDrive, Clock, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
 import { useState, memo } from "react";
 import { toast } from "sonner";
 import { statusColor, statusLabel, timeAgo } from "../lib/utils";
@@ -20,7 +20,6 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
   const status = statusColor(machine.status);
   const isOnline = machine.status === "ONLINE";
   const isPending = machine.status === "ENROLLMENT_PENDING";
-  const isProbe = machine.type === "PROBE";
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -142,21 +141,11 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
             className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--nx-bg-elevated)" }}
           >
-            {isProbe ? (
-              <Radio className="w-5 h-5" style={{ color: "var(--nx-info)" }} />
-            ) : (
-              <Server className="w-5 h-5" style={{ color: "var(--nx-text-weak)" }} />
-            )}
+            <Server className="w-5 h-5" style={{ color: "var(--nx-text-weak)" }} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h3 className="text-sm font-semibold text-foreground truncate">{machine.name}</h3>
-              {isProbe && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                  style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
-                  Probe
-                </span>
-              )}
               {machine.isCritical && (
                 <span
                   className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"

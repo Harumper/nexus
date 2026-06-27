@@ -12,27 +12,6 @@ import (
 	"time"
 )
 
-// runCmdTimeout exécute une commande avec un timeout dur. En cas de dépassement,
-// tout le groupe de processus est tué (sudo + enfants apt/lynis) pour ne pas
-// laisser de processus orphelin, et l'agent n'est jamais bloqué indéfiniment.
-func runCmdTimeout(timeout time.Duration, name string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		if cmd.Process != nil {
-			return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		return nil
-	}
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return out, fmt.Errorf("timeout après %s", timeout)
-	}
-	return out, err
-}
-
 // OnSecurityProgress streame les lignes de l'audit Lynis vers le frontend
 // (console live), comme OnUpdateProgress pour apt. Câblé dans main.go.
 var OnSecurityProgress ProgressCallback
@@ -69,34 +48,6 @@ func lynisPath() string {
 	return ""
 }
 
-// installLynis rafraîchit l'index apt puis installe lynis, en REMONTANT la
-// sortie réelle d'apt en cas d'échec (diagnostic : paquet absent des dépôts,
-// dépôt universe désactivé, réseau, sudoers/NOEXEC...).
-func installLynis() (string, error) {
-	if OnSecurityProgress != nil {
-		OnSecurityProgress("Installation de Lynis (apt)…", 3)
-	}
-	// apt-get update (whitelisté) — non fatal : l'install peut réussir si
-	// l'index est déjà à jour. Sur une VM fraîche, c'est souvent indispensable.
-	// Timeout dur : si le lock apt est tenu (unattended-upgrades) ou un dépôt
-	// lent, on ne bloque pas l'agent indéfiniment.
-	updateOut, _ := runCmdTimeout(90*time.Second, "sudo", "-n", "/usr/bin/apt-get", "update")
-
-	out, err := runCmdTimeout(150*time.Second, "sudo", "-n", "/usr/bin/apt-get", "install", "-y", "-qq", "lynis")
-	combined := strings.TrimSpace(string(out))
-	if err != nil {
-		detail := combined
-		if detail == "" {
-			detail = strings.TrimSpace(string(updateOut))
-		}
-		if detail == "" {
-			detail = err.Error()
-		}
-		return combined, fmt.Errorf("installation de lynis échouée: %s", detail)
-	}
-	return combined, nil
-}
-
 type lynisItem struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
@@ -106,28 +57,15 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	if OnSecurityProgress != nil {
 		OnSecurityProgress("Lancement de l'audit Lynis…", 2)
 	}
-	installed := false
+	// NEXUS-AGENT-007 — un audit OBSERVE, il ne MUTE jamais la machine auditée.
+	// security.audit n'installe plus Lynis : c'est un défaut de conception qu'un
+	// audit altère son sujet. Si Lynis est absent, on dégrade proprement avec un
+	// message actionnable — son installation relève du provisioning opérateur
+	// (apt/dnf install lynis), hors du périmètre agent.
+	installed := false // cette action n'installe jamais rien
 	bin := lynisPath()
 	if bin == "" {
-		// En mode PROBE, l'agent est strictement lecture seule : on n'installe
-		// JAMAIS de paquet. On audite uniquement si lynis est déjà présent.
-		if IsProbeMode() {
-			return nil, fmt.Errorf("lynis non installé : installation refusée en mode PROBE (lecture seule)")
-		}
-		// Tentative d'installation via apt. On rafraîchit d'abord l'index
-		// (sur une VM fraîche, `install` échoue souvent par "Unable to locate
-		// package"). On REMONTE la sortie réelle d'apt en cas d'échec.
-		if out, err := installLynis(); err != nil {
-			return nil, err
-		} else if out != "" {
-			// (output conservé pour debug éventuel, non bloquant)
-			_ = out
-		}
-		bin = lynisPath()
-		if bin == "" {
-			return nil, fmt.Errorf("lynis introuvable après installation (paquet 'lynis' absent des dépôts ?)")
-		}
-		installed = true
+		return nil, fmt.Errorf("lynis non installé : audit indisponible. Provisionnez-le (apt install lynis / dnf install lynis) pour activer l'audit de sécurité — l'agent n'installe pas de paquet lors d'un audit (lecture seule)")
 	}
 
 	// Audit en STREAMING : on lit la sortie de lynis ligne par ligne et on la

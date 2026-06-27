@@ -47,8 +47,7 @@ poursuites. Toutes les activites peuvent etre journalisees et surveillees.
 
 // ═══════════════════════════════════════════════════════════════
 // Remédiations de durcissement « installer un utilitaire » (Phase 2).
-// Mutations -> réservées aux machines AGENT (PAS dans la whitelist PROBE).
-// Passent par dispatchAction (RBAC + confirmation côté UI).
+// Mutations : passent par dispatchAction (RBAC + confirmation côté UI).
 // ═══════════════════════════════════════════════════════════════
 
 const autoUpdatesConfPath = "/etc/apt/apt.conf.d/20auto-upgrades"
@@ -122,10 +121,10 @@ func (a *HardenFail2banAction) Execute(params map[string]interface{}) (interface
 	}
 
 	// 3. Activer + (re)démarrer
-	if err := sudoRun("/usr/bin/systemctl", "enable", "fail2ban"); err != nil {
+	if err := sudoRun(nexusAgentBin, "privhelper", "svc", "enable", "fail2ban"); err != nil {
 		return nil, fmt.Errorf("enable fail2ban: %w", err)
 	}
-	if err := sudoRun("/usr/bin/systemctl", "restart", "fail2ban"); err != nil {
+	if err := sudoRun(nexusAgentBin, "privhelper", "svc", "restart", "fail2ban"); err != nil {
 		return nil, fmt.Errorf("restart fail2ban: %w", err)
 	}
 
@@ -162,7 +161,7 @@ func (a *EnableAutoUpdatesAction) Execute(params map[string]interface{}) (interf
 	}
 
 	// Le service applique les MAJ via les timers apt-daily ; on l'active aussi.
-	_ = sudoRun("/usr/bin/systemctl", "enable", "unattended-upgrades")
+	_ = sudoRun(nexusAgentBin, "privhelper", "svc", "enable", "unattended-upgrades")
 
 	return map[string]interface{}{
 		"auto_updates_active": autoUpdatesActive(),

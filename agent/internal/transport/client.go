@@ -62,6 +62,15 @@ func (c *Client) SetKeys(privateKey *ecdsa.PrivateKey, sharedSecret []byte) {
 	c.sharedSecret = sharedSecret
 }
 
+// SessionKey retourne la clé de session AES (K, dérivée par le handshake ECDHE,
+// mémoire seule). Utilisée pour déchiffrer les action.request entrants. Jamais
+// persistée ni loggée.
+func (c *Client) SessionKey() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sharedSecret
+}
+
 func (c *Client) OnMessage(handler func(Message)) {
 	c.onMessage = handler
 }
@@ -173,8 +182,8 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 	nonce := generateNonce()
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
-	sigPayload := fmt.Sprintf("%s:%s:%s:%s:%s:%s",
-		msgType, requestID, c.machineID, timestamp, nonce, payload)
+	sigPayload := fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s",
+		ProtocolVersion, msgType, requestID, c.machineID, timestamp, nonce, payload)
 
 	signature, err := signPayload(sigPayload, privateKey)
 	if err != nil {
@@ -182,6 +191,7 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 	}
 
 	msg := Message{
+		V:         ProtocolVersion,
 		Type:      msgType,
 		RequestID: requestID,
 		MachineID: c.machineID,

@@ -21,6 +21,7 @@ import (
 	"github.com/nexus/agent/internal/actions"
 	"github.com/nexus/agent/internal/collector"
 	"github.com/nexus/agent/internal/config"
+	"github.com/nexus/agent/internal/privhelper"
 	"github.com/nexus/agent/internal/security"
 	"github.com/nexus/agent/internal/transport"
 )
@@ -160,51 +161,30 @@ func runWatchdog() {
 var (
 	// Version est injectée au build via -ldflags "-X main.Version=...".
 	// "dev" = binaire compilé sans estampillage (build local).
-	Version   = "dev"
-	agentType string
+	Version = "dev"
 
 	// serverPublicKey est la cle publique ECDSA du backend, parsee une fois
 	// au boot et utilisee pour verifier les messages serveur (action.confirm).
 	serverPublicKey *ecdsa.PublicKey
-
-	// probeAllowedActions is the whitelist of actions allowed in probe mode.
-	// Doit correspondre a PROBE_ALLOWED_ACTIONS cote backend (machine-manager.ts).
-	probeAllowedActions = map[string]bool{
-		"system.metrics":            true,
-		"system.info":               true,
-		"system.processes":          true,
-		"system.heartbeat":          true,
-		"system.logs":               true,
-		"system.services_list":      true,
-		"system.service_status":     true,
-		"system.package_list":       true,
-		"firewall.status":           true,
-		"storage.lvm_list":          true,
-		"storage.block_devices":     true,
-		"storage.filesystem_usage":  true,
-		"cron.list":                 true,
-		"timer.list":                true,
-		"user.list":                 true,
-		"sshkey.list":               true,
-		"network.status":            true,
-		"network.interfaces":        true,
-		"network.listening_services": true,
-		"netplan.get":               true,
-		"package.holds_list":        true,
-		"system.services_failed":    true,
-		"system.timers_failed":      true,
-		"system.updates_available":  true,
-		"system.health_summary":     true,
-		"ssl.scan":                  true,
-		"security.audit":            true,
-		"agent.sudoers_check":       true,
-		"fs.list":                   true,
-		"fs.read":                   true,
-		// fs.upload volontairement absent : interdit en mode probe
-	}
 )
 
 func main() {
+	// NEXUS-AGENT-003/008 — mode privhelper (wrapper root COMPILÉ) : invoqué via
+	// `sudo nexus-agent privhelper <op> …`, il exécute une opération privilégiée
+	// strictement validée puis sort. AVANT tout le reste (pas de config, pas de
+	// systemd notify) : c'est un sous-processus root court-vécu, pas l'agent.
+	if len(os.Args) >= 2 && os.Args[1] == "privhelper" {
+		os.Exit(privhelper.Run(os.Args[2:]))
+	}
+
+	// `--version` : utilisé par l'auto-upgrade pour lier la version à l'artefact
+	// (SELF-UPGRADE-002). Imprime la version injectée au build et sort.
+	if len(os.Args) >= 2 && os.Args[1] == "--version" {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
+	actions.RunningVersion = Version
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Capturer NOTIFY_SOCKET et le retirer de l'env AVANT de lancer le moindre
@@ -217,13 +197,10 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	cfg.Version = Version
-	agentType = cfg.AgentType
+	// Origine pinnée pour l'auto-upgrade (SELF-UPGRADE-003).
+	actions.PinnedServerURL = cfg.ServerURL
 
-	logPrefix := "[Nexus Agent]"
-	if agentType == "probe" {
-		logPrefix = "[Nexus Probe]"
-	}
-	log.Printf("%s Version %s starting...", logPrefix, Version)
+	log.Printf("[Nexus Agent] Version %s starting...", Version)
 
 	// Parser la cle publique du serveur une fois au boot. Utilisee pour
 	// verifier les messages action.confirm (annulation watchdog firewall/netplan).
@@ -247,6 +224,7 @@ func main() {
 	actions.RecoverPendingSnapshots()
 	actions.RecoverPendingNetplan()
 	actions.RecoverPendingSshd()
+	actions.RecoverPendingUpgrade() // SELF-UPGRADE-005 : dead-man's switch de l'auto-upgrade
 
 	// Cleanup périodique de l'inbox fs.upload (fichiers > 7j). Une fois au boot
 	// puis toutes les 24h. Pas critique si rate (les fichiers seront pris au
@@ -275,57 +253,63 @@ func main() {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
-	// Enrollment si nécessaire
-	if !keystore.HasSharedSecret() {
+	// Enrollment si nécessaire (identité = agent.key + marqueur d'enrôlement ;
+	// la clé de session AES n'est plus persistée — cf. handshake ci-dessous).
+	if !keystore.IsEnrolled() {
 		if cfg.EnrollmentToken == "" {
-			log.Fatal("No shared secret found and no enrollment token provided. Cannot authenticate.")
+			log.Fatal("Not enrolled and no enrollment token provided. Cannot authenticate.")
 		}
 
 		// Démarrer la lecture en background pour recevoir la réponse d'enrollment
 		go client.ReadLoop()
 
-		result, err := security.Enroll(
+		if err := security.Enroll(
 			client.SendRaw,
 			client.ReceiveRaw,
 			cfg.MachineID,
 			cfg.EnrollmentToken,
 			cfg.ServerPublicKey,
 			keystore,
-		)
-		if err != nil {
+		); err != nil {
 			log.Fatalf("Enrollment failed: %v", err)
 		}
 
-		if result.MachineType != "" {
-			agentType = result.MachineType
-		}
-		client.SetKeys(keystore.GetPrivateKey(), result.SharedSecret)
-
-		// Après enrollment, se reconnecter pour un flux propre
+		// Après enrollment, se reconnecter pour un flux propre (nouveau WS).
 		log.Println("[Agent] Reconnecting after enrollment...")
 		client.Close()
 		time.Sleep(1 * time.Second)
 		client = transport.NewClient(cfg.ServerURL, cfg.MachineID)
-		client.SetKeys(keystore.GetPrivateKey(), result.SharedSecret)
 		if err := client.Connect(); err != nil {
 			log.Fatalf("Failed to reconnect: %v", err)
 		}
 	} else {
-		// Charger les clés existantes
+		// Charger l'identité long-terme existante
 		if err := keystore.Load(); err != nil {
 			log.Fatalf("Failed to load keys: %v", err)
 		}
-		sharedSecret, err := keystore.LoadSharedSecret()
-		if err != nil {
-			log.Fatalf("Failed to load shared secret: %v", err)
-		}
-		client.SetKeys(keystore.GetPrivateKey(), sharedSecret)
 	}
 
-	log.Printf("[Agent] Authenticated (type=%s)", agentType)
-	// Propager le mode PROBE au package actions (effets de bord lecture-seule,
-	// ex. security.audit qui ne doit pas installer lynis en PROBE).
-	actions.SetProbeMode(strings.EqualFold(agentType, "probe"))
+	// Handshake ECDHE X25519 (forward secrecy) : dérive la clé de session K en
+	// MÉMOIRE sur la connexion établie. Remplace l'ancien shared secret persisté.
+	// Au démarrage, sharedSecret=nil → session.hello est signé mais NON chiffré.
+	// L'agent sort/redémarre sur perte de connexion (systemd relance) → un nouveau
+	// K éphémère est négocié à chaque connexion.
+	client.SetKeys(keystore.GetPrivateKey(), nil)
+	go client.ReadLoop()
+	sessionKey, err := security.PerformSessionHandshake(
+		client.SendRaw, client.ReceiveRaw,
+		keystore.GetPrivateKey(), serverPublicKey, cfg.MachineID,
+	)
+	if err != nil {
+		log.Fatalf("Session handshake failed: %v", err)
+	}
+	client.SetKeys(keystore.GetPrivateKey(), sessionKey)
+
+	// SELF-UPGRADE-005 — reconnexion + auth réussies : confirmer un éventuel
+	// upgrade en attente (annule le dead-man's switch, garde le nouveau binaire).
+	actions.ConfirmUpgrade()
+
+	log.Printf("[Agent] Authenticated")
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
 	// Connecter le callback de progression des mises à jour système (apt)
@@ -354,13 +338,11 @@ func main() {
 		})
 	}
 
-	// Handler pour les messages entrants
+	// Handler pour les messages entrants. La boucle de lecture (ReadLoop) a déjà
+	// été démarrée avant le handshake ; on branche seulement le dispatcher métier.
 	client.OnMessage(func(msg transport.Message) {
 		handleMessage(msg, client, sandbox, cfg, keystore)
 	})
-
-	// Démarrer la boucle de lecture (une seule fois)
-	go client.ReadLoop()
 
 	// Démarrer le heartbeat
 	go runHeartbeat(client, cfg)
@@ -393,6 +375,23 @@ func main() {
 }
 
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {
+	// Gate de version de protocole (fondation v2) : tout message serveur DOIT
+	// porter v == ProtocolVersion, sinon il est rejeté ici, avant tout traitement.
+	//
+	// EXCEPTION UNIQUE ET VOLONTAIRE : TypeError. C'est le canal par lequel le
+	// backend renvoie le message expliquant un rejet de version — exiger v2 dessus
+	// serait circulaire (l'agent ne pourrait pas recevoir l'explication de son
+	// propre rejet v1). Aucune autre exception : tout autre type (y compris
+	// TypePing, aujourd'hui non émis par le backend) est gaté, par DÉCISION — on
+	// ferme la porte gratuitement plutôt que de dépendre de « ce chemin ne fait
+	// rien aujourd'hui », qui casse à la prochaine évolution. Quiconque ajoute un
+	// handler ci-dessous verra ce gate et son unique exception justifiée.
+	if msg.Type != transport.TypeError && msg.V != security.ProtocolVersion {
+		log.Printf("[Agent] Rejected %q: unsupported protocol version %d (expected %d) — re-enroll",
+			msg.Type, msg.V, security.ProtocolVersion)
+		return
+	}
+
 	switch msg.Type {
 	case transport.TypeActionRequest:
 		// SECURITE CRITIQUE : action.request dispatche TOUTES les actions
@@ -408,6 +407,7 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			return
 		}
 		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			V:         msg.V,
 			Type:      msg.Type,
 			RequestID: msg.RequestID,
 			MachineID: msg.MachineID,
@@ -431,6 +431,7 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			return
 		}
 		if err := security.VerifyServerMessage(security.VerifyServerMessageInput{
+			V:         msg.V,
 			Type:      msg.Type,
 			RequestID: msg.RequestID,
 			MachineID: msg.MachineID,
@@ -464,13 +465,15 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 }
 
 func handleActionRequest(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, keystore *security.Keystore) {
-	sharedSecret, err := keystore.LoadSharedSecret()
-	if err != nil {
-		log.Printf("[Agent] Failed to load shared secret: %v", err)
+	// Déchiffrement avec la clé de SESSION (K du handshake ECDHE, mémoire seule),
+	// pas un secret persisté.
+	sessionKey := client.SessionKey()
+	if sessionKey == nil {
+		log.Printf("[Agent] Rejected action.request: no session key (handshake incomplete)")
 		return
 	}
 
-	decrypted, err := security.DecryptAES(msg.Payload, sharedSecret)
+	decrypted, err := security.DecryptAES(msg.Payload, sessionKey)
 	if err != nil {
 		log.Printf("[Agent] Failed to decrypt action request: %v", err)
 		return
@@ -506,14 +509,6 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 			log.Printf("[Agent] request_id=%s en cours de traitement — duplicata ignoré", request.RequestID)
 		}
 		return
-	}
-
-	// In probe mode, only allow whitelisted actions
-	if strings.EqualFold(agentType, "probe") {
-		if !probeAllowedActions[request.ActionID] {
-			sendActionResponse(client, request.RequestID, request.ActionID, false, nil, "action not allowed in probe mode")
-			return
-		}
 	}
 
 	action, ok := actions.Get(request.ActionID)
@@ -584,7 +579,6 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 	data := map[string]interface{}{
 		"uptime":          0,
 		"agent_version":   cfg.Version,
-		"agent_type":      cfg.AgentType,
 		"reboot_required": rebootRequired,
 		"sudoers_hash":    actions.GetSudoersHash(),
 		// SHA256 du binaire en cours d'exécution : permet au backend de

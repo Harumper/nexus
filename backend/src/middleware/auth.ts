@@ -139,6 +139,24 @@ export async function requireAdmin(
   }
 }
 
+// NEXUS-WEB-AUTHZ-004 — write gate for state-changing routes. READONLY accounts
+// must not mutate state (e.g. acknowledge/resolve alerts); only OPERATOR and
+// ADMIN may. Use as a preHandler in place of bare requireAuth on writes.
+export async function requireOperator(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const user = await authenticate(request);
+  if (!user) {
+    reply.code(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (user.role !== "ADMIN" && user.role !== "OPERATOR") {
+    reply.code(403).send({ error: "Operator access required" });
+    return;
+  }
+}
+
 export function getUserFromRequest(request: FastifyRequest): JwtPayload | null {
   try {
     return (request as any).user as JwtPayload;

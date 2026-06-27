@@ -12,9 +12,9 @@ type Action interface {
 	Execute(params map[string]interface{}) (interface{}, error)
 }
 
-// Sandbox valide puis execute une action. Le controle d'acces (PROBE vs AGENT)
-// est applique cote backend (dispatcher) et cote agent via la whitelist
-// probeAllowedActions dans main.go.
+// Sandbox valide puis execute une action. Le contrôle d'accès (rôle utilisateur,
+// isCritical, actions privilégiées) est appliqué côté backend (dispatcher) ; la
+// capacité root de l'agent est définie par le sudoers généré à l'install.
 type Sandbox struct{}
 
 func NewSandbox() *Sandbox {

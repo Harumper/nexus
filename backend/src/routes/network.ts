@@ -3,6 +3,7 @@ import { prisma } from "../services/database.js";
 import { requireAdmin, getUserFromRequest } from "../middleware/auth.js";
 import { logAudit } from "../middleware/audit.js";
 import { getAgentSession } from "../websocket/sessions.js";
+import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -49,6 +50,7 @@ export async function networkRoutes(app: FastifyInstance): Promise<void> {
       const payload = JSON.stringify({ request_id });
 
       const sigPayload = buildSignaturePayload({
+        v: PROTOCOL_VERSION,
         type: "action.confirm",
         request_id,
         machine_id: id,
@@ -62,6 +64,7 @@ export async function networkRoutes(app: FastifyInstance): Promise<void> {
 
       session.ws.send(
         JSON.stringify({
+          v: PROTOCOL_VERSION,
           type: "action.confirm",
           request_id,
           machine_id: id,

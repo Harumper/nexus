@@ -88,10 +88,10 @@ class ApiClient {
     return this.request<import("../types").Machine>(`/machines/${id}`);
   }
 
-  async createMachine(name: string, type: "AGENT" | "PROBE" = "AGENT") {
+  async createMachine(name: string) {
     return this.request<import("../types").CreateMachineResponse>("/machines", {
       method: "POST",
-      body: JSON.stringify({ name, type }),
+      body: JSON.stringify({ name }),
     });
   }
 

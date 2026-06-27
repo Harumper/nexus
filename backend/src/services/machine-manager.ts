@@ -63,9 +63,12 @@ export async function checkOfflineMachines(): Promise<void> {
   });
 }
 
-// Actions autorisees pour une machine de type PROBE (monitoring read-only).
-// Les machines AGENT peuvent tout faire.
-export const PROBE_ALLOWED_ACTIONS = [
+// Actions en LECTURE SEULE (monitoring, ne mutent pas l'hôte). Source unique de
+// vérité réutilisée par privileged-actions.ts pour distinguer reads vs writes
+// dans le gating des actions privilégiées (WEB-AUTHZ). Anciennement la liste des
+// actions autorisées au type PROBE (retiré) ; son vrai rôle a toujours été
+// « read-only », d'où le renommage.
+export const READ_ONLY_ACTIONS = [
   "system.metrics",
   "system.info",
   "system.processes",
@@ -94,21 +97,7 @@ export const PROBE_ALLOWED_ACTIONS = [
   "ssl.scan",
   "security.audit",
   "agent.sudoers_check",
-  // File browser : list/read en lecture seule autorisés en mode PROBE.
-  // L'upload (fs.upload) reste réservé aux machines AGENT.
+  // File browser : list/read sont en lecture seule (fs.upload mute → exclu).
   "fs.list",
   "fs.read",
 ];
-
-export async function isActionAllowed(
-  machineId: string,
-  actionId: string
-): Promise<boolean> {
-  const machine = await prisma.machine.findUnique({
-    where: { id: machineId },
-    select: { type: true },
-  });
-  if (!machine) return false;
-  if (machine.type === "AGENT") return true;
-  return PROBE_ALLOWED_ACTIONS.includes(actionId);
-}

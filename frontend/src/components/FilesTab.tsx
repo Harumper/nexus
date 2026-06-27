@@ -11,7 +11,6 @@ import type { FsEntry, Machine } from "../types";
 
 interface FilesTabProps {
   machine: Machine;
-  canUpload: boolean; // false côté PROBE
 }
 
 // Cap aligné avec l'agent (files.go: fsMaxSize). Au-delà → on propose scp/rsync.
@@ -136,7 +135,7 @@ function shellQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
-export default function FilesTab({ machine, canUpload }: FilesTabProps) {
+export default function FilesTab({ machine }: FilesTabProps) {
   const [cwd, setCwd] = useState<string>("/");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [inbox, setInbox] = useState<string>("/var/lib/nexus-agent/inbox");
@@ -174,7 +173,7 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
   useEffect(() => { load("/"); }, [load]);
 
   const isInbox = cwd === inbox || cwd === inbox.replace(/\/$/, "");
-  const showUpload = canUpload && isInbox;
+  const showUpload = isInbox;
 
   // Filtrage local + tri : dossiers d'abord, puis alphabétique.
   const filtered = useMemo(() => {
@@ -252,7 +251,6 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
   };
 
   const handleUploadFile = async (file: File) => {
-    if (!canUpload) return;
     if (file.size > FS_MAX_SIZE) {
       setTooLargeFile({ name: file.name, size: file.size, path: inbox });
       return;
@@ -385,19 +383,15 @@ export default function FilesTab({ machine, canUpload }: FilesTabProps) {
                 {q.label}
               </button>
             ))}
-            {canUpload && (
-              <>
-                <div className="border-t border-border my-2" />
-                <button
-                  onClick={() => load(inbox)}
-                  className={`w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted transition-colors flex items-center gap-1.5 ${isInbox ? "bg-muted font-semibold" : ""}`}
-                  style={{ color: "var(--nx-warning)" }}
-                  title="Boîte d'upload Nexus"
-                >
-                  <Upload className="w-3 h-3" /> inbox
-                </button>
-              </>
-            )}
+            <div className="border-t border-border my-2" />
+            <button
+              onClick={() => load(inbox)}
+              className={`w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted transition-colors flex items-center gap-1.5 ${isInbox ? "bg-muted font-semibold" : ""}`}
+              style={{ color: "var(--nx-warning)" }}
+              title="Boîte d'upload Nexus"
+            >
+              <Upload className="w-3 h-3" /> inbox
+            </button>
           </div>
         </aside>
 

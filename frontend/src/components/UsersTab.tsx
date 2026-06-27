@@ -25,7 +25,6 @@ import {
 
 interface Props {
   machineId: string;
-  canMutate: boolean;
   // Gestion des accès persistants (clés SSH / sudo). Désactivé par défaut côté
   // backend et réservé ADMIN. Le backend reste l'autorité — ceci masque juste
   // les contrôles qui échoueraient.
@@ -45,7 +44,6 @@ interface LinuxUser {
 
 export default function UsersTab({
   machineId,
-  canMutate,
   canManagePrivileges,
 }: Props) {
   const [users, setUsers] = useState<LinuxUser[]>([]);
@@ -107,17 +105,15 @@ export default function UsersTab({
           {users.length} utilisateur{users.length > 1 ? "s" : ""}
         </div>
         <div className="flex items-center gap-2">
-          {canMutate && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCreate(true)}
-              icon={<UserPlus />}
-              className="!border-success !text-success hover:!bg-success-subtle"
-            >
-              Créer utilisateur
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCreate(true)}
+            icon={<UserPlus />}
+            className="!border-success !text-success hover:!bg-success-subtle"
+          >
+            Créer utilisateur
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -197,7 +193,7 @@ export default function UsersTab({
                           {u.sudo ? "-sudo" : "+sudo"}
                         </Button>
                       )}
-                      {canMutate && u.username !== "root" && (
+                      {u.username !== "root" && (
                         <Button
                           size="xs"
                           variant="outline"
@@ -226,7 +222,7 @@ export default function UsersTab({
         />
       )}
 
-      {showCreate && canMutate && (
+      {showCreate && (
         <CreateUserDialog
           machineId={machineId}
           canManagePrivileges={canManagePrivileges}

@@ -47,3 +47,6 @@ coverage/
 agent/nexus-agent
 agent/tmp/
 frontend/tsconfig.tsbuildinfo
+
+# Pentest tracking (findings/PoC) — suivi dans un dépôt SÉPARÉ, jamais dans ce repo
+/pentest/

@@ -8,7 +8,7 @@ import {
   isLocalAuthEnabled,
   getOidcEndpoints,
 } from "../services/keycloak.js";
-import { isUserPrivilegeMgmtEnabled } from "../services/privileged-actions.js";
+import { isUserPrivilegeMgmtEnabled, isRemoteScriptAllowed } from "../services/privileged-actions.js";
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   // Auth config (le frontend demande comment s'authentifier)
@@ -32,6 +32,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         // Gestion des clés SSH / sudo via l'UI (désactivé par défaut, ADMIN only).
         // Purement indicatif pour le front : le vrai contrôle est dans dispatchAction().
         userPrivilegeMgmt: isUserPrivilegeMgmtEnabled(),
+        // Exécution distante de script (désactivé par défaut, ADMIN only, scripts
+        // signés). Indicatif ; backend autoritaire (dispatchAction + signature agent).
+        remoteScript: isRemoteScriptAllowed(),
       },
     });
   });
