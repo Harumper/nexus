@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { prisma } from "./database.js";
 import { isActionAllowed } from "./machine-manager.js";
 import { checkCriticalProtection } from "./machine-protection.js";
-import { checkPrivilegedAction, checkRoleForAction } from "./privileged-actions.js";
+import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction } from "./privileged-actions.js";
 import {
   signPayload,
   buildSignaturePayload,
@@ -67,6 +67,14 @@ export async function dispatchAction(
   );
   if (!privileged.allowed) {
     return { success: false, error: privileged.reason };
+  }
+
+  // 1c. Exécution distante de script : opt-in désactivé par défaut
+  // (ALLOW_REMOTE_SCRIPT). Verrou indépendant de la signature (côté agent) et de
+  // la capacité sudoers (omise à l'install). Voir privileged-actions.ts.
+  const remoteScript = checkRemoteScriptAction(action.action_id);
+  if (!remoteScript.allowed) {
+    return { success: false, error: remoteScript.reason };
   }
 
   // 2. Vérifier que l'agent est connecté
