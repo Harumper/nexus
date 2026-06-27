@@ -11,12 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"math/big"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/hkdf"
 )
 
 // GenerateECDSAKeypair génère une paire de clés ECDSA P-256
@@ -105,24 +102,6 @@ func VerifySignature(payload, signature string, publicKey *ecdsa.PublicKey) bool
 	s := new(big.Int).SetBytes(sigBytes[32:])
 	hash := sha256.Sum256([]byte(payload))
 	return ecdsa.Verify(publicKey, hash[:], r, s)
-}
-
-// DeriveSharedSecret dérive un secret partagé via ECDH
-func DeriveSharedSecret(privateKey *ecdsa.PrivateKey, peerPublicKey *ecdsa.PublicKey) ([]byte, error) {
-	// ECDH: multiply peer's public point by our private scalar
-	x, _ := peerPublicKey.Curve.ScalarMult(peerPublicKey.X, peerPublicKey.Y, privateKey.D.Bytes())
-	if x == nil {
-		return nil, fmt.Errorf("ECDH failed")
-	}
-
-	// Derive 256-bit key using HKDF
-	// Note: pas de salt pour correspondre au backend (crypto.hkdfSync avec salt="")
-	hkdfReader := hkdf.New(sha256.New, x.Bytes(), nil, []byte("nexus-shared-secret"))
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(hkdfReader, key); err != nil {
-		return nil, fmt.Errorf("HKDF failed: %w", err)
-	}
-	return key, nil
 }
 
 // DecryptAES déchiffre avec AES-256-GCM

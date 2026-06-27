@@ -94,21 +94,22 @@ func (ks *Keystore) GetPublicKeyPEM() (string, error) {
 	return MarshalPublicKeyPEM(ks.publicKey)
 }
 
-// SaveSharedSecret sauvegarde le secret partagé
-func (ks *Keystore) SaveSharedSecret(secret []byte) error {
-	path := filepath.Join(ks.basePath, "shared.secret")
-	return os.WriteFile(path, secret, 0600)
+// Protocole v2 (CRYPTO-004) : la clé de session AES n'est PLUS persistée — elle
+// est dérivée à chaque connexion via le handshake ECDHE éphémère (forward
+// secrecy). On ne garde sur disque que l'identité long-terme (agent.key) et un
+// marqueur d'enrôlement réussi (l'ancien rôle « double » de shared.secret comme
+// preuve d'enrôlement est repris par ce marqueur, sans secret de canal au repos).
+
+// MarkEnrolled écrit le marqueur d'enrôlement réussi (purgé au --reenroll qui fait
+// table rase de $KEY_DIR).
+func (ks *Keystore) MarkEnrolled() error {
+	path := filepath.Join(ks.basePath, "enrolled")
+	return os.WriteFile(path, []byte("v2\n"), 0600)
 }
 
-// LoadSharedSecret charge le secret partagé
-func (ks *Keystore) LoadSharedSecret() ([]byte, error) {
-	path := filepath.Join(ks.basePath, "shared.secret")
-	return os.ReadFile(path)
-}
-
-// HasSharedSecret vérifie si le secret partagé existe
-func (ks *Keystore) HasSharedSecret() bool {
-	path := filepath.Join(ks.basePath, "shared.secret")
+// IsEnrolled indique si l'agent a déjà complété un enrôlement (identité présente).
+func (ks *Keystore) IsEnrolled() bool {
+	path := filepath.Join(ks.basePath, "enrolled")
 	_, err := os.Stat(path)
 	return err == nil
 }

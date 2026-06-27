@@ -275,10 +275,11 @@ func main() {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
-	// Enrollment si nécessaire
-	if !keystore.HasSharedSecret() {
+	// Enrollment si nécessaire (identité = agent.key + marqueur d'enrôlement ;
+	// la clé de session AES n'est plus persistée — cf. handshake ci-dessous).
+	if !keystore.IsEnrolled() {
 		if cfg.EnrollmentToken == "" {
-			log.Fatal("No shared secret found and no enrollment token provided. Cannot authenticate.")
+			log.Fatal("Not enrolled and no enrollment token provided. Cannot authenticate.")
 		}
 
 		// Démarrer la lecture en background pour recevoir la réponse d'enrollment
@@ -299,28 +300,37 @@ func main() {
 		if result.MachineType != "" {
 			agentType = result.MachineType
 		}
-		client.SetKeys(keystore.GetPrivateKey(), result.SharedSecret)
 
-		// Après enrollment, se reconnecter pour un flux propre
+		// Après enrollment, se reconnecter pour un flux propre (nouveau WS).
 		log.Println("[Agent] Reconnecting after enrollment...")
 		client.Close()
 		time.Sleep(1 * time.Second)
 		client = transport.NewClient(cfg.ServerURL, cfg.MachineID)
-		client.SetKeys(keystore.GetPrivateKey(), result.SharedSecret)
 		if err := client.Connect(); err != nil {
 			log.Fatalf("Failed to reconnect: %v", err)
 		}
 	} else {
-		// Charger les clés existantes
+		// Charger l'identité long-terme existante
 		if err := keystore.Load(); err != nil {
 			log.Fatalf("Failed to load keys: %v", err)
 		}
-		sharedSecret, err := keystore.LoadSharedSecret()
-		if err != nil {
-			log.Fatalf("Failed to load shared secret: %v", err)
-		}
-		client.SetKeys(keystore.GetPrivateKey(), sharedSecret)
 	}
+
+	// Handshake ECDHE X25519 (forward secrecy) : dérive la clé de session K en
+	// MÉMOIRE sur la connexion établie. Remplace l'ancien shared secret persisté.
+	// Au démarrage, sharedSecret=nil → session.hello est signé mais NON chiffré.
+	// L'agent sort/redémarre sur perte de connexion (systemd relance) → un nouveau
+	// K éphémère est négocié à chaque connexion.
+	client.SetKeys(keystore.GetPrivateKey(), nil)
+	go client.ReadLoop()
+	sessionKey, err := security.PerformSessionHandshake(
+		client.SendRaw, client.ReceiveRaw,
+		keystore.GetPrivateKey(), serverPublicKey, cfg.MachineID,
+	)
+	if err != nil {
+		log.Fatalf("Session handshake failed: %v", err)
+	}
+	client.SetKeys(keystore.GetPrivateKey(), sessionKey)
 
 	log.Printf("[Agent] Authenticated (type=%s)", agentType)
 	// Propager le mode PROBE au package actions (effets de bord lecture-seule,
@@ -354,13 +364,11 @@ func main() {
 		})
 	}
 
-	// Handler pour les messages entrants
+	// Handler pour les messages entrants. La boucle de lecture (ReadLoop) a déjà
+	// été démarrée avant le handshake ; on branche seulement le dispatcher métier.
 	client.OnMessage(func(msg transport.Message) {
 		handleMessage(msg, client, sandbox, cfg, keystore)
 	})
-
-	// Démarrer la boucle de lecture (une seule fois)
-	go client.ReadLoop()
 
 	// Démarrer le heartbeat
 	go runHeartbeat(client, cfg)
@@ -483,13 +491,15 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 }
 
 func handleActionRequest(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, keystore *security.Keystore) {
-	sharedSecret, err := keystore.LoadSharedSecret()
-	if err != nil {
-		log.Printf("[Agent] Failed to load shared secret: %v", err)
+	// Déchiffrement avec la clé de SESSION (K du handshake ECDHE, mémoire seule),
+	// pas un secret persisté.
+	sessionKey := client.SessionKey()
+	if sessionKey == nil {
+		log.Printf("[Agent] Rejected action.request: no session key (handshake incomplete)")
 		return
 	}
 
-	decrypted, err := security.DecryptAES(msg.Payload, sharedSecret)
+	decrypted, err := security.DecryptAES(msg.Payload, sessionKey)
 	if err != nil {
 		log.Printf("[Agent] Failed to decrypt action request: %v", err)
 		return

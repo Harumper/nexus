@@ -62,6 +62,15 @@ func (c *Client) SetKeys(privateKey *ecdsa.PrivateKey, sharedSecret []byte) {
 	c.sharedSecret = sharedSecret
 }
 
+// SessionKey retourne la clé de session AES (K, dérivée par le handshake ECDHE,
+// mémoire seule). Utilisée pour déchiffrer les action.request entrants. Jamais
+// persistée ni loggée.
+func (c *Client) SessionKey() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sharedSecret
+}
+
 func (c *Client) OnMessage(handler func(Message)) {
 	c.onMessage = handler
 }

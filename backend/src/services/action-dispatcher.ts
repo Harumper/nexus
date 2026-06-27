@@ -78,19 +78,20 @@ export async function dispatchAction(
     return { success: false, error: remoteScript.reason };
   }
 
-  // 2. Vérifier que l'agent est connecté
+  // 2. Vérifier que l'agent est connecté ET que le handshake ECDHE est complété
+  // (clé de session K présente). Sans handshake établi, pas de clé pour chiffrer.
   const session = getAgentSession(machineId);
-  if (!session || !session.authenticated) {
-    return { success: false, error: "Agent is not connected" };
+  if (!session || !session.authenticated || !session.established || !session.sessionKey) {
+    return { success: false, error: "Agent is not connected (session not established)" };
   }
 
-  // 3. Récupérer les clés de la machine + flag critique
+  // 3. Récupérer la clé privée backend (signature) + flag critique
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
-    select: { backendPrivateKey: true, sharedSecret: true, isCritical: true },
+    select: { backendPrivateKey: true, isCritical: true },
   });
 
-  if (!machine?.backendPrivateKey || !machine?.sharedSecret) {
+  if (!machine?.backendPrivateKey) {
     return { success: false, error: "Machine keys not found" };
   }
 
@@ -102,10 +103,9 @@ export async function dispatchAction(
 
   const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey);
 
-  // 4. Chiffrer le payload avec le secret partagé
-  const masterSecret = process.env.ECDSA_MASTER_SECRET!;
-  const sharedSecretB64 = decryptAES(machine.sharedSecret, masterSecret);
-  const sharedSecret = Buffer.from(sharedSecretB64, "base64");
+  // 4. Chiffrer le payload avec la clé de SESSION éphémère (K du handshake,
+  // mémoire seule) — CRYPTO-004 forward secrecy.
+  const sessionKey = session.sessionKey;
 
   const requestId = `req_${crypto.randomBytes(16).toString("hex")}`;
   const actionPayload = JSON.stringify({
@@ -114,7 +114,7 @@ export async function dispatchAction(
     params: action.params || {},
   });
 
-  const encryptedPayload = encryptAES(actionPayload, sharedSecret);
+  const encryptedPayload = encryptAES(actionPayload, sessionKey);
 
   // 5. Signer le message
   const nonce = generateNonce();

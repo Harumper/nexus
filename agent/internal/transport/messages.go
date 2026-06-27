@@ -38,6 +38,8 @@ const (
 	TypeEnrollmentRequest  = "enrollment.request"
 	TypeEnrollmentComplete = "enrollment.complete"
 	TypeEnrollmentRejected = "enrollment.rejected"
+	TypeSessionHello       = "session.hello"
+	TypeSessionHelloAck    = "session.hello.ack"
 	TypeHeartbeat          = "heartbeat"
 	TypeMetricsReport      = "metrics.report"
 	TypeActionRequest      = "action.request"

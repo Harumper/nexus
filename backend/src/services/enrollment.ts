@@ -6,8 +6,6 @@ import {
   decryptPrivateKey,
   verifySignature,
   signPayload,
-  deriveSharedSecret,
-  encryptAES,
   buildSignaturePayload,
   generateNonce,
 } from "./crypto.js";
@@ -95,12 +93,12 @@ export async function processEnrollment(
     return { success: false, error: "Invalid ECDSA proof" };
   }
 
-  // 6. Dériver le secret partagé via ECDH
+  // 6. CRYPTO-004 : plus de secret de canal dérivé/persisté à l'enrôlement.
+  // L'enrôlement n'établit que l'IDENTITÉ (agentPublicKey ↔ machine) ; la clé de
+  // session AES est négociée à chaque connexion par le handshake ECDHE éphémère
+  // (forward secrecy). On a juste besoin de la clé privée backend pour signer la
+  // réponse enrollment.complete.
   const backendPrivateKey = decryptPrivateKey(machine.backendPrivateKey!);
-  const sharedSecret = deriveSharedSecret(
-    backendPrivateKey,
-    request.agent_public_key
-  );
 
   // 8. Mettre à jour la machine
   await prisma.machine.update({
@@ -108,7 +106,6 @@ export async function processEnrollment(
     data: {
       status: "ONLINE",
       agentPublicKey: request.agent_public_key,
-      sharedSecret: encryptAES(sharedSecret.toString("base64"), process.env.ECDSA_MASTER_SECRET!),
       boundIp: agentIp,
       hostname: request.system_info.hostname,
       os: request.system_info.os,
