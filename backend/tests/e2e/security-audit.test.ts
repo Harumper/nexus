@@ -183,11 +183,14 @@ describe("Security Audit — Agent Hardening", () => {
   it("should have restricted systemd sandbox without blocking sudo/apt", () => {
     // Unité systemd embarquée dans le script d'install réellement servi.
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    // AmbientCapabilities donnent les caps au non-root agent
-    expect(content).toContain("AmbientCapabilities");
-    expect(content).toContain("CAP_NET_RAW");
-    // Pas de CapabilityBoundingSet : bloquerait sudo+apt (chown, fowner, etc.)
-    expect(content).not.toContain("CapabilityBoundingSet=");
+    // NEXUS-AGENT-002 — least-privilege : le process agent non-root n'a AUCUNE
+    // capability ambiante dangereuse (DAC_READ_SEARCH / SYS_PTRACE retirées).
+    const ambient = content.split("\n").find((l) => l.startsWith("AmbientCapabilities=")) ?? "";
+    expect(ambient).not.toMatch(/CAP_DAC_READ_SEARCH|CAP_SYS_PTRACE/);
+    // Bounding set en NÉGATION (~) : retire les 2 caps d'attaque de toute l'unité
+    // (drift-guard) SANS plafonner les enfants sudo — un allow-list aurait cassé
+    // apt/netplan/useradd (chown, fowner, dac_override, setuid…).
+    expect(content).toMatch(/CapabilityBoundingSet=~[^\n]*CAP_DAC_READ_SEARCH[^\n]*CAP_SYS_PTRACE/);
     // Pas de ProtectSystem=strict : casserait les écritures sudo (apt/netplan/users)
     expect(content).not.toContain("ProtectSystem=strict");
     // Sandbox reste actif via les autres directives

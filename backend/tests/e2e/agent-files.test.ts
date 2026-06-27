@@ -123,7 +123,9 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("[Install]");
       expect(content).toContain("User=nexus-agent");
       expect(content).toContain("Group=nexus-agent");
-      expect(content).toContain("AmbientCapabilities=CAP_NET_RAW");
+      // NEXUS-AGENT-002 : ambient vidé + bounding set en négation (drift-guard).
+      expect(content).toContain("AmbientCapabilities=");
+      expect(content).toContain("CapabilityBoundingSet=~CAP_DAC_READ_SEARCH CAP_SYS_PTRACE");
       expect(content).toContain("ProtectHome=true");
     });
 
