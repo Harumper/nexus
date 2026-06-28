@@ -5,6 +5,7 @@
 stages:
   - test
   - build
+  - release
   - deploy
 
 include:
@@ -127,7 +128,9 @@ build-backend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build --build-arg AGENT_VERSION="$AGENT_VERSION" -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
+    # Mécanisme A : le binaire agent n'est plus dans l'image backend (servi depuis
+    # le volume /release). Plus de --build-arg AGENT_VERSION.
+    - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
     - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/backend:latest
   rules:
@@ -135,7 +138,6 @@ build-backend:
     - if: '$CI_COMMIT_TAG'
   needs:
     - test-backend
-    - version
 
 build-frontend:
   stage: build
@@ -182,6 +184,77 @@ build-agent:
   needs:
     - test-agent
     - version
+
+# ===========================================
+# Release agent signée (modèle C-3 : clé privée JAMAIS en CI)
+# ===========================================
+# Flux : tag vX.Y.Z → release-build (auto) construit le binaire canonique +
+# guide de signature → TU signes hors-ligne (minisign -S) → release-publish-signed
+# (manuel) vérifie ta signature avec la clé PUBLIQUE puis publie binaire+.minisig+
+# VERSION dans le volume /release de la prod via l'user CONFINÉ nexus-release
+# (rrsync -wo : write-only, un seul dossier ; pas de docker, pas de sudo, pas de
+# restart). Invariant "signé == servi" : un SEUL build (ici) produit le binaire servi.
+
+# Job 1 — build du binaire canonique + impression des commandes de signature
+release-build:
+  stage: release
+  image: golang:1.23-alpine
+  needs:
+    - version
+    - test-agent
+  script:
+    - cd agent
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X main.Version=$AGENT_VERSION" -o ../nexus-agent ./cmd/nexus-agent
+    - cd ..
+    - ./nexus-agent --version          # sanity : doit afficher $AGENT_VERSION
+    - sha256sum nexus-agent | tee nexus-agent.sha256
+    - |
+      echo "=========== SIGNER HORS-LIGNE (clé privée JAMAIS en CI) ==========="
+      echo "Version : $AGENT_VERSION"
+      echo "1) Télécharge l'artefact 'nexus-agent' de ce job."
+      echo "2) Vérifie  : sha256sum -c nexus-agent.sha256   (attendu : $(cat nexus-agent.sha256))"
+      echo "3) Signe    : minisign -S -s nexus-release.key -m nexus-agent"
+      echo "4) Lance 'release-publish-signed' avec la variable RELEASE_MINISIG"
+      echo "   = contenu COMPLET de nexus-agent.minisig (3 lignes)."
+      echo "==================================================================="
+  artifacts:
+    paths:
+      - nexus-agent
+      - nexus-agent.sha256
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+# Job 2 — vérifie la signature opérateur (clé PUBLIQUE) puis publie (write-only)
+release-publish-signed:
+  stage: release
+  image: alpine:latest
+  needs:
+    - version
+    - release-build
+  variables:
+    RELEASE_MINISIG: ""           # ⟵ colle le contenu de nexus-agent.minisig au lancement
+    PROD_RELEASE_USER: nexus-release
+  before_script:
+    - apk add --no-cache minisign openssh-client rsync
+  script:
+    - test -n "$RELEASE_MINISIG"      || { echo "RELEASE_MINISIG vide (colle la .minisig)"; exit 1; }
+    - test -n "$NEXUS_RELEASE_PUBKEY" || { echo "NEXUS_RELEASE_PUBKEY (var CI) absente"; exit 1; }
+    - test -n "$PROD_RELEASE_SSH_KEY" || { echo "PROD_RELEASE_SSH_KEY (var CI) absente"; exit 1; }
+    - printf '%s\n' "$RELEASE_MINISIG"      > nexus-agent.minisig
+    - printf '%s\n' "$NEXUS_RELEASE_PUBKEY" > nexus-release.pub
+    # GARDE-FOU : signature invalide / mauvaise clé → échec AVANT publication
+    - minisign -Vm nexus-agent -p nexus-release.pub
+    - sha256sum -c nexus-agent.sha256                 # binaire == celui buildé/signé
+    - printf '%s\n' "$AGENT_VERSION" > VERSION        # version servie (lue par le backend)
+    # publication write-only vers l'user confiné (forced-command rrsync -wo /…/release/)
+    - mkdir -p ~/.ssh && printf '%s\n' "$PROD_RELEASE_SSH_KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+    - rsync -a --delay-updates -e "ssh -i ~/.ssh/id -o StrictHostKeyChecking=accept-new" nexus-agent nexus-agent.minisig VERSION "$PROD_RELEASE_USER@$PROD_SERVER_HOST:/"
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: manual
 
 # ===========================================
 # Deploy Production (serveur Nexus)
