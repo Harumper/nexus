@@ -51,6 +51,13 @@ services:
       KEYCLOAK_ROLE_READONLY: ${KEYCLOAK_ROLE_READONLY:-nexus-readonly}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:26032}
       AGENT_BACKEND_URL: ${AGENT_BACKEND_URL:-http://localhost:26031}
+      # Sécurité / déploiement (voir .env.example) — DOIVENT être déclarées ici,
+      # sinon le .env ne fait que l'interpolation et la variable n'atteint jamais
+      # le conteneur (footgun : feature codée + documentée mais silencieusement morte).
+      METRICS_TOKEN: ${METRICS_TOKEN:-}                              # WEB-AUTHZ-005 : bearer /metrics (vide = network-scoping seul)
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}                   # CP-006 : nb de proxies devant le backend
+      ALLOW_REMOTE_SCRIPT: ${ALLOW_REMOTE_SCRIPT:-false}            # AGENT-005 : opt-in script.execute (défaut OFF)
+      ALLOW_USER_PRIVILEGE_MGMT: ${ALLOW_USER_PRIVILEGE_MGMT:-false} # privileged-actions : sshkey/sudo (défaut OFF)
       NODE_ENV: production
     ports:
       - "${BACKEND_PORT:-26031}:3000"
