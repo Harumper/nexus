@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -22,7 +21,7 @@ import { fleetRoutes } from "./routes/fleet.js";
 import { initKeycloak } from "./services/keycloak.js";
 import { evaluateOfflineAlerts, evaluateHealthAlerts, evaluateCertAlerts, evaluateHardeningAlerts, initAlertState } from "./services/alert-engine.js";
 import { checkMachineLifecycle } from "./services/machine-lifecycle.js";
-import { register, httpRequestsTotal, httpRequestDuration, refreshFleetMetrics } from "./services/prometheus.js";
+import { httpRequestsTotal, httpRequestDuration, refreshFleetMetrics, registerPrometheusEndpoint } from "./services/prometheus.js";
 import { runMetricsCleanup } from "./services/metrics-cleanup.js";
 import { agentDownloadRoutes } from "./routes/agent-download.js";
 import { cleanupExpiredTokens } from "./services/bootstrap.js";
@@ -204,32 +203,9 @@ async function main() {
   }));
 
   // ===================== Prometheus /metrics =====================
-
-  // NEXUS-WEB-AUTHZ-005 — /metrics exposes per-machine telemetry (machine_id,
-  // hostname, live CPU/mem/disk) for the whole fleet — a credential-free recon
-  // feed if reachable unauthenticated. Two valid controls, pick per deployment:
-  //  (A) set METRICS_TOKEN → this handler enforces a constant-time bearer check
-  //      and Prometheus scrapes with `authorization.credentials`.
-  //  (B) leave METRICS_TOKEN unset and NETWORK-SCOPE the exposure: do NOT route
-  //      /metrics through the public Traefik entrypoint — scrape it over the
-  //      internal network / localhost only (Prometheus-idiomatic). This is a
-  //      deliberate, internal-only exposure, not an oversight.
-  const METRICS_TOKEN = process.env.METRICS_TOKEN || "";
-  app.get("/metrics", async (request, reply) => {
-    if (METRICS_TOKEN) {
-      const header = request.headers.authorization || "";
-      const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
-      const expected = Buffer.from(METRICS_TOKEN);
-      const got = Buffer.from(presented);
-      const ok =
-        got.length === expected.length && timingSafeEqual(got, expected);
-      if (!ok) {
-        return reply.code(401).send("Unauthorized");
-      }
-    }
-    reply.header("Content-Type", register.contentType);
-    return register.metrics();
-  });
+  // NEXUS-WEB-AUTHZ-005 — bearer optionnel (METRICS_TOKEN, temps constant, fail-closed)
+  // ADDITIF au network-scoping. Extrait dans prometheus.ts pour être testable en CI.
+  registerPrometheusEndpoint(app);
 
   // Hook HTTP pour mesurer les requetes
   app.addHook("onResponse", (request, reply, done) => {
