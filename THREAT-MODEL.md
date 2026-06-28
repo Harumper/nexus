@@ -55,10 +55,11 @@ Par ordre décroissant de gravité en cas de compromission :
 3. **Les secrets de signature du backend** (`JWT_SECRET`, `ECDSA_MASTER_SECRET`) : ils
    forgent les jetons de session opérateur et signent les messages serveur→agent. Les
    casser permet de forger un rôle ADMIN ou des ordres d'agent.
-4. **Les clés de confiance hors-ligne** : la clé serveur ECDSA (pinning à l'enrôlement),
-   la clé minisign de release (auto-upgrade), la clé de signature de script. Ce sont les
-   racines : les compromettre contourne respectivement le pinning, l'auto-upgrade signé,
-   et `script.execute`.
+4. **Les clés de confiance racine** : la clé serveur ECDSA (pinning à l'enrôlement —
+   privée côté backend, chiffrée au repos par `ECDSA_MASTER_SECRET`), la clé minisign de
+   release (auto-upgrade) et la clé de signature de script (ces deux dernières générées
+   hors-ligne par l'opérateur). Ce sont les racines : les compromettre contourne
+   respectivement le pinning, l'auto-upgrade signé, et `script.execute`.
 5. **La confidentialité du canal** : les métriques, l'inventaire, et le contenu des
    actions en transit.
 6. **L'intégrité de l'audit** : le journal des actions exécutées par l'agent.
@@ -156,7 +157,7 @@ la vie de la clé d'identité — bootstrap, runtime, repos, et mise à jour.
 #### Bootstrap (enrôlement) — pas de swap de clé on-path, pas de rejeu
 
 Quand un agent s'enrôle, sa requête est **scellée** (chiffrement ECIES/ECDH P-256) vers la
-**clé serveur pinnée** que l'opérateur a déployée hors-ligne avec l'agent. Un attaquant
+**clé serveur pinnée** que l'opérateur a déployée avec l'agent et épinglée localement. Un attaquant
 on-path ne peut donc ni lire le token d'enrôlement, ni substituer sa propre clé : le
 chiffrement est fait *contre la clé pinnée locale*, jamais contre une clé reçue du réseau.
 La requête embarque un horodatage + un nonce liés à la preuve signée → un enrôlement
@@ -480,16 +481,30 @@ forts et uniques. Les casser permet de forger un rôle ADMIN ou des ordres d'age
 > l'entropie autour) reste accepté ; seuls les secrets *composés uniquement* de placeholders
 > sont rejetés.
 
-### 7.2 Provisionner les clés de confiance HORS-LIGNE
+### 7.2 Provisionner les clés de confiance
 
-Les trois racines de confiance doivent être générées et déployées **hors-ligne**, jamais
-via l'UI — pour qu'un backend compromis ne puisse pas se les attribuer :
+Trois racines de confiance — mais elles ne se provisionnent **pas** de la même façon, et
+la distinction est importante.
 
-- **Clé serveur ECDSA** (pinning à l'enrôlement) → `--server-public-key-file`.
-- **Clé minisign de release** (auto-upgrade) → `/etc/nexus/release.pub`.
-- **Clé de signature de script** (`script.execute`) → `/etc/nexus/script-signing.pub`.
+**Générées hors-ligne par vous, jamais via l'UI** (la clé privée ne doit jamais atteindre
+un backend qui pourrait se l'attribuer) :
 
-*(Une doc dédiée « génération de clés opérateur » accompagne la publication.)*
+- **Clé minisign de release** (auto-upgrade) — publique déployée sur chaque agent
+  (`/etc/nexus/release.pub`) ; privée hors-ligne, au coffre.
+- **Clé de signature de script** (`script.execute`, optionnelle) — publique
+  (`/etc/nexus/script-signing.pub`) ; privée hors-ligne.
+
+**Gérée par le backend, protégée par vous :**
+
+- **Clé serveur ECDSA** (pinning à l'enrôlement) — **vous ne la générez pas** : le backend
+  génère une paire P-256 *par machine*, expose la publique (épinglée sur l'agent à
+  `/etc/nexus/server-public-key.pem`, livrée dans la commande de bootstrap) et garde la
+  privée côté serveur, **chiffrée au repos par `ECDSA_MASTER_SECRET`**. Votre rôle :
+  provisionner un **`ECDSA_MASTER_SECRET` fort** (§7.1) — qui protège toutes les clés
+  privées serveur — et vérifier que la pubkey épinglée correspond bien à celle de la
+  machine.
+
+*(Commandes exactes, chemins, permissions, rotation : voir [OPERATOR-KEYS.md](OPERATOR-KEYS.md).)*
 
 ### 7.3 Déployer en `wss://` (transport chiffré)
 
