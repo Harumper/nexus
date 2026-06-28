@@ -118,6 +118,13 @@ function StartDoc() {
     <H1>Démarrage rapide</H1>
     <P>Nexus est une plateforme de gestion d'infrastructure qui permet de surveiller, mettre à jour et administrer vos serveurs Ubuntu/Debian depuis une interface web unifiée.</P>
 
+    <Warn>
+      <strong>Une instance = un seul domaine de confiance</strong> (pas d'isolation par
+      utilisateur ou par locataire). Avant de partager une instance entre plusieurs équipes
+      ou clients, lisez la section <strong>Sécurité</strong> : pour des domaines de confiance
+      distincts, déployez des instances séparées.
+    </Warn>
+
     <H2>Architecture</H2>
     <P>Nexus se compose de 3 éléments :</P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
@@ -570,6 +577,16 @@ Exec=alacritty -e ssh %u`}</Code>
 function SecurityDoc() {
   return (<>
     <H1>Sécurité</H1>
+
+    <Warn>
+      <strong>Une instance Nexus = un seul domaine de confiance.</strong> Il n'y a{" "}
+      <strong>aucune isolation</strong> par utilisateur ou par locataire : tout OPERATOR peut
+      agir sur <strong>toutes</strong> les machines, tout READONLY peut lire{" "}
+      <strong>toutes</strong> les machines. Ne déployez pas une instance partagée pour des
+      équipes ou des clients qui ne se font pas mutuellement confiance —{" "}
+      <strong>utilisez des instances séparées</strong>.
+    </Warn>
+
     <P>Nexus utilise plusieurs couches de sécurité pour protéger les communications et les actions.</P>
 
     <H2>Chiffrement des communications</H2>
