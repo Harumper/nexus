@@ -18,11 +18,17 @@ describe("Prometheus /metrics Endpoint", () => {
     expect(content).toContain("nexus_machine_cpu_percent");
   });
 
-  it("should expose /metrics route in index.ts", () => {
-    const content = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
-    expect(content).toContain('"/metrics"');
-    expect(content).toContain("register.metrics()");
-    expect(content).toContain("register.contentType");
+  it("wires the /metrics route (registerPrometheusEndpoint) — handler in prometheus.ts", () => {
+    // WEB-AUTHZ-005 : le handler /metrics (avec garde token) est extrait dans
+    // prometheus.ts pour être testable en CI (voir metrics-auth.test.ts) ; index.ts
+    // l'enregistre via registerPrometheusEndpoint(app).
+    const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
+    expect(index).toContain("registerPrometheusEndpoint(app)");
+    const prom = readFileSync(resolve(backendSrc, "services/prometheus.ts"), "utf8");
+    expect(prom).toContain('"/metrics"');
+    expect(prom).toContain("register.metrics()");
+    expect(prom).toContain("register.contentType");
+    expect(prom).toContain("timingSafeEqual"); // garde bearer temps constant
   });
 
   it("should have HTTP request tracking hook", () => {

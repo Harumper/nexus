@@ -1,4 +1,6 @@
 import client from "prom-client";
+import { timingSafeEqual } from "node:crypto";
+import type { FastifyInstance } from "fastify";
 import { prisma } from "./database.js";
 import { getConnectedMachineIds } from "../websocket/sessions.js";
 import { getDashboardClientCount } from "../websocket/dashboard.js";
@@ -186,4 +188,34 @@ export async function refreshFleetMetrics(): Promise<void> {
   } catch {
     // Ignore errors during metric collection
   }
+}
+
+// ===================== Endpoint /metrics (NEXUS-WEB-AUTHZ-005) =====================
+// /metrics expose la télémétrie par machine (machine_id, hostname, CPU/mém/disque
+// live) de toute la flotte — un flux de recon sans credentials s'il est joignable.
+// Deux contrôles, ADDITIFS (le token s'ajoute au network-scoping, ne le remplace pas) :
+//  (A) METRICS_TOKEN défini → ce handler exige un bearer en comparaison à TEMPS
+//      CONSTANT (timingSafeEqual) ; fail-closed (absent/faux → 401). Prometheus
+//      scrape avec `authorization`/`bearer_token_file`.
+//  (B) METRICS_TOKEN absent → pas de régression : le contrôle par défaut reste le
+//      network-scoping (ne pas router /metrics via l'entrée publique).
+// Lit METRICS_TOKEN à l'enregistrement (comme le reste de la conf de boot).
+export function registerPrometheusEndpoint(app: FastifyInstance): void {
+  const METRICS_TOKEN = process.env.METRICS_TOKEN || "";
+  app.get("/metrics", async (request, reply) => {
+    if (METRICS_TOKEN) {
+      const header = request.headers.authorization || "";
+      const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
+      const expected = Buffer.from(METRICS_TOKEN);
+      const got = Buffer.from(presented);
+      // Comparaison à temps constant ; le test de longueur est requis (timingSafeEqual
+      // lève si les tailles diffèrent) et la longueur du token n'est pas un secret.
+      const ok = got.length === expected.length && timingSafeEqual(got, expected);
+      if (!ok) {
+        return reply.code(401).send("Unauthorized");
+      }
+    }
+    reply.header("Content-Type", register.contentType);
+    return register.metrics();
+  });
 }
