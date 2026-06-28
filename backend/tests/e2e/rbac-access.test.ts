@@ -43,6 +43,26 @@ describe("checkRoleForAction — RBAC par rôle", () => {
   });
 });
 
+// NEXUS-AGENT-004 — process.kill est ADMIN-only (primitive destructrice à impact
+// arbitraire, protégée seulement par une denylist incomplète côté agent → le gate
+// ADMIN couvre le résiduel ; cohérent avec script.execute, l'autre membre du bucket
+// ALLOW_REMOTE_SCRIPT). RED→GREEN : tant que process.kill n'était que dans
+// REMOTE_SCRIPT_ACTIONS (et pas ADMIN_ONLY_ACTIONS), un OPERATOR passait ce gate.
+describe("checkRoleForAction — process.kill ADMIN-only (NEXUS-AGENT-004)", () => {
+  it("process.kill est bien marqué ADMIN-only", () => {
+    expect(ADMIN_ONLY_ACTIONS.has("process.kill")).toBe(true);
+  });
+  it("OPERATOR : REFUSÉ sur process.kill", () => {
+    expect(checkRoleForAction("process.kill", "OPERATOR").allowed).toBe(false);
+  });
+  it("READONLY : REFUSÉ sur process.kill", () => {
+    expect(checkRoleForAction("process.kill", "READONLY").allowed).toBe(false);
+  });
+  it("ADMIN : autorisé sur process.kill", () => {
+    expect(checkRoleForAction("process.kill", "ADMIN").allowed).toBe(true);
+  });
+});
+
 describe("checkPrivilegedAction — accès hors-bande (SSH keys / sudo)", () => {
   const prev = process.env.ALLOW_USER_PRIVILEGE_MGMT;
   afterEach(() => {
