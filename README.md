@@ -179,6 +179,29 @@ In-app documentation at `/docs` covers:
 
 See `VALIDATION_CHECKLIST.md` for manual validation on real VMs (Ubuntu 22.04/24.04, Debian 12).
 
+## Security
+
+Nexus administers servers as root; its trust model is documented explicitly:
+
+- **[THREAT-MODEL.md](THREAT-MODEL.md)** — what is protected (trust root, agent
+  confinement, web boundary) and, just as important, the **assumed limits**
+  (full-disk snapshot, no tenant isolation, SSRF blocking private ranges by
+  default). Read it before changing anything security-related.
+- **[SECURITY.md](SECURITY.md)** — how to report a vulnerability (private
+  channel — **never a public issue**), scope, supported versions, and
+  coordinated disclosure.
+
+See also the "Authorization model" and "Agent key at rest" notes above.
+
 ## License
 
-Private / internal project.
+Nexus is distributed under the **GNU Affero General Public License v3.0
+(AGPL-3.0)** — see [LICENSE](LICENSE).
+
+The AGPL is a strong **network copyleft** license: if you run a modified version
+of Nexus and make it available to others over a network (as a service), you must
+offer those users the corresponding modified source under the same license.
+
+Contributions are accepted under a Contributor License Agreement — see
+[CLA.md](CLA.md) and [CONTRIBUTING.md](CONTRIBUTING.md). Opening a pull request
+implies acceptance of the CLA.
