@@ -35,6 +35,7 @@ import { integrationsRoutes } from "./routes/integrations.js";
 import { packagesRoutes } from "./routes/packages.js";
 import { refreshAptCatalog, initAptCatalogIfEmpty } from "./services/apt-catalog.js";
 import { initSudoersVersion } from "./services/sudoers-version.js";
+import { requireStrongSecret, requireStrongSecretIfSet } from "./services/boot-secrets.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -44,22 +45,6 @@ const HOST = process.env.HOST || "0.0.0.0";
 function requireEnv(key: string): void {
   if (!process.env[key]) {
     throw new Error(`${key} environment variable is required. Set it before starting the server.`);
-  }
-}
-
-// CONTROL-PLANE-005 — presence is not enough for signing secrets: a short/weak
-// JWT_SECRET or ECDSA_MASTER_SECRET is brute-forceable offline, letting an
-// attacker forge arbitrary tokens (incl. role:"ADMIN"). Enforce a minimum length
-// at boot. 32 chars ≈ 256 bits if hex/base64 — the floor for HS256/ECDSA secrets.
-function requireStrongSecret(key: string): void {
-  const val = process.env[key];
-  if (!val) {
-    throw new Error(`${key} environment variable is required. Set it before starting the server.`);
-  }
-  if (val.length < 32) {
-    throw new Error(
-      `${key} is too weak: ${val.length} chars, minimum 32 required. Generate one with e.g. \`openssl rand -hex 32\`.`,
-    );
   }
 }
 
@@ -114,6 +99,7 @@ async function main() {
   // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
   requireStrongSecret("JWT_SECRET");
   requireStrongSecret("ECDSA_MASTER_SECRET");
+  requireStrongSecretIfSet("METRICS_TOKEN");
   requireEnv("DATABASE_URL");
   // Non fatal (localhost est valide en dev local), mais visible au boot.
   warnIfFrontendUrlLooksLocal();
