@@ -24,9 +24,17 @@ export const PRIVILEGED_USER_ACTIONS = new Set<string>([
 const READ_ONLY_ACTIONS = new Set<string>(READ_ONLY_ACTION_LIST);
 
 // Actions si dangereuses qu'elles exigent ADMIN même si elles restent dans le
-// périmètre Nexus (révocables, tracées) : script.execute = exécution root
-// arbitraire sur la machine cible.
-export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute"]);
+// périmètre Nexus (révocables, tracées) :
+//   - script.execute  = exécution root arbitraire sur la machine cible.
+//   - process.kill (NEXUS-AGENT-004) = primitive DESTRUCTRICE à impact arbitraire
+//     (tuer n'importe quel PID = DoS/perte de données du workload, sans reprise
+//     supervisée). Sa seule protection runtime est une DENYLIST de services
+//     critiques (process_kill.go), incomplète par nature : un workload non listé
+//     (DB custom, broker, app métier, autre reverse-proxy) est tuable sans garde.
+//     Le gate ADMIN couvre ce résiduel. Cohérent avec script.execute, l'autre membre
+//     du bucket ALLOW_REMOTE_SCRIPT (REMOTE_SCRIPT_ACTIONS) — les deux primitives
+//     root à impact arbitraire exigent désormais le même rôle.
+export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
 
 // Exécution distante de script = root arbitraire (amplificateur de kill-chain).
 // Opt-in DÉSACTIVÉ par défaut, en plus d'ADMIN-only : un parc confiné n'a aucune
