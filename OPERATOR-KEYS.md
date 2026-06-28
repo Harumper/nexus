@@ -107,13 +107,28 @@ minisign -G -p nexus-release.pub -s nexus-release.key
   ```
   /etc/nexus/release.pub                # owner root:root, mode 0644
   ```
-  Deploy it at install time:
+  **Recommended (automatic):** set `NEXUS_RELEASE_PUBKEY` on the **backend** (the
+  contents of `nexus-release.pub`). The backend then embeds it in the install
+  command it generates, so `/etc/nexus/release.pub` is written automatically at
+  **install and at re-enroll** — no manual step, and it can't silently go missing
+  after a re-enroll (which purges `/etc/nexus`). It's a public key, so nothing
+  secret transits.
+  In the backend `.env`, use the **single base64 line** of `nexus-release.pub`
+  (the `RW…` line; the `untrusted comment:` header is optional — it's ignored):
+  ```
+  NEXUS_RELEASE_PUBKEY=RWRo+LdKCdUi1/4rXyYU206e9dw8+TOxBGI/YC0cIrK56hlAdjpJBIyY
+  ```
+  *(Multi-line is fine only via a shell export, e.g.
+  `export NEXUS_RELEASE_PUBKEY="$(cat nexus-release.pub)"` before `docker compose up` —
+  NOT as a literal line in a `.env` file. As a GitLab CI variable, paste either form.)*
+  **Manual (override / high-assurance):** deploy it out of band instead, at install:
   ```sh
   sudo ./install-agent.sh ... --release-pubkey-file nexus-release.pub
   ```
-  You may also place/replace `/etc/nexus/release.pub` directly (root:root 0644).
-  If absent, the agent runs normally but **refuses every auto-upgrade**
-  (fail-closed).
+  or place/replace `/etc/nexus/release.pub` directly (root:root 0644). The installer
+  **does not overwrite an existing** `release.pub` — to change a pinned key, remove
+  the file first or `--reenroll` (which purges `/etc/nexus`). If absent, the agent
+  runs normally but **refuses every auto-upgrade** (fail-closed).
 
 > You can paste the `.pub` file as-is: the `untrusted comment:` header line is
 > ignored. The file is an **accept-list** — one key per line — which makes

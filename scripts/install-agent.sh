@@ -633,15 +633,25 @@ fi
 # Accept-list des clés publiques de release (vérification de l'auto-upgrade,
 # indépendante du canal). root:root 0644 : seul root écrit, l'agent (non-root)
 # la lit. Absente ⇒ l'agent refuse l'auto-upgrade (fail-closed), mais tourne
-# normalement pour tout le reste. En REFRESH (identité locale présente, pas de
-# --release-pubkey-file), le fichier existant est conservé tel quel ; un
-# ré-enrôlement/uninstall fait table rase de $CONFIG_DIR et impose de le
-# re-fournir.
+# normalement pour tout le reste.
+#
+# Design A : la clé est en général fournie par la commande de bootstrap (le
+# backend embarque NEXUS_RELEASE_PUBKEY) → posée à l'install ET au reenroll
+# (qui purge $CONFIG_DIR, donc le fichier n'existe pas → on l'écrit).
+# RÈGLE « ne pas écraser un pin existant » : si une release.pub est DÉJÀ présente
+# (ex. déposée hors-bande par un opérateur haute-assurance), on ne l'écrase PAS,
+# même si --release-pubkey-file est fourni. Pour la changer : la supprimer puis
+# réinstaller, ou --reenroll (table rase de $CONFIG_DIR).
 RELEASE_PUBKEY_FILE="$CONFIG_DIR/release.pub"
 if [ -n "${RELEASE_PUBKEY:-}" ]; then
-    printf '%s\n' "$RELEASE_PUBKEY" > "$RELEASE_PUBKEY_FILE"
-    chown root:root "$RELEASE_PUBKEY_FILE"
-    chmod 644 "$RELEASE_PUBKEY_FILE"
+    if [ -f "$RELEASE_PUBKEY_FILE" ]; then
+        info "release.pub déjà présente — pin conservé (non écrasé)."
+    else
+        printf '%s\n' "$RELEASE_PUBKEY" > "$RELEASE_PUBKEY_FILE"
+        chown root:root "$RELEASE_PUBKEY_FILE"
+        chmod 644 "$RELEASE_PUBKEY_FILE"
+        info "release.pub déposée (vérification de l'auto-upgrade signé)."
+    fi
 fi
 
 # Accept-list DÉDIÉE à la signature de script (verrou indépendant du canal pour

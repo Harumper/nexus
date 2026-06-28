@@ -63,6 +63,11 @@ services:
       NEXUS_AGENT_BINARY_PATH: /release/nexus-agent
       NEXUS_AGENT_SIGNATURE_PATH: /release/nexus-agent.minisig
       NEXUS_AGENT_VERSION_PATH: /release/VERSION
+      # Design A : clé PUBLIQUE de release (minisign). Si définie, le backend
+      # l'embarque dans la commande de bootstrap → /etc/nexus/release.pub posée
+      # automatiquement à l'install ET au reenroll (ferme le footgun « reenroll
+      # perd release.pub »). Clé publique = sans risque. Même valeur que la var CI.
+      NEXUS_RELEASE_PUBKEY: ${NEXUS_RELEASE_PUBKEY:-}
     ports:
       - "${BACKEND_PORT:-26031}:3000"
     depends_on:
