@@ -81,11 +81,20 @@ describe("Enrollment UX v2 — Routes", () => {
 });
 
 describe("Enrollment UX v2 — Docker & Scripts", () => {
-  it("should have agent-builder stage in backend Dockerfile", () => {
-    const content = readFileSync(resolve(backendRoot, "Dockerfile"), "utf8");
-    expect(content).toContain("FROM golang:1.23-alpine AS agent-builder");
-    expect(content).toContain("COPY --from=agent-builder /out/nexus-agent /app/agent/nexus-agent");
-    expect(content).toContain("COPY scripts/install-agent.sh /app/scripts/install-agent.sh");
+  it("should NOT compile the agent in the backend image (mechanism A: binary served from /release volume)", () => {
+    // Invariant "signé == servi" : un SEUL build produit le binaire servi (job CI
+    // release-build), donc l'image backend ne compile/embarque plus l'agent.
+    const dockerfile = readFileSync(resolve(backendRoot, "Dockerfile"), "utf8");
+    expect(dockerfile).not.toContain("agent-builder");
+    expect(dockerfile).not.toContain("/app/agent/nexus-agent");
+    expect(dockerfile).toContain("COPY scripts/install-agent.sh /app/scripts/install-agent.sh");
+
+    // Binaire + signature minisign + version servis depuis le volume /release.
+    const compose = readFileSync(resolve(rootDir, "docker-compose.yml"), "utf8");
+    expect(compose).toContain("/release:ro");
+    expect(compose).toContain("NEXUS_AGENT_BINARY_PATH: /release/nexus-agent");
+    expect(compose).toContain("NEXUS_AGENT_SIGNATURE_PATH: /release/nexus-agent.minisig");
+    expect(compose).toContain("NEXUS_AGENT_VERSION_PATH: /release/VERSION");
   });
 
   it("should have install-agent.sh with --server-public-key-file flag", () => {

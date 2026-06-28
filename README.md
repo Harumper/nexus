@@ -95,6 +95,14 @@ docker compose up -d
 
 Access at `http://localhost:26032` (or your configured port).
 
+> ⚠️ **Bootstrap order (mandatory).** The agent binary is **not** baked into the backend
+> image — it is served from a `release/` volume populated **only by a signed release**
+> (release signing: see [OPERATOR-KEYS.md](OPERATOR-KEYS.md)). Until you publish the first signed release,
+> `/api/agents/download` returns `500 "binary not available"` — so you can **neither
+> install a new agent nor upgrade one**. Already-enrolled agents are unaffected (each runs
+> its own locally-installed binary). Correct order: **deploy the backend → publish the
+> first signed release → then install agents.**
+
 ### Enroll an agent
 
 1. Go to **Machines → Add a machine**, choose type (AGENT or PROBE)
