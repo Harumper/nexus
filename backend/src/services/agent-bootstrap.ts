@@ -27,6 +27,15 @@ export function getWsAgentUrl(backendUrl: string): string {
   return `${wsBase}/ws/agent`;
 }
 
+// Design A : clé PUBLIQUE de release (minisign) configurée par l'opérateur sur le
+// backend (env, jamais via l'UI). Si présente, elle est embarquée dans la commande
+// de bootstrap → l'installeur écrit /etc/nexus/release.pub à l'install ET au
+// reenroll (qui purge /etc/nexus). Ferme le footgun « reenroll perd release.pub ».
+// C'est une clé publique : aucun secret ne transite. La clé PRIVÉE reste hors-ligne.
+export function getReleasePubKey(): string {
+  return (process.env.NEXUS_RELEASE_PUBKEY || "").trim();
+}
+
 interface GenerateStepsParams {
   machineId: string;
   machineName: string;
@@ -45,6 +54,20 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
     params;
   const wsUrl = getWsAgentUrl(backendUrl);
   const reenrollFlag = reenroll ? " \\\n  --reenroll" : "";
+
+  // Design A : si l'opérateur a configuré une clé de release sur le backend, on
+  // l'écrit dans un fichier temporaire et on passe --release-pubkey-file → posée
+  // dans /etc/nexus/release.pub (install ET reenroll). Sinon, comportement inchangé.
+  const releasePubKey = getReleasePubKey();
+  const releaseTee = releasePubKey
+    ? `\nsudo rm -f /tmp/nexus-release.pub
+sudo tee /tmp/nexus-release.pub > /dev/null <<'NEXUS_RELEASE_PUBKEY_EOF'
+${releasePubKey}
+NEXUS_RELEASE_PUBKEY_EOF`
+    : "";
+  const releaseFlag = releasePubKey
+    ? " \\\n  --release-pubkey-file /tmp/nexus-release.pub"
+    : "";
 
   return [
     {
@@ -73,12 +96,12 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
       command: `sudo rm -f /tmp/nexus-pubkey.pem
 sudo tee /tmp/nexus-pubkey.pem > /dev/null <<'NEXUS_PUBKEY_EOF'
 ${backendPublicKey.trimEnd()}
-NEXUS_PUBKEY_EOF
+NEXUS_PUBKEY_EOF${releaseTee}
 sudo /tmp/install-agent.sh \\
   --server-url "${wsUrl}" \\
   --machine-id "${machineId}" \\
   --enrollment-token "${enrollmentToken}" \\
-  --server-public-key-file /tmp/nexus-pubkey.pem \\
+  --server-public-key-file /tmp/nexus-pubkey.pem${releaseFlag} \\
   --binary /tmp/nexus-agent${reenrollFlag}`,
     },
   ];
