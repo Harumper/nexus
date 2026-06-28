@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { broadcastToDashboard } from "../websocket/dashboard.js";
 
 // Suivi en mémoire des self-upgrades d'agent. Pas de persistance : un upgrade
@@ -48,10 +48,22 @@ export async function getServerBinarySHA256(): Promise<string | null> {
   }
 }
 
-// Version de l'agent embarqué dans cette image backend (gravée au build via
-// ARG/ENV AGENT_VERSION dans le Dockerfile). Sert de "cible" pour détecter une
-// MAJ par comparaison de version plutôt que par SHA.
+// Mécanisme A (auto-upgrade par volume de release) : la version servie est un
+// CONTENU DE RELEASE, publié dans le volume à côté du binaire et de sa signature
+// (fichier VERSION, chemin NEXUS_AGENT_VERSION_PATH). Lue à chaque appel → une
+// nouvelle release est prise en compte sans redémarrer le backend, et la CI de
+// publication n'a besoin que d'écrire dans le dossier de release (aucun docker,
+// aucune édition de .env). Fallback sur l'env AGENT_VERSION (dev/local).
+const AGENT_VERSION_PATH = process.env.NEXUS_AGENT_VERSION_PATH || "";
 export function getServerAgentVersion(): string | null {
+  if (AGENT_VERSION_PATH) {
+    try {
+      const v = readFileSync(AGENT_VERSION_PATH, "utf8").trim();
+      if (v) return v;
+    } catch {
+      // fichier absent/illisible = aucune release publiée → on tombe sur l'env
+    }
+  }
   return process.env.AGENT_VERSION || null;
 }
 

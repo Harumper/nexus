@@ -2,22 +2,6 @@
 # IMPORTANT: build context is the repo root (pas ./backend)
 # docker-compose.yml: context: . / dockerfile: backend/Dockerfile
 
-# Stage 0: Compile agent Go binary (linux/amd64, static)
-FROM golang:1.23-alpine AS agent-builder
-
-RUN apk add --no-cache git ca-certificates
-WORKDIR /build
-# Version injectée au build (sinon main.Version reste à son défaut "0.1.0").
-# La CI passe 0.1.0+<short-sha> ; en local, valeur "dev" explicite.
-ARG AGENT_VERSION=0.1.0+dev
-COPY agent/go.mod agent/go.sum* ./
-RUN go mod download
-COPY agent/ ./
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.Version=${AGENT_VERSION}" \
-    -o /out/nexus-agent \
-    ./cmd/nexus-agent/
-
 # Stage 1: Build backend TypeScript
 FROM node:22-alpine AS builder
 
@@ -42,11 +26,15 @@ RUN apk add --no-cache wget
 
 WORKDIR /app
 
-# Exposer au runtime la version de l'agent embarqué : permet de détecter une
-# « MAJ dispo » par comparaison de version (et non par SHA, qui change à chaque
-# commit à cause du tampon de version gravé dans le binaire).
-ARG AGENT_VERSION=0.1.0+dev
-ENV AGENT_VERSION=${AGENT_VERSION}
+# NB (mécanisme A) : l'agent n'est PLUS compilé ni embarqué dans cette image.
+# Le binaire servi par /api/agents/download (install ET self-upgrade), sa
+# signature minisign et le fichier VERSION proviennent du VOLUME /release,
+# peuplé UNIQUEMENT par une release signée (job CI release-publish-signed).
+# Invariant "signé == servi" : un seul build (release-build) produit ce binaire ;
+# AGENT_VERSION est un contenu de release (NEXUS_AGENT_VERSION_PATH), pas un ENV gravé.
+# Conséquence assumée (fail-closed) : tant qu'aucune release n'est publiée, le
+# backend ne sert AUCUN binaire (ni install, ni upgrade). Le parc enrôlé n'est
+# pas affecté (chaque agent exécute son propre binaire local).
 
 COPY backend/package.json backend/package-lock.json* ./
 RUN apk add --no-cache python3 make g++ && npm ci --omit=dev && apk del python3 make g++
@@ -55,10 +43,9 @@ COPY --from=builder /app/dist ./dist/
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma/
 COPY backend/prisma ./prisma/
 
-# Agent binary + script d'install servis par /api/agents/download
-COPY --from=agent-builder /out/nexus-agent /app/agent/nexus-agent
+# Script d'install servi par /api/agents/install-script (le binaire vient du volume /release)
 COPY scripts/install-agent.sh /app/scripts/install-agent.sh
-RUN chmod +x /app/agent/nexus-agent /app/scripts/install-agent.sh
+RUN chmod +x /app/scripts/install-agent.sh
 
 USER node
 

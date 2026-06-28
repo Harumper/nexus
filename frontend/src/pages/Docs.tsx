@@ -159,6 +159,16 @@ docker compose up -d
 
     <H2>Ajouter votre première machine</H2>
     <P>Depuis le Dashboard ou la page Machines, cliquez sur "Ajouter une machine". Nexus génère un token d'enrollment unique valable 24h. Utilisez ce token pour installer l'agent sur la machine cible.</P>
+
+    <Warn>
+      <strong>Ordre de bootstrap obligatoire.</strong> Le binaire de l'agent n'est{" "}
+      <strong>pas</strong> inclus dans l'image backend : il est servi depuis le volume{" "}
+      <code>release/</code>, alimenté <strong>uniquement par une release signée</strong>.
+      Tant qu'aucune release n'est publiée, le téléchargement renvoie une erreur (« binary not
+      available ») — <strong>ni installation ni mise à jour</strong> d'agent possibles. Ordre
+      correct : déployer le backend → <strong>publier la 1ʳᵉ release signée</strong> → puis
+      installer des agents. (Les agents déjà enrôlés ne sont pas affectés.)
+    </Warn>
   </>);
 }
 

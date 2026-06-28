@@ -29,9 +29,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-      args:
-        # Version du binaire agent servi. Surchargée en CI par 0.1.0+<short-sha>.
-        AGENT_VERSION: ${AGENT_VERSION:-0.1.0+local}
     container_name: nexus-backend
     restart: unless-stopped
     environment:
@@ -59,6 +56,13 @@ services:
       ALLOW_REMOTE_SCRIPT: ${ALLOW_REMOTE_SCRIPT:-false}            # AGENT-005 : opt-in script.execute (défaut OFF)
       ALLOW_USER_PRIVILEGE_MGMT: ${ALLOW_USER_PRIVILEGE_MGMT:-false} # privileged-actions : sshkey/sudo (défaut OFF)
       NODE_ENV: production
+      # Auto-upgrade (mécanisme A) — binaire, signature minisign et version servis
+      # depuis le volume /release (peuplé par la release SIGNÉE). Le binaire n'est
+      # plus dans l'image : tant que le volume est vide, /api/agents/download
+      # renvoie 500 (ni install, ni upgrade) — fail-closed assumé. Voir README.
+      NEXUS_AGENT_BINARY_PATH: /release/nexus-agent
+      NEXUS_AGENT_SIGNATURE_PATH: /release/nexus-agent.minisig
+      NEXUS_AGENT_VERSION_PATH: /release/VERSION
     ports:
       - "${BACKEND_PORT:-26031}:3000"
     depends_on:
@@ -66,6 +70,10 @@ services:
         condition: service_healthy
     networks:
       - nexus
+    volumes:
+      # Dossier de release (binaire+.minisig+VERSION) écrit par la CI via l'user
+      # confiné nexus-release (write-only). Monté en lecture seule pour le backend.
+      - ./release:/release:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
       interval: 30s
