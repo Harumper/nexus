@@ -54,6 +54,6 @@ describe("Design A — release.pub embarquée au bootstrap", () => {
   it("install-agent.sh : règle « ne pas écraser un pin existant »", () => {
     const sh = readFileSync(resolve(__dirname, "../../../scripts/install-agent.sh"), "utf8");
     expect(sh).toContain('if [ -f "$RELEASE_PUBKEY_FILE" ]; then');
-    expect(sh).toContain("pin conservé");
+    expect(sh).toContain("pin kept"); // message traduit en EN (release.pub already present — pin kept)
   });
 });

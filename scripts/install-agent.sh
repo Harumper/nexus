@@ -39,7 +39,7 @@ error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 # ===================== Vérifications =====================
 
 if [ "$EUID" -ne 0 ]; then
-    error "Ce script doit être lancé en root (sudo)."
+    error "This script must be run as root (sudo)."
     exit 1
 fi
 
@@ -56,13 +56,13 @@ wipe_agent() {
 
     # 1. Service systemd : stop + disable + suppression unit + reload
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        systemctl stop "$SERVICE_NAME" && ok "Service arrêté."
+        systemctl stop "$SERVICE_NAME" && ok "Service stopped."
     fi
     systemctl disable "$SERVICE_NAME" &>/dev/null || true
     rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
     systemctl daemon-reload
     systemctl reset-failed "$SERVICE_NAME" &>/dev/null || true
-    ok "Unit systemd supprimée."
+    ok "systemd unit removed."
 
     # 1bis. S'assurer qu'AUCUN process agent ne survit. Sinon `userdel` échoue
     # ET — plus grave — l'ancien agent reste connecté avec l'ancienne identité
@@ -79,40 +79,40 @@ wipe_agent() {
 
     # 2. Binaire
     rm -f "$BIN_PATH"
-    ok "Binaire supprimé : $BIN_PATH"
+    ok "Binary removed: $BIN_PATH"
 
     # 3. Clés, shared secret, clé serveur, config, état/snapshots (+ logs si non conservés)
     rm -rf "$KEY_DIR" /opt/nexus/keys /var/lib/nexus /opt/nexus
     rm -rf "$CONFIG_DIR"
     rm -rf "$AGENT_SCRIPT_DIR"        # /var/lib/nexus-agent (snapshots/inbox/scripts/tempfiles)
     if [ "$keep_logs" = "keep-logs" ]; then
-        ok "Clés, config, état et snapshots supprimés (logs conservés)."
+        ok "Keys, config, state and snapshots removed (logs kept)."
     else
         rm -rf "$LOG_DIR"
-        ok "Clés, config, état, snapshots et logs supprimés."
+        ok "Keys, config, state, snapshots and logs removed."
     fi
 
     # 4. Sudoers (table rase — réécrit ensuite par l'install)
     rm -f /etc/sudoers.d/nexus-agent
-    ok "Sudoers supprimé."
+    ok "Sudoers removed."
 
     # 5. Utilisateur système + retrait du groupe
     if id "$AGENT_USER" &>/dev/null; then
         gpasswd -d "$AGENT_USER" systemd-journal &>/dev/null || true
-        userdel "$AGENT_USER" &>/dev/null && ok "Utilisateur '$AGENT_USER' supprimé." || \
-            warn "Impossible de supprimer l'utilisateur '$AGENT_USER' (processus en cours ?)."
+        userdel "$AGENT_USER" &>/dev/null && ok "User '$AGENT_USER' removed." || \
+            warn "Could not remove user '$AGENT_USER' (process still running?)."
     fi
 }
 
 # do_uninstall : suppression complète (--purge), logs inclus.
 do_uninstall() {
     echo ""
-    echo -e "${BLUE}=== Nexus Agent - Désinstallation complète ===${NC}"
+    echo -e "${BLUE}=== Nexus Agent - Full uninstall ===${NC}"
     echo ""
     wipe_agent
     echo ""
-    echo -e "${GREEN}=== Désinstallation terminée ===${NC}"
-    echo "Les backups /etc/sudoers.bak.* ne sont pas touchés (suppression manuelle si besoin)."
+    echo -e "${GREEN}=== Uninstall complete ===${NC}"
+    echo "The /etc/sudoers.bak.* backups are left untouched (remove manually if needed)."
     echo ""
 }
 
@@ -139,7 +139,7 @@ while [[ $# -gt 0 ]]; do
         --server-public-key) SERVER_PUBLIC_KEY="$2"; shift 2 ;;
         --server-public-key-file)
             if [ ! -f "$2" ]; then
-                error "Fichier cle publique introuvable: $2"
+                error "Public key file not found: $2"
                 exit 1
             fi
             SERVER_PUBLIC_KEY="$(cat "$2")"
@@ -150,7 +150,7 @@ while [[ $# -gt 0 ]]; do
             # publique est déposée ici. Sans ce fichier, l'agent refuse toute
             # auto-mise-à-jour (fail-closed).
             if [ ! -f "$2" ]; then
-                error "Fichier clé publique de release introuvable: $2"
+                error "Release public key file not found: $2"
                 exit 1
             fi
             RELEASE_PUBKEY="$(cat "$2")"
@@ -160,7 +160,7 @@ while [[ $# -gt 0 ]]; do
             # la clé serveur et de la clé de release). Privée hors-ligne côté
             # opérateur ; seule la moitié publique est déposée ici.
             if [ ! -f "$2" ]; then
-                error "Fichier clé publique de signature de script introuvable: $2"
+                error "Script signing public key file not found: $2"
                 exit 1
             fi
             SCRIPT_SIGNING_PUBKEY="$(cat "$2")"
@@ -184,19 +184,19 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage:"
             echo "  install-agent.sh --server-url URL --machine-id ID --enrollment-token TOKEN [--server-public-key-file F] [--release-pubkey-file F]"
-            echo "       --release-pubkey-file F : clé(s) publique(s) minisign de release → /etc/nexus/release.pub (auto-upgrade signé ; sans elle, l'auto-upgrade est refusé)"
-            echo "       --script-signing-pubkey-file F : clé(s) publique(s) minisign de signature de script → /etc/nexus/script-signing.pub"
-            echo "       --allow-remote-script : émet la ligne sudoers autorisant script.execute (OFF par défaut ; capacité root-RCE absente sinon)"
-            echo "       --insecure : autorise un --server-url non-wss:// (NEXUS_ALLOW_INSECURE=1 ; WARNING à chaque boot) — DEV LOCAL uniquement"
-            echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent déjà enrôlé)"
-            echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # TABLE RASE (sudoers/user/binaire, logs gardés) + réinstall"
-            echo "  install-agent.sh --uninstall                                                                   # suppression complète"
+            echo "       --release-pubkey-file F : minisign release public key(s) → /etc/nexus/release.pub (signed auto-upgrade; without it, auto-upgrade is refused)"
+            echo "       --script-signing-pubkey-file F : minisign script signing public key(s) → /etc/nexus/script-signing.pub"
+            echo "       --allow-remote-script : emit the sudoers line allowing script.execute (OFF by default; root-RCE capability absent otherwise)"
+            echo "       --insecure : allow a non-wss:// --server-url (NEXUS_ALLOW_INSECURE=1; WARNING on every boot) — LOCAL DEV only"
+            echo "  install-agent.sh --server-url URL --machine-id ID                                              # REFRESH sudoers+service (agent already enrolled)"
+            echo "  install-agent.sh --reenroll  --server-url URL --machine-id ID --enrollment-token TOKEN [...]   # CLEAN WIPE (sudoers/user/binary, logs kept) + reinstall"
+            echo "  install-agent.sh --uninstall                                                                   # full removal"
             echo ""
-            echo "  NB : la mise à jour 'self-upgrade' (depuis l'UI) ne remplace QUE le binaire."
-            echo "       sudoers et service systemd ne sont (ré)écrits que par ce script —"
-            echo "       à relancer si le sudoers a dérivé (ex. nouvelle commande whitelistée)."
+            echo "  NB: the 'self-upgrade' update (from the UI) replaces ONLY the binary."
+            echo "      sudoers and systemd service are (re)written only by this script —"
+            echo "      re-run it if the sudoers has drifted (e.g. a new whitelisted command)."
             exit 0 ;;
-        *) error "Option inconnue: $1"; exit 1 ;;
+        *) error "Unknown option: $1"; exit 1 ;;
     esac
 done
 
@@ -211,11 +211,11 @@ if [ -z "$SERVER_URL" ]; then
     echo ""
     echo -e "${BLUE}=== Nexus Agent - Installation ===${NC}"
     echo ""
-    read -p "URL du serveur Nexus (ex: ws://nexus:26031/ws/agent) : " SERVER_URL
+    read -p "Nexus server URL (e.g. ws://nexus:26031/ws/agent): " SERVER_URL
 fi
 
 if [ -z "$MACHINE_ID" ]; then
-    read -p "Machine ID : " MACHINE_ID
+    read -p "Machine ID: " MACHINE_ID
 fi
 
 # Le token n'est requis QUE si l'agent n'a pas déjà une identité locale ENRÔLÉE.
@@ -241,22 +241,25 @@ fi
 # « Ré-enrôler » de l'UI ajoute déjà). On NE compare PAS le machine-id : "token + identité"
 # suffit, et un refus est non-destructeur (aucune primitive de purge exploitable).
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then
-    error "Identité Nexus déjà présente sur cet hôte (marqueur $KEY_DIR/enrolled) ET un --enrollment-token a été fourni."
-    error "L'agent ignorerait ce token et resterait sur son ancienne identité → 'Session handshake failed: error' si elle a été révoquée côté serveur (machine supprimée/recréée/ré-enrôlée)."
-    error "Deux issues, au choix :"
-    error "  • Ré-enrôler proprement (TABLE RASE de l'identité, puis enrôle avec ce token) : relance la MÊME commande avec --reenroll"
-    error "    — le bouton « Ré-enrôler » de l'UI ajoute ce flag automatiquement."
-    error "  • Seulement rafraîchir sudoers/binaire (GARDER l'identité actuelle) : relance SANS --enrollment-token."
-    error "Refus volontaire : la purge d'identité est destructrice et n'est jamais déclenchée automatiquement."
+    error "A Nexus identity is already present on this host (marker: $KEY_DIR/enrolled) AND an --enrollment-token was supplied."
+    error "The agent would IGNORE this token and keep its existing identity. If that identity was revoked server-side (machine deleted/recreated/re-enrolled), the agent loops on 'Session handshake failed: unexpected handshake response type: error'."
+    error "Choose one:"
+    error "  - Re-enroll cleanly (WIPE the local identity, then enroll with this token):"
+    error "      re-run ONLY this install step with --reenroll appended -- do NOT re-run the download steps (1 and 2)."
+    error "      The binary and install script are already downloaded; the download and install-script tokens are single-use and already spent, while the enrollment token is still valid."
+    error "      (The UI 'Re-enroll' button adds --reenroll automatically.)"
+    error "  - Only refresh sudoers/binary (KEEP the current identity):"
+    error "      re-run WITHOUT --enrollment-token."
+    error "Refusal is deliberate: wiping the identity is destructive and is never done automatically."
     exit 1
 fi
 
 if [ -z "$ENROLLMENT_TOKEN" ] && [ "$HAS_LOCAL_IDENTITY" = false ]; then
-    read -p "Token d'enrollment : " ENROLLMENT_TOKEN
+    read -p "Enrollment token: " ENROLLMENT_TOKEN
 fi
 
 if [ -z "$SERVER_URL" ] || [ -z "$MACHINE_ID" ]; then
-    error "server-url et machine-id sont requis."
+    error "server-url and machine-id are required."
     exit 1
 fi
 
@@ -267,34 +270,34 @@ case "$SERVER_URL" in
     wss://*) ;;
     *)
         if [ "$INSECURE" != "true" ]; then
-            error "--server-url doit utiliser wss:// (TLS obligatoire pour le bootstrap) : '$SERVER_URL'."
-            error "Le token et la clé publique de l'agent transiteraient en clair. Utilisez wss://, ou --insecure pour le dev local uniquement."
+            error "--server-url must use wss:// (TLS mandatory for bootstrap): '$SERVER_URL'."
+            error "The token and the agent public key would travel in clear text. Use wss://, or --insecure for local dev only."
             exit 1
         fi
-        warn "Transport NON CHIFFRÉ accepté (--insecure) : '$SERVER_URL'. NEXUS_ALLOW_INSECURE=1 sera posé ; l'agent loggue un WARNING à chaque boot. Dev local uniquement."
+        warn "UNENCRYPTED transport accepted (--insecure): '$SERVER_URL'. NEXUS_ALLOW_INSECURE=1 will be set; the agent logs a WARNING on every boot. Local dev only."
         ;;
 esac
 
 if [ -z "$ENROLLMENT_TOKEN" ] && [ "$HAS_LOCAL_IDENTITY" = false ]; then
-    error "enrollment-token requis (aucune identité locale dans $KEY_DIR). Utilisez --reenroll pour repartir de zéro."
+    error "enrollment-token required (no local identity in $KEY_DIR). Use --reenroll to start from scratch."
     exit 1
 fi
 
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -z "$ENROLLMENT_TOKEN" ]; then
-    info "Identité locale détectée : rafraîchissement (sudoers/binaire) sans ré-enrollement."
+    info "Local identity detected: refreshing (sudoers/binary) without re-enrollment."
     ENROLLMENT_TOKEN="__refresh__"   # placeholder, non utilisé (l'agent saute l'enrollement)
 fi
 
 # PINNING STRICT : la clé publique du serveur est obligatoire pour un (ré-)enrollement.
 # En refresh (identité locale présente), la clé existante dans $CONFIG_DIR est conservée.
 if [ "$HAS_LOCAL_IDENTITY" = false ] && [ -z "${SERVER_PUBLIC_KEY:-}" ]; then
-    error "--server-public-key-file requis : la clé serveur est obligatoire (pinning d'isolation)."
-    error "Utilisez la commande d'install générée par l'UI Nexus (elle inclut la clé)."
+    error "--server-public-key-file required: the server key is mandatory (isolation pinning)."
+    error "Use the install command generated by the Nexus UI (it includes the key)."
     exit 1
 fi
 
 echo ""
-info "Configuration :"
+info "Configuration:"
 echo "  Server URL    : $SERVER_URL"
 echo "  Machine ID    : $MACHINE_ID"
 echo "  Token         : ${ENROLLMENT_TOKEN:0:20}..."
@@ -303,25 +306,25 @@ echo ""
 # ===================== 0. Arrêter l'agent s'il tourne déjà (re-install) =====================
 
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-    info "Agent en cours d'exécution, arrêt avant réinstall..."
+    info "Agent currently running, stopping before reinstall..."
     systemctl stop "$SERVICE_NAME"
-    ok "Agent arrêté."
+    ok "Agent stopped."
 fi
 
 # Ré-enrollement : TABLE RASE avant de réinstaller (sudoers/user/binaire inclus,
 # logs conservés). Évite à la fois le deadlock shared.secret ET le sudoers
 # obsolète (puisque tout est réécrit ensuite par l'install).
 if [ "$MODE" = "reenroll" ]; then
-    info "Ré-enrôlement : purge complète de l'agent (table rase, logs conservés)…"
+    info "Re-enrollment: full agent purge (clean wipe, logs kept)…"
     wipe_agent keep-logs
 fi
 
 # ===================== 1. Créer l'utilisateur système =====================
 
-info "Création de l'utilisateur système '$AGENT_USER'..."
+info "Creating system user '$AGENT_USER'..."
 
 if id "$AGENT_USER" &>/dev/null; then
-    ok "L'utilisateur '$AGENT_USER' existe déjà."
+    ok "User '$AGENT_USER' already exists."
 else
     useradd \
         --system \
@@ -330,19 +333,19 @@ else
         --shell /usr/sbin/nologin \
         --comment "Nexus Agent" \
         "$AGENT_USER"
-    ok "Utilisateur '$AGENT_USER' créé."
+    ok "User '$AGENT_USER' created."
 fi
 
 # Ajouter au groupe systemd-journal pour la lecture des logs via journalctl
 # (evite d'avoir a whitelister journalctl dans sudoers)
 if getent group systemd-journal > /dev/null; then
     usermod -a -G systemd-journal "$AGENT_USER"
-    ok "Ajoute au groupe systemd-journal pour la lecture des logs."
+    ok "Added to the systemd-journal group for log reading."
 fi
 
 # ===================== 2. Configurer sudoers (commandes privilégiées) =====================
 
-info "Configuration des privilèges sudo pour '$AGENT_USER'..."
+info "Configuring sudo privileges for '$AGENT_USER'..."
 
 SUDOERS_FILE="/etc/sudoers.d/nexus-agent"
 
@@ -563,20 +566,20 @@ SUDOERS
 if [ "$ALLOW_REMOTE_SCRIPT" = "true" ]; then
     printf '\n# === Scripts Nexus (opt-in --allow-remote-script ; scripts signés, vérifiés côté agent) ===\nnexus-agent ALL=(root) NOPASSWD: /bin/bash %s/nexus-script-*.sh\n' \
         "$AGENT_SCRIPT_DIR" >> "$SUDOERS_TEMP"
-    warn "Exécution distante de script ACTIVÉE (--allow-remote-script) : capacité root-RCE émise dans le sudoers."
+    warn "Remote script execution ENABLED (--allow-remote-script): root-RCE capability emitted in the sudoers."
 fi
 
 # Valider la syntaxe AVANT d'appliquer
 if visudo -cf "$SUDOERS_TEMP"; then
     install -m 0440 -o root -g root "$SUDOERS_TEMP" "$SUDOERS_FILE"
-    ok "Sudoers configuré : $SUDOERS_FILE"
+    ok "Sudoers configured: $SUDOERS_FILE"
 else
-    error "Syntaxe sudoers invalide ! Aucune modification appliquée."
-    error "Le fichier $SUDOERS_FILE existant (s'il existe) n'a pas été touché."
+    error "Invalid sudoers syntax! No changes applied."
+    error "The existing $SUDOERS_FILE file (if any) was left untouched."
     exit 1
 fi
 
-info "Création des répertoires..."
+info "Creating directories..."
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$CONFIG_DIR"
@@ -593,11 +596,11 @@ chmod 755 "$CONFIG_DIR"
 chmod 700 "$KEY_DIR"
 chmod 755 "$LOG_DIR"
 
-ok "Répertoires créés."
+ok "Directories created."
 
 # ===================== 3. Installer le binaire =====================
 
-info "Installation du binaire..."
+info "Installing the binary..."
 
 # Refresh d'un agent déjà enrôlé, sans binaire fourni : on CONSERVE le binaire
 # en place. C'est volontaire — ce mode sert à rafraîchir sudoers/service (que la
@@ -606,7 +609,7 @@ info "Installation du binaire..."
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -z "$AGENT_BINARY" ] && [ ! -f "./nexus-agent" ] && [ -f "$BIN_PATH" ]; then
     chown root:root "$BIN_PATH"
     chmod 755 "$BIN_PATH"
-    ok "Refresh : binaire existant conservé ($BIN_PATH, $(du -h "$BIN_PATH" | cut -f1)) — géré par la self-upgrade."
+    ok "Refresh: existing binary kept ($BIN_PATH, $(du -h "$BIN_PATH" | cut -f1)) — managed by self-upgrade."
 else
     if [ -n "$AGENT_BINARY" ] && [ -f "$AGENT_BINARY" ]; then
         # Skip cp if source and destination are the same file (cas ou le binaire
@@ -614,7 +617,7 @@ else
         if [ "$(readlink -f "$AGENT_BINARY")" != "$(readlink -f "$BIN_PATH")" ]; then
             cp "$AGENT_BINARY" "$BIN_PATH"
         else
-            ok "Binaire deja en place : $BIN_PATH"
+            ok "Binary already in place: $BIN_PATH"
         fi
     elif [ -f "./nexus-agent" ]; then
         cp "./nexus-agent" "$BIN_PATH"
@@ -623,12 +626,12 @@ else
     else
         # Essayer d'extraire depuis l'image Docker
         if docker image inspect nexus-agent:latest &>/dev/null; then
-            info "Extraction du binaire depuis l'image Docker..."
+            info "Extracting the binary from the Docker image..."
             CONTAINER_ID=$(docker create nexus-agent:latest)
             docker cp "$CONTAINER_ID:/usr/local/bin/nexus-agent" "$BIN_PATH"
             docker rm "$CONTAINER_ID" > /dev/null
         else
-            error "Binaire nexus-agent introuvable. Utilisez --binary <chemin>"
+            error "nexus-agent binary not found. Use --binary <path>"
             exit 1
         fi
     fi
@@ -636,12 +639,12 @@ else
     chown root:root "$BIN_PATH"
     chmod 755 "$BIN_PATH"
 
-    ok "Binaire installé : $BIN_PATH ($(du -h "$BIN_PATH" | cut -f1))"
+    ok "Binary installed: $BIN_PATH ($(du -h "$BIN_PATH" | cut -f1))"
 fi
 
 # ===================== 4. Fichier de configuration =====================
 
-info "Création de la configuration..."
+info "Creating the configuration..."
 
 HOSTNAME_DETECTED=$(hostname -f 2>/dev/null || hostname)
 IPS_DETECTED=$(ip -4 addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v 'br-' | grep -v 'veth' | awk '{print $2}' | cut -d/ -f1 | tr '\n' ',' | sed 's/,$//')
@@ -670,12 +673,12 @@ fi
 RELEASE_PUBKEY_FILE="$CONFIG_DIR/release.pub"
 if [ -n "${RELEASE_PUBKEY:-}" ]; then
     if [ -f "$RELEASE_PUBKEY_FILE" ]; then
-        info "release.pub déjà présente — pin conservé (non écrasé)."
+        info "release.pub already present — pin kept (not overwritten)."
     else
         printf '%s\n' "$RELEASE_PUBKEY" > "$RELEASE_PUBKEY_FILE"
         chown root:root "$RELEASE_PUBKEY_FILE"
         chmod 644 "$RELEASE_PUBKEY_FILE"
-        info "release.pub déposée (vérification de l'auto-upgrade signé)."
+        info "release.pub deployed (signed auto-upgrade verification)."
     fi
 fi
 
@@ -731,13 +734,13 @@ fi
 chown root:"$AGENT_GROUP" "$CONFIG_DIR/agent.env"
 chmod 640 "$CONFIG_DIR/agent.env"
 
-ok "Configuration : $CONFIG_DIR/agent.env"
+ok "Configuration: $CONFIG_DIR/agent.env"
 echo "  Hostname : $HOSTNAME_DETECTED"
 echo "  IPs      : $IPS_DETECTED"
 
 # ===================== 5. Service systemd =====================
 
-info "Installation du service systemd..."
+info "Installing the systemd service..."
 
 cat > /etc/systemd/system/${SERVICE_NAME}.service << 'SYSTEMD'
 [Unit]
@@ -820,42 +823,42 @@ SYSTEMD
 
 systemctl daemon-reload
 
-ok "Service systemd installé : ${SERVICE_NAME}.service"
+ok "systemd service installed: ${SERVICE_NAME}.service"
 
 # ===================== 6. Démarrer =====================
 
 echo ""
-info "Démarrage de l'agent..."
+info "Starting the agent..."
 
 systemctl enable "$SERVICE_NAME" --now
 
 sleep 5
 
 if systemctl is-active --quiet "$SERVICE_NAME"; then
-    ok "Agent démarré avec succès !"
+    ok "Agent started successfully!"
     echo ""
-    echo -e "${GREEN}=== Installation terminée ===${NC}"
+    echo -e "${GREEN}=== Installation complete ===${NC}"
     echo ""
-    echo -e "  ${GREEN}Rafraîchis :${NC} sudoers ($SUDOERS_FILE) + service systemd"
-    echo "  (ce sont précisément les fichiers que la self-upgrade ne peut pas mettre à jour)"
+    echo -e "  ${GREEN}Refreshed:${NC} sudoers ($SUDOERS_FILE) + systemd service"
+    echo "  (these are precisely the files that self-upgrade cannot update)"
     echo ""
-    echo "  Commandes utiles :"
-    echo "    systemctl status $SERVICE_NAME     # Statut"
-    echo "    journalctl -u $SERVICE_NAME -f     # Logs en direct"
-    echo "    systemctl restart $SERVICE_NAME    # Redémarrer"
-    echo "    systemctl stop $SERVICE_NAME       # Arrêter"
+    echo "  Useful commands:"
+    echo "    systemctl status $SERVICE_NAME     # Status"
+    echo "    journalctl -u $SERVICE_NAME -f     # Live logs"
+    echo "    systemctl restart $SERVICE_NAME    # Restart"
+    echo "    systemctl stop $SERVICE_NAME       # Stop"
     echo ""
-    echo "  Fichiers :"
-    echo "    Binaire : $BIN_PATH"
-    echo "    Config  : $CONFIG_DIR/agent.env"
-    echo "    Clés    : $KEY_DIR/"
-    echo "    Logs    : journalctl -u $SERVICE_NAME"
+    echo "  Files:"
+    echo "    Binary : $BIN_PATH"
+    echo "    Config : $CONFIG_DIR/agent.env"
+    echo "    Keys   : $KEY_DIR/"
+    echo "    Logs   : journalctl -u $SERVICE_NAME"
     echo ""
 
     # Afficher les premières lignes de log
     journalctl -u "$SERVICE_NAME" --no-pager -n 10 2>/dev/null || true
 else
-    error "L'agent n'a pas démarré."
+    error "The agent did not start."
     journalctl -u "$SERVICE_NAME" --no-pager -n 20 2>/dev/null || true
     exit 1
 fi

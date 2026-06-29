@@ -115,7 +115,7 @@ describe("Enrollment UX v2 — Docker & Scripts", () => {
     const body = block.slice(0, block.indexOf("\nfi\n"));
     expect(body).toContain("exit 1");
     expect(body).toContain("--reenroll");
-    expect(body).toMatch(/SANS --enrollment-token/);
+    expect(body).toMatch(/WITHOUT --enrollment-token/);
     // Refus pur : le garde-fou ne déclenche aucune purge (pas de table rase ici).
     expect(body).not.toContain("wipe_agent");
     // La détection d'identité doit cibler le marqueur d'enrôlement v2 "enrolled" (ce que
