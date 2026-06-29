@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Tag as TagIcon, Plus, Trash2, Edit2 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -31,6 +32,7 @@ const PRESET_COLORS = [
 ];
 
 export default function TagsManagementCard() {
+  const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,11 +45,11 @@ export default function TagsManagementCard() {
       const data = await api.getTags();
       setTags(data);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchTags();
@@ -56,18 +58,18 @@ export default function TagsManagementCard() {
   const handleDelete = async (id: string) => {
     if (
       !(await confirm({
-        title: "Supprimer ce tag ?",
-        confirmLabel: "Supprimer",
+        title: t("tags.confirmDelete"),
+        confirmLabel: t("common:actions.delete"),
         variant: "danger",
       }))
     )
       return;
     try {
       await api.deleteTag(id);
-      toast.success("Tag supprimé");
+      toast.success(t("tags.toast.deleted"));
       fetchTags();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     }
   };
 
@@ -76,21 +78,19 @@ export default function TagsManagementCard() {
       <CardHeader>
         <TagIcon className="w-4 h-4 text-primary" />
         <CardTitle className="normal-case tracking-normal text-sm">
-          Tags ({tags.length})
+          {t("tags.count", { count: tags.length })}
         </CardTitle>
         {user?.role === "ADMIN" && (
           <div className="ml-auto">
             <Button size="sm" variant="primary" icon={<Plus />} onClick={() => setShowCreate(true)}>
-              Créer un tag
+              {t("tags.create")}
             </Button>
           </div>
         )}
       </CardHeader>
 
       <p className="text-xs text-muted-foreground mb-4">
-        Étiquettes colorisées pour catégoriser vos machines (ex: <code>production</code>,{" "}
-        <code>web</code>, <code>db</code>). Visibles sur les cartes de machines, utilisables
-        comme filtres dans les groupes dynamiques.
+        <Trans i18nKey="tags.description" t={t} components={{ code: <code /> }} />
       </p>
 
       {loading ? (
@@ -98,7 +98,7 @@ export default function TagsManagementCard() {
           <Spinner />
         </div>
       ) : tags.length === 0 ? (
-        <EmptyState icon={TagIcon} title="Aucun tag créé" description="Créez votre premier tag pour catégoriser vos machines." />
+        <EmptyState icon={TagIcon} title={t("tags.empty.title")} description={t("tags.empty.description")} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {tags.map((tag) => (
@@ -116,7 +116,7 @@ export default function TagsManagementCard() {
                     {tag.name}
                   </span>
                   <p className="text-[10px] text-muted-foreground">
-                    {tag._count?.machines ?? 0} machine{(tag._count?.machines ?? 0) > 1 ? "s" : ""}
+                    {t("tags.machineCount", { count: tag._count?.machines ?? 0 })}
                   </p>
                 </div>
               </div>
@@ -127,14 +127,14 @@ export default function TagsManagementCard() {
                     variant="ghost"
                     icon={<Edit2 />}
                     onClick={() => setEditingTag(tag)}
-                    aria-label="Modifier"
+                    aria-label={t("common:actions.edit")}
                   />
                   <Button
                     size="xs"
                     variant="ghost"
                     icon={<Trash2 />}
                     onClick={() => handleDelete(tag.id)}
-                    aria-label="Supprimer"
+                    aria-label={t("common:actions.delete")}
                     className="!text-muted-foreground hover:!text-destructive"
                   />
                 </div>
@@ -178,6 +178,7 @@ function TagDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation(["settings", "common"]);
   const [name, setName] = useState(tag?.name ?? "");
   const [color, setColor] = useState(tag?.color ?? PRESET_COLORS[0]);
   const [loading, setLoading] = useState(false);
@@ -189,14 +190,14 @@ function TagDialog({
     try {
       if (isEdit) {
         await api.updateTag(tag.id, { name, color });
-        toast.success("Tag modifié");
+        toast.success(t("tags.toast.updated"));
       } else {
         await api.createTag(name, color);
-        toast.success("Tag créé");
+        toast.success(t("tags.toast.created"));
       }
       onSaved();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
@@ -207,11 +208,11 @@ function TagDialog({
       open
       onClose={onClose}
       size="md"
-      title={isEdit ? "Modifier le tag" : "Créer un tag"}
+      title={isEdit ? t("tags.editTitle") : t("tags.create")}
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
-            Annuler
+            {t("common:actions.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -220,32 +221,32 @@ function TagDialog({
             disabled={!name}
             loading={loading}
           >
-            {isEdit ? "Modifier" : "Créer"}
+            {isEdit ? t("common:actions.edit") : t("common:actions.create")}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Nom</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">{t("tags.nameLabel")}</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="production, staging…"
+            placeholder={t("tags.namePlaceholder")}
             required
             autoFocus
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Couleur</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">{t("tags.colorLabel")}</label>
           <div className="flex gap-2 flex-wrap">
             {PRESET_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setColor(c)}
-                aria-label={`Couleur ${c}`}
+                aria-label={t("tags.colorAria", { color: c })}
                 className={`w-8 h-8 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   color === c
                     ? "ring-2 ring-primary ring-offset-2 ring-offset-card scale-110"
@@ -258,13 +259,13 @@ function TagDialog({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Aperçu</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">{t("tags.previewLabel")}</label>
           <div
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
             style={{ backgroundColor: `${color}20`, color }}
           >
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-            {name || "tag"}
+            {name || t("tags.previewPlaceholder")}
           </div>
         </div>
       </form>

@@ -1,0 +1,84 @@
+{
+  "subtitle": "Configuration du système Nexus",
+  "saved": "Enregistré",
+  "sections": {
+    "smtp": "Email (SMTP)",
+    "webhook": "Webhook",
+    "health": "Seuils santé",
+    "lifecycle": "Cycle de vie",
+    "tags": "Tags",
+    "nautilus": "Intégration Nautilus"
+  },
+  "smtp": {
+    "title": "Configuration SMTP",
+    "host": "Hôte SMTP",
+    "port": "Port",
+    "user": "Utilisateur",
+    "password": "Mot de passe",
+    "from": "Adresse expéditeur"
+  },
+  "webhook": {
+    "secret": "Secret webhook",
+    "regenerate": "Régénérer"
+  },
+  "health": {
+    "title": "Seuils d'alerte",
+    "cpu": "CPU (%)",
+    "memory": "Mémoire (%)",
+    "disk": "Disque (%)"
+  },
+  "lifecycle": {
+    "title": "Cycle de vie des machines",
+    "staleAfter": "Stale après (jours)",
+    "archiveAfter": "Archiver après (jours)",
+    "deleteAfter": "Supprimer après (jours)"
+  },
+  "tags": {
+    "count": "Tags ({{count}})",
+    "create": "Créer un tag",
+    "editTitle": "Modifier le tag",
+    "description": "Étiquettes colorisées pour catégoriser vos machines (ex : <code>production</code>, <code>web</code>, <code>db</code>). Visibles sur les cartes de machines, utilisables comme filtres dans les groupes dynamiques.",
+    "empty": {
+      "title": "Aucun tag créé",
+      "description": "Créez votre premier tag pour catégoriser vos machines."
+    },
+    "machineCount_one": "{{count}} machine",
+    "machineCount_other": "{{count}} machines",
+    "nameLabel": "Nom",
+    "namePlaceholder": "production, staging…",
+    "colorLabel": "Couleur",
+    "colorAria": "Couleur {{color}}",
+    "previewLabel": "Aperçu",
+    "previewPlaceholder": "tag",
+    "toast": {
+      "deleted": "Tag supprimé",
+      "updated": "Tag modifié",
+      "created": "Tag créé"
+    },
+    "confirmDelete": "Supprimer ce tag ?"
+  },
+  "nautilus": {
+    "title": "Intégration Nautilus (Docker)",
+    "description": "Active un onglet <strong>Containers</strong> dans le menu qui lit les métriques Prometheus exposées par Nautilus. Lecture seule — les actions Docker restent dans Nautilus.",
+    "enableLabel": "Activer l'intégration Nautilus",
+    "enableHint": "Désactivé par défaut. Activer affichera l'onglet Containers dans le menu.",
+    "urlLabel": "URL de l'endpoint /metrics",
+    "urlHint": "Nautilus sur la même machine : <code>http://localhost:26020/metrics</code>. Sinon utilisez l'URL publique ou l'IP du serveur.",
+    "advancedOptions": "Options avancées",
+    "tokenConfiguredBadge": "(token configuré)",
+    "tokenLabel": "Token d'authentification",
+    "tokenPlaceholderConfigured": "•••••••• (configuré)",
+    "tokenPlaceholderUnset": "Uniquement si Nautilus est exposé publiquement",
+    "tokenHint": "Inutile si Nautilus tourne en local (non exposé sur internet). Correspond à <code>PROMETHEUS_SCRAPE_TOKEN</code> dans le <code>.env</code> de Nautilus.",
+    "tokenHintKeep": "Laissez vide pour conserver le token actuel.",
+    "testButton": "Tester la connexion",
+    "testDisabledTitle": "Activez d'abord l'intégration",
+    "toast": {
+      "saved": "Configuration Nautilus enregistrée",
+      "saveError": "Erreur : {{message}}",
+      "testSuccess": "{{active}}/{{total}} serveurs actifs · {{containers}} containers · scrape en {{ms}}ms",
+      "connectionFailed": "Connexion impossible",
+      "connectionError": "Erreur de connexion"
+    }
+  }
+}

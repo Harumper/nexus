@@ -1,0 +1,26 @@
+{
+  "title": "Docker containers",
+  "subtitle": "Data from Nautilus",
+  "subtitleStats": " · {{active}}/{{total}} active servers · scraped in {{ms}}ms",
+  "errorHint": "Check the configuration in Settings → Integrations.",
+  "emptyServers": "No Docker servers in Nautilus.",
+  "tableTitle": "Containers (by CPU)",
+  "containerCount_one": "{{count}} container",
+  "containerCount_other": "{{count}} containers",
+  "headers": {
+    "container": "Container",
+    "server": "Server",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "rx": "RX/s",
+    "tx": "TX/s",
+    "pids": "PIDs"
+  },
+  "states": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "other": "Other"
+  },
+  "cores_one": "{{count}} core",
+  "cores_other": "{{count}} cores"
+}

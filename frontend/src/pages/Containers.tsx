@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Container, RefreshCw, Loader2, Server, AlertTriangle, Cpu, MemoryStick, ExternalLink } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 
@@ -49,6 +50,7 @@ function formatRate(n: number | null): string {
 }
 
 export default function Containers() {
+  const { t } = useTranslation(["containers", "common"]);
   const [snapshot, setSnapshot] = useState<{
     servers: NautilusServer[];
     containers: NautilusContainer[];
@@ -66,11 +68,11 @@ export default function Containers() {
       const res = await api.getNautilusSnapshot();
       setSnapshot(res);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur"));
+      setError(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -84,11 +86,15 @@ export default function Containers() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Container className="w-6 h-6" /> Containers Docker
+            <Container className="w-6 h-6" /> {t("title")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Données depuis Nautilus
-            {snapshot && ` · ${snapshot.meta.activeServers}/${snapshot.meta.totalServers} serveurs actifs · scrape en ${snapshot.scrapeDurationMs}ms`}
+            {t("subtitle")}
+            {snapshot && t("subtitleStats", {
+              active: snapshot.meta.activeServers,
+              total: snapshot.meta.totalServers,
+              ms: snapshot.scrapeDurationMs,
+            })}
           </p>
         </div>
         <button
@@ -98,7 +104,7 @@ export default function Containers() {
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Rafraîchir
+          {t("common:actions.refresh")}
         </button>
       </div>
 
@@ -107,7 +113,7 @@ export default function Containers() {
           <AlertTriangle className="w-4 h-4 inline mr-2" />
           {error}
           <div className="text-xs mt-2" style={{ color: "var(--nx-text-weak)" }}>
-            Vérifiez la configuration dans Paramètres → Intégrations.
+            {t("errorHint")}
           </div>
         </div>
       )}
@@ -115,7 +121,7 @@ export default function Containers() {
       {!snapshot && !error && !loading && (
         <div className="rounded-xl border border-border p-8 text-center" style={{ background: "var(--nx-bg-surface)" }}>
           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" style={{ color: "var(--nx-text-weak)" }} />
-          <p className="text-sm" style={{ color: "var(--nx-text-weak)" }}>Chargement…</p>
+          <p className="text-sm" style={{ color: "var(--nx-text-weak)" }}>{t("common:status.loading")}</p>
         </div>
       )}
 
@@ -123,7 +129,7 @@ export default function Containers() {
         <div className="rounded-xl border border-border p-8 text-center" style={{ background: "var(--nx-bg-surface)" }}>
           <Server className="w-10 h-10 mx-auto mb-3 opacity-50" />
           <p className="text-sm" style={{ color: "var(--nx-text-weak)" }}>
-            Aucun serveur Docker dans Nautilus.
+            {t("emptyServers")}
           </p>
         </div>
       )}
@@ -141,22 +147,22 @@ export default function Containers() {
           {snapshot.containers.length > 0 && (
             <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Containers (par CPU)</h2>
+                <h2 className="text-sm font-semibold">{t("tableTitle")}</h2>
                 <span className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
-                  {snapshot.containers.length} container{snapshot.containers.length > 1 ? "s" : ""}
+                  {t("containerCount", { count: snapshot.containers.length })}
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead style={{ background: "var(--nx-bg-elevated)" }}>
                     <tr className="text-left" style={{ color: "var(--nx-text-weak)" }}>
-                      <th className="px-3 py-2 font-medium">Container</th>
-                      <th className="px-3 py-2 font-medium">Serveur</th>
-                      <th className="px-3 py-2 font-medium text-right">CPU</th>
-                      <th className="px-3 py-2 font-medium text-right">RAM</th>
-                      <th className="px-3 py-2 font-medium text-right">RX/s</th>
-                      <th className="px-3 py-2 font-medium text-right">TX/s</th>
-                      <th className="px-3 py-2 font-medium text-right">PIDs</th>
+                      <th className="px-3 py-2 font-medium">{t("headers.container")}</th>
+                      <th className="px-3 py-2 font-medium">{t("headers.server")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("headers.cpu")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("headers.ram")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("headers.rx")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("headers.tx")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("headers.pids")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -190,6 +196,7 @@ export default function Containers() {
 }
 
 function ServerCard({ server }: { server: NautilusServer }) {
+  const { t } = useTranslation("containers");
   const running = server.containerCounts.running || 0;
   const stopped = (server.containerCounts.exited || 0) + (server.containerCounts.dead || 0);
   const other = Object.entries(server.containerCounts)
@@ -213,20 +220,20 @@ function ServerCard({ server }: { server: NautilusServer }) {
       <div className="grid grid-cols-3 gap-2 mb-3 text-center">
         <div className="rounded-lg py-1.5" style={{ background: "var(--nx-success-subtle)" }}>
           <div className="text-lg font-bold tabular-nums" style={{ color: "var(--nx-success)" }}>{running}</div>
-          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>Running</div>
+          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>{t("states.running")}</div>
         </div>
         <div className="rounded-lg py-1.5" style={{ background: "var(--nx-bg-elevated)" }}>
           <div className="text-lg font-bold tabular-nums" style={{ color: "var(--nx-text-weak)" }}>{stopped}</div>
-          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>Stopped</div>
+          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>{t("states.stopped")}</div>
         </div>
         <div className="rounded-lg py-1.5" style={{ background: other > 0 ? "var(--nx-warning-subtle)" : "var(--nx-bg-elevated)" }}>
           <div className="text-lg font-bold tabular-nums" style={{ color: other > 0 ? "var(--nx-warning)" : "var(--nx-text-weak)" }}>{other}</div>
-          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>Autre</div>
+          <div className="text-[9px] uppercase" style={{ color: "var(--nx-text-weak)" }}>{t("states.other")}</div>
         </div>
       </div>
 
       <div className="space-y-1.5 text-xs">
-        <Gauge icon={Cpu} label="CPU" value={server.cpuPercent} unit="%" subtext={server.cpuCores ? `${server.cpuCores} cores` : ""} />
+        <Gauge icon={Cpu} label="CPU" value={server.cpuPercent} unit="%" subtext={server.cpuCores ? t("cores", { count: server.cpuCores }) : ""} />
         <Gauge icon={MemoryStick} label="RAM" value={server.memoryPercent} unit="%" subtext={`${formatBytes(server.memoryUsedBytes)} / ${formatBytes(server.memoryLimitBytes)}`} />
       </div>
     </div>
