@@ -103,6 +103,23 @@ describe("Enrollment UX v2 — Docker & Scripts", () => {
     expect(content).toContain('SERVER_PUBLIC_KEY="$(cat "$2")"');
   });
 
+  it("should refuse a token on a host that already has a local identity (anti-deadlock guard, never auto-purges)", () => {
+    // Feature B : un --enrollment-token fourni alors qu'une identité locale existe
+    // (shared.secret) ferait ignorer le token par l'agent → boucle handshake error.
+    // On REFUSE (exit), on ne purge JAMAIS automatiquement : la purge exige --reenroll.
+    const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
+    const guard = 'if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then';
+    expect(content).toContain(guard);
+    // Le bloc de garde mène à un refus (exit 1) et oriente vers les deux issues.
+    const block = content.slice(content.indexOf(guard));
+    const body = block.slice(0, block.indexOf("\nfi\n"));
+    expect(body).toContain("exit 1");
+    expect(body).toContain("--reenroll");
+    expect(body).toMatch(/SANS --enrollment-token/);
+    // Refus pur : le garde-fou ne déclenche aucune purge (pas de table rase ici).
+    expect(body).not.toContain("wipe_agent");
+  });
+
   it("should have docker-compose with repo-root context and AGENT_BACKEND_URL", () => {
     const content = readFileSync(resolve(rootDir, "docker-compose.yml"), "utf8");
     expect(content).toContain("context: .");
