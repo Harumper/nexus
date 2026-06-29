@@ -1,0 +1,48 @@
+{
+  "count_one": "{{count}} user",
+  "count_other": "{{count}} users",
+  "createButton": "Create user",
+  "empty": "No user detected",
+  "headers": {
+    "username": "Username",
+    "uid": "UID",
+    "fullName": "Full name",
+    "shell": "Shell",
+    "groups": "Groups",
+    "sudo": "Sudo"
+  },
+  "keysButton": "Keys",
+  "viewKeys": "View SSH keys",
+  "deleteAria": "Delete {{user}}",
+  "confirmDeleteTitle": "Delete this user?",
+  "confirmDeleteDesc": "The user <0>{{name}}</0> will be deleted along with its home directory (<1>userdel -r</1>). This action is irreversible.",
+  "confirmRemoveKeyTitle": "Delete this SSH key?",
+  "confirmRemoveKeyDesc": "The user won't be able to connect with this key anymore.",
+  "toasts": {
+    "deleted": "User \"{{user}}\" deleted",
+    "created": "User \"{{user}}\" created",
+    "sudoAdded": "Sudo added to {{user}}",
+    "sudoRemoved": "Sudo removed from {{user}}",
+    "keyAdded": "SSH key added",
+    "keyRemoved": "SSH key removed",
+    "deleteError": "Deletion failed",
+    "addError": "Add failed",
+    "createError": "Creation failed"
+  },
+  "keysDrawer": {
+    "title": "SSH keys — {{user}}",
+    "addLabel": "Add a public key",
+    "keyPlaceholder": "ssh-ed25519 AAAAC3... user@host",
+    "noKeys": "No SSH key for {{user}}",
+    "removeKeyAria": "Delete the key"
+  },
+  "create": {
+    "title": "Create a user",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "jdupont",
+    "usernameHint": "Lowercase letters, digits, _ and - (POSIX).",
+    "fullNameLabel": "Full name (optional)",
+    "fullNamePlaceholder": "Jean Dupont",
+    "addToSudo": "Add to the sudo group"
+  }
+}

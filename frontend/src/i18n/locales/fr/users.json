@@ -1,0 +1,48 @@
+{
+  "count_one": "{{count}} utilisateur",
+  "count_other": "{{count}} utilisateurs",
+  "createButton": "Créer utilisateur",
+  "empty": "Aucun utilisateur détecté",
+  "headers": {
+    "username": "Username",
+    "uid": "UID",
+    "fullName": "Nom complet",
+    "shell": "Shell",
+    "groups": "Groups",
+    "sudo": "Sudo"
+  },
+  "keysButton": "Clés",
+  "viewKeys": "Voir les clés SSH",
+  "deleteAria": "Supprimer {{user}}",
+  "confirmDeleteTitle": "Supprimer cet utilisateur ?",
+  "confirmDeleteDesc": "L'utilisateur <0>{{name}}</0> sera supprimé avec son home directory (<1>userdel -r</1>). Cette action est irréversible.",
+  "confirmRemoveKeyTitle": "Supprimer cette clé SSH ?",
+  "confirmRemoveKeyDesc": "L'utilisateur ne pourra plus se connecter avec cette clé.",
+  "toasts": {
+    "deleted": "Utilisateur \"{{user}}\" supprimé",
+    "created": "Utilisateur \"{{user}}\" créé",
+    "sudoAdded": "Sudo ajouté à {{user}}",
+    "sudoRemoved": "Sudo retiré à {{user}}",
+    "keyAdded": "Clé SSH ajoutée",
+    "keyRemoved": "Clé SSH supprimée",
+    "deleteError": "Suppression échouée",
+    "addError": "Ajout échoué",
+    "createError": "Création échouée"
+  },
+  "keysDrawer": {
+    "title": "Clés SSH — {{user}}",
+    "addLabel": "Ajouter une clé publique",
+    "keyPlaceholder": "ssh-ed25519 AAAAC3... user@host",
+    "noKeys": "Aucune clé SSH pour {{user}}",
+    "removeKeyAria": "Supprimer la clé"
+  },
+  "create": {
+    "title": "Créer un utilisateur",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "jdupont",
+    "usernameHint": "Lettres minuscules, chiffres, _ et - (POSIX).",
+    "fullNameLabel": "Nom complet (optionnel)",
+    "fullNamePlaceholder": "Jean Dupont",
+    "addToSudo": "Ajouter au groupe sudo"
+  }
+}

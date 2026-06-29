@@ -44,6 +44,10 @@ import frUpdatePanel from "./locales/fr/updatePanel.json";
 import enUpdatePanel from "./locales/en/updatePanel.json";
 import frSecurity from "./locales/fr/security.json";
 import enSecurity from "./locales/en/security.json";
+import frUsers from "./locales/fr/users.json";
+import enUsers from "./locales/en/users.json";
+import frFiles from "./locales/fr/files.json";
+import enFiles from "./locales/en/files.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -78,7 +82,7 @@ i18n.use(initReactI18next).init({
       metricsChart: frMetricsChart, attention: frAttention, audit: frAudit, enroll: frEnroll, alerts: frAlerts,
       machineDetail: frMachineDetail, firewall: frFirewall, network: frNetwork,
       services: frServices, storage: frStorage, packages: frPackages, scheduling: frScheduling, processList: frProcessList,
-      updatePanel: frUpdatePanel, security: frSecurity,
+      updatePanel: frUpdatePanel, security: frSecurity, users: frUsers, files: frFiles,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
@@ -86,10 +90,10 @@ i18n.use(initReactI18next).init({
       metricsChart: enMetricsChart, attention: enAttention, audit: enAudit, enroll: enEnroll, alerts: enAlerts,
       machineDetail: enMachineDetail, firewall: enFirewall, network: enNetwork,
       services: enServices, storage: enStorage, packages: enPackages, scheduling: enScheduling, processList: enProcessList,
-      updatePanel: enUpdatePanel, security: enSecurity,
+      updatePanel: enUpdatePanel, security: enSecurity, users: enUsers, files: enFiles,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security", "users", "files"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

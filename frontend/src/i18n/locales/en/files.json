@@ -1,0 +1,48 @@
+{
+  "toasts": {
+    "accessDenied": "Access denied by the security policy: {{name}}",
+    "symlink": "Symlink → {{target}} (not followed)",
+    "previewError": "Preview failed",
+    "downloaded": "{{name}} downloaded",
+    "downloadError": "Download failed",
+    "sanitized": "Name sanitized: {{orig}} → {{clean}}",
+    "uploaded": "Uploaded: {{filename}} ({{size}})",
+    "uploadError": "Upload failed",
+    "clipboardDenied": "Clipboard denied"
+  },
+  "rootTitle": "Root",
+  "rootAria": "Go to root",
+  "pathPlaceholder": "/absolute/path",
+  "go": "Go",
+  "filterPlaceholder": "Filter...",
+  "shortcuts": "Shortcuts",
+  "inboxTitle": "Nexus upload inbox",
+  "inboxDesc": "Inbox <0>{{inbox}}</0> · files in 0640 non-executable · auto-purge after 7 days · max {{max}}. Connect via SSH then <1>sudo mv</1> to move.",
+  "uploadButton": "Upload a file",
+  "truncated": "Listing truncated (too many entries). Refine via the filter field or go into a subfolder.",
+  "headers": {
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "mode": "Mode",
+    "actions": "Actions"
+  },
+  "emptyDir": "Empty folder.",
+  "noMatch": "No entry matches the filter.",
+  "previewTitle": "Preview",
+  "downloadTitle": "Download via Nexus",
+  "downloadTooLargeTitle": "> {{max}}, offers an scp command",
+  "copyCmdTitle": "Copy: {{cmd}}",
+  "copied": "Copied",
+  "copiedScp": "scp copied",
+  "copyScp": "Copy scp",
+  "tooLarge": {
+    "title": "File too large for Nexus",
+    "line1": "<0>{{name}}</0> · {{size}} · Nexus cap: {{max}}.",
+    "uploadHint": "Use scp or rsync directly to the agent's inbox.",
+    "downloadHint": "Use scp or rsync from your machine to retrieve the file.",
+    "scpUpload": "scp (from your machine)",
+    "scpDownload": "scp (to your machine)",
+    "rsync": "rsync (with progress)"
+  }
+}

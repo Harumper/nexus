@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import {
@@ -46,6 +47,7 @@ export default function UsersTab({
   machineId,
   canManagePrivileges,
 }: Props) {
+  const { t } = useTranslation(["users", "common"]);
   const [users, setUsers] = useState<LinuxUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function UsersTab({
       const res = await api.listUsers(machineId);
       setUsers(res?.data?.users || []);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur de chargement"));
+      toast.error(getErrorMessage(err, t("common:errors.loadError")));
     } finally {
       setLoading(false);
     }
@@ -74,10 +76,10 @@ export default function UsersTab({
     setActing(username);
     try {
       await api.deleteUser(machineId, username);
-      toast.success(`Utilisateur "${username}" supprimé`);
+      toast.success(t("toasts.deleted", { user: username }));
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Suppression échouée"));
+      toast.error(getErrorMessage(err, t("toasts.deleteError")));
     } finally {
       setActing(null);
     }
@@ -88,11 +90,11 @@ export default function UsersTab({
     try {
       await api.updateUserSudo(machineId, username, !currentSudo);
       toast.success(
-        currentSudo ? `Sudo retiré à ${username}` : `Sudo ajouté à ${username}`
+        currentSudo ? t("toasts.sudoRemoved", { user: username }) : t("toasts.sudoAdded", { user: username })
       );
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setActing(null);
     }
@@ -102,7 +104,7 @@ export default function UsersTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
-          {users.length} utilisateur{users.length > 1 ? "s" : ""}
+          {t("count", { count: users.length })}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -112,7 +114,7 @@ export default function UsersTab({
             icon={<UserPlus />}
             className="!border-success !text-success hover:!bg-success-subtle"
           >
-            Créer utilisateur
+            {t("createButton")}
           </Button>
           <Button
             variant="outline"
@@ -121,24 +123,24 @@ export default function UsersTab({
             loading={loading}
             icon={<RefreshCw />}
           >
-            Rafraîchir
+            {t("common:actions.refresh")}
           </Button>
         </div>
       </div>
 
       {users.length === 0 ? (
-        <EmptyState icon={Users} title="Aucun utilisateur détecté" />
+        <EmptyState icon={Users} title={t("empty")} />
       ) : (
         <div className="rounded-xl border border-border overflow-hidden bg-card">
           <table className="w-full text-xs">
             <thead className="bg-elevated">
               <tr className="text-left text-muted-foreground">
-                <Th>Username</Th>
-                <Th>UID</Th>
-                <Th>Nom complet</Th>
-                <Th>Shell</Th>
-                <Th>Groups</Th>
-                <Th>Sudo</Th>
+                <Th>{t("headers.username")}</Th>
+                <Th>{t("headers.uid")}</Th>
+                <Th>{t("headers.fullName")}</Th>
+                <Th>{t("headers.shell")}</Th>
+                <Th>{t("headers.groups")}</Th>
+                <Th>{t("headers.sudo")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -177,9 +179,9 @@ export default function UsersTab({
                         variant="outline"
                         onClick={() => setSelected(u)}
                         icon={<Key />}
-                        title="Voir les clés SSH"
+                        title={t("viewKeys")}
                       >
-                        Clés
+                        {t("keysButton")}
                       </Button>
                       {canManagePrivileges && u.username !== "root" && (
                         <Button
@@ -200,7 +202,7 @@ export default function UsersTab({
                           onClick={() => setPendingDelete(u.username)}
                           disabled={acting === u.username}
                           icon={<Trash2 />}
-                          aria-label={`Supprimer ${u.username}`}
+                          aria-label={t("deleteAria", { user: u.username })}
                           className="!border-destructive !text-destructive hover:!bg-danger-subtle"
                         />
                       )}
@@ -240,16 +242,18 @@ export default function UsersTab({
         onConfirm={async () => {
           if (pendingDelete) await performDelete(pendingDelete);
         }}
-        title="Supprimer cet utilisateur ?"
+        title={t("confirmDeleteTitle")}
         description={
           pendingDelete && (
-            <>
-              L'utilisateur <strong>{pendingDelete}</strong> sera supprimé avec son home
-              directory (<code>userdel -r</code>). Cette action est irréversible.
-            </>
+            <Trans
+              i18nKey="confirmDeleteDesc"
+              t={t}
+              values={{ name: pendingDelete }}
+              components={[<strong key="0" />, <code key="1" />]}
+            />
           )
         }
-        confirmLabel="Supprimer"
+        confirmLabel={t("common:actions.delete")}
         variant="danger"
       />
     </div>
@@ -267,6 +271,7 @@ function SshKeysDrawer({
   canMutate: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(["users", "common"]);
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [newKey, setNewKey] = useState("");
@@ -279,7 +284,7 @@ function SshKeysDrawer({
       const res = await api.listSshKeys(machineId, user.username);
       setKeys(res?.data?.keys || []);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
@@ -297,10 +302,10 @@ function SshKeysDrawer({
     try {
       await api.addSshKey(machineId, user.username, k);
       setNewKey("");
-      toast.success("Clé SSH ajoutée");
+      toast.success(t("toasts.keyAdded"));
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Ajout échoué"));
+      toast.error(getErrorMessage(err, t("toasts.addError")));
     } finally {
       setActing(null);
     }
@@ -310,10 +315,10 @@ function SshKeysDrawer({
     setActing(fingerprint);
     try {
       await api.removeSshKey(machineId, user.username, fingerprint);
-      toast.success("Clé SSH supprimée");
+      toast.success(t("toasts.keyRemoved"));
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Suppression échouée"));
+      toast.error(getErrorMessage(err, t("toasts.deleteError")));
     } finally {
       setActing(null);
     }
@@ -326,7 +331,7 @@ function SshKeysDrawer({
         onClose={onClose}
         title={
           <span className="flex items-center gap-2">
-            <Key className="w-4 h-4 text-info" /> Clés SSH — {user.username}
+            <Key className="w-4 h-4 text-info" /> {t("keysDrawer.title", { user: user.username })}
           </span>
         }
         description={`${user.home}/.ssh/authorized_keys`}
@@ -334,11 +339,11 @@ function SshKeysDrawer({
         <div className="p-6 space-y-4">
           {canMutate && (
             <div className="space-y-2">
-              <label className="block text-xs font-medium">Ajouter une clé publique</label>
+              <label className="block text-xs font-medium">{t("keysDrawer.addLabel")}</label>
               <Textarea
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
-                placeholder="ssh-ed25519 AAAAC3... user@host"
+                placeholder={t("keysDrawer.keyPlaceholder")}
                 rows={3}
                 className="text-xs"
               />
@@ -351,7 +356,7 @@ function SshKeysDrawer({
                 icon={<UserPlus />}
                 className="!border-success !text-success hover:!bg-success-subtle"
               >
-                Ajouter
+                {t("common:actions.add")}
               </Button>
             </div>
           )}
@@ -361,7 +366,7 @@ function SshKeysDrawer({
               <Spinner size="sm" />
             </div>
           ) : keys.length === 0 ? (
-            <EmptyState icon={Key} title={`Aucune clé SSH pour ${user.username}`} />
+            <EmptyState icon={Key} title={t("keysDrawer.noKeys", { user: user.username })} />
           ) : (
             <div className="space-y-2">
               {keys.map((k) => (
@@ -392,7 +397,7 @@ function SshKeysDrawer({
                         onClick={() => setPendingFp(k.fingerprint)}
                         loading={acting === k.fingerprint}
                         icon={<Trash2 />}
-                        aria-label="Supprimer la clé"
+                        aria-label={t("keysDrawer.removeKeyAria")}
                         className="!border-destructive !text-destructive hover:!bg-danger-subtle"
                       />
                     )}
@@ -410,9 +415,9 @@ function SshKeysDrawer({
         onConfirm={async () => {
           if (pendingFp) await performRemove(pendingFp);
         }}
-        title="Supprimer cette clé SSH ?"
-        description="L'utilisateur ne pourra plus se connecter avec cette clé."
-        confirmLabel="Supprimer"
+        title={t("confirmRemoveKeyTitle")}
+        description={t("confirmRemoveKeyDesc")}
+        confirmLabel={t("common:actions.delete")}
         variant="danger"
       />
     </>
@@ -430,6 +435,7 @@ function CreateUserDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation(["users", "common"]);
   const [username, setUsername] = useState("");
   const [gecos, setGecos] = useState("");
   const [sudo, setSudo] = useState(false);
@@ -442,10 +448,10 @@ function CreateUserDialog({
         gecos: gecos.trim() || undefined,
         sudo,
       });
-      toast.success(`Utilisateur "${username.trim()}" créé`);
+      toast.success(t("toasts.created", { user: username.trim() }));
       onCreated();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Création échouée"));
+      toast.error(getErrorMessage(err, t("toasts.createError")));
     } finally {
       setSubmitting(false);
     }
@@ -458,13 +464,13 @@ function CreateUserDialog({
       size="md"
       title={
         <span className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-success" /> Créer un utilisateur
+          <Users className="w-4 h-4 text-success" /> {t("create.title")}
         </span>
       }
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
-            Annuler
+            {t("common:actions.cancel")}
           </Button>
           <Button
             variant="success"
@@ -473,31 +479,31 @@ function CreateUserDialog({
             disabled={!username.trim()}
             loading={submitting}
           >
-            Créer
+            {t("common:actions.create")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium mb-1">Username</label>
+          <label className="block text-xs font-medium mb-1">{t("create.usernameLabel")}</label>
           <Input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="jdupont"
+            placeholder={t("create.usernamePlaceholder")}
             className="font-mono"
             autoFocus
           />
           <p className="text-[10px] mt-1 text-muted-foreground">
-            Lettres minuscules, chiffres, _ et - (POSIX).
+            {t("create.usernameHint")}
           </p>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1">Nom complet (optionnel)</label>
+          <label className="block text-xs font-medium mb-1">{t("create.fullNameLabel")}</label>
           <Input
             value={gecos}
             onChange={(e) => setGecos(e.target.value)}
-            placeholder="Jean Dupont"
+            placeholder={t("create.fullNamePlaceholder")}
           />
         </div>
         {canManagePrivileges && (
@@ -508,7 +514,7 @@ function CreateUserDialog({
               onChange={(e) => setSudo(e.target.checked)}
               className="accent-primary"
             />
-            <span className="text-xs">Ajouter au groupe sudo</span>
+            <span className="text-xs">{t("create.addToSudo")}</span>
           </label>
         )}
       </div>

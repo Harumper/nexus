@@ -4,6 +4,7 @@ import {
   Download, Upload, Copy, Check, Search, Lock, AlertTriangle, Loader2, Home, Eye, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { Button } from "./ui";
@@ -136,6 +137,7 @@ function shellQuote(s: string): string {
 }
 
 export default function FilesTab({ machine }: FilesTabProps) {
+  const { t } = useTranslation(["files", "common"]);
   const [cwd, setCwd] = useState<string>("/");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [inbox, setInbox] = useState<string>("/var/lib/nexus-agent/inbox");
@@ -188,7 +190,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
 
   const onEntryClick = (e: FsEntry) => {
     if (e.denied) {
-      toast.error(`Accès refusé par la politique de sécurité : ${e.name}`);
+      toast.error(t("toasts.accessDenied", { name: e.name }));
       return;
     }
     if (e.kind === "dir") {
@@ -202,7 +204,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
         handleDownload(e);
       }
     } else if (e.kind === "symlink") {
-      toast.message(`Symlink → ${e.symlink ?? "?"} (non suivi)`);
+      toast.message(t("toasts.symlink", { target: e.symlink ?? "?" }));
     }
   };
 
@@ -225,7 +227,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
       }
       setPreview({ entry: e, fullPath, kind, data, sha256: res.data.sha256 });
     } catch (err) {
-      toast.error(getErrorMessage(err, "Preview impossible"));
+      toast.error(getErrorMessage(err, t("toasts.previewError")));
     } finally {
       setPreviewLoading(false);
     }
@@ -242,9 +244,9 @@ export default function FilesTab({ machine }: FilesTabProps) {
       const res = await api.fsRead(machine.id, fullPath);
       const bin = base64ToBlob(res.data.content_base64);
       triggerBrowserDownload(bin, e.name);
-      toast.success(`${e.name} téléchargé`);
+      toast.success(t("toasts.downloaded", { name: e.name }));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Download échoué"));
+      toast.error(getErrorMessage(err, t("toasts.downloadError")));
     } finally {
       setDownloadingFor(null);
     }
@@ -257,17 +259,17 @@ export default function FilesTab({ machine }: FilesTabProps) {
     }
     const cleanName = file.name.replace(/[^A-Za-z0-9._-]/g, "_");
     if (cleanName !== file.name) {
-      toast.message(`Nom assaini : ${file.name} → ${cleanName}`);
+      toast.message(t("toasts.sanitized", { orig: file.name, clean: cleanName }));
     }
     setUploading(true);
     try {
       const buf = await file.arrayBuffer();
       const b64 = arrayBufferToBase64(buf);
       const res = await api.fsUpload(machine.id, cleanName, b64);
-      toast.success(`Uploadé : ${res.data.filename} (${formatBytes(res.data.size)})`);
+      toast.success(t("toasts.uploaded", { filename: res.data.filename, size: formatBytes(res.data.size) }));
       await load(cwd);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Upload échoué"));
+      toast.error(getErrorMessage(err, t("toasts.uploadError")));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -280,7 +282,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
       setCopied(key);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      toast.error("Clipboard refusé");
+      toast.error(t("toasts.clipboardDenied"));
     }
   };
 
@@ -304,8 +306,8 @@ export default function FilesTab({ machine }: FilesTabProps) {
         <button
           onClick={() => load("/")}
           className="p-1.5 rounded hover:bg-muted transition-colors"
-          title="Racine"
-          aria-label="Aller à la racine"
+          title={t("rootTitle")}
+          aria-label={t("rootAria")}
         >
           <Home className="w-4 h-4" />
         </button>
@@ -325,10 +327,10 @@ export default function FilesTab({ machine }: FilesTabProps) {
             type="text"
             value={pathInput}
             onChange={(e) => setPathInput(e.target.value)}
-            placeholder="/chemin/absolu"
+            placeholder={t("pathPlaceholder")}
             className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <Button type="submit" variant="ghost" size="sm">Aller</Button>
+          <Button type="submit" variant="ghost" size="sm">{t("go")}</Button>
         </form>
 
         <div className="relative min-w-[160px]">
@@ -337,12 +339,12 @@ export default function FilesTab({ machine }: FilesTabProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filtrer..."
+            placeholder={t("filterPlaceholder")}
             className="w-full rounded-md border border-input bg-background pl-7 pr-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 
-        <Button variant="ghost" size="sm" onClick={() => load(cwd)} loading={loading} icon={<RefreshCw />} aria-label="Rafraîchir" />
+        <Button variant="ghost" size="sm" onClick={() => load(cwd)} loading={loading} icon={<RefreshCw />} aria-label={t("common:actions.refresh")} />
       </div>
 
       {/* Breadcrumb */}
@@ -371,7 +373,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
         {/* Quick paths */}
         <aside className="rounded-xl p-3 h-fit" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--nx-text-weak)" }}>
-            Raccourcis
+            {t("shortcuts")}
           </h3>
           <div className="space-y-0.5">
             {QUICK_PATHS.map((q) => (
@@ -388,7 +390,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
               onClick={() => load(inbox)}
               className={`w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted transition-colors flex items-center gap-1.5 ${isInbox ? "bg-muted font-semibold" : ""}`}
               style={{ color: "var(--nx-warning)" }}
-              title="Boîte d'upload Nexus"
+              title={t("inboxTitle")}
             >
               <Upload className="w-3 h-3" /> inbox
             </button>
@@ -403,8 +405,12 @@ export default function FilesTab({ machine }: FilesTabProps) {
               <div className="flex items-center gap-3 flex-wrap">
                 <Upload className="w-4 h-4" style={{ color: "var(--nx-warning)" }} />
                 <div className="flex-1 min-w-[200px] text-xs" style={{ color: "var(--nx-text)" }}>
-                  Inbox <span className="font-mono">{inbox}</span> · fichiers en 0640 non exécutables · auto-purge après 7 j · max {formatBytes(FS_MAX_SIZE)}.
-                  Connecte-toi en SSH puis <span className="font-mono">sudo mv</span> pour déplacer.
+                  <Trans
+                    i18nKey="inboxDesc"
+                    t={t}
+                    values={{ inbox, max: formatBytes(FS_MAX_SIZE) }}
+                    components={[<span key="0" className="font-mono" />, <span key="1" className="font-mono" />]}
+                  />
                 </div>
                 <input
                   ref={fileInputRef}
@@ -422,7 +428,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
                   loading={uploading}
                   icon={<Upload />}
                 >
-                  Uploader un fichier
+                  {t("uploadButton")}
                 </Button>
               </div>
             </div>
@@ -430,25 +436,25 @@ export default function FilesTab({ machine }: FilesTabProps) {
 
           {truncated && (
             <div className="px-3 py-1.5 text-[11px]" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
-              Listing tronqué (trop d'entrées). Affine via le champ de filtre ou descend dans un sous-dossier.
+              {t("truncated")}
             </div>
           )}
 
           <table className="w-full text-sm">
             <thead style={{ background: "var(--nx-bg-elevated)" }}>
               <tr className="text-xs uppercase" style={{ color: "var(--nx-text-weak)" }}>
-                <th className="px-4 py-2 text-left">Nom</th>
-                <th className="px-4 py-2 text-right">Taille</th>
-                <th className="px-4 py-2 text-left hidden md:table-cell">Modifié</th>
-                <th className="px-4 py-2 text-left hidden lg:table-cell">Mode</th>
-                <th className="px-4 py-2 text-right">Actions</th>
+                <th className="px-4 py-2 text-left">{t("headers.name")}</th>
+                <th className="px-4 py-2 text-right">{t("headers.size")}</th>
+                <th className="px-4 py-2 text-left hidden md:table-cell">{t("headers.modified")}</th>
+                <th className="px-4 py-2 text-left hidden lg:table-cell">{t("headers.mode")}</th>
+                <th className="px-4 py-2 text-right">{t("headers.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && !loading && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: "var(--nx-text-weak)" }}>
-                    {entries.length === 0 ? "Dossier vide." : "Aucune entrée ne correspond au filtre."}
+                    {entries.length === 0 ? t("emptyDir") : t("noMatch")}
                   </td>
                 </tr>
               )}
@@ -495,7 +501,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
                                 onClick={() => handlePreview(e)}
                                 disabled={previewLoading}
                                 className="p-1.5 rounded hover:bg-muted transition-colors"
-                                title="Aperçu"
+                                title={t("previewTitle")}
                                 style={{ color: "var(--nx-text-weak)" }}
                               >
                                 {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
@@ -505,7 +511,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
                               onClick={() => handleDownload(e)}
                               disabled={downloadingFor === e.name}
                               className="p-1.5 rounded hover:bg-muted transition-colors"
-                              title={e.size > FS_MAX_SIZE ? `> ${formatBytes(FS_MAX_SIZE)}, propose une commande scp` : "Télécharger via Nexus"}
+                              title={e.size > FS_MAX_SIZE ? t("downloadTooLargeTitle", { max: formatBytes(FS_MAX_SIZE) }) : t("downloadTitle")}
                               style={{ color: "var(--nx-info)" }}
                             >
                               {downloadingFor === e.name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
@@ -513,7 +519,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
                             <button
                               onClick={() => copyToClipboard(scpDownloadCmd(machine, fullPath), scpKey)}
                               className="p-1.5 rounded hover:bg-muted transition-colors"
-                              title={`Copier : ${scpDownloadCmd(machine, fullPath)}`}
+                              title={t("copyCmdTitle", { cmd: scpDownloadCmd(machine, fullPath) })}
                               style={{ color: copied === scpKey ? "var(--nx-success)" : "var(--nx-text-weak)" }}
                             >
                               {copied === scpKey ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -579,6 +585,7 @@ function PreviewModal({
   onClose: () => void;
   onDownload: () => void;
 }) {
+  const { t } = useTranslation(["files", "common"]);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [copiedContent, setCopiedContent] = useState(false);
   const scpCmd = scpDownloadCmd(machine, fullPath);
@@ -589,7 +596,7 @@ function PreviewModal({
       setCopiedCmd(true);
       setTimeout(() => setCopiedCmd(false), 1500);
     } catch {
-      toast.error("Clipboard refusé");
+      toast.error(t("toasts.clipboardDenied"));
     }
   };
 
@@ -599,7 +606,7 @@ function PreviewModal({
       setCopiedContent(true);
       setTimeout(() => setCopiedContent(false), 1500);
     } catch {
-      toast.error("Clipboard refusé");
+      toast.error(t("toasts.clipboardDenied"));
     }
   };
 
@@ -626,7 +633,7 @@ function PreviewModal({
           <button
             onClick={onClose}
             className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
-            aria-label="Fermer"
+            aria-label={t("common:a11y.close")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -666,7 +673,7 @@ function PreviewModal({
                 onClick={copyTextContent}
                 icon={copiedContent ? <Check /> : <Copy />}
               >
-                {copiedContent ? "Copié" : "Copier"}
+                {copiedContent ? t("copied") : t("common:actions.copy")}
               </Button>
             )}
             <Button
@@ -675,10 +682,10 @@ function PreviewModal({
               onClick={copyCmd}
               icon={copiedCmd ? <Check /> : <Copy />}
             >
-              {copiedCmd ? "Copié scp" : "Copier scp"}
+              {copiedCmd ? t("copiedScp") : t("copyScp")}
             </Button>
             <Button variant="primary" size="sm" onClick={onDownload} icon={<Download />}>
-              Télécharger
+              {t("common:actions.download")}
             </Button>
           </div>
         </div>
@@ -700,17 +707,18 @@ function TooLargeModal({
   inbox: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(["files", "common"]);
   const [copied, setCopied] = useState<string | null>(null);
   const isUpload = file.path === inbox;
 
   const cmds = isUpload
     ? [
-        { label: "scp (depuis ton poste)", cmd: scpUploadCmd(machine, `./${file.name}`, `${inbox}/`) },
-        { label: "rsync (avec progression)", cmd: `rsync -avP ${shellQuote(`./${file.name}`)} ${(machine.sshUser || "root")}@${(machine.ipAddress?.split(",")[0] || machine.hostname || machine.name).trim()}:${shellQuote(`${inbox}/`)}` },
+        { label: t("tooLarge.scpUpload"), cmd: scpUploadCmd(machine, `./${file.name}`, `${inbox}/`) },
+        { label: t("tooLarge.rsync"), cmd: `rsync -avP ${shellQuote(`./${file.name}`)} ${(machine.sshUser || "root")}@${(machine.ipAddress?.split(",")[0] || machine.hostname || machine.name).trim()}:${shellQuote(`${inbox}/`)}` },
       ]
     : [
-        { label: "scp (vers ton poste)", cmd: scpDownloadCmd(machine, file.path) },
-        { label: "rsync (avec progression)", cmd: rsyncDownloadCmd(machine, file.path) },
+        { label: t("tooLarge.scpDownload"), cmd: scpDownloadCmd(machine, file.path) },
+        { label: t("tooLarge.rsync"), cmd: rsyncDownloadCmd(machine, file.path) },
       ];
 
   const copy = async (text: string, key: string) => {
@@ -719,7 +727,7 @@ function TooLargeModal({
       setCopied(key);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      toast.error("Clipboard refusé");
+      toast.error(t("toasts.clipboardDenied"));
     }
   };
 
@@ -735,12 +743,15 @@ function TooLargeModal({
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--nx-warning)" }} />
           <div>
-            <h2 className="text-sm font-semibold">Fichier trop volumineux pour Nexus</h2>
+            <h2 className="text-sm font-semibold">{t("tooLarge.title")}</h2>
             <p className="text-xs mt-1" style={{ color: "var(--nx-text-weak)" }}>
-              <span className="font-mono">{file.name}</span> · {formatBytes(file.size)} · cap Nexus : {formatBytes(FS_MAX_SIZE)}.<br />
-              {isUpload
-                ? "Utilise scp ou rsync directement vers l'inbox de l'agent."
-                : "Utilise scp ou rsync depuis ton poste pour récupérer le fichier."}
+              <Trans
+                i18nKey="tooLarge.line1"
+                t={t}
+                values={{ name: file.name, size: formatBytes(file.size), max: formatBytes(FS_MAX_SIZE) }}
+                components={[<span key="0" className="font-mono" />]}
+              /><br />
+              {isUpload ? t("tooLarge.uploadHint") : t("tooLarge.downloadHint")}
             </p>
           </div>
         </div>
@@ -759,7 +770,7 @@ function TooLargeModal({
                   onClick={() => copy(c.cmd, c.label)}
                   className="px-3 rounded border border-border hover:bg-muted transition-colors"
                   style={{ color: copied === c.label ? "var(--nx-success)" : "var(--nx-text-weak)" }}
-                  title="Copier"
+                  title={t("common:actions.copy")}
                 >
                   {copied === c.label ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -769,7 +780,7 @@ function TooLargeModal({
         </div>
 
         <div className="flex justify-end mt-5">
-          <Button variant="ghost" onClick={onClose}>Fermer</Button>
+          <Button variant="ghost" onClick={onClose}>{t("common:actions.close")}</Button>
         </div>
       </div>
     </div>
