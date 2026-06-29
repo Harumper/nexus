@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Dialog } from "./Dialog";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -27,10 +28,11 @@ export function ConfirmDialog({
   title,
   description,
   confirmWord,
-  confirmLabel = "Confirmer",
-  cancelLabel = "Annuler",
+  confirmLabel,
+  cancelLabel,
   variant = "danger",
 }: ConfirmDialogProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,7 +76,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={handleClose} disabled={submitting}>
-            {cancelLabel}
+            {cancelLabel ?? t("actions.cancel")}
           </Button>
           <Button
             variant={variant}
@@ -83,7 +85,7 @@ export function ConfirmDialog({
             disabled={!canConfirm || submitting}
             loading={submitting}
           >
-            {confirmLabel}
+            {confirmLabel ?? t("actions.confirm")}
           </Button>
         </>
       }
@@ -92,7 +94,11 @@ export function ConfirmDialog({
       {confirmWord && (
         <div className="mt-2">
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Tapez <code className="font-mono text-foreground">{confirmWord}</code> pour confirmer
+            <Trans
+              i18nKey="confirmDialog.typeToConfirm"
+              values={{ word: confirmWord }}
+              components={{ code: <code className="font-mono text-foreground" /> }}
+            />
           </label>
           <Input
             type="text"

@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 
 type Size = "sm" | "md" | "lg";
@@ -10,10 +11,11 @@ const SIZE_CLASSES: Record<Size, string> = {
 };
 
 export function Spinner({ size = "md", className }: { size?: Size; className?: string }) {
+  const { t } = useTranslation();
   return (
     <Loader2
       className={cn("animate-spin text-muted-foreground", SIZE_CLASSES[size], className)}
-      aria-label="Chargement"
+      aria-label={t("a11y.loading")}
     />
   );
 }
