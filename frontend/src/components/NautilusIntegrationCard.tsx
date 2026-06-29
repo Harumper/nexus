@@ -158,7 +158,7 @@ export default function NautilusIntegrationCard() {
               className="font-mono"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              <Trans i18nKey="nautilus.tokenHint" t={t} components={{ code: <code /> }} />
+              <Trans i18nKey="nautilus.tokenHint" t={t} components={[<code key="0" className="mx-1" />, <code key="1" />]} />
               {tokenConfigured && ` ${t("nautilus.tokenHintKeep")}`}
             </p>
           </div>

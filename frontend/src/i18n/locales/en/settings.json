@@ -69,7 +69,7 @@
     "tokenLabel": "Authentication token",
     "tokenPlaceholderConfigured": "•••••••• (configured)",
     "tokenPlaceholderUnset": "Only if Nautilus is publicly exposed",
-    "tokenHint": "Not needed if Nautilus runs locally (not exposed to the internet). Matches <code>PROMETHEUS_SCRAPE_TOKEN</code> in Nautilus's <code>.env</code>.",
+    "tokenHint": "Not needed if Nautilus runs locally (not exposed to the internet). Matches <0>PROMETHEUS_SCRAPE_TOKEN</0> in Nautilus's <1>.env</1>.",
     "tokenHintKeep": "Leave empty to keep the current token.",
     "testButton": "Test connection",
     "testDisabledTitle": "Enable the integration first",
