@@ -188,11 +188,13 @@ build-agent:
 # ===========================================
 # Release agent — build + sha256 + VERSION (signature & publication = script local)
 # ===========================================
-# release-build (AUTO sur tag vX.Y.Z) : compile le binaire agent canonique, calcule
-# son sha256, écrit VERSION (= AGENT_VERSION du job version). ARTEFACTS seulement.
-# La SIGNATURE (clé minisign hors-ligne) et la PUBLICATION dans /release sont faites
-# par scripts/release.sh sur la machine de confiance de l'opérateur — la clé privée
-# ne touche JAMAIS la CI. Le script récupère ces artefacts via l'API GitLab.
+# release-build (AUTO sur master ET tag) : compile le binaire agent canonique,
+# calcule son sha256, écrit VERSION (= AGENT_VERSION du job `version`, qui dérive la
+# version des tags + du sha agent). ARTEFACTS seulement. Pas besoin de poser un tag
+# par release : le script lit le DERNIER artefact de master via l'API. La SIGNATURE
+# (clé minisign hors-ligne) et la PUBLICATION dans /release sont faites par
+# scripts/nexus-release.sh sur la machine de confiance — la clé privée ne touche
+# JAMAIS la CI. (Poser un tag vX.Y.Z reste possible pour monter le X.Y.Z sémantique.)
 release-build:
   stage: release
   image: golang:1.23-alpine
@@ -204,7 +206,7 @@ release-build:
     - ./nexus-agent --version
     - sha256sum nexus-agent | tee nexus-agent.sha256
     - printf '%s\n' "$AGENT_VERSION" > VERSION
-    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve $CI_COMMIT_TAG"
+    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve"
   artifacts:
     paths:
       - nexus-agent
@@ -212,6 +214,7 @@ release-build:
       - VERSION
     expire_in: 30 days
   rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_TAG'
 
 # ===========================================
