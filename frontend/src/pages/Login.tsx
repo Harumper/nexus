@@ -1,9 +1,11 @@
 import { useState, useEffect, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { KeyRound, LogIn } from "lucide-react";
 import { getErrorMessage } from "../services/errors";
 
 export default function Login() {
+  const { t } = useTranslation("auth");
   const { login, loginKeycloak, authConfig, loading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +28,7 @@ export default function Login() {
   const handleLocalLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
-      setError("Veuillez remplir tous les champs");
+      setError(t("errors.emptyFields"));
       return;
     }
     setError("");
@@ -35,9 +37,9 @@ export default function Login() {
       await login(username.trim(), password);
     } catch (err) {
       if ((err as { status?: number })?.status === 429) {
-        setError("Trop de tentatives. Réessayez dans une minute.");
+        setError(t("errors.tooManyAttempts"));
       } else {
-        setError(getErrorMessage(err, "Identifiants invalides"));
+        setError(getErrorMessage(err, t("errors.invalidCredentials")));
       }
     } finally {
       setLoading(false);
@@ -75,7 +77,7 @@ export default function Login() {
             className="h-12 mx-auto mb-4 hidden dark:block"
           />
           <p className="text-muted-foreground mt-1">
-            Infrastructure Management
+            {t("tagline")}
           </p>
         </div>
 
@@ -87,7 +89,7 @@ export default function Login() {
               className="w-full flex items-center justify-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
               <KeyRound className="w-5 h-5 text-primary" />
-              Se connecter avec SSO
+              {t("ssoButton")}
             </button>
           )}
 
@@ -95,7 +97,7 @@ export default function Login() {
           {showKeycloak && showLocal && (
             <div className="flex items-center gap-4">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">ou</span>
+              <span className="text-xs text-muted-foreground">{t("separator")}</span>
               <div className="flex-1 h-px bg-border" />
             </div>
           )}
@@ -115,7 +117,7 @@ export default function Login() {
                     htmlFor="username"
                     className="block text-sm font-medium text-foreground mb-1.5"
                   >
-                    Utilisateur
+                    {t("usernameLabel")}
                   </label>
                   <input
                     id="username"
@@ -136,7 +138,7 @@ export default function Login() {
                     htmlFor="password"
                     className="block text-sm font-medium text-foreground mb-1.5"
                   >
-                    Mot de passe
+                    {t("passwordLabel")}
                   </label>
                   <input
                     id="password"
@@ -156,7 +158,7 @@ export default function Login() {
                   className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
-                  {loading ? "Connexion..." : "Se connecter"}
+                  {loading ? t("submitting") : t("submit")}
                 </button>
               </div>
             </form>

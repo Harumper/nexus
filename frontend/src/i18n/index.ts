@@ -2,6 +2,8 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import frCommon from "./locales/fr/common.json";
 import enCommon from "./locales/en/common.json";
+import frAuth from "./locales/fr/auth.json";
+import enAuth from "./locales/en/auth.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -30,10 +32,10 @@ export function getInitialLanguage(): Language {
 // vide à attendre. `useSuspense: false` par sécurité (pas de Suspense i18n).
 i18n.use(initReactI18next).init({
   resources: {
-    fr: { common: frCommon },
-    en: { common: enCommon },
+    fr: { common: frCommon, auth: frAuth },
+    en: { common: enCommon, auth: enAuth },
   },
-  ns: ["common"],
+  ns: ["common", "auth"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,
