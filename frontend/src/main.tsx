@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import App from "./App";
+import "./i18n";
 import "./index.css";
 
 // Après un déploiement, un onglet déjà ouvert peut tenter de charger un chunk

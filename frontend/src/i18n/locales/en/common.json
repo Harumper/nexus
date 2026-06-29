@@ -1,0 +1,103 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "machines": "Machines",
+    "containers": "Containers",
+    "alerts": "Alerts",
+    "compare": "Compare",
+    "audit": "Audit Log",
+    "settings": "Settings",
+    "docs": "Documentation",
+    "groupManagement": "Management",
+    "groupAnalysis": "Analysis",
+    "groupSystem": "System"
+  },
+  "theme": {
+    "label": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "navy": "Navy"
+  },
+  "language": {
+    "label": "Language"
+  },
+  "user": {
+    "logout": "Sign out"
+  },
+  "actions": {
+    "add": "Add",
+    "delete": "Delete",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "save": "Save",
+    "edit": "Edit",
+    "create": "Create",
+    "enable": "Enable",
+    "disable": "Disable",
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "apply": "Apply",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "search": "Search",
+    "view": "View",
+    "select": "Select",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "reboot": "Reboot",
+    "run": "Run",
+    "copy": "Copy",
+    "download": "Download",
+    "send": "Send",
+    "test": "Test",
+    "renew": "Renew",
+    "schedule": "Schedule",
+    "revert": "Revert",
+    "reset": "Reset",
+    "load": "Load",
+    "revoke": "Revoke",
+    "enroll": "Enroll",
+    "reEnroll": "Re-enroll",
+    "harden": "Harden"
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "active": "Active",
+    "inactive": "Inactive",
+    "inProgress": "In progress",
+    "pending": "Pending",
+    "failed": "Failed",
+    "success": "Success",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "critical": "Critical",
+    "available": "Available",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "expired": "Expired",
+    "none": "None",
+    "unknown": "Unknown",
+    "loading": "Loading…"
+  },
+  "a11y": {
+    "close": "Close",
+    "loading": "Loading"
+  },
+  "confirmDialog": {
+    "typeToConfirm": "Type <code>{{word}}</code> to confirm"
+  },
+  "badges": {
+    "alerts_one": "{{count}} alert",
+    "alerts_other": "{{count}} alerts",
+    "failedServices_one": "{{count}} failed service",
+    "failedServices_other": "{{count}} failed services",
+    "updates_one": "{{count}} update",
+    "updates_other": "{{count}} updates",
+    "securitySuffix": " ({{count}} security)",
+    "certExpiring": "Cert expires in {{days}}d"
+  }
+}

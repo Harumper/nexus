@@ -1,0 +1,103 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "machines": "Machines",
+    "containers": "Containers",
+    "alerts": "Alertes",
+    "compare": "Comparer",
+    "audit": "Audit Log",
+    "settings": "Paramètres",
+    "docs": "Documentation",
+    "groupManagement": "Gestion",
+    "groupAnalysis": "Analyse",
+    "groupSystem": "Système"
+  },
+  "theme": {
+    "label": "Thème",
+    "dark": "Sombre",
+    "light": "Clair",
+    "navy": "Navy"
+  },
+  "language": {
+    "label": "Langue"
+  },
+  "user": {
+    "logout": "Déconnexion"
+  },
+  "actions": {
+    "add": "Ajouter",
+    "delete": "Supprimer",
+    "remove": "Retirer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "install": "Installer",
+    "uninstall": "Désinstaller",
+    "apply": "Appliquer",
+    "retry": "Réessayer",
+    "refresh": "Rafraîchir",
+    "search": "Rechercher",
+    "view": "Voir",
+    "select": "Sélectionner",
+    "start": "Démarrer",
+    "stop": "Arrêter",
+    "restart": "Redémarrer",
+    "reboot": "Redémarrer",
+    "run": "Exécuter",
+    "copy": "Copier",
+    "download": "Télécharger",
+    "send": "Envoyer",
+    "test": "Tester",
+    "renew": "Renouveler",
+    "schedule": "Planifier",
+    "revert": "Rétablir",
+    "reset": "Réinitialiser",
+    "load": "Charger",
+    "revoke": "Révoquer",
+    "enroll": "Enrôler",
+    "reEnroll": "Ré-enrôler",
+    "harden": "Durcir"
+  },
+  "status": {
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "inProgress": "En cours",
+    "pending": "En attente",
+    "failed": "Échec",
+    "success": "Succès",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "critical": "Critique",
+    "available": "Disponible",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "expired": "Expiré",
+    "none": "Aucun",
+    "unknown": "Inconnu",
+    "loading": "Chargement…"
+  },
+  "a11y": {
+    "close": "Fermer",
+    "loading": "Chargement"
+  },
+  "confirmDialog": {
+    "typeToConfirm": "Tapez <code>{{word}}</code> pour confirmer"
+  },
+  "badges": {
+    "alerts_one": "{{count}} alerte",
+    "alerts_other": "{{count}} alertes",
+    "failedServices_one": "{{count}} service failed",
+    "failedServices_other": "{{count}} services failed",
+    "updates_one": "{{count}} update",
+    "updates_other": "{{count}} updates",
+    "securitySuffix": " ({{count}} sécu)",
+    "certExpiring": "Cert expire {{days}}j"
+  }
+}
