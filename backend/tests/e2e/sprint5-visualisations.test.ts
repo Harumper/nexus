@@ -82,6 +82,10 @@ describe("Phase 6.3 — Compare Page", () => {
   it("should have Compare nav item in Layout", () => {
     const content = readFileSync(resolve(frontendSrc, "components/Layout.tsx"), "utf8");
     expect(content).toContain("/compare");
-    expect(content).toContain("Comparer");
+    // i18n : le label du nav est externalisé en clé `nav.compare` (defaultNS "common").
+    // On vérifie la clé câblée côté composant + la traduction FR dans le fichier de langue.
+    expect(content).toContain("nav.compare");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/common.json"), "utf8");
+    expect(fr).toContain("Comparer");
   });
 });
