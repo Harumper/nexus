@@ -15,6 +15,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -51,6 +52,7 @@ export default function UpdatePanel({
   machineId,
   machineName,
 }: UpdatePanelProps) {
+  const { t } = useTranslation(["updatePanel", "common"]);
   const [packageData, setPackageData] = useState<PackageListResult | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -87,7 +89,7 @@ export default function UpdatePanel({
             setUpdating(false);
             setResult({
               success: true,
-              message: "Mise à jour terminée avec succès",
+              message: t("toastDone"),
             });
             setProgress(null);
             setPackageData(null); // Refresh la liste après MAJ
@@ -124,7 +126,7 @@ export default function UpdatePanel({
       );
       setHolds(new Set(holdsResp?.data?.holds || []));
     } catch (err) {
-      setResult({ success: false, message: getErrorMessage(err, "Erreur") });
+      setResult({ success: false, message: getErrorMessage(err, t("common:errors.generic")) });
     } finally {
       setLoadingList(false);
     }
@@ -145,7 +147,7 @@ export default function UpdatePanel({
         setHolds((prev) => new Set(prev).add(pkgName));
       }
     } catch (err) {
-      toast.error("Erreur : " + getErrorMessage(err));
+      toast.error(t("toastError", { message: getErrorMessage(err) }));
     } finally {
       setTogglingHold(null);
     }
@@ -154,9 +156,9 @@ export default function UpdatePanel({
   // Lancer une mise à jour
   const startUpdate = async (securityOnly: boolean) => {
     setUpdating(true);
-    setProgress({ line: "Démarrage de la mise à jour...", percent: 0 });
+    setProgress({ line: t("starting"), percent: 0 });
     setResult(null);
-    setLog(["Démarrage de la mise à jour..."]);
+    setLog([t("starting")]);
     try {
       const actionId = securityOnly
         ? "system.update_security"
@@ -188,7 +190,7 @@ export default function UpdatePanel({
         <div className="flex items-center gap-3">
           <Download className="w-5 h-5 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">
-            Mises à jour système
+            {t("title")}
           </h3>
         </div>
         <button
@@ -201,7 +203,7 @@ export default function UpdatePanel({
           ) : (
             <RefreshCw className="w-3.5 h-3.5" />
           )}
-          {loadingList ? "Vérification..." : "Vérifier les MAJ"}
+          {loadingList ? t("checking") : t("check")}
         </button>
       </div>
 
@@ -234,7 +236,7 @@ export default function UpdatePanel({
                 {packageData.total_updates}
               </span>
               <span className="text-xs text-muted-foreground">
-                mise{packageData.total_updates > 1 ? "s" : ""} à jour
+                {t("stats.updates", { count: packageData.total_updates })}
               </span>
             </div>
             {packageData.security_updates > 0 && (
@@ -243,37 +245,34 @@ export default function UpdatePanel({
                 <span className="text-sm font-medium text-amber-400">
                   {packageData.security_updates}
                 </span>
-                <span className="text-xs text-amber-400/80">sécurité</span>
+                <span className="text-xs text-amber-400/80">{t("security")}</span>
               </div>
             )}
             {deferredCount > 0 && (
               <div
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border"
-                title="Phased updates / kept-back : listés comme disponibles mais non installés immédiatement par apt (déploiement progressif Ubuntu)."
+                title={t("deferredStatTitle")}
               >
                 <Clock className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-foreground">
                   {deferredCount}
                 </span>
-                <span className="text-xs text-muted-foreground">différé{deferredCount > 1 ? "s" : ""}</span>
+                <span className="text-xs text-muted-foreground">{t("stats.deferred", { count: deferredCount })}</span>
               </div>
             )}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted">
               <span className="text-xs text-muted-foreground">
-                via {packageData.package_manager}
+                {t("via", { pm: packageData.package_manager })}
               </span>
             </div>
           </div>
 
           {deferredCount > 0 && (
             <p className="text-xs text-muted-foreground">
-              {deferredCount} mise{deferredCount > 1 ? "s" : ""} à jour différée
-              {deferredCount > 1 ? "s" : ""} (phased/kept-back) ne ser
-              {deferredCount > 1 ? "ont" : "a"} pas installée
-              {deferredCount > 1 ? "s" : ""} immédiatement par apt —{" "}
-              {packageData.total_updates - deferredCount} applicable
-              {packageData.total_updates - deferredCount > 1 ? "s" : ""}{" "}
-              maintenant.
+              {t("deferred.sentence", {
+                count: deferredCount,
+                applicable: t("deferred.applicable", { count: applicableCount }),
+              })}
             </p>
           )}
 
@@ -284,19 +283,19 @@ export default function UpdatePanel({
                 <thead>
                   <tr className="bg-muted/30 border-b border-border">
                     <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
-                      Package
+                      {t("headers.package")}
                     </th>
                     <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
-                      Actuelle
+                      {t("headers.current")}
                     </th>
                     <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
-                      Nouvelle
+                      {t("headers.new")}
                     </th>
                     <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
-                      Sécu
+                      {t("headers.security")}
                     </th>
                     <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase">
-                      Hold
+                      {t("headers.hold")}
                     </th>
                   </tr>
                 </thead>
@@ -315,10 +314,10 @@ export default function UpdatePanel({
                             {pkg.deferred && (
                               <span
                                 className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-sans font-medium bg-muted text-muted-foreground border border-border"
-                                title="Phased/kept-back : non installé immédiatement par apt"
+                                title={t("deferredBadgeTitle")}
                               >
                                 <Clock className="w-2.5 h-2.5" />
-                                différé
+                                {t("deferredBadge")}
                               </span>
                             )}
                           </span>
@@ -338,7 +337,7 @@ export default function UpdatePanel({
                           <button
                             onClick={() => toggleHold(pkg.name)}
                             disabled={togglingHold === pkg.name}
-                            title={isHeld ? "Retirer le hold (autoriser l'upgrade)" : "Hold (empêcher l'upgrade)"}
+                            title={isHeld ? t("unholdTitle") : t("holdTitle")}
                             className="inline-flex items-center justify-center p-1 rounded transition-colors hover:bg-muted"
                           >
                             {togglingHold === pkg.name ? (
@@ -362,12 +361,11 @@ export default function UpdatePanel({
                 >
                   {showAllPackages ? (
                     <>
-                      <ChevronUp className="w-3 h-3" /> Réduire
+                      <ChevronUp className="w-3 h-3" /> {t("collapse")}
                     </>
                   ) : (
                     <>
-                      <ChevronDown className="w-3 h-3" /> Afficher les{" "}
-                      {packageData.packages.length - 10} restants
+                      <ChevronDown className="w-3 h-3" /> {t("showRemaining", { count: packageData.packages.length - 10 })}
                     </>
                   )}
                 </button>
@@ -378,7 +376,7 @@ export default function UpdatePanel({
           {packageData.total_updates === 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-400">
               <CheckCircle2 className="w-4 h-4" />
-              Système à jour
+              {t("upToDate")}
             </div>
           )}
         </div>
@@ -411,7 +409,7 @@ export default function UpdatePanel({
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ScrollText className="w-3.5 h-3.5" />
-          Voir le journal ({log.length} ligne{log.length > 1 ? "s" : ""})
+          {t("log.viewButton", { count: log.length })}
         </button>
       )}
 
@@ -419,10 +417,8 @@ export default function UpdatePanel({
       <Dialog
         open={showLog}
         onClose={() => setShowLog(false)}
-        title={`Journal de mise à jour — ${machineName}`}
-        description={`${log.length} événement${log.length > 1 ? "s" : ""} reçu${
-          log.length > 1 ? "s" : ""
-        }${updating ? " · en cours…" : ""}`}
+        title={t("log.modalTitle", { name: machineName })}
+        description={t("log.events", { count: log.length }) + (updating ? t("log.inProgress") : "")}
         size="xl"
       >
         <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-300 p-4 max-h-[60vh] overflow-y-auto">
@@ -446,13 +442,13 @@ export default function UpdatePanel({
             disabled={applicableCount <= 0}
             title={
               deferredCount > 0
-                ? `${deferredCount} mise(s) à jour différée(s) ne sera/seront pas installée(s) maintenant par apt`
+                ? t("allUpdateTitle", { count: deferredCount })
                 : undefined
             }
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Download className="w-4 h-4" />
-            Tout mettre à jour ({applicableCount})
+            {t("updateAll", { count: applicableCount })}
           </button>
           {securityPkgs.length > 0 && (
             <button
@@ -460,7 +456,7 @@ export default function UpdatePanel({
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 px-4 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
             >
               <Shield className="w-4 h-4" />
-              Sécurité ({securityPkgs.length})
+              {t("securityButton", { count: securityPkgs.length })}
             </button>
           )}
         </div>

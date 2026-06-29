@@ -1,0 +1,48 @@
+{
+  "title": "System updates",
+  "check": "Check updates",
+  "checking": "Checking...",
+  "starting": "Starting the update...",
+  "toastDone": "Update completed successfully",
+  "toastError": "Error: {{message}}",
+  "security": "security",
+  "via": "via {{pm}}",
+  "deferredStatTitle": "Phased updates / kept-back: listed as available but not installed immediately by apt (Ubuntu progressive rollout).",
+  "deferredBadge": "deferred",
+  "deferredBadgeTitle": "Phased/kept-back: not installed immediately by apt",
+  "upToDate": "System up to date",
+  "collapse": "Collapse",
+  "showRemaining": "Show {{count}} more",
+  "holdTitle": "Hold (prevent upgrade)",
+  "unholdTitle": "Remove hold (allow upgrade)",
+  "updateAll": "Update all ({{count}})",
+  "securityButton": "Security ({{count}})",
+  "allUpdateTitle": "{{count}} deferred update(s) won't be installed now by apt",
+  "stats": {
+    "updates_one": "update",
+    "updates_other": "updates",
+    "deferred_one": "deferred",
+    "deferred_other": "deferred"
+  },
+  "deferred": {
+    "applicable_one": "{{count}} applicable now",
+    "applicable_other": "{{count}} applicable now",
+    "sentence_one": "{{count}} deferred update (phased/kept-back) won't be installed immediately by apt — {{applicable}}.",
+    "sentence_other": "{{count}} deferred updates (phased/kept-back) won't be installed immediately by apt — {{applicable}}."
+  },
+  "headers": {
+    "package": "Package",
+    "current": "Current",
+    "new": "New",
+    "security": "Sec",
+    "hold": "Hold"
+  },
+  "log": {
+    "viewButton_one": "View log ({{count}} line)",
+    "viewButton_other": "View log ({{count}} lines)",
+    "modalTitle": "Update log — {{name}}",
+    "events_one": "{{count}} event received",
+    "events_other": "{{count}} events received",
+    "inProgress": " · in progress…"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "title": "Mises à jour système",
+  "check": "Vérifier les MAJ",
+  "checking": "Vérification...",
+  "starting": "Démarrage de la mise à jour...",
+  "toastDone": "Mise à jour terminée avec succès",
+  "toastError": "Erreur : {{message}}",
+  "security": "sécurité",
+  "via": "via {{pm}}",
+  "deferredStatTitle": "Phased updates / kept-back : listés comme disponibles mais non installés immédiatement par apt (déploiement progressif Ubuntu).",
+  "deferredBadge": "différé",
+  "deferredBadgeTitle": "Phased/kept-back : non installé immédiatement par apt",
+  "upToDate": "Système à jour",
+  "collapse": "Réduire",
+  "showRemaining": "Afficher les {{count}} restants",
+  "holdTitle": "Hold (empêcher l'upgrade)",
+  "unholdTitle": "Retirer le hold (autoriser l'upgrade)",
+  "updateAll": "Tout mettre à jour ({{count}})",
+  "securityButton": "Sécurité ({{count}})",
+  "allUpdateTitle": "{{count}} mise(s) à jour différée(s) ne sera/seront pas installée(s) maintenant par apt",
+  "stats": {
+    "updates_one": "mise à jour",
+    "updates_other": "mises à jour",
+    "deferred_one": "différé",
+    "deferred_other": "différés"
+  },
+  "deferred": {
+    "applicable_one": "{{count}} applicable maintenant",
+    "applicable_other": "{{count}} applicables maintenant",
+    "sentence_one": "{{count}} mise à jour différée (phased/kept-back) ne sera pas installée immédiatement par apt — {{applicable}}.",
+    "sentence_other": "{{count}} mises à jour différées (phased/kept-back) ne seront pas installées immédiatement par apt — {{applicable}}."
+  },
+  "headers": {
+    "package": "Package",
+    "current": "Actuelle",
+    "new": "Nouvelle",
+    "security": "Sécu",
+    "hold": "Hold"
+  },
+  "log": {
+    "viewButton_one": "Voir le journal ({{count}} ligne)",
+    "viewButton_other": "Voir le journal ({{count}} lignes)",
+    "modalTitle": "Journal de mise à jour — {{name}}",
+    "events_one": "{{count}} événement reçu",
+    "events_other": "{{count}} événements reçus",
+    "inProgress": " · en cours…"
+  }
+}
