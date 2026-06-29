@@ -186,20 +186,26 @@ build-agent:
     - version
 
 # ===========================================
-# Release agent signée — build+signe AUTO ; publication au deploy
+# Release agent signée — build+signe (MANUEL, mdp saisi au lancement)
 # ===========================================
-# release-agent (AUTO master/tag) : build le binaire agent courant + le signe
-# (clé privée minisign en var CI) → artefacts nexus-agent + .minisig + VERSION.
-# Ne PUBLIE pas : c'est deploy-prod (clic) qui pousse ces artefacts dans /release.
-# → signature invisible/auto, publication = geste délibéré (deploy).
+# release-agent (MANUEL master/tag) : build le binaire agent courant + le signe →
+# artefacts nexus-agent + .minisig + VERSION. Ne PUBLIE pas : deploy-prod (clic)
+# pousse ces artefacts dans /release.
 #
-# ⚠️ INTERIM ASSUMÉ : la clé de signature est en CI → une CI/MR compromise pourrait
-# signer un binaire. Compromis accepté pour l'instant ; à durcir plus tard
-# (signature hors-ligne / token matériel).
+# Sécurité de la signature : la clé stockée en CI (NEXUS_RELEASE_SECKEY) est
+# CHIFFRÉE (protégée par mot de passe) → inutile seule si elle fuit. Le mot de
+# passe N'EST PAS stocké : tu le saisis au ▶ du job (variable éphémère
+# RELEASE_KEY_PASSWORD), fourni à minisign via un pty (expect, log_user 0 → ni le
+# prompt ni la valeur dans les logs ; le script ne contient que $env(...)).
+# Signer exige donc clé chiffrée (stockée) + mot de passe (humain, par run) : une
+# fuite de variable seule ne suffit pas. (Limite connue : un attaquant pouvant
+# MODIFIER ce .gitlab-ci.yml pourrait piéger le job — la cible reste la signature
+# hors-ligne ; ceci est un bon interim.)
 #
 # Variables CI requises :
-#   NEXUS_RELEASE_SECKEY  (type Fichier) clé privée minisign — SANS mot de passe
-#   NEXUS_RELEASE_PUBKEY  (variable)     clé publique (re-vérif + Design A)
+#   NEXUS_RELEASE_SECKEY   (type Fichier) clé privée minisign CHIFFRÉE (avec mdp)
+#   NEXUS_RELEASE_PUBKEY   (variable)     clé publique (re-vérif + Design A)
+#   RELEASE_KEY_PASSWORD   (saisie au ▶, NON stockée)
 #   (publication : deploy-prod réutilise PROD_SSH_PRIVATE_KEY / PROD_SERVER_*)
 release-agent:
   stage: release
@@ -207,10 +213,13 @@ release-agent:
   needs:
     - version
     - test-agent
+  variables:
+    RELEASE_KEY_PASSWORD: ""        # ⟵ saisi au lancement (▶) ; éphémère, NON stocké
   before_script:
-    - apk add --no-cache minisign
+    - apk add --no-cache minisign expect
   script:
-    - test -n "$NEXUS_RELEASE_SECKEY" || { echo "NEXUS_RELEASE_SECKEY (var Fichier) absente"; exit 1; }
+    - test -n "$NEXUS_RELEASE_SECKEY" || { echo "NEXUS_RELEASE_SECKEY absente"; exit 1; }
+    - test -n "$RELEASE_KEY_PASSWORD" || { echo "RELEASE_KEY_PASSWORD vide — saisis le mot de passe de la clé au ▶ du job"; exit 1; }
     # build + signe le binaire agent COURANT. Automatique : la version ne bouge que
     # si le code agent change (job version), donc re-signer un binaire inchangé est
     # inoffensif. La PUBLICATION (vers /release) est faite par deploy-prod.
@@ -227,9 +236,12 @@ release-agent:
           *) printf 'untrusted comment: minisign secret key\n%s\n' "$NEXUS_RELEASE_SECKEY" > release.key ;;
         esac
       fi
-    # signature en CI (clé privée SANS mot de passe ; </dev/null = garde anti-hang)
-    - minisign -S -s release.key -m nexus-agent </dev/null
+    # signature : mot de passe (saisi au ▶) fourni à minisign via un pty (expect).
+    # log_user 0 → ni le prompt ni le mot de passe ne sont émis dans les logs ;
+    # le script ne contient que la référence $env(RELEASE_KEY_PASSWORD), pas la valeur.
+    - expect -c 'log_user 0; set timeout 60; spawn minisign -S -s release.key -m nexus-agent; expect { -re {[Pp]assword} { send -- "$env(RELEASE_KEY_PASSWORD)\r"; exp_continue } eof }'
     - rm -f release.key
+    - test -f nexus-agent.minisig || { echo "signature échouée (mot de passe incorrect ?)"; exit 1; }
     # (sanity) re-vérif avec la clé publique si fournie
     - if [ -n "$NEXUS_RELEASE_PUBKEY" ]; then printf '%s\n' "$NEXUS_RELEASE_PUBKEY" > release.pub; minisign -Vm nexus-agent -p release.pub; fi
     - printf '%s\n' "$AGENT_VERSION" > VERSION
@@ -241,7 +253,11 @@ release-agent:
     expire_in: 30 days
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+      allow_failure: true
     - if: '$CI_COMMIT_TAG'
+      when: manual
+      allow_failure: true
 
 # ===========================================
 # Deploy Production (serveur Nexus)
