@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { getErrorMessage } from "../services/errors";
 import {
   ArrowLeft,
@@ -22,6 +23,7 @@ import type {
 type Step = 1 | 2 | 3;
 
 export default function MachineEnroll() {
+  const { t } = useTranslation(["enroll", "common"]);
   const { id: paramId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const isRegenerateMode = Boolean(paramId);
@@ -64,7 +66,7 @@ export default function MachineEnroll() {
         if (cancelled) return;
         setBootstrap(res.bootstrap);
       } catch (err) {
-        if (!cancelled) setError(getErrorMessage(err, "Erreur lors du chargement"));
+        if (!cancelled) setError(getErrorMessage(err, t("errors.load")));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -146,7 +148,7 @@ export default function MachineEnroll() {
       });
       setStep(2);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur lors de la création"));
+      setError(getErrorMessage(err, t("errors.create")));
     } finally {
       setLoading(false);
     }
@@ -172,7 +174,7 @@ export default function MachineEnroll() {
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Retour
+        {t("back")}
       </button>
 
       <div className="flex items-center gap-3 mb-8">
@@ -181,12 +183,10 @@ export default function MachineEnroll() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {isRegenerateMode ? `Régénérer l'installation — ${name}` : "Ajouter une machine"}
+            {isRegenerateMode ? t("titleRegenerate", { name }) : t("titleNew")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isRegenerateMode
-              ? "Nouveaux tokens générés. Les anciens ont été invalidés."
-              : "Enrolle un nouvel agent sur le serveur Nexus."}
+            {isRegenerateMode ? t("subtitleRegenerate") : t("subtitleNew")}
           </p>
         </div>
       </div>
@@ -206,14 +206,14 @@ export default function MachineEnroll() {
         >
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Nom de la machine
+              {t("nameLabel")}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="web-server-01"
+              placeholder={t("namePlaceholder")}
               required
               autoFocus
             />
@@ -225,14 +225,14 @@ export default function MachineEnroll() {
               onClick={() => navigate("/machines")}
               className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
-              Annuler
+              {t("common:actions.cancel")}
             </button>
             <button
               type="submit"
               disabled={loading || !name}
               className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {loading ? "Création..." : "Créer la machine"}
+              {loading ? t("creating") : t("create")}
             </button>
           </div>
         </form>
@@ -245,11 +245,10 @@ export default function MachineEnroll() {
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
                 <div className="text-sm">
                   <div className="font-medium text-foreground">
-                    Commandes valides jusqu'au{" "}
-                    {new Date(bootstrap.expiresAt).toLocaleString("fr-FR")}
+                    {t("commandsValidUntil", { date: new Date(bootstrap.expiresAt).toLocaleString("fr-FR") })}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Exécute ces commandes sur la machine cible (Linux, root requis).
+                    {t("executeHint")}
                   </div>
                 </div>
                 <button
@@ -261,7 +260,7 @@ export default function MachineEnroll() {
                   ) : (
                     <Copy className="w-3.5 h-3.5" />
                   )}
-                  Tout copier
+                  {t("copyAll")}
                 </button>
               </div>
 
@@ -283,32 +282,30 @@ export default function MachineEnroll() {
                   onClick={() => navigate("/machines")}
                   className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
                 >
-                  Plus tard
+                  {t("later")}
                 </button>
                 <button
                   onClick={() => setStep(3)}
                   className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
-                  J'ai exécuté les commandes
+                  {t("executed")}
                 </button>
               </div>
             </>
           ) : (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 text-sm text-amber-200 space-y-3">
               <div className="font-medium">
-                Génération automatique des commandes désactivée
+                {t("autogenDisabledTitle")}
               </div>
               <p>
-                La variable d'environnement <code className="font-mono text-xs">AGENT_BACKEND_URL</code>{" "}
-                n'est pas configurée côté serveur. La machine a été créée mais vous
-                devrez installer l'agent manuellement avec ces informations :
+                <Trans i18nKey="autogenDisabledBody" t={t} components={{ code: <code className="font-mono text-xs" /> }} />
               </p>
               {machineId && (
                 <div className="space-y-2 mt-3">
-                  <InfoRow label="Machine ID" value={machineId} copied={copiedKey === "mid"} onCopy={() => copy(machineId, "mid")} />
+                  <InfoRow label={t("machineIdLabel")} value={machineId} copied={copiedKey === "mid"} onCopy={() => copy(machineId, "mid")} />
                   {enrollmentToken && (
                     <InfoRow
-                      label="Enrollment token"
+                      label={t("enrollmentTokenLabel")}
                       value={enrollmentToken}
                       copied={copiedKey === "etok"}
                       onCopy={() => copy(enrollmentToken, "etok")}
@@ -325,29 +322,29 @@ export default function MachineEnroll() {
         <div className="mt-8 space-y-5">
           <div className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-lg font-semibold text-foreground mb-1">
-              Vérification de la connexion
+              {t("verifyTitle")}
             </h2>
             <p className="text-sm text-muted-foreground mb-5">
-              Nexus surveille la connexion de l'agent en temps réel.
+              {t("verifySubtitle")}
             </p>
 
             <div className="space-y-3">
               <StatusRow
-                label="Handshake ECDSA"
+                label={t("status.handshake")}
                 status={isOnline ? "ok" : "pending"}
-                hint={isOnline ? "Validé" : "En attente..."}
+                hint={isOnline ? t("status.validated") : t("status.pending")}
               />
               <StatusRow
-                label="Connexion WebSocket"
+                label={t("status.websocket")}
                 status={lastHeartbeatRecent ? "ok" : "pending"}
                 hint={
                   lastHeartbeatRecent
-                    ? "Connecté"
-                    : "Pas encore de heartbeat reçu"
+                    ? t("status.connected")
+                    : t("status.noHeartbeat")
                 }
               />
               <StatusRow
-                label="Version de l'agent"
+                label={t("status.agentVersion")}
                 status={machine?.agentVersion ? "ok" : "pending"}
                 hint={machine?.agentVersion || "—"}
               />
@@ -357,14 +354,14 @@ export default function MachineEnroll() {
               {isOnline ? (
                 <div className="flex-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  Agent connecté —{" "}
+                  {t("agentConnected")}{" "}
                   {machine?.hostname && <span>{machine.hostname} — </span>}
                   {machine?.ipAddress}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Surveillance de la connexion...
+                  {t("monitoring")}
                 </div>
               )}
               {/* Bouton toujours disponible : relance le polling (utile si le
@@ -372,10 +369,10 @@ export default function MachineEnroll() {
               <button
                 onClick={startPolling}
                 className="shrink-0 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Rafraîchir l'état de la connexion"
+                title={t("refreshTitle")}
               >
                 <RefreshCw className="w-4 h-4" />
-                Rafraîchir
+                {t("common:actions.refresh")}
               </button>
             </div>
           </div>
@@ -385,7 +382,7 @@ export default function MachineEnroll() {
               onClick={() => setStep(2)}
               className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
-              Revoir les commandes
+              {t("reviewCommands")}
             </button>
             <button
               onClick={() =>
@@ -393,7 +390,7 @@ export default function MachineEnroll() {
               }
               className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              {isOnline ? "Ouvrir la machine" : "Terminer"}
+              {isOnline ? t("openMachine") : t("finish")}
             </button>
           </div>
         </div>
@@ -403,10 +400,11 @@ export default function MachineEnroll() {
 }
 
 function StepIndicator({ current, skipFirst }: { current: Step; skipFirst?: boolean }) {
+  const { t } = useTranslation("enroll");
   const steps = [
-    { n: 1, label: "Nom" },
-    { n: 2, label: "Installation" },
-    { n: 3, label: "Vérification" },
+    { n: 1, label: t("steps.name") },
+    { n: 2, label: t("steps.install") },
+    { n: 3, label: t("steps.verify") },
   ];
   return (
     <div className="flex items-center gap-3">
@@ -456,12 +454,13 @@ function CommandCard({
   copied: boolean;
   onCopy: () => void;
 }) {
+  const { t } = useTranslation(["enroll", "common"]);
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-start justify-between px-4 py-3 border-b border-border">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wide">
-            Étape {index}/{total}
+            {t("stepN", { index, total })}
           </div>
           <div className="text-sm font-medium text-foreground mt-0.5">
             {step.title}
@@ -477,12 +476,12 @@ function CommandCard({
           {copied ? (
             <>
               <Check className="w-3.5 h-3.5 text-emerald-400" />
-              Copié
+              {t("copied")}
             </>
           ) : (
             <>
               <Copy className="w-3.5 h-3.5" />
-              Copier
+              {t("common:actions.copy")}
             </>
           )}
         </button>

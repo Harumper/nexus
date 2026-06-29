@@ -1,0 +1,48 @@
+{
+  "back": "Back",
+  "titleNew": "Add a machine",
+  "titleRegenerate": "Regenerate installation — {{name}}",
+  "subtitleNew": "Enroll a new agent on the Nexus server.",
+  "subtitleRegenerate": "New tokens generated. The old ones have been invalidated.",
+  "errors": {
+    "load": "Error while loading",
+    "create": "Error while creating"
+  },
+  "nameLabel": "Machine name",
+  "namePlaceholder": "web-server-01",
+  "creating": "Creating…",
+  "create": "Create machine",
+  "commandsValidUntil": "Commands valid until {{date}}",
+  "executeHint": "Run these commands on the target machine (Linux, root required).",
+  "copyAll": "Copy all",
+  "later": "Later",
+  "executed": "I ran the commands",
+  "autogenDisabledTitle": "Automatic command generation disabled",
+  "autogenDisabledBody": "The <code>AGENT_BACKEND_URL</code> environment variable is not configured on the server. The machine was created but you'll need to install the agent manually with this information:",
+  "machineIdLabel": "Machine ID",
+  "enrollmentTokenLabel": "Enrollment token",
+  "verifyTitle": "Connection verification",
+  "verifySubtitle": "Nexus monitors the agent connection in real time.",
+  "status": {
+    "handshake": "ECDSA handshake",
+    "validated": "Validated",
+    "pending": "Pending…",
+    "websocket": "WebSocket connection",
+    "connected": "Connected",
+    "noHeartbeat": "No heartbeat received yet",
+    "agentVersion": "Agent version"
+  },
+  "agentConnected": "Agent connected —",
+  "monitoring": "Monitoring the connection…",
+  "refreshTitle": "Refresh connection status",
+  "reviewCommands": "Review the commands",
+  "openMachine": "Open machine",
+  "finish": "Finish",
+  "steps": {
+    "name": "Name",
+    "install": "Installation",
+    "verify": "Verification"
+  },
+  "stepN": "Step {{index}}/{{total}}",
+  "copied": "Copied"
+}

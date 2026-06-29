@@ -12,6 +12,7 @@ import {
   Activity,
   AlertTriangle,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { timeAgo } from "../lib/utils";
 import { Spinner } from "../components/ui";
 
@@ -27,28 +28,31 @@ interface AuditEntry {
   machine: { id: string; name: string } | null;
 }
 
-const ACTION_LABELS: Record<string, { label: string; icon: typeof Activity; color: string }> = {
-  LOGIN: { label: "Connexion", icon: UserIcon, color: "text-blue-400" },
-  LOGOUT: { label: "Déconnexion", icon: UserIcon, color: "text-zinc-400" },
-  MACHINE_CREATE: { label: "Machine créée", icon: Server, color: "text-emerald-400" },
-  MACHINE_DELETE: { label: "Machine supprimée", icon: Server, color: "text-red-400" },
-  MACHINE_ENROLL: { label: "Enrollment", icon: Key, color: "text-primary" },
-  MACHINE_REVOKE: { label: "Révocation", icon: Shield, color: "text-red-400" },
-  ACTION_REQUEST: { label: "Action demandée", icon: Activity, color: "text-amber-400" },
-  ACTION_COMPLETE: { label: "Action terminée", icon: Activity, color: "text-emerald-400" },
-  ACTION_FAILED: { label: "Action échouée", icon: Activity, color: "text-red-400" },
-  CAPABILITY_GRANT: { label: "Capability ajoutée", icon: Shield, color: "text-emerald-400" },
-  CAPABILITY_REVOKE: { label: "Capability retirée", icon: Shield, color: "text-amber-400" },
-  ALERT_TRIGGERED: { label: "Alerte déclenchée", icon: AlertTriangle, color: "text-red-400" },
-  ALERT_RESOLVED: { label: "Alerte résolue", icon: AlertTriangle, color: "text-emerald-400" },
-  SECURITY_ALERT: { label: "Alerte sécurité", icon: Shield, color: "text-red-400" },
-  CERT_ROTATE: { label: "Rotation certificat", icon: Key, color: "text-blue-400" },
-  CERT_REVOKE: { label: "Certificat révoqué", icon: Key, color: "text-red-400" },
+// Métadonnées visuelles par type d'action (icône/couleur). Le libellé est
+// résolu via i18n : t(`actions.${ACTION}`) avec fallback sur le code brut.
+const ACTION_META: Record<string, { icon: typeof Activity; color: string }> = {
+  LOGIN: { icon: UserIcon, color: "text-blue-400" },
+  LOGOUT: { icon: UserIcon, color: "text-zinc-400" },
+  MACHINE_CREATE: { icon: Server, color: "text-emerald-400" },
+  MACHINE_DELETE: { icon: Server, color: "text-red-400" },
+  MACHINE_ENROLL: { icon: Key, color: "text-primary" },
+  MACHINE_REVOKE: { icon: Shield, color: "text-red-400" },
+  ACTION_REQUEST: { icon: Activity, color: "text-amber-400" },
+  ACTION_COMPLETE: { icon: Activity, color: "text-emerald-400" },
+  ACTION_FAILED: { icon: Activity, color: "text-red-400" },
+  CAPABILITY_GRANT: { icon: Shield, color: "text-emerald-400" },
+  CAPABILITY_REVOKE: { icon: Shield, color: "text-amber-400" },
+  ALERT_TRIGGERED: { icon: AlertTriangle, color: "text-red-400" },
+  ALERT_RESOLVED: { icon: AlertTriangle, color: "text-emerald-400" },
+  SECURITY_ALERT: { icon: Shield, color: "text-red-400" },
+  CERT_ROTATE: { icon: Key, color: "text-blue-400" },
+  CERT_REVOKE: { icon: Key, color: "text-red-400" },
 };
 
 const PAGE_SIZE = 50;
 
 export default function AuditLog() {
+  const { t } = useTranslation(["audit", "common"]);
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -85,16 +89,17 @@ export default function AuditLog() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const uniqueActions = Object.keys(ACTION_LABELS);
+  const uniqueActions = Object.keys(ACTION_META);
+  const actionLabel = (action: string) => t(`actions.${action}`, { defaultValue: action });
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Audit Log</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("common:nav.audit")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {total} événement{total > 1 ? "s" : ""} enregistré{total > 1 ? "s" : ""}
+            {t("count", { count: total })}
           </p>
         </div>
       </div>
@@ -110,7 +115,7 @@ export default function AuditLog() {
               setSearch(e.target.value);
               setPage(0);
             }}
-            placeholder="Rechercher..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -124,10 +129,10 @@ export default function AuditLog() {
             }}
             className="rounded-lg border border-input bg-background pl-10 pr-8 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
           >
-            <option value="">Toutes les actions</option>
+            <option value="">{t("allActions")}</option>
             {uniqueActions.map((action) => (
               <option key={action} value={action}>
-                {ACTION_LABELS[action]?.label || action}
+                {actionLabel(action)}
               </option>
             ))}
           </select>
@@ -142,24 +147,23 @@ export default function AuditLog() {
       ) : logs.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <ScrollText className="w-10 h-10 mx-auto mb-3 opacity-50" />
-          <p>Aucun événement trouvé</p>
+          <p>{t("empty")}</p>
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Action</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Machine</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Utilisateur</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">IP</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("headers.action")}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("headers.machine")}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("headers.user")}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("headers.ip")}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("headers.date")}</th>
               </tr>
             </thead>
             <tbody>
               {logs.map((log) => {
-                const actionInfo = ACTION_LABELS[log.action] || {
-                  label: log.action,
+                const actionInfo = ACTION_META[log.action] || {
                   icon: Activity,
                   color: "text-muted-foreground",
                 };
@@ -175,7 +179,7 @@ export default function AuditLog() {
                       <div className="flex items-center gap-2">
                         <Icon className={`w-4 h-4 ${actionInfo.color}`} />
                         <span className="text-sm text-foreground">
-                          {actionInfo.label}
+                          {actionLabel(log.action)}
                         </span>
                       </div>
                     </td>
@@ -183,7 +187,7 @@ export default function AuditLog() {
                       {log.machine?.name || "—"}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {log.user?.username || "système"}
+                      {log.user?.username || t("system")}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
                       {log.ipAddress || "—"}
@@ -203,7 +207,7 @@ export default function AuditLog() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <span className="text-sm text-muted-foreground">
-            Page {page + 1} / {totalPages}
+            {t("pagination", { page: page + 1, total: totalPages })}
           </span>
           <div className="flex gap-2">
             <button
@@ -230,18 +234,18 @@ export default function AuditLog() {
           <div className="absolute inset-0 bg-black/60" onClick={() => setSelectedLog(null)} />
           <div className="relative w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl p-6">
             <h3 className="text-lg font-semibold text-foreground mb-4">
-              Détail de l'événement
+              {t("detailTitle")}
             </h3>
             <div className="space-y-3">
-              <DetailRow label="Action" value={ACTION_LABELS[selectedLog.action]?.label || selectedLog.action} />
-              <DetailRow label="Resource" value={`${selectedLog.resource} ${selectedLog.resourceId || ""}`} />
-              <DetailRow label="Machine" value={selectedLog.machine?.name || "—"} />
-              <DetailRow label="Utilisateur" value={selectedLog.user?.username || "système"} />
-              <DetailRow label="IP" value={selectedLog.ipAddress || "—"} />
-              <DetailRow label="Date" value={new Date(selectedLog.createdAt).toLocaleString("fr-FR")} />
+              <DetailRow label={t("detail.action")} value={actionLabel(selectedLog.action)} />
+              <DetailRow label={t("detail.resource")} value={`${selectedLog.resource} ${selectedLog.resourceId || ""}`} />
+              <DetailRow label={t("detail.machine")} value={selectedLog.machine?.name || "—"} />
+              <DetailRow label={t("detail.user")} value={selectedLog.user?.username || t("system")} />
+              <DetailRow label={t("detail.ip")} value={selectedLog.ipAddress || "—"} />
+              <DetailRow label={t("detail.date")} value={new Date(selectedLog.createdAt).toLocaleString("fr-FR")} />
               {selectedLog.details && (
                 <div>
-                  <span className="text-xs text-muted-foreground">Détails</span>
+                  <span className="text-xs text-muted-foreground">{t("detail.details")}</span>
                   <pre className="mt-1 rounded-lg bg-muted p-3 text-xs text-foreground overflow-x-auto">
                     {JSON.stringify(selectedLog.details, null, 2)}
                   </pre>
@@ -252,7 +256,7 @@ export default function AuditLog() {
               onClick={() => setSelectedLog(null)}
               className="w-full mt-4 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
-              Fermer
+              {t("common:actions.close")}
             </button>
           </div>
         </div>

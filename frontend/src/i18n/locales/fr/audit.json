@@ -1,0 +1,44 @@
+{
+  "count_one": "{{count}} événement enregistré",
+  "count_other": "{{count}} événements enregistrés",
+  "searchPlaceholder": "Rechercher...",
+  "allActions": "Toutes les actions",
+  "empty": "Aucun événement trouvé",
+  "system": "système",
+  "pagination": "Page {{page}} / {{total}}",
+  "detailTitle": "Détail de l'événement",
+  "headers": {
+    "action": "Action",
+    "machine": "Machine",
+    "user": "Utilisateur",
+    "ip": "IP",
+    "date": "Date"
+  },
+  "detail": {
+    "action": "Action",
+    "resource": "Resource",
+    "machine": "Machine",
+    "user": "Utilisateur",
+    "ip": "IP",
+    "date": "Date",
+    "details": "Détails"
+  },
+  "actions": {
+    "LOGIN": "Connexion",
+    "LOGOUT": "Déconnexion",
+    "MACHINE_CREATE": "Machine créée",
+    "MACHINE_DELETE": "Machine supprimée",
+    "MACHINE_ENROLL": "Enrollment",
+    "MACHINE_REVOKE": "Révocation",
+    "ACTION_REQUEST": "Action demandée",
+    "ACTION_COMPLETE": "Action terminée",
+    "ACTION_FAILED": "Action échouée",
+    "CAPABILITY_GRANT": "Capability ajoutée",
+    "CAPABILITY_REVOKE": "Capability retirée",
+    "ALERT_TRIGGERED": "Alerte déclenchée",
+    "ALERT_RESOLVED": "Alerte résolue",
+    "SECURITY_ALERT": "Alerte sécurité",
+    "CERT_ROTATE": "Rotation certificat",
+    "CERT_REVOKE": "Certificat révoqué"
+  }
+}

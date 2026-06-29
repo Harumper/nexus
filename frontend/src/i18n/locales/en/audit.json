@@ -1,0 +1,44 @@
+{
+  "count_one": "{{count}} recorded event",
+  "count_other": "{{count}} recorded events",
+  "searchPlaceholder": "Search…",
+  "allActions": "All actions",
+  "empty": "No events found",
+  "system": "system",
+  "pagination": "Page {{page}} / {{total}}",
+  "detailTitle": "Event detail",
+  "headers": {
+    "action": "Action",
+    "machine": "Machine",
+    "user": "User",
+    "ip": "IP",
+    "date": "Date"
+  },
+  "detail": {
+    "action": "Action",
+    "resource": "Resource",
+    "machine": "Machine",
+    "user": "User",
+    "ip": "IP",
+    "date": "Date",
+    "details": "Details"
+  },
+  "actions": {
+    "LOGIN": "Login",
+    "LOGOUT": "Logout",
+    "MACHINE_CREATE": "Machine created",
+    "MACHINE_DELETE": "Machine deleted",
+    "MACHINE_ENROLL": "Enrollment",
+    "MACHINE_REVOKE": "Revocation",
+    "ACTION_REQUEST": "Action requested",
+    "ACTION_COMPLETE": "Action completed",
+    "ACTION_FAILED": "Action failed",
+    "CAPABILITY_GRANT": "Capability granted",
+    "CAPABILITY_REVOKE": "Capability revoked",
+    "ALERT_TRIGGERED": "Alert triggered",
+    "ALERT_RESOLVED": "Alert resolved",
+    "SECURITY_ALERT": "Security alert",
+    "CERT_ROTATE": "Certificate rotation",
+    "CERT_REVOKE": "Certificate revoked"
+  }
+}

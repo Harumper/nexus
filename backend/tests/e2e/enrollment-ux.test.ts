@@ -145,7 +145,10 @@ describe("Enrollment UX v2 — Frontend", () => {
     expect(content).toContain("installSteps");
     expect(content).toContain("regenerateBootstrap");
     expect(content).toContain("Polling"); // text mention or timer comment
-    expect(content).toContain("Handshake ECDSA");
+    // i18n : libellé externalisé en clé enroll:status.handshake (FR dans le JSON).
+    expect(content).toContain("status.handshake");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/enroll.json"), "utf8");
+    expect(fr).toContain("Handshake ECDSA");
   });
 
   it("should have routes for /machines/new and /machines/:id/enroll", () => {

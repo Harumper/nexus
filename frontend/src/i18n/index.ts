@@ -18,6 +18,10 @@ import frMetricsChart from "./locales/fr/metricsChart.json";
 import enMetricsChart from "./locales/en/metricsChart.json";
 import frAttention from "./locales/fr/attention.json";
 import enAttention from "./locales/en/attention.json";
+import frAudit from "./locales/fr/audit.json";
+import enAudit from "./locales/en/audit.json";
+import frEnroll from "./locales/fr/enroll.json";
+import enEnroll from "./locales/en/enroll.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -49,15 +53,15 @@ i18n.use(initReactI18next).init({
     fr: {
       common: frCommon, auth: frAuth, settings: frSettings, containers: frContainers,
       dashboard: frDashboard, machines: frMachines, compare: frCompare,
-      metricsChart: frMetricsChart, attention: frAttention,
+      metricsChart: frMetricsChart, attention: frAttention, audit: frAudit, enroll: frEnroll,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
       dashboard: enDashboard, machines: enMachines, compare: enCompare,
-      metricsChart: enMetricsChart, attention: enAttention,
+      metricsChart: enMetricsChart, attention: enAttention, audit: enAudit, enroll: enEnroll,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,
