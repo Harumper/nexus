@@ -1,0 +1,31 @@
+{
+  "title": "Logs — <0>{{service}}</0>",
+  "lineCount_one": "{{filtered}} / {{total}} ligne",
+  "lineCount_other": "{{filtered}} / {{total}} lignes",
+  "truncatedSuffix": " (tronqué)",
+  "errorsSuffix_one": "· {{count}} erreur",
+  "errorsSuffix_other": "· {{count}} erreurs",
+  "warningsSuffix": "· {{count}} avert.",
+  "linesOption": "{{count}} lignes",
+  "since": {
+    "all": "Tout",
+    "5m": "5 min",
+    "1h": "1 h",
+    "1d": "1 jour",
+    "today": "Aujourd'hui"
+  },
+  "filterPlaceholder": "Filtrer...",
+  "onlyErrorsTitle": "N'afficher que les erreurs et avertissements",
+  "onlyErrors": "Erreurs only",
+  "wrapOff": "Désactiver le retour à la ligne",
+  "wrapOn": "Activer le retour à la ligne",
+  "wrapAria": "Toggle wrap",
+  "copyTitle": "Copier les lignes affichées",
+  "scrollBottom": "Aller en bas",
+  "scrollAria": "Scroll to bottom",
+  "loading": "Chargement...",
+  "noLogs": "(aucun log)",
+  "noMatch": "Aucune ligne ne correspond au filtre.",
+  "loadError": "Erreur de chargement des logs",
+  "copyError": "Copie impossible (clipboard refusé)"
+}

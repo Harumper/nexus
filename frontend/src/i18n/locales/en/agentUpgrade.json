@@ -1,0 +1,39 @@
+{
+  "title": "Agent update — {{name}}",
+  "confirmDesc": "The agent will download the latest version served by the server, replace its binary then restart. The connection is interrupted for a few seconds; this window follows the operation until it reconnects on the new version.",
+  "confirmWarning": "⚠ This update replaces <0>only the binary</0>. The <1>sudoers</1> file and the systemd service are not touched — if they changed (e.g. a new command to authorize), you must <2>reinstall the agent</2> (<3>install-agent.sh</3>) or use \"Re-enroll\". The \"⚠ Sudoers\" badge flags it.",
+  "phaseRestarting": "Restarting and reconnecting the agent…",
+  "phaseUpdating": "Update in progress…",
+  "successText": "Agent up to date and reconnected{{version}}.",
+  "versionFrag": " (version {{version}})",
+  "update": "Update",
+  "working": "Operation in progress…",
+  "log": {
+    "starting": "Triggering the agent update…",
+    "reconnected": "Agent reconnected — checking the version…",
+    "upToDate": "✓ Agent up to date{{version}}{{duration}}.",
+    "durationFrag": " in {{seconds}}s",
+    "failed": "✗ Failed: {{reason}}",
+    "unknownReason": "unknown reason",
+    "triggerFail": "✗ {{msg}}",
+    "retrying": "Agent temporarily unavailable — retrying ({{attempt}}/{{total}})…"
+  },
+  "errors": {
+    "timeout": "Timed out: the agent did not reconnect with the new version. Check the agent over SSH (panel below).",
+    "failMessage": "The update failed.",
+    "trigger": "Trigger failed",
+    "triggerFull": "Failed to trigger the update"
+  },
+  "debug": {
+    "title": "Debug & SSH access",
+    "sshConnection": "SSH connection",
+    "openInTerminal": "Open in terminal",
+    "noIp": "No known IP for this machine — <0>SSH config</0>.",
+    "diagnostics": "Diagnostic commands",
+    "cmdStatus": "Service status",
+    "cmdLogs": "Last 100 log lines",
+    "cmdFollow": "Follow logs live",
+    "cmdSha": "SHA256 of the installed binary",
+    "cmdRestart": "Force a restart"
+  }
+}

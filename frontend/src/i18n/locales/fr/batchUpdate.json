@@ -1,0 +1,11 @@
+{
+  "title": "Mise à jour groupée",
+  "eligibleCount_one": "{{count}} machine en ligne de type AGENT :",
+  "eligibleCount_other": "{{count}} machines en ligne de type AGENT :",
+  "noEligible": "Aucune machine éligible",
+  "securityOnly": "Mises à jour de sécurité uniquement",
+  "pending": "En attente...",
+  "result": "Dispatché : {{dispatched}} | Échec : {{failed}}",
+  "start": "Lancer",
+  "inProgress": "En cours..."
+}

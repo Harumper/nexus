@@ -1,0 +1,11 @@
+{
+  "title": "Batch update",
+  "eligibleCount_one": "{{count}} online AGENT machine:",
+  "eligibleCount_other": "{{count}} online AGENT machines:",
+  "noEligible": "No eligible machine",
+  "securityOnly": "Security updates only",
+  "pending": "Pending...",
+  "result": "Dispatched: {{dispatched}} | Failed: {{failed}}",
+  "start": "Start",
+  "inProgress": "In progress..."
+}

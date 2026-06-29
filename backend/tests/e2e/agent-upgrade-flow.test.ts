@@ -79,7 +79,10 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     // Modal persistant pendant le travail (fermeture bloquée)
     expect(content).toContain("guardedClose");
     // Panneau debug repliable : SSH + commandes de diagnostic
-    expect(content).toContain("Debug & accès SSH");
+    // i18n : titre externalisé en clé agentUpgrade:debug.title (FR dans le JSON).
+    expect(content).toContain("debug.title");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/agentUpgrade.json"), "utf8");
+    expect(fr).toContain("Debug & accès SSH");
     expect(content).toContain("journalctl -u nexus-agent");
     expect(content).toContain("systemctl restart nexus-agent");
   });

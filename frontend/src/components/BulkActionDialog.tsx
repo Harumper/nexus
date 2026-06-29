@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Check, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import type { Machine } from "../types";
 import { Dialog, Button, Input } from "./ui";
@@ -12,28 +13,31 @@ interface Props {
   onCompleted?: () => void;
 }
 
+// `key` = clé i18n stable (label/description via t(`bulkActions.${key}.*`)).
+// `confirmText` est le mot-clé TAPÉ par l'utilisateur et comparé tel quel
+// (handleRun) → NE JAMAIS l'externaliser/traduire.
 const BULK_ACTIONS: {
   id: string;
-  label: string;
-  description: string;
+  key: string;
   paramsUI?: "service" | "package" | "script";
   destructive?: boolean;
   confirmText?: string;
 }[] = [
-  { id: "system.update", label: "Mise à jour système", description: "apt upgrade complet" },
-  { id: "system.update_security", label: "Mises à jour sécu uniquement", description: "apt upgrade -s" },
-  { id: "system.reboot", label: "Redémarrer", description: "systemctl reboot (60s avant retour)", destructive: true, confirmText: "REBOOT" },
-  { id: "agent.upgrade", label: "Mettre à jour l'agent Nexus", description: "Self-upgrade + restart" },
-  { id: "system.service_restart", label: "Redémarrer un service", description: "systemctl restart", paramsUI: "service" },
-  { id: "system.service_start", label: "Démarrer un service", description: "systemctl start", paramsUI: "service" },
-  { id: "system.service_stop", label: "Arrêter un service", description: "systemctl stop", paramsUI: "service" },
-  { id: "package.install", label: "Installer un paquet", description: "apt install", paramsUI: "package" },
-  { id: "package.remove", label: "Supprimer un paquet", description: "apt remove", paramsUI: "package", destructive: true },
-  { id: "package.hold", label: "Bloquer un paquet (hold)", description: "apt-mark hold", paramsUI: "package" },
-  { id: "package.unhold", label: "Débloquer un paquet", description: "apt-mark unhold", paramsUI: "package" },
+  { id: "system.update", key: "systemUpdate" },
+  { id: "system.update_security", key: "updateSecurity" },
+  { id: "system.reboot", key: "reboot", destructive: true, confirmText: "REBOOT" },
+  { id: "agent.upgrade", key: "agentUpgrade" },
+  { id: "system.service_restart", key: "serviceRestart", paramsUI: "service" },
+  { id: "system.service_start", key: "serviceStart", paramsUI: "service" },
+  { id: "system.service_stop", key: "serviceStop", paramsUI: "service" },
+  { id: "package.install", key: "packageInstall", paramsUI: "package" },
+  { id: "package.remove", key: "packageRemove", paramsUI: "package", destructive: true },
+  { id: "package.hold", key: "packageHold", paramsUI: "package" },
+  { id: "package.unhold", key: "packageUnhold", paramsUI: "package" },
 ];
 
 export default function BulkActionDialog({ machines, onClose, onCompleted }: Props) {
+  const { t } = useTranslation(["bulkAction", "common"]);
   const [actionId, setActionId] = useState<string>("");
   const [paramValue, setParamValue] = useState("");
   const [confirmInput, setConfirmInput] = useState("");
@@ -48,7 +52,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
   const handleRun = async () => {
     if (!action) return;
     if (action.confirmText && confirmInput !== action.confirmText) {
-      toast.error(`Tapez "${action.confirmText}" pour confirmer`);
+      toast.error(t("toasts.typeToConfirm", { word: action.confirmText }));
       return;
     }
 
@@ -56,10 +60,10 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
     try {
       const params: Record<string, unknown> = {};
       if (action.paramsUI === "service") {
-        if (!paramValue) throw new Error("Service requis");
+        if (!paramValue) throw new Error(t("toasts.serviceRequired"));
         params.service = paramValue;
       } else if (action.paramsUI === "package") {
-        if (!paramValue) throw new Error("Paquet requis");
+        if (!paramValue) throw new Error(t("toasts.packageRequired"));
         params.name = paramValue;
       }
 
@@ -73,13 +77,13 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
       setResults(res.results);
       setSummary(res.summary);
       if (res.summary.failed === 0) {
-        toast.success(`${res.summary.success}/${res.summary.total} machines OK`);
+        toast.success(t("toasts.allOk", { success: res.summary.success, total: res.summary.total }));
       } else {
-        toast.error(`${res.summary.failed} échec(s) sur ${res.summary.total}`);
+        toast.error(t("toasts.someFailed", { failed: res.summary.failed, total: res.summary.total }));
       }
       if (onCompleted) onCompleted();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setRunning(false);
     }
@@ -92,10 +96,10 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
       size="lg"
       title={
         <span>
-          Action groupée
+          {t("title")}
           <span className="block text-xs font-normal text-muted-foreground mt-0.5">
-            {machines.length} machine{machines.length > 1 ? "s" : ""}
-            {onlineMachines.length !== machines.length && ` · ${onlineMachines.length} en ligne`}
+            {t("machineCount", { count: machines.length })}
+            {onlineMachines.length !== machines.length && t("onlineSuffix", { count: onlineMachines.length })}
           </span>
         </span>
       }
@@ -103,7 +107,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
         results === null ? (
           <>
             <Button variant="outline" size="sm" onClick={onClose} disabled={running}>
-              Annuler
+              {t("common:actions.cancel")}
             </Button>
             <Button
               variant={action?.destructive ? "danger" : "primary"}
@@ -113,12 +117,12 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
               loading={running}
               icon={<Play />}
             >
-              {action?.destructive ? "Exécuter (destructif)" : "Exécuter"}
+              {action?.destructive ? t("executeDestructive") : t("execute")}
             </Button>
           </>
         ) : (
           <Button variant="primary" size="sm" onClick={onClose}>
-            Fermer
+            {t("common:actions.close")}
           </Button>
         )
       }
@@ -129,19 +133,14 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
             <div className="rounded-lg p-3 text-xs flex items-start gap-2 bg-warning-subtle text-warning">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
-                <strong>
-                  {critical.length} machine{critical.length > 1 ? "s" : ""} critique
-                  {critical.length > 1 ? "s" : ""}
-                </strong>{" "}
-                ({critical.map((m) => m.name).join(", ")}) : reboot, stop de services
-                critiques (docker, nginx, ssh…) et suppression de paquets critiques seront
-                refusés.
+                <strong>{t("criticalCount", { count: critical.length })}</strong>{" "}
+                {t("criticalWarning", { names: critical.map((m) => m.name).join(", ") })}
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-medium mb-1.5">Action à exécuter</label>
+            <label className="block text-xs font-medium mb-1.5">{t("actionLabel")}</label>
             <select
               value={actionId}
               onChange={(e) => {
@@ -150,18 +149,18 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
               }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="">— Choisir une action —</option>
+              <option value="">{t("chooseAction")}</option>
               {BULK_ACTIONS.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.label}
+                  {t(`bulkActions.${a.key}.label`)}
                 </option>
               ))}
             </select>
             {action && (
               <p className="text-[11px] mt-1 text-muted-foreground">
-                {action.description}
+                {t(`bulkActions.${action.key}.desc`)}
                 {action.destructive && (
-                  <span className="ml-2 font-semibold text-destructive">⚠ Destructif</span>
+                  <span className="ml-2 font-semibold text-destructive">{t("destructiveBadge")}</span>
                 )}
               </p>
             )}
@@ -170,12 +169,12 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
           {action?.paramsUI === "service" && (
             <div>
               <label className="block text-xs font-medium mb-1.5">
-                Nom du service (sans .service)
+                {t("serviceLabel")}
               </label>
               <Input
                 value={paramValue}
                 onChange={(e) => setParamValue(e.target.value)}
-                placeholder="nginx, postgresql, cron…"
+                placeholder={t("servicePlaceholder")}
                 className="font-mono"
               />
             </div>
@@ -183,11 +182,11 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
 
           {action?.paramsUI === "package" && (
             <div>
-              <label className="block text-xs font-medium mb-1.5">Nom du paquet APT</label>
+              <label className="block text-xs font-medium mb-1.5">{t("packageLabel")}</label>
               <Input
                 value={paramValue}
                 onChange={(e) => setParamValue(e.target.value)}
-                placeholder="htop, nginx, curl…"
+                placeholder={t("packagePlaceholder")}
                 className="font-mono"
               />
             </div>
@@ -196,7 +195,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
           {action?.confirmText && (
             <div>
               <label className="block text-xs font-medium mb-1.5 text-destructive">
-                Tapez <code className="font-mono">{action.confirmText}</code> pour confirmer
+                <Trans i18nKey="typeToConfirmLabel" t={t} values={{ word: action.confirmText }} components={[<code key="0" className="font-mono" />]} />
               </label>
               <Input
                 value={confirmInput}
@@ -207,7 +206,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
           )}
 
           <div className="rounded-lg p-3 text-xs bg-elevated">
-            <div className="font-medium mb-1">Machines ciblées :</div>
+            <div className="font-medium mb-1">{t("targetsLabel")}</div>
             <div className="flex flex-wrap gap-1">
               {machines.slice(0, 20).map((m) => (
                 <span
@@ -223,7 +222,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
               ))}
               {machines.length > 20 && (
                 <span className="text-[10px] text-muted-foreground">
-                  +{machines.length - 20} autres
+                  {t("moreTargets", { count: machines.length - 20 })}
                 </span>
               )}
             </div>
@@ -234,9 +233,9 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
       {running && (
         <div className="py-12 text-center">
           <div className="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3 motion-reduce:animate-none" />
-          <div className="text-sm font-medium">Exécution en cours...</div>
+          <div className="text-sm font-medium">{t("runningTitle")}</div>
           <div className="text-xs mt-1 text-muted-foreground">
-            Dispatch sur {machines.length} machines, batchs de 10 en parallèle
+            {t("runningDetail", { count: machines.length })}
           </div>
         </div>
       )}
@@ -244,10 +243,10 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
       {results !== null && summary && (
         <div className="space-y-4">
           <div className="grid grid-cols-4 gap-2 text-center">
-            <StatCard label="Total" value={summary.total} />
-            <StatCard label="Succès" value={summary.success} tone="success" />
-            <StatCard label="Échec" value={summary.failed} tone="danger" />
-            <StatCard label="Skippé" value={summary.skipped} />
+            <StatCard label={t("stats.total")} value={summary.total} />
+            <StatCard label={t("stats.success")} value={summary.success} tone="success" />
+            <StatCard label={t("stats.failed")} value={summary.failed} tone="danger" />
+            <StatCard label={t("stats.skipped")} value={summary.skipped} />
           </div>
 
           <div className="rounded-xl border border-border overflow-hidden bg-elevated">
@@ -255,9 +254,9 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-card">
                   <tr className="text-muted-foreground">
-                    <th className="text-left px-3 py-2">Machine</th>
-                    <th className="text-left px-3 py-2">Statut</th>
-                    <th className="text-left px-3 py-2">Détail</th>
+                    <th className="text-left px-3 py-2">{t("resultHeaders.machine")}</th>
+                    <th className="text-left px-3 py-2">{t("resultHeaders.status")}</th>
+                    <th className="text-left px-3 py-2">{t("resultHeaders.detail")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -266,17 +265,17 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
                       <td className="px-3 py-1.5 font-mono">{r.machineName}</td>
                       <td className="px-3 py-1.5">
                         {r.skipped ? (
-                          <span className="text-muted-foreground">— skippé</span>
+                          <span className="text-muted-foreground">{t("skipped")}</span>
                         ) : r.success ? (
                           <span className="inline-flex items-center gap-1 text-success">
                             <Check className="w-3 h-3" /> OK
                           </span>
                         ) : (
-                          <span className="text-destructive">✗ Échec</span>
+                          <span className="text-destructive">{t("resultFailed")}</span>
                         )}
                       </td>
                       <td className="px-3 py-1.5 truncate max-w-md text-muted-foreground">
-                        {r.error || (r.data ? "exécuté" : "—")}
+                        {r.error || (r.data ? t("executed") : "—")}
                       </td>
                     </tr>
                   ))}

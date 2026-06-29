@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -54,6 +55,7 @@ export default function AgentUpgradeDialog({
   onClose,
   onSuccess,
 }: Props) {
+  const { t } = useTranslation(["agentUpgrade", "common"]);
   const [status, setStatus] = useState<Status>("confirm");
   const [percent, setPercent] = useState(0);
   const [log, setLog] = useState<string[]>([]);
@@ -91,9 +93,7 @@ export default function AgentUpgradeDialog({
       setElapsed(Math.floor(ms / 1000));
       if (ms > CLIENT_TIMEOUT_MS) {
         setStatus("failed");
-        setResultMsg(
-          "Délai dépassé : l'agent ne s'est pas reconnecté avec la nouvelle version. Vérifiez l'agent en SSH (panneau ci-dessous)."
-        );
+        setResultMsg(t("errors.timeout"));
       }
     }, 1000);
     return () => clearInterval(iv);
@@ -115,7 +115,7 @@ export default function AgentUpgradeDialog({
         // confirmation de version (agent.upgrade.result) avant le succès.
         if (!reconnectNotedRef.current) {
           reconnectNotedRef.current = true;
-          append("Agent reconnecté — vérification de la version…");
+          append(t("log.reconnected"));
         }
       } else if (msg.type === "agent.upgrade.result") {
         const r = msg.data as ResultMsg;
@@ -123,15 +123,16 @@ export default function AgentUpgradeDialog({
           setPercent(100);
           setResultVersion(r.version ?? null);
           append(
-            `✓ Agent à jour${r.version ? ` (version ${r.version})` : ""}${
-              r.durationMs ? ` en ${Math.round(r.durationMs / 1000)}s` : ""
-            }.`
+            t("log.upToDate", {
+              version: r.version ? t("versionFrag", { version: r.version }) : "",
+              duration: r.durationMs ? t("log.durationFrag", { seconds: Math.round(r.durationMs / 1000) }) : "",
+            })
           );
           setStatus("success");
           onSuccess?.();
         } else {
-          append(`✗ Échec : ${r?.message || r?.reason || "raison inconnue"}`);
-          setResultMsg(r?.message || "La mise à jour a échoué.");
+          append(t("log.failed", { reason: r?.message || r?.reason || t("log.unknownReason") }));
+          setResultMsg(r?.message || t("errors.failMessage"));
           setStatus("failed");
         }
       }
@@ -144,7 +145,7 @@ export default function AgentUpgradeDialog({
   const start = async () => {
     setStatus("working");
     setPercent(0);
-    setLog(["Déclenchement de la mise à jour de l'agent…"]);
+    setLog([t("log.starting")]);
     setResultMsg("");
     reconnectNotedRef.current = false;
     startedAtRef.current = Date.now();
@@ -158,11 +159,11 @@ export default function AgentUpgradeDialog({
           await api.upgradeAgent(machineId);
           break;
         } catch (err) {
-          const msg = getErrorMessage(err, "Échec du déclenchement");
+          const msg = getErrorMessage(err, t("errors.trigger"));
           const transient = /not connected|connect/i.test(msg);
           if (transient && attempt < maxAttempts) {
             append(
-              `Agent momentanément indisponible — nouvelle tentative (${attempt}/${maxAttempts - 1})…`
+              t("log.retrying", { attempt, total: maxAttempts - 1 })
             );
             await new Promise((r) => setTimeout(r, 3000));
             continue;
@@ -171,8 +172,8 @@ export default function AgentUpgradeDialog({
         }
       }
     } catch (err) {
-      append(`✗ ${getErrorMessage(err, "Échec du déclenchement")}`);
-      setResultMsg(getErrorMessage(err, "Échec du déclenchement de la mise à jour"));
+      append(t("log.triggerFail", { msg: getErrorMessage(err, t("errors.trigger")) }));
+      setResultMsg(getErrorMessage(err, t("errors.triggerFull")));
       setStatus("failed");
     }
   };
@@ -185,8 +186,8 @@ export default function AgentUpgradeDialog({
   const sinceProgress = Date.now() - lastProgressAtRef.current;
   const workingPhase =
     percent >= 90 || sinceProgress > 3000
-      ? "Redémarrage et reconnexion de l'agent…"
-      : "Mise à jour en cours…";
+      ? t("phaseRestarting")
+      : t("phaseUpdating");
 
   return (
     <Dialog
@@ -196,7 +197,7 @@ export default function AgentUpgradeDialog({
       title={
         <span className="flex items-center gap-2">
           <ArrowUpCircle className="w-4 h-4 text-primary" />
-          Mise à jour de l'agent — {machineName}
+          {t("title", { name: machineName })}
         </span>
       }
     >
@@ -205,17 +206,10 @@ export default function AgentUpgradeDialog({
         {status === "confirm" && (
           <>
             <p className="text-sm text-muted-foreground">
-              L'agent va télécharger la dernière version servie par le serveur,
-              remplacer son binaire puis redémarrer. La connexion est interrompue
-              quelques secondes ; cette fenêtre suit l'opération jusqu'à la
-              reconnexion en nouvelle version.
+              {t("confirmDesc")}
             </p>
             <p className="text-xs rounded-lg border border-border bg-elevated px-3 py-2 text-muted-foreground">
-              ⚠ Cette mise à jour ne remplace <strong>que le binaire</strong>. Le
-              fichier <code>sudoers</code> et le service systemd ne sont pas
-              touchés — s'ils ont changé (ex. nouvelle commande à autoriser), il
-              faut <strong>réinstaller l'agent</strong> (<code>install-agent.sh</code>)
-              ou utiliser « Ré-enrôler ». Le badge « ⚠ Sudoers » le signale.
+              <Trans i18nKey="confirmWarning" t={t} components={[<strong key="0" />, <code key="1" />, <strong key="2" />, <code key="3" />]} />
             </p>
           </>
         )}
@@ -244,8 +238,7 @@ export default function AgentUpgradeDialog({
           <div className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>
-              Agent à jour et reconnecté
-              {resultVersion ? ` (version ${resultVersion})` : ""}.
+              {t("successText", { version: resultVersion ? t("versionFrag", { version: resultVersion }) : "" })}
             </span>
           </div>
         )}
@@ -282,7 +275,7 @@ export default function AgentUpgradeDialog({
           {status === "confirm" && (
             <>
               <Button variant="ghost" size="md" onClick={onClose}>
-                Annuler
+                {t("common:actions.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -290,19 +283,19 @@ export default function AgentUpgradeDialog({
                 onClick={start}
                 icon={<ArrowUpCircle />}
               >
-                Mettre à jour
+                {t("update")}
               </Button>
             </>
           )}
           {status === "working" && (
             <Button variant="ghost" size="md" disabled>
-              Opération en cours…
+              {t("working")}
             </Button>
           )}
           {status === "failed" && (
             <>
               <Button variant="ghost" size="md" onClick={onClose}>
-                Fermer
+                {t("common:actions.close")}
               </Button>
               <Button
                 variant="primary"
@@ -310,13 +303,13 @@ export default function AgentUpgradeDialog({
                 onClick={start}
                 icon={<RotateCcw />}
               >
-                Réessayer
+                {t("common:actions.retry")}
               </Button>
             </>
           )}
           {status === "success" && (
             <Button variant="primary" size="md" onClick={onClose}>
-              Fermer
+              {t("common:actions.close")}
             </Button>
           )}
         </div>
@@ -341,6 +334,7 @@ function DebugPanel({
   sshUser?: string | null;
   onCloseDialog: () => void;
 }) {
+  const { t } = useTranslation(["agentUpgrade", "common"]);
   const sshCmd = ipAddress
     ? sshUser
       ? `ssh ${sshUser}@${ipAddress}`
@@ -353,17 +347,17 @@ function DebugPanel({
     : null;
 
   const debugCommands: { label: string; cmd: string }[] = [
-    { label: "Statut du service", cmd: "sudo systemctl status nexus-agent" },
+    { label: t("debug.cmdStatus"), cmd: "sudo systemctl status nexus-agent" },
     {
-      label: "100 dernières lignes de log",
+      label: t("debug.cmdLogs"),
       cmd: "sudo journalctl -u nexus-agent -n 100 --no-pager",
     },
-    { label: "Suivre les logs en direct", cmd: "sudo journalctl -u nexus-agent -f" },
+    { label: t("debug.cmdFollow"), cmd: "sudo journalctl -u nexus-agent -f" },
     {
-      label: "SHA256 du binaire installé",
+      label: t("debug.cmdSha"),
       cmd: "sha256sum /usr/local/bin/nexus-agent",
     },
-    { label: "Forcer un redémarrage", cmd: "sudo systemctl restart nexus-agent" },
+    { label: t("debug.cmdRestart"), cmd: "sudo systemctl restart nexus-agent" },
   ];
 
   return (
@@ -378,7 +372,7 @@ function DebugPanel({
           <ChevronRight className="w-3.5 h-3.5" />
         )}
         <TerminalIcon className="w-3.5 h-3.5" />
-        Debug & accès SSH
+        {t("debug.title")}
       </button>
 
       {open && (
@@ -387,7 +381,7 @@ function DebugPanel({
           {sshCmd ? (
             <div className="space-y-1.5">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Connexion SSH
+                {t("debug.sshConnection")}
               </div>
               <CommandRow cmd={sshCmd} />
               {sshUri && (
@@ -395,28 +389,26 @@ function DebugPanel({
                   href={sshUri}
                   className="inline-flex items-center gap-1.5 text-xs text-info hover:opacity-80"
                 >
-                  <ExternalLink className="w-3 h-3" /> Ouvrir dans le terminal
+                  <ExternalLink className="w-3 h-3" /> {t("debug.openInTerminal")}
                 </a>
               )}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Aucune IP connue pour cette machine —{" "}
-              <Link
-                to="/docs?section=ssh"
-                className="underline text-info"
-                onClick={onCloseDialog}
-              >
-                config SSH
-              </Link>
-              .
+              <Trans
+                i18nKey="debug.noIp"
+                t={t}
+                components={[
+                  <Link key="0" to="/docs?section=ssh" className="underline text-info" onClick={onCloseDialog} />,
+                ]}
+              />
             </p>
           )}
 
           {/* Commandes de diagnostic */}
           <div className="space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Commandes de diagnostic
+              {t("debug.diagnostics")}
             </div>
             {debugCommands.map((c) => (
               <div key={c.cmd}>
@@ -434,6 +426,7 @@ function DebugPanel({
 }
 
 function CommandRow({ cmd }: { cmd: string }) {
+  const { t } = useTranslation("common");
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -451,7 +444,7 @@ function CommandRow({ cmd }: { cmd: string }) {
       </code>
       <button
         onClick={copy}
-        title="Copier"
+        title={t("actions.copy")}
         className="inline-flex items-center justify-center px-2 rounded border border-input hover:bg-muted transition-colors"
       >
         {copied ? (

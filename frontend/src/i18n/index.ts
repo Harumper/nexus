@@ -48,6 +48,14 @@ import frUsers from "./locales/fr/users.json";
 import enUsers from "./locales/en/users.json";
 import frFiles from "./locales/fr/files.json";
 import enFiles from "./locales/en/files.json";
+import frAgentUpgrade from "./locales/fr/agentUpgrade.json";
+import enAgentUpgrade from "./locales/en/agentUpgrade.json";
+import frBulkAction from "./locales/fr/bulkAction.json";
+import enBulkAction from "./locales/en/bulkAction.json";
+import frBatchUpdate from "./locales/fr/batchUpdate.json";
+import enBatchUpdate from "./locales/en/batchUpdate.json";
+import frLogsDrawer from "./locales/fr/logsDrawer.json";
+import enLogsDrawer from "./locales/en/logsDrawer.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -83,6 +91,7 @@ i18n.use(initReactI18next).init({
       machineDetail: frMachineDetail, firewall: frFirewall, network: frNetwork,
       services: frServices, storage: frStorage, packages: frPackages, scheduling: frScheduling, processList: frProcessList,
       updatePanel: frUpdatePanel, security: frSecurity, users: frUsers, files: frFiles,
+      agentUpgrade: frAgentUpgrade, bulkAction: frBulkAction, batchUpdate: frBatchUpdate, logsDrawer: frLogsDrawer,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
@@ -91,9 +100,10 @@ i18n.use(initReactI18next).init({
       machineDetail: enMachineDetail, firewall: enFirewall, network: enNetwork,
       services: enServices, storage: enStorage, packages: enPackages, scheduling: enScheduling, processList: enProcessList,
       updatePanel: enUpdatePanel, security: enSecurity, users: enUsers, files: enFiles,
+      agentUpgrade: enAgentUpgrade, bulkAction: enBulkAction, batchUpdate: enBatchUpdate, logsDrawer: enLogsDrawer,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security", "users", "files"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security", "users", "files", "agentUpgrade", "bulkAction", "batchUpdate", "logsDrawer"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

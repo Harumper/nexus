@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { X, Download, Shield, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useWebSocket } from "../hooks/useWebSocket";
 import type { Machine, WSDashboardMessage } from "../types";
 
@@ -15,6 +16,7 @@ interface MachineProgress {
 }
 
 export default function BatchUpdateDialog({ machines, onClose }: Props) {
+  const { t } = useTranslation(["batchUpdate", "common"]);
   const [running, setRunning] = useState(false);
   const [securityOnly, setSecurityOnly] = useState(false);
   const [progress, setProgress] = useState<Record<string, MachineProgress>>({});
@@ -48,7 +50,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
     // Initialiser la progression
     const initial: Record<string, MachineProgress> = {};
     for (const m of onlineMachines) {
-      initial[m.id] = { status: "pending", percent: 0, line: "En attente..." };
+      initial[m.id] = { status: "pending", percent: 0, line: t("pending") };
     }
     setProgress(initial);
 
@@ -102,7 +104,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-foreground">
-            Mise à jour groupée
+            {t("title")}
           </h2>
           <button
             onClick={onClose}
@@ -117,8 +119,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
           {!running ? (
             <>
               <p className="text-sm text-muted-foreground">
-                {onlineMachines.length} machine{onlineMachines.length > 1 ? "s" : ""}{" "}
-                en ligne de type AGENT :
+                {t("eligibleCount", { count: onlineMachines.length })}
               </p>
 
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -138,7 +139,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
 
               {onlineMachines.length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  Aucune machine éligible
+                  {t("noEligible")}
                 </div>
               )}
 
@@ -152,7 +153,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
                     className="rounded border-border"
                   />
                   <span className="text-sm text-foreground">
-                    Mises à jour de sécurité uniquement
+                    {t("securityOnly")}
                   </span>
                 </label>
               </div>
@@ -211,7 +212,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
 
               {result && (
                 <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-                  Dispatché : {result.dispatched} | Échec : {result.failed}
+                  {t("result", { dispatched: result.dispatched, failed: result.failed })}
                 </div>
               )}
             </>
@@ -226,7 +227,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
                 onClick={onClose}
                 className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
-                Annuler
+                {t("common:actions.cancel")}
               </button>
               <button
                 onClick={startBatch}
@@ -238,7 +239,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                Lancer
+                {t("start")}
               </button>
             </>
           ) : (
@@ -247,7 +248,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
               disabled={!allDone}
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {allDone ? "Fermer" : "En cours..."}
+              {allDone ? t("common:actions.close") : t("inProgress")}
             </button>
           )}
         </div>

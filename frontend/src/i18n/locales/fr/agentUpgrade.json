@@ -1,0 +1,39 @@
+{
+  "title": "Mise à jour de l'agent — {{name}}",
+  "confirmDesc": "L'agent va télécharger la dernière version servie par le serveur, remplacer son binaire puis redémarrer. La connexion est interrompue quelques secondes ; cette fenêtre suit l'opération jusqu'à la reconnexion en nouvelle version.",
+  "confirmWarning": "⚠ Cette mise à jour ne remplace <0>que le binaire</0>. Le fichier <1>sudoers</1> et le service systemd ne sont pas touchés — s'ils ont changé (ex. nouvelle commande à autoriser), il faut <2>réinstaller l'agent</2> (<3>install-agent.sh</3>) ou utiliser « Ré-enrôler ». Le badge « ⚠ Sudoers » le signale.",
+  "phaseRestarting": "Redémarrage et reconnexion de l'agent…",
+  "phaseUpdating": "Mise à jour en cours…",
+  "successText": "Agent à jour et reconnecté{{version}}.",
+  "versionFrag": " (version {{version}})",
+  "update": "Mettre à jour",
+  "working": "Opération en cours…",
+  "log": {
+    "starting": "Déclenchement de la mise à jour de l'agent…",
+    "reconnected": "Agent reconnecté — vérification de la version…",
+    "upToDate": "✓ Agent à jour{{version}}{{duration}}.",
+    "durationFrag": " en {{seconds}}s",
+    "failed": "✗ Échec : {{reason}}",
+    "unknownReason": "raison inconnue",
+    "triggerFail": "✗ {{msg}}",
+    "retrying": "Agent momentanément indisponible — nouvelle tentative ({{attempt}}/{{total}})…"
+  },
+  "errors": {
+    "timeout": "Délai dépassé : l'agent ne s'est pas reconnecté avec la nouvelle version. Vérifiez l'agent en SSH (panneau ci-dessous).",
+    "failMessage": "La mise à jour a échoué.",
+    "trigger": "Échec du déclenchement",
+    "triggerFull": "Échec du déclenchement de la mise à jour"
+  },
+  "debug": {
+    "title": "Debug & accès SSH",
+    "sshConnection": "Connexion SSH",
+    "openInTerminal": "Ouvrir dans le terminal",
+    "noIp": "Aucune IP connue pour cette machine — <0>config SSH</0>.",
+    "diagnostics": "Commandes de diagnostic",
+    "cmdStatus": "Statut du service",
+    "cmdLogs": "100 dernières lignes de log",
+    "cmdFollow": "Suivre les logs en direct",
+    "cmdSha": "SHA256 du binaire installé",
+    "cmdRestart": "Forcer un redémarrage"
+  }
+}

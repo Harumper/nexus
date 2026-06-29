@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { RefreshCw, Search, Copy, WrapText, ArrowDownToLine, Check } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { Drawer, Button, Spinner } from "./ui";
 import { getErrorMessage } from "../services/errors";
@@ -130,6 +131,7 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
   const [onlyErrors, setOnlyErrors] = useState(false);
   const [copied, setCopied] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation(["logsDrawer", "common"]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,7 +141,7 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
       setLines(res?.data?.lines || []);
       setTruncated(res?.data?.truncated || false);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur de chargement des logs"));
+      setError(getErrorMessage(err, t("loadError")));
     } finally {
       setLoading(false);
     }
@@ -179,7 +181,7 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      setError("Copie impossible (clipboard refusé)");
+      setError(t("copyError"));
     }
   };
 
@@ -194,18 +196,18 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
       className="!max-w-5xl"
       title={
         <span>
-          Logs — <span className="font-mono text-xs">{service}</span>
+          <Trans i18nKey="title" t={t} values={{ service }} components={[<span key="0" className="font-mono text-xs" />]} />
         </span>
       }
       description={
         <span>
-          {filtered.length} / {parsed.length} ligne{parsed.length > 1 ? "s" : ""}
-          {truncated && " (tronqué)"}
+          {t("lineCount", { count: parsed.length, filtered: filtered.length, total: parsed.length })}
+          {truncated && t("truncatedSuffix")}
           {counts.errors > 0 && (
-            <span className="ml-2" style={{ color: "var(--nx-danger)" }}>· {counts.errors} erreur{counts.errors > 1 ? "s" : ""}</span>
+            <span className="ml-2" style={{ color: "var(--nx-danger)" }}>{t("errorsSuffix", { count: counts.errors })}</span>
           )}
           {counts.warnings > 0 && (
-            <span className="ml-2" style={{ color: "var(--nx-warning)" }}>· {counts.warnings} avert.</span>
+            <span className="ml-2" style={{ color: "var(--nx-warning)" }}>{t("warningsSuffix", { count: counts.warnings })}</span>
           )}
         </span>
       }
@@ -218,20 +220,20 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
             onChange={(e) => setLineCount(Number(e.target.value))}
             className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <option value={100}>100 lignes</option>
-            <option value={500}>500 lignes</option>
-            <option value={1000}>1000 lignes</option>
+            <option value={100}>{t("linesOption", { count: 100 })}</option>
+            <option value={500}>{t("linesOption", { count: 500 })}</option>
+            <option value={1000}>{t("linesOption", { count: 1000 })}</option>
           </select>
           <select
             value={since}
             onChange={(e) => setSince(e.target.value)}
             className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <option value="">Tout</option>
-            <option value="5m">5 min</option>
-            <option value="1h">1 h</option>
-            <option value="1d">1 jour</option>
-            <option value="today">Aujourd'hui</option>
+            <option value="">{t("since.all")}</option>
+            <option value="5m">{t("since.5m")}</option>
+            <option value="1h">{t("since.1h")}</option>
+            <option value="1d">{t("since.1d")}</option>
+            <option value="today">{t("since.today")}</option>
           </select>
 
           <div className="relative flex-1 min-w-[180px]">
@@ -240,7 +242,7 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Filtrer..."
+              placeholder={t("filterPlaceholder")}
               className="w-full rounded-md border border-input bg-background pl-7 pr-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
@@ -253,17 +255,17 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
               background: onlyErrors ? "var(--nx-danger-subtle)" : "transparent",
               color: onlyErrors ? "var(--nx-danger)" : "var(--nx-text-weak)",
             }}
-            title="N'afficher que les erreurs et avertissements"
+            title={t("onlyErrorsTitle")}
           >
-            Erreurs only
+            {t("onlyErrors")}
           </button>
 
           <button
             onClick={() => setWrap((w) => !w)}
             className="p-1.5 rounded-md hover:bg-muted transition-colors"
             style={{ color: wrap ? "var(--nx-info)" : "var(--nx-text-weak)" }}
-            title={wrap ? "Désactiver le retour à la ligne" : "Activer le retour à la ligne"}
-            aria-label="Toggle wrap"
+            title={wrap ? t("wrapOff") : t("wrapOn")}
+            aria-label={t("wrapAria")}
           >
             <WrapText className="w-3.5 h-3.5" />
           </button>
@@ -271,8 +273,8 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
             onClick={copyAll}
             className="p-1.5 rounded-md hover:bg-muted transition-colors"
             style={{ color: copied ? "var(--nx-success)" : "var(--nx-text-weak)" }}
-            title="Copier les lignes affichées"
-            aria-label="Copier"
+            title={t("copyTitle")}
+            aria-label={t("common:actions.copy")}
           >
             {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
@@ -280,8 +282,8 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
             onClick={scrollToBottom}
             className="p-1.5 rounded-md hover:bg-muted transition-colors"
             style={{ color: "var(--nx-text-weak)" }}
-            title="Aller en bas"
-            aria-label="Scroll to bottom"
+            title={t("scrollBottom")}
+            aria-label={t("scrollAria")}
           >
             <ArrowDownToLine className="w-3.5 h-3.5" />
           </button>
@@ -291,7 +293,7 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
             onClick={load}
             loading={loading}
             icon={<RefreshCw />}
-            aria-label="Rafraîchir"
+            aria-label={t("common:actions.refresh")}
           />
         </div>
 
@@ -305,11 +307,11 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
             <div className="p-4 text-destructive">{error}</div>
           ) : loading ? (
             <div className="p-4 flex items-center gap-2" style={{ color: "var(--nx-text-weak)" }}>
-              <Spinner size="sm" /> Chargement...
+              <Spinner size="sm" /> {t("loading")}
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-4" style={{ color: "var(--nx-text-weak)" }}>
-              {parsed.length === 0 ? "(aucun log)" : "Aucune ligne ne correspond au filtre."}
+              {parsed.length === 0 ? t("noLogs") : t("noMatch")}
             </div>
           ) : (
             <div className="py-1">

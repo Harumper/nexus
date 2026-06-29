@@ -1,0 +1,31 @@
+{
+  "title": "Logs — <0>{{service}}</0>",
+  "lineCount_one": "{{filtered}} / {{total}} line",
+  "lineCount_other": "{{filtered}} / {{total}} lines",
+  "truncatedSuffix": " (truncated)",
+  "errorsSuffix_one": "· {{count}} error",
+  "errorsSuffix_other": "· {{count}} errors",
+  "warningsSuffix": "· {{count}} warn.",
+  "linesOption": "{{count}} lines",
+  "since": {
+    "all": "All",
+    "5m": "5 min",
+    "1h": "1 h",
+    "1d": "1 day",
+    "today": "Today"
+  },
+  "filterPlaceholder": "Filter...",
+  "onlyErrorsTitle": "Show only errors and warnings",
+  "onlyErrors": "Errors only",
+  "wrapOff": "Disable line wrap",
+  "wrapOn": "Enable line wrap",
+  "wrapAria": "Toggle wrap",
+  "copyTitle": "Copy the displayed lines",
+  "scrollBottom": "Go to bottom",
+  "scrollAria": "Scroll to bottom",
+  "loading": "Loading...",
+  "noLogs": "(no log)",
+  "noMatch": "No line matches the filter.",
+  "loadError": "Error loading the logs",
+  "copyError": "Copy failed (clipboard denied)"
+}
