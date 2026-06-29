@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Server, Plus, Search, Zap, CheckSquare, Square } from "lucide-react";
 import { useMachines } from "../hooks/useMachines";
 import MachineCard from "../components/MachineCard";
@@ -7,6 +8,7 @@ import BulkActionDialog from "../components/BulkActionDialog";
 import { PageLoader } from "../components/ui";
 
 export default function Machines() {
+  const { t } = useTranslation(["machines", "common"]);
   const navigate = useNavigate();
   const { machines, loading, refresh } = useMachines();
   const [search, setSearch] = useState("");
@@ -27,11 +29,11 @@ export default function Machines() {
   }, [machines, search, statusFilter]);
 
   const statusOptions = [
-    { value: "all", label: "Tous" },
-    { value: "ONLINE", label: "En ligne" },
-    { value: "OFFLINE", label: "Hors ligne" },
-    { value: "ENROLLMENT_PENDING", label: "En attente" },
-    { value: "REVOKED", label: "Révoqué" },
+    { value: "all", label: t("filterAll") },
+    { value: "ONLINE", label: t("common:status.online") },
+    { value: "OFFLINE", label: t("common:status.offline") },
+    { value: "ENROLLMENT_PENDING", label: t("common:status.pending") },
+    { value: "REVOKED", label: t("common:status.revoked") },
   ];
 
   const toggle = (id: string) => {
@@ -63,10 +65,10 @@ export default function Machines() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Machines</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("common:nav.machines")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {machines.length} machine{machines.length > 1 ? "s" : ""} enregistrée{machines.length > 1 ? "s" : ""}
-            {selected.size > 0 && ` · ${selected.size} sélectionnée${selected.size > 1 ? "s" : ""}`}
+            {t("registered", { count: machines.length })}
+            {selected.size > 0 && t("selectedSuffix", { count: selected.size })}
           </p>
         </div>
         <div className="flex gap-2">
@@ -77,7 +79,7 @@ export default function Machines() {
               style={{ background: "var(--nx-warning)", color: "var(--nx-bg-base)" }}
             >
               <Zap className="w-4 h-4" />
-              Action groupée ({selected.size})
+              {t("bulkAction", { count: selected.size })}
             </button>
           )}
           <button
@@ -85,7 +87,7 @@ export default function Machines() {
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Ajouter
+            {t("common:actions.add")}
           </button>
         </div>
       </div>
@@ -98,7 +100,7 @@ export default function Machines() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -121,10 +123,10 @@ export default function Machines() {
           <button
             onClick={toggleAll}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            title={allVisibleSelected ? "Désélectionner tout" : "Tout sélectionner"}
+            title={allVisibleSelected ? t("toggleDeselectAll") : t("toggleSelectAll")}
           >
             {allVisibleSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-            {allVisibleSelected ? "Aucun" : "Tout"}
+            {allVisibleSelected ? t("toggleNone") : t("toggleAll")}
           </button>
         )}
       </div>
@@ -133,7 +135,7 @@ export default function Machines() {
       {filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <Server className="w-10 h-10 mx-auto mb-3 opacity-50" />
-          <p>Aucune machine trouvée</p>
+          <p>{t("empty")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -144,7 +146,7 @@ export default function Machines() {
                 className={`absolute top-3 left-3 z-10 p-1 rounded transition-opacity hover:bg-background ${
                   selected.has(machine.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 }`}
-                title={selected.has(machine.id) ? "Désélectionner" : "Sélectionner"}
+                title={selected.has(machine.id) ? t("common:actions.deselect") : t("common:actions.select")}
                 style={{
                   background: selected.has(machine.id) ? "var(--nx-primary)" : "var(--nx-bg-surface)",
                   border: "1px solid var(--nx-border)",

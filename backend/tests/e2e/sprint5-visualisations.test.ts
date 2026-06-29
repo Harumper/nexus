@@ -30,7 +30,10 @@ describe("Phase 6.1 — Network Charts in MetricsChart", () => {
     expect(content).toContain("networkIn");
     expect(content).toContain("networkOut");
     expect(content).toContain("KB/s");
-    expect(content).toContain("seau"); // "Réseau" or "Reseau"
+    // i18n : labels réseau externalisés en clés metricsChart:charts.network* (FR dans le JSON).
+    expect(content).toContain("charts.networkIn");
+    const frMetrics = readFileSync(resolve(frontendSrc, "i18n/locales/fr/metricsChart.json"), "utf8");
+    expect(frMetrics).toContain("seau"); // "Réseau"
   });
 });
 
@@ -65,7 +68,11 @@ describe("Phase 6.3 — Compare Page", () => {
     expect(content).toContain("selectedIds");
     expect(content).toContain("getMachines");
     expect(content).toContain("getMetrics");
-    expect(content).toContain("Comparer");
+    // i18n : le titre est externalisé en clé common:nav.compare ; le label FR
+    // "Comparer" vit désormais dans le fichier de langue.
+    expect(content).toContain("common:nav.compare");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/common.json"), "utf8");
+    expect(fr).toContain("Comparer");
   });
 
   it("should limit selection to 3 machines", () => {

@@ -1,0 +1,16 @@
+{
+  "title": "Attention requise",
+  "reload": "Recharger",
+  "allClear": "Tout va bien — aucun signal critique.",
+  "thresholdDetail": "{{value}} (seuil {{threshold}})",
+  "acknowledged": "Acquittée",
+  "active": "Active",
+  "failedServices_one": "{{count}} service en échec",
+  "failedServices_other": "{{count}} services en échec",
+  "updatesAvailable_one": "{{count}} mise à jour disponible",
+  "updatesAvailable_other": "{{count}} mises à jour disponibles",
+  "securityDetail": "dont {{count}} de sécurité",
+  "expiresIn": "Expire dans {{days}}j",
+  "certsOk_one": "{{count}} cert OK · prochain renouvellement dans {{days}}j",
+  "certsOk_other": "{{count}} certs OK · prochain renouvellement dans {{days}}j"
+}

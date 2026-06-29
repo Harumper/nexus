@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Server,
   ServerOff,
@@ -48,6 +49,7 @@ interface TrendBucket {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation(["dashboard", "common"]);
   const navigate = useNavigate();
   const { machines, loading, refresh, updateMachineStatus } = useMachines();
   const [latestMetrics, setLatestMetrics] = useState<Record<string, Metric>>(
@@ -189,9 +191,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("common:nav.dashboard")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Vue d&apos;ensemble de votre infrastructure
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex gap-3">
@@ -201,7 +203,7 @@ export default function Dashboard() {
               className="inline-flex items-center gap-2 rounded-lg border border-primary/30 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
             >
               <Download className="w-4 h-4" />
-              Tout mettre à jour
+              {t("updateAll")}
             </button>
           )}
           <button
@@ -209,26 +211,26 @@ export default function Dashboard() {
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Ajouter une machine
+            {t("addMachine")}
           </button>
         </div>
       </div>
 
       {/* ── Stats ─────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <KPI icon={Server} label="Machines" value={stats.total} color="var(--nx-primary)" />
-        <KPI icon={Activity} label="En ligne" value={stats.online} color="var(--nx-success)" glow={stats.online > 0} />
-        <KPI icon={ServerOff} label="Hors ligne" value={stats.offline} color="var(--nx-danger)" glow={stats.offline > 0} />
-        <KPI icon={AlertTriangle} label="Alertes" value={fleetSummary?.alertCount ?? 0} color="var(--nx-warning)" glow={(fleetSummary?.alertCount ?? 0) > 0} />
-        <KPI icon={RotateCcw} label="Reboot" value={fleetSummary?.rebootCount ?? 0} color="#fb923c" />
-        <KPI icon={Shield} label="En attente" value={stats.pending} color="var(--nx-info)" />
+        <KPI icon={Server} label={t("common:nav.machines")} value={stats.total} color="var(--nx-primary)" />
+        <KPI icon={Activity} label={t("common:status.online")} value={stats.online} color="var(--nx-success)" glow={stats.online > 0} />
+        <KPI icon={ServerOff} label={t("common:status.offline")} value={stats.offline} color="var(--nx-danger)" glow={stats.offline > 0} />
+        <KPI icon={AlertTriangle} label={t("common:nav.alerts")} value={fleetSummary?.alertCount ?? 0} color="var(--nx-warning)" glow={(fleetSummary?.alertCount ?? 0) > 0} />
+        <KPI icon={RotateCcw} label={t("kpi.reboot")} value={fleetSummary?.rebootCount ?? 0} color="#fb923c" />
+        <KPI icon={Shield} label={t("common:status.pending")} value={stats.pending} color="var(--nx-info)" />
       </div>
 
       {/* ── Fleet Health + Top Consumers ────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
         {/* Health — spans 2 cols */}
         <div className="lg:col-span-2 rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <SectionTitle>Santé de la flotte</SectionTitle>
+          <SectionTitle>{t("fleetHealth")}</SectionTitle>
 
           <div className="flex items-end gap-4 mb-5">
             <span className="text-4xl font-extrabold tabular-nums" style={{ color: healthColor(fleetSummary?.healthScore ?? 0) }}>
@@ -252,7 +254,7 @@ export default function Dashboard() {
         {/* Top consumers — spans 3 cols */}
         <div className="lg:col-span-3 rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <div className="flex items-center justify-between mb-4">
-            <SectionTitle>Top Consommateurs</SectionTitle>
+            <SectionTitle>{t("topConsumers")}</SectionTitle>
             <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--nx-border)" }}>
               {(["cpu", "memory", "disk"] as const).map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
@@ -281,7 +283,7 @@ export default function Dashboard() {
                 <span className="w-14 text-xs text-right font-semibold tabular-nums text-foreground">{item.value.toFixed(1)}%</span>
               </div>
             )) : (
-              <p className="text-xs text-muted-foreground text-center py-6">Aucune donnée</p>
+              <p className="text-xs text-muted-foreground text-center py-6">{t("noData")}</p>
             )}
           </div>
         </div>
@@ -290,8 +292,8 @@ export default function Dashboard() {
       {/* ── Trends ─────────────────────────────── */}
       {fleetTrends.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <TrendChart data={fleetTrends} dataKey="avgCpu" label="CPU moyen (1h)" color="var(--nx-chart-1)" gradientId="cpuG" />
-          <TrendChart data={fleetTrends} dataKey="avgMemory" label="RAM moyenne (1h)" color="var(--nx-chart-3)" gradientId="ramG" />
+          <TrendChart data={fleetTrends} dataKey="avgCpu" label={t("trends.cpu")} seriesName="CPU" color="var(--nx-chart-1)" gradientId="cpuG" />
+          <TrendChart data={fleetTrends} dataKey="avgMemory" label={t("trends.ram")} seriesName="RAM" color="var(--nx-chart-3)" gradientId="ramG" />
         </div>
       )}
 
@@ -299,16 +301,16 @@ export default function Dashboard() {
       {machines.length === 0 ? (
         <div className="text-center py-20">
           <Server className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">Aucune machine</h3>
-          <p className="text-sm text-muted-foreground mb-4">Ajoutez votre première machine pour commencer.</p>
+          <h3 className="text-lg font-medium text-foreground mb-2">{t("empty.title")}</h3>
+          <p className="text-sm text-muted-foreground mb-4">{t("empty.description")}</p>
           <button onClick={() => navigate("/machines/new")} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
-            <Plus className="w-4 h-4" /> Ajouter une machine
+            <Plus className="w-4 h-4" /> {t("addMachine")}
           </button>
         </div>
       ) : (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <SectionTitle>Machines</SectionTitle>
+            <SectionTitle>{t("common:nav.machines")}</SectionTitle>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--nx-primary-subtle)", color: "var(--nx-primary)" }}>
               {stats.online}/{stats.total}
             </span>
@@ -369,8 +371,8 @@ function AvgBar({ label, value, color }: { label: string; value: number; color: 
   );
 }
 
-function TrendChart({ data, dataKey, label, color, gradientId }: {
-  data: any[]; dataKey: string; label: string; color: string; gradientId: string;
+function TrendChart({ data, dataKey, label, seriesName, color, gradientId }: {
+  data: any[]; dataKey: string; label: string; seriesName: string; color: string; gradientId: string;
 }) {
   // Floor 10 % évite de zoomer sur du bruit quand la fleet est calme.
   // Cap 100 % car ces graphs trace toujours des pourcentages.
@@ -394,7 +396,7 @@ function TrendChart({ data, dataKey, label, color, gradientId }: {
             <Tooltip
               contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
               labelFormatter={(v) => new Date(v as string).toLocaleTimeString("fr-FR")}
-              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, label.split(" ")[0]]}
+              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, seriesName]}
             />
             <Area type="monotone" dataKey={dataKey} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />
           </AreaChart>

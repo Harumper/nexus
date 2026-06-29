@@ -3,6 +3,7 @@ import {
   XCircle, Loader2, ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { MachineAttentionData } from "../hooks/useMachineAttention";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
  * Quand tout va bien : message rassurant, pas de bruit.
  */
 export default function AttentionPanel({ data, onTabChange, onShowFailedServices }: Props) {
+  const { t } = useTranslation(["attention", "common"]);
   const { updatesCount, securityUpdates, minCertDays, loading, error, reload } = data;
   // Garde-fou null : si l'agent est injoignable, certaines sources peuvent
   // remonter null au lieu d'un tableau vide — on normalise pour éviter un
@@ -38,14 +40,14 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
     <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--nx-text-weak)" }}>
-          <AlertTriangle className="w-3 h-3" /> Attention requise
+          <AlertTriangle className="w-3 h-3" /> {t("title")}
         </h3>
         <button
           onClick={reload}
           disabled={loading}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px]"
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
-          title="Recharger"
+          title={t("reload")}
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
         </button>
@@ -60,7 +62,7 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
       {!loading && totalIssues === 0 && !error && (
         <div className="flex items-center gap-2 text-xs py-2" style={{ color: "var(--nx-success)" }}>
           <ShieldCheck className="w-4 h-4" />
-          <span>Tout va bien — aucun signal critique.</span>
+          <span>{t("allClear")}</span>
         </div>
       )}
 
@@ -73,8 +75,8 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
             label={a.rule.name}
             detail={
               a.details?.value !== undefined && a.details?.threshold !== undefined
-                ? `${a.details.value.toFixed(1)} (seuil ${a.details.threshold})`
-                : a.status === "ACKNOWLEDGED" ? "Acquittée" : "Active"
+                ? t("thresholdDetail", { value: a.details.value.toFixed(1), threshold: a.details.threshold })
+                : a.status === "ACKNOWLEDGED" ? t("acknowledged") : t("active")
             }
             href="/alerts"
           />
@@ -84,7 +86,7 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
           <Row
             icon={<XCircle className="w-3.5 h-3.5" />}
             color="var(--nx-danger)"
-            label={`${failedServices.length} service${failedServices.length > 1 ? "s" : ""} en échec`}
+            label={t("failedServices", { count: failedServices.length })}
             detail={failedServices.slice(0, 3).map((s) => s.unit).filter(Boolean).join(", ")}
             onClick={() => (onShowFailedServices ?? (() => onTabChange?.("services")))()}
           />
@@ -94,8 +96,8 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
           <Row
             icon={<Download className="w-3.5 h-3.5" />}
             color={securityUpdates > 0 ? "var(--nx-warning)" : "var(--nx-info)"}
-            label={`${updatesCount} mise${updatesCount > 1 ? "s" : ""} à jour disponible${updatesCount > 1 ? "s" : ""}`}
-            detail={securityUpdates > 0 ? `dont ${securityUpdates} de sécurité` : undefined}
+            label={t("updatesAvailable", { count: updatesCount })}
+            detail={securityUpdates > 0 ? t("securityDetail", { count: securityUpdates }) : undefined}
             onClick={() => onTabChange?.("updates")}
           />
         )}
@@ -106,14 +108,14 @@ export default function AttentionPanel({ data, onTabChange, onShowFailedServices
             icon={<Lock className="w-3.5 h-3.5" />}
             color={c.days_remaining < 7 ? "var(--nx-danger)" : "var(--nx-warning)"}
             label={c.subject || c.path}
-            detail={`Expire dans ${c.days_remaining}j`}
+            detail={t("expiresIn", { days: c.days_remaining })}
           />
         ))}
 
         {!loading && expiringCerts.length === 0 && certs.length > 0 && minCertDays !== null && (
           <div className="text-[11px] flex items-center gap-1.5 pt-1" style={{ color: "var(--nx-text-weak)" }}>
             <Lock className="w-3 h-3" />
-            <span>{certs.length} cert{certs.length > 1 ? "s" : ""} OK · prochain renouvellement dans {minCertDays}j</span>
+            <span>{t("certsOk", { count: certs.length, days: minCertDays })}</span>
           </div>
         )}
       </div>

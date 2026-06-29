@@ -8,6 +8,16 @@ import frSettings from "./locales/fr/settings.json";
 import enSettings from "./locales/en/settings.json";
 import frContainers from "./locales/fr/containers.json";
 import enContainers from "./locales/en/containers.json";
+import frDashboard from "./locales/fr/dashboard.json";
+import enDashboard from "./locales/en/dashboard.json";
+import frMachines from "./locales/fr/machines.json";
+import enMachines from "./locales/en/machines.json";
+import frCompare from "./locales/fr/compare.json";
+import enCompare from "./locales/en/compare.json";
+import frMetricsChart from "./locales/fr/metricsChart.json";
+import enMetricsChart from "./locales/en/metricsChart.json";
+import frAttention from "./locales/fr/attention.json";
+import enAttention from "./locales/en/attention.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -36,10 +46,18 @@ export function getInitialLanguage(): Language {
 // vide à attendre. `useSuspense: false` par sécurité (pas de Suspense i18n).
 i18n.use(initReactI18next).init({
   resources: {
-    fr: { common: frCommon, auth: frAuth, settings: frSettings, containers: frContainers },
-    en: { common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers },
+    fr: {
+      common: frCommon, auth: frAuth, settings: frSettings, containers: frContainers,
+      dashboard: frDashboard, machines: frMachines, compare: frCompare,
+      metricsChart: frMetricsChart, attention: frAttention,
+    },
+    en: {
+      common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
+      dashboard: enDashboard, machines: enMachines, compare: enCompare,
+      metricsChart: enMetricsChart, attention: enAttention,
+    },
   },
-  ns: ["common", "auth", "settings", "containers"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

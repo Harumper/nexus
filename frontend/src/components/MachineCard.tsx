@@ -2,7 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Server, Cpu, MemoryStick, HardDrive, Clock, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
 import { useState, memo } from "react";
 import { toast } from "sonner";
-import { statusColor, statusLabel, timeAgo } from "../lib/utils";
+import { useTranslation } from "react-i18next";
+import { statusColor, statusKey, timeAgo } from "../lib/utils";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useConfirm } from "./ui";
@@ -16,6 +17,7 @@ interface MachineCardProps {
 }
 
 function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: MachineCardProps) {
+  const { t } = useTranslation(["machines", "common"]);
   const navigate = useNavigate();
   const status = statusColor(machine.status);
   const isOnline = machine.status === "ONLINE";
@@ -32,9 +34,9 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
     setMenuOpen(false);
     if (
       !(await confirm({
-        title: `Supprimer la machine "${machine.name}" ?`,
-        description: "Cette action est irréversible.",
-        confirmLabel: "Supprimer",
+        title: t("card.confirmDeleteTitle", { name: machine.name }),
+        description: t("card.confirmDeleteDescription"),
+        confirmLabel: t("common:actions.delete"),
         variant: "danger",
       }))
     )
@@ -42,10 +44,10 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
     setActionLoading(true);
     try {
       await api.deleteMachine(machine.id);
-      toast.success("Machine supprimée");
+      toast.success(t("card.toastDeleted"));
       onDeleted?.();
     } catch {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("card.toastDeleteError"));
     } finally {
       setActionLoading(false);
     }
@@ -57,9 +59,9 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
     setMenuOpen(false);
     if (
       !(await confirm({
-        title: `Révoquer la machine "${machine.name}" ?`,
-        description: "L'agent sera déconnecté immédiatement.",
-        confirmLabel: "Révoquer",
+        title: t("card.confirmRevokeTitle", { name: machine.name }),
+        description: t("card.confirmRevokeDescription"),
+        confirmLabel: t("common:actions.revoke"),
         variant: "warning",
       }))
     )
@@ -67,10 +69,10 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
     setActionLoading(true);
     try {
       await api.revokeMachine(machine.id, "Revoked from machine list");
-      toast.success("Machine révoquée");
+      toast.success(t("card.toastRevoked"));
       onDeleted?.();
     } catch {
-      toast.error("Erreur lors de la révocation");
+      toast.error(t("card.toastRevokeError"));
     } finally {
       setActionLoading(false);
     }
@@ -108,20 +110,20 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                     style={{ color: "var(--nx-info)" }}
                   >
-                    <RefreshCw className="w-3.5 h-3.5" /> Régénérer l'installation
+                    <RefreshCw className="w-3.5 h-3.5" /> {t("card.regenerateInstall")}
                   </button>
                 )}
                 {machine.status !== "REVOKED" && (
                   <button type="button" onClick={handleRevoke} disabled={actionLoading}
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                     style={{ color: "var(--nx-warning)" }}>
-                    <ShieldOff className="w-3.5 h-3.5" /> Révoquer
+                    <ShieldOff className="w-3.5 h-3.5" /> {t("common:actions.revoke")}
                   </button>
                 )}
                 <button type="button" onClick={handleDelete} disabled={actionLoading}
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors hover:bg-[var(--nx-bg-hover)]"
                   style={{ color: "var(--nx-danger)" }}>
-                  <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                  <Trash2 className="w-3.5 h-3.5" /> {t("common:actions.delete")}
                 </button>
               </div>
             </>
@@ -150,37 +152,37 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
                 <span
                   className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
                   style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
-                  title="Machine critique"
+                  title={t("card.criticalTitle")}
                 >
-                  ⚠ Critique
+                  {t("card.criticalBadge")}
                 </span>
               )}
               {machine.sudoersOutdated && (
                 <span
                   className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-warning-subtle text-warning"
-                  title="Sudoers obsolètes — ré-installer l'agent"
+                  title={t("card.sudoersTitle")}
                 >
-                  ⚠ Sudoers
+                  {t("card.sudoersBadge")}
                 </span>
               )}
               {machine.rebootRequired && (
-                <span title="Reboot requis">
+                <span title={t("card.rebootRequiredTitle")}>
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />
                 </span>
               )}
               {machine.agentUpdateAvailable && (
                 <span
                   className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-info-subtle text-info"
-                  title="Une nouvelle version de l'agent est disponible"
+                  title={t("card.agentUpdateTitle")}
                 >
-                  ↑ Agent
+                  {t("card.agentBadge")}
                 </span>
               )}
               {alertCount > 0 && (
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
                   style={{ background: "var(--nx-danger-subtle)", color: "var(--nx-danger)" }}
-                  title={`${alertCount} alerte${alertCount > 1 ? "s" : ""} en cours sur cette machine`}
+                  title={t("card.alertBadgeTitle", { count: alertCount })}
                 >
                   <Bell className="w-2.5 h-2.5" />
                   {alertCount}
@@ -188,14 +190,14 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate">
-              {machine.hostname || machine.ipAddress || "Non configuré"}
+              {machine.hostname || machine.ipAddress || t("card.notConfigured")}
             </p>
           </div>
         </div>
 
         <div className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
           <span className={`w-2 h-2 rounded-full ${status.dot} ${isOnline ? "animate-pulse" : ""}`} />
-          {statusLabel(machine.status)}
+          {t(`common:status.${statusKey(machine.status)}`)}
         </div>
       </div>
 
@@ -216,7 +218,7 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
       ) : (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
-          {machine.lastHeartbeat ? `Dernier signal : ${timeAgo(machine.lastHeartbeat)}` : "Aucun signal reçu"}
+          {machine.lastHeartbeat ? t("card.lastSignal", { time: timeAgo(machine.lastHeartbeat) }) : t("card.noSignal")}
         </div>
       )}
 

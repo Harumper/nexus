@@ -1,0 +1,12 @@
+{
+  "empty": "Aucune métrique pour cette période",
+  "range7d": "7j",
+  "charts": {
+    "cpu": "CPU",
+    "memory": "Mémoire",
+    "load": "Load Average (1m)",
+    "disk": "Disque principal",
+    "networkIn": "Réseau In",
+    "networkOut": "Réseau Out"
+  }
+}

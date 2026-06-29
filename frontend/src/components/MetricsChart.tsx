@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -10,15 +11,10 @@ interface MetricsChartProps {
   machineId: string;
 }
 
-const RANGES = [
-  { value: "15m", label: "15m" },
-  { value: "1h", label: "1h" },
-  { value: "6h", label: "6h" },
-  { value: "24h", label: "24h" },
-  { value: "7d", label: "7j" },
-];
+const RANGES = ["15m", "1h", "6h", "24h", "7d"];
 
 export default function MetricsChart({ machineId }: MetricsChartProps) {
+  const { t } = useTranslation("metricsChart");
   const [range, setRange] = useState("1h");
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,15 +56,15 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
       <div className="flex gap-1 rounded-lg border border-border p-1 w-fit">
         {RANGES.map((r) => (
           <button
-            key={r.value}
-            onClick={() => setRange(r.value)}
+            key={r}
+            onClick={() => setRange(r)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              range === r.value
+              range === r
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {r.label}
+            {r === "7d" ? t("range7d") : r}
           </button>
         ))}
       </div>
@@ -79,12 +75,12 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
         </div>
       ) : metrics.length === 0 ? (
         <div className="text-center py-12 text-sm text-muted-foreground">
-          Aucune métrique pour cette période
+          {t("empty")}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <RechartCard
-            title="CPU"
+            title={t("charts.cpu")}
             currentValue={`${currentValues?.cpu.toFixed(1)}%`}
             data={chartData}
             dataKey="cpu"
@@ -93,7 +89,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             max={100}
           />
           <RechartCard
-            title="Mémoire"
+            title={t("charts.memory")}
             currentValue={`${currentValues?.memory.toFixed(1)}%`}
             data={chartData}
             dataKey="memory"
@@ -102,7 +98,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             max={100}
           />
           <RechartCard
-            title="Load Average (1m)"
+            title={t("charts.load")}
             currentValue={currentValues?.load.toFixed(2) ?? "N/A"}
             data={chartData}
             dataKey="load"
@@ -110,7 +106,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             unit=""
           />
           <RechartCard
-            title="Disque principal"
+            title={t("charts.disk")}
             currentValue={`${currentValues?.disk.toFixed(1)}%`}
             data={chartData}
             dataKey="disk"
@@ -119,7 +115,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             max={100}
           />
           <RechartCard
-            title="Réseau In"
+            title={t("charts.networkIn")}
             currentValue={`${currentValues?.networkIn?.toFixed(1) ?? "0"} KB/s`}
             data={chartData}
             dataKey="networkIn"
@@ -127,7 +123,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             unit=" KB/s"
           />
           <RechartCard
-            title="Réseau Out"
+            title={t("charts.networkOut")}
             currentValue={`${currentValues?.networkOut?.toFixed(1) ?? "0"} KB/s`}
             data={chartData}
             dataKey="networkOut"

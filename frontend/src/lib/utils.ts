@@ -89,6 +89,19 @@ export function statusLabel(status: string): string {
   return labels[status] || status;
 }
 
+// Suffixe de clé i18n pour un statut machine (résolu via t(`common:status.${key}`)).
+// Sépare le mapping statut→clé de la traduction, pour les composants i18n-isés.
+export function statusKey(status: string): string {
+  const keys: Record<string, string> = {
+    ONLINE: "online",
+    OFFLINE: "offline",
+    DEGRADED: "degraded",
+    ENROLLMENT_PENDING: "pending",
+    REVOKED: "revoked",
+  };
+  return keys[status] || "unknown";
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // Échelle Y adaptative pour les graphs : on évite de zoomer sur du bruit
 // quand toutes les valeurs sont basses, mais on étend si un pic apparaît.

@@ -1,0 +1,16 @@
+{
+  "title": "Attention required",
+  "reload": "Reload",
+  "allClear": "All good — no critical signals.",
+  "thresholdDetail": "{{value}} (threshold {{threshold}})",
+  "acknowledged": "Acknowledged",
+  "active": "Active",
+  "failedServices_one": "{{count}} failed service",
+  "failedServices_other": "{{count}} failed services",
+  "updatesAvailable_one": "{{count}} update available",
+  "updatesAvailable_other": "{{count}} updates available",
+  "securityDetail": "incl. {{count}} security",
+  "expiresIn": "Expires in {{days}}d",
+  "certsOk_one": "{{count}} cert OK · next renewal in {{days}}d",
+  "certsOk_other": "{{count}} certs OK · next renewal in {{days}}d"
+}

@@ -1,0 +1,19 @@
+{
+  "subtitle": "Vue d'ensemble de votre infrastructure",
+  "updateAll": "Tout mettre à jour",
+  "addMachine": "Ajouter une machine",
+  "kpi": {
+    "reboot": "Reboot"
+  },
+  "fleetHealth": "Santé de la flotte",
+  "topConsumers": "Top Consommateurs",
+  "noData": "Aucune donnée",
+  "trends": {
+    "cpu": "CPU moyen (1h)",
+    "ram": "RAM moyenne (1h)"
+  },
+  "empty": {
+    "title": "Aucune machine",
+    "description": "Ajoutez votre première machine pour commencer."
+  }
+}

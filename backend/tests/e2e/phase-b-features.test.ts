@@ -49,7 +49,10 @@ describe("B1 — Bulk actions", () => {
     const content = readFileSync(resolve(frontendSrc, "pages/Machines.tsx"), "utf8");
     expect(content).toContain("BulkActionDialog");
     expect(content).toContain("selected");
-    expect(content).toContain("Action groupée");
+    // i18n : libellé externalisé en clé machines:bulkAction (label FR dans le JSON).
+    expect(content).toContain("bulkAction");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/machines.json"), "utf8");
+    expect(fr).toContain("Action groupée");
   });
 });
 

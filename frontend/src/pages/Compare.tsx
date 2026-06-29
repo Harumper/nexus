@@ -1,17 +1,14 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { api } from "../services/api";
 import type { Machine } from "../types";
 
 const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
-const METRICS_OPTIONS = [
-  { value: "cpu", label: "CPU %" },
-  { value: "memory", label: "Mémoire %" },
-  { value: "disk", label: "Disque %" },
-  { value: "load", label: "Load Average" },
-];
+const METRIC_VALUES = ["cpu", "memory", "disk", "load"];
 
 export default function Compare() {
+  const { t } = useTranslation(["compare", "common"]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [metric, setMetric] = useState("cpu");
@@ -69,8 +66,8 @@ export default function Compare() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-2">Comparer</h1>
-      <p className="text-sm text-muted-foreground mb-6">Sélectionnez 2 à 3 machines pour comparer leurs métriques</p>
+      <h1 className="text-2xl font-bold text-foreground mb-2">{t("common:nav.compare")}</h1>
+      <p className="text-sm text-muted-foreground mb-6">{t("subtitle")}</p>
 
       {/* Machine selector */}
       <div className="flex flex-wrap gap-2 mb-6">
@@ -93,17 +90,17 @@ export default function Compare() {
       <div className="flex gap-4 mb-6">
         {/* Metric selector */}
         <div className="flex gap-1 rounded-lg border border-border p-1">
-          {METRICS_OPTIONS.map(o => (
+          {METRIC_VALUES.map(v => (
             <button
-              key={o.value}
-              onClick={() => setMetric(o.value)}
+              key={v}
+              onClick={() => setMetric(v)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                metric === o.value
+                metric === v
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {o.label}
+              {t(`metrics.${v}`)}
             </button>
           ))}
         </div>
@@ -128,7 +125,7 @@ export default function Compare() {
       {/* Chart */}
       {selectedIds.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground text-sm">
-          Sélectionnez des machines ci-dessus pour commencer la comparaison
+          {t("empty")}
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-20">
