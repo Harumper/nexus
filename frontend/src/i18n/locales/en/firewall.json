@@ -1,0 +1,28 @@
+{
+  "pendingDescription": "Change awaiting confirmation",
+  "agentReconnecting": "Agent reconnecting. Try again in a few seconds.",
+  "enabled": "Firewall active",
+  "disabled": "Firewall disabled",
+  "addRule": "Add rule",
+  "actionAllow": "Allow",
+  "actionDeny": "Deny",
+  "rulePlaceholder": "Rule (e.g. 80/tcp, 22, from 10.0.0.0/8)",
+  "syntaxHint": "ufw syntax. Examples: <0>80/tcp</0>, <1>22</1>, <2>from 192.168.1.0/24</2>, <3>from 10.0.0.1 to any port 22</3>",
+  "headers": {
+    "rule": "Rule",
+    "action": "Action",
+    "from": "From"
+  },
+  "noRules": "No rules.",
+  "noRulesEnabled": "All traffic is blocked by default (deny policy).",
+  "noRulesDisabled": "The firewall is disabled.",
+  "confirmRequired": "Confirmation required: {{description}}",
+  "watchdogCountdown": "If not confirmed within <0>{{count}}s</0>, the change will be reverted automatically.",
+  "confirmRemoveTitle": "Delete rule #{{n}}?",
+  "watchdogFooter": "⚡ <0>Watchdog-revert</0>: every change is applied but will be reverted automatically after 60s if you don't confirm. Protection against rules that lock you out of the server.",
+  "toastError": "Error: {{message}}",
+  "toastConfirmError": "Confirmation error: {{message}}",
+  "descEnable": "enable ufw",
+  "descDisable": "disable ufw",
+  "descRemoveRule": "remove rule #{{n}}"
+}

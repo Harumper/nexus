@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Network, Save, RefreshCw, Loader2, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
 import { getErrorMessage } from "../services/errors";
@@ -15,6 +16,7 @@ interface NetplanFile {
 }
 
 export default function NetworkConfigTab({ machineId }: Props) {
+  const { t } = useTranslation(["network", "common"]);
   const [files, setFiles] = useState<NetplanFile[]>([]);
   const [targetFile, setTargetFile] = useState("99-nexus.yaml");
   const [selectedFile, setSelectedFile] = useState("99-nexus.yaml");
@@ -48,7 +50,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
       setEditorContent(content);
       setOriginalContent(content);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur"));
+      setError(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
@@ -106,10 +108,9 @@ export default function NetworkConfigTab({ machineId }: Props) {
 
   const handleApply = async () => {
     if (!(await confirm({
-      title: "Appliquer cette configuration réseau ?",
-      description:
-        "Si vous perdez la connexion ou ne confirmez pas dans les 120s, la configuration précédente sera restaurée automatiquement.",
-      confirmLabel: "Appliquer",
+      title: t("confirmApplyTitle"),
+      description: t("confirmApplyDesc"),
+      confirmLabel: t("common:actions.apply"),
       variant: "danger",
     }))) return;
     setApplying(true);
@@ -122,7 +123,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
         expiresAt: Date.now() + 120_000,
       });
       setOriginalContent(editorContent);
-      toast.success("Configuration appliquée — confirmez avant 120s");
+      toast.success(t("toastApplied"));
     } catch (err) {
       toast.error(getErrorMessage(err, "Apply failed"));
       setError(getErrorMessage(err, "Apply failed"));
@@ -137,7 +138,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
       await api.netplanConfirm(machineId, pending.requestId);
       setPending(null);
     } catch (err) {
-      toast.error("Erreur : " + (getErrorMessage(err, "confirm failed")));
+      toast.error(t("toastError", { message: getErrorMessage(err, "confirm failed") }));
     }
   };
 
@@ -152,10 +153,10 @@ export default function NetworkConfigTab({ machineId }: Props) {
             <AlertTriangle className="w-5 h-5" style={{ color: "var(--nx-warning)" }} />
             <div>
               <div className="text-sm font-semibold" style={{ color: "var(--nx-warning)" }}>
-                Configuration appliquée — Confirmer dans {remaining}s
+                {t("bannerTitle", { count: remaining })}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
-                Si vous ne confirmez pas, la configuration précédente sera restaurée automatiquement.
+                {t("bannerDesc")}
               </div>
             </div>
           </div>
@@ -165,7 +166,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
             style={{ background: "var(--nx-success)", color: "var(--nx-bg-base)" }}
           >
             <CheckCircle2 className="w-4 h-4" />
-            Confirmer ({remaining}s)
+            {t("confirmCountdown", { count: remaining })}
           </button>
         </div>
       )}
@@ -184,11 +185,11 @@ export default function NetworkConfigTab({ machineId }: Props) {
               <span className="text-xs font-semibold">/etc/netplan/{selectedFile}</span>
               {isEditable ? (
                 <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-primary-subtle)", color: "var(--nx-primary)" }}>
-                  Géré par Nexus
+                  {t("managedByNexus")}
                 </span>
               ) : (
                 <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
-                  Lecture seule
+                  {t("readonly")}
                 </span>
               )}
             </div>
@@ -216,9 +217,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
             <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
               <FileText className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
-                Ce fichier n'est pas géré par Nexus. Pour modifier la configuration réseau,
-                sélectionnez <code className="font-mono">{targetFile}</code> dans la sidebar
-                ou éditez directement via SSH.
+                <Trans i18nKey="notManaged" t={t} values={{ file: targetFile }} components={[<code key="0" className="font-mono" />]} />
               </span>
             </div>
           )}
@@ -226,7 +225,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
           {isEditable && (
             <div className="flex items-center justify-between">
               <div className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
-                {isDirty ? "Modifications non appliquées" : "Synchronisé"}
+                {isDirty ? t("dirty") : t("synced")}
               </div>
               <button
                 onClick={handleApply}
@@ -235,7 +234,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
                 style={{ background: "var(--nx-primary)", color: "var(--nx-bg-base)" }}
               >
                 {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Appliquer (watchdog 120s)
+                {t("applyButton")}
               </button>
             </div>
           )}
@@ -245,11 +244,11 @@ export default function NetworkConfigTab({ machineId }: Props) {
           <div className="rounded-xl border border-border p-4" style={{ background: "var(--nx-bg-surface)" }}>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>
               <Network className="w-3.5 h-3.5 inline mr-1" />
-              Fichiers netplan
+              {t("filesTitle")}
             </h3>
             {files.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
-                Aucun fichier détecté.
+                {t("noFiles")}
               </p>
             ) : (
               <div className="space-y-1">
@@ -279,20 +278,17 @@ export default function NetworkConfigTab({ machineId }: Props) {
               </div>
             )}
             <p className="text-[10px] mt-3" style={{ color: "var(--nx-text-weak)" }}>
-              Nexus ne modifie que <code>{targetFile}</code>. Les autres fichiers sont lisibles ici mais à éditer via SSH.
+              <Trans i18nKey="onlyModifies" t={t} values={{ file: targetFile }} components={[<code key="0" />]} />
             </p>
           </div>
 
           <div className="rounded-xl border border-border p-4 text-xs space-y-2" style={{ background: "var(--nx-bg-surface)" }}>
-            <div className="font-semibold" style={{ color: "var(--nx-text)" }}>Watchdog-revert</div>
+            <div className="font-semibold" style={{ color: "var(--nx-text)" }}>{t("watchdogTitle")}</div>
             <p style={{ color: "var(--nx-text-weak)" }}>
-              Après <strong>netplan apply</strong>, vous avez <strong>120 secondes</strong> pour
-              confirmer. Sans confirmation (ex: perte d'accès réseau), la configuration
-              précédente est restaurée automatiquement.
+              <Trans i18nKey="watchdogP1" t={t} components={[<strong key="0" />, <strong key="1" />]} />
             </p>
             <p style={{ color: "var(--nx-text-weak)" }}>
-              Un <em>dead-man's switch</em> restaure aussi au redémarrage de l'agent si celui-ci
-              crash pendant la fenêtre.
+              <Trans i18nKey="watchdogP2" t={t} components={[<em key="0" />]} />
             </p>
           </div>
         </div>

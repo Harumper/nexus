@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Shield, ShieldOff, Plus, Trash2, Check, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
@@ -44,6 +45,7 @@ interface PendingChange {
 }
 
 export default function FirewallTab({ machineId }: FirewallTabProps) {
+  const { t } = useTranslation(["firewall", "common"]);
   const [enabled, setEnabled] = useState(false);
   const [rules, setRules] = useState<ParsedRule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
         setPending({
           requestId: p.request_id,
           expiresAt: new Date(Date.now() + (p.expires_in_seconds || 0) * 1000),
-          description: "Modification en attente de confirmation",
+          description: t("pendingDescription"),
         });
       }
     } catch (err) {
@@ -78,7 +80,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       // traduit en quelque chose d'actionnable pour l'utilisateur.
       setError(
         /agent is not connected/i.test(msg)
-          ? "Agent en cours de reconnexion. Réessaie dans quelques secondes."
+          ? t("agentReconnecting")
           : msg
       );
     } finally {
@@ -119,7 +121,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       }
       await load();
     } catch (err) {
-      toast.error("Erreur : " + getErrorMessage(err));
+      toast.error(t("toastError", { message: getErrorMessage(err) }));
     }
   };
 
@@ -130,7 +132,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       setPending(null);
       await load();
     } catch (err) {
-      toast.error("Erreur confirmation : " + getErrorMessage(err));
+      toast.error(t("toastConfirmError", { message: getErrorMessage(err) }));
     }
   };
 
@@ -146,12 +148,12 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
 
   const handleRemove = async (n: number, rule: string) => {
     if (!(await confirm({
-      title: `Supprimer la règle #${n} ?`,
+      title: t("confirmRemoveTitle", { n }),
       description: rule,
-      confirmLabel: "Supprimer",
+      confirmLabel: t("common:actions.delete"),
       variant: "danger",
     }))) return;
-    await applyAction(() => api.firewallRuleRemove(machineId, n), `supprimer règle #${n}`);
+    await applyAction(() => api.firewallRuleRemove(machineId, n), t("descRemoveRule", { n }));
   };
 
   return (
@@ -164,10 +166,10 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
             <AlertTriangle className="w-5 h-5" style={{ color: "var(--nx-warning)" }} />
             <div>
               <div className="font-semibold text-sm" style={{ color: "var(--nx-warning)" }}>
-                Confirmation requise : {pending.description}
+                {t("confirmRequired", { description: pending.description })}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
-                Si pas de confirmation dans <span className="font-bold tabular-nums">{countdown}s</span>, la modification sera annulée automatiquement.
+                <Trans i18nKey="watchdogCountdown" t={t} values={{ count: countdown }} components={[<span key="0" className="font-bold tabular-nums" />]} />
               </div>
             </div>
           </div>
@@ -175,7 +177,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
             onClick={handleConfirm}
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-medium transition-colors"
           >
-            <Check className="w-4 h-4" /> Confirmer
+            <Check className="w-4 h-4" /> {t("common:actions.confirm")}
           </button>
         </div>
       )}
@@ -190,23 +192,23 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
               <ShieldOff className="w-5 h-5" style={{ color: "var(--nx-text-weak)" }} />
             )}
             <span className="text-sm font-medium">
-              {enabled ? "Pare-feu actif" : "Pare-feu désactivé"}
+              {enabled ? t("enabled") : t("disabled")}
             </span>
           </div>
           {!pending && enabled && (
             <button
-              onClick={() => applyAction(() => api.firewallDisable(machineId), "désactiver ufw")}
+              onClick={() => applyAction(() => api.firewallDisable(machineId), t("descDisable"))}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Désactiver
+              {t("common:actions.disable")}
             </button>
           )}
           {!pending && !enabled && (
             <button
-              onClick={() => applyAction(() => api.firewallEnable(machineId), "activer ufw")}
+              onClick={() => applyAction(() => api.firewallEnable(machineId), t("descEnable"))}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Activer
+              {t("common:actions.enable")}
             </button>
           )}
         </div>
@@ -216,14 +218,14 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-muted"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Rafraîchir
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> {t("common:actions.refresh")}
           </button>
           {!pending && (
             <button
               onClick={() => setAdding(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs hover:bg-primary/90"
             >
-              <Plus className="w-3.5 h-3.5" /> Ajouter règle
+              <Plus className="w-3.5 h-3.5" /> {t("addRule")}
             </button>
           )}
         </div>
@@ -244,14 +246,14 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
               onChange={(e) => setNewRule({ ...newRule, action: e.target.value })}
               className="rounded border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="allow">Allow</option>
-              <option value="deny">Deny</option>
+              <option value="allow">{t("actionAllow")}</option>
+              <option value="deny">{t("actionDeny")}</option>
             </select>
             <input
               type="text"
               value={newRule.rule}
               onChange={(e) => setNewRule({ ...newRule, rule: e.target.value })}
-              placeholder="Règle (ex: 80/tcp, 22, from 10.0.0.0/8)"
+              placeholder={t("rulePlaceholder")}
               className="flex-1 rounded border border-input bg-background px-3 py-2 text-sm font-mono"
             />
             <button
@@ -259,7 +261,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
               disabled={!newRule.rule.trim()}
               className="inline-flex items-center gap-2 rounded bg-primary text-primary-foreground px-3 py-2 text-sm disabled:opacity-50"
             >
-              Appliquer
+              {t("common:actions.apply")}
             </button>
             <button
               onClick={() => { setAdding(false); setNewRule({ action: "allow", rule: "" }); }}
@@ -269,7 +271,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Syntaxe ufw. Exemples : <code>80/tcp</code>, <code>22</code>, <code>from 192.168.1.0/24</code>, <code>from 10.0.0.1 to any port 22</code>
+            <Trans i18nKey="syntaxHint" t={t} components={[<code key="0" />, <code key="1" />, <code key="2" />, <code key="3" />]} />
           </p>
         </div>
       )}
@@ -280,9 +282,9 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
           <thead style={{ background: "var(--nx-bg-elevated)" }}>
             <tr className="text-xs uppercase" style={{ color: "var(--nx-text-weak)" }}>
               <th className="px-4 py-2 text-left w-12">#</th>
-              <th className="px-4 py-2 text-left">Règle</th>
-              <th className="px-4 py-2 text-left">Action</th>
-              <th className="px-4 py-2 text-left">Depuis</th>
+              <th className="px-4 py-2 text-left">{t("headers.rule")}</th>
+              <th className="px-4 py-2 text-left">{t("headers.action")}</th>
+              <th className="px-4 py-2 text-left">{t("headers.from")}</th>
               <th className="px-4 py-2 text-right w-20"></th>
             </tr>
           </thead>
@@ -293,7 +295,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
               </td></tr>
             ) : rules.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: "var(--nx-text-weak)" }}>
-                Aucune règle. {enabled ? "Tout le trafic est bloqué par défaut (policy deny)." : "Le pare-feu est désactivé."}
+                {t("noRules")} {enabled ? t("noRulesEnabled") : t("noRulesDisabled")}
               </td></tr>
             ) : (
               rules.map((r) => (
@@ -316,7 +318,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
                         onClick={() => handleRemove(r.number, r.raw)}
                         className="p-1.5 rounded hover:bg-muted"
                         style={{ color: "var(--nx-danger)" }}
-                        title="Supprimer"
+                        title={t("common:actions.delete")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -330,8 +332,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        ⚡ <b>Watchdog-revert</b> : chaque modification est appliquée mais sera annulée automatiquement après 60s si vous ne confirmez pas.
-        Protection contre les règles qui vous coupent l'accès au serveur.
+        <Trans i18nKey="watchdogFooter" t={t} components={[<b key="0" />]} />
       </p>
       {ConfirmDialogElement}
     </div>

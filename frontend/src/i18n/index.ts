@@ -26,6 +26,10 @@ import frAlerts from "./locales/fr/alerts.json";
 import enAlerts from "./locales/en/alerts.json";
 import frMachineDetail from "./locales/fr/machineDetail.json";
 import enMachineDetail from "./locales/en/machineDetail.json";
+import frFirewall from "./locales/fr/firewall.json";
+import enFirewall from "./locales/en/firewall.json";
+import frNetwork from "./locales/fr/network.json";
+import enNetwork from "./locales/en/network.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -58,16 +62,16 @@ i18n.use(initReactI18next).init({
       common: frCommon, auth: frAuth, settings: frSettings, containers: frContainers,
       dashboard: frDashboard, machines: frMachines, compare: frCompare,
       metricsChart: frMetricsChart, attention: frAttention, audit: frAudit, enroll: frEnroll, alerts: frAlerts,
-      machineDetail: frMachineDetail,
+      machineDetail: frMachineDetail, firewall: frFirewall, network: frNetwork,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
       dashboard: enDashboard, machines: enMachines, compare: enCompare,
       metricsChart: enMetricsChart, attention: enAttention, audit: enAudit, enroll: enEnroll, alerts: enAlerts,
-      machineDetail: enMachineDetail,
+      machineDetail: enMachineDetail, firewall: enFirewall, network: enNetwork,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

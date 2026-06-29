@@ -1,0 +1,21 @@
+{
+  "confirmApplyTitle": "Appliquer cette configuration réseau ?",
+  "confirmApplyDesc": "Si vous perdez la connexion ou ne confirmez pas dans les 120s, la configuration précédente sera restaurée automatiquement.",
+  "toastApplied": "Configuration appliquée — confirmez avant 120s",
+  "toastError": "Erreur : {{message}}",
+  "bannerTitle": "Configuration appliquée — Confirmer dans {{count}}s",
+  "bannerDesc": "Si vous ne confirmez pas, la configuration précédente sera restaurée automatiquement.",
+  "confirmCountdown": "Confirmer ({{count}}s)",
+  "managedByNexus": "Géré par Nexus",
+  "readonly": "Lecture seule",
+  "notManaged": "Ce fichier n'est pas géré par Nexus. Pour modifier la configuration réseau, sélectionnez <0>{{file}}</0> dans la sidebar ou éditez directement via SSH.",
+  "dirty": "Modifications non appliquées",
+  "synced": "Synchronisé",
+  "applyButton": "Appliquer (watchdog 120s)",
+  "filesTitle": "Fichiers netplan",
+  "noFiles": "Aucun fichier détecté.",
+  "onlyModifies": "Nexus ne modifie que <0>{{file}}</0>. Les autres fichiers sont lisibles ici mais à éditer via SSH.",
+  "watchdogTitle": "Watchdog-revert",
+  "watchdogP1": "Après <0>netplan apply</0>, vous avez <1>120 secondes</1> pour confirmer. Sans confirmation (ex: perte d'accès réseau), la configuration précédente est restaurée automatiquement.",
+  "watchdogP2": "Un <0>dead-man's switch</0> restaure aussi au redémarrage de l'agent si celui-ci crash pendant la fenêtre."
+}

@@ -1,0 +1,21 @@
+{
+  "confirmApplyTitle": "Apply this network configuration?",
+  "confirmApplyDesc": "If you lose the connection or don't confirm within 120s, the previous configuration will be restored automatically.",
+  "toastApplied": "Configuration applied — confirm within 120s",
+  "toastError": "Error: {{message}}",
+  "bannerTitle": "Configuration applied — Confirm within {{count}}s",
+  "bannerDesc": "If you don't confirm, the previous configuration will be restored automatically.",
+  "confirmCountdown": "Confirm ({{count}}s)",
+  "managedByNexus": "Managed by Nexus",
+  "readonly": "Read-only",
+  "notManaged": "This file is not managed by Nexus. To change the network configuration, select <0>{{file}}</0> in the sidebar or edit it directly over SSH.",
+  "dirty": "Unapplied changes",
+  "synced": "Synced",
+  "applyButton": "Apply (120s watchdog)",
+  "filesTitle": "Netplan files",
+  "noFiles": "No file detected.",
+  "onlyModifies": "Nexus only modifies <0>{{file}}</0>. The other files are readable here but should be edited over SSH.",
+  "watchdogTitle": "Watchdog-revert",
+  "watchdogP1": "After <0>netplan apply</0>, you have <1>120 seconds</1> to confirm. Without confirmation (e.g. network access loss), the previous configuration is restored automatically.",
+  "watchdogP2": "A <0>dead-man's switch</0> also restores on agent restart if it crashes during the window."
+}

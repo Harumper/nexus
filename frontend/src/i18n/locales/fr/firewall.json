@@ -1,0 +1,28 @@
+{
+  "pendingDescription": "Modification en attente de confirmation",
+  "agentReconnecting": "Agent en cours de reconnexion. Réessaie dans quelques secondes.",
+  "enabled": "Pare-feu actif",
+  "disabled": "Pare-feu désactivé",
+  "addRule": "Ajouter règle",
+  "actionAllow": "Allow",
+  "actionDeny": "Deny",
+  "rulePlaceholder": "Règle (ex: 80/tcp, 22, from 10.0.0.0/8)",
+  "syntaxHint": "Syntaxe ufw. Exemples : <0>80/tcp</0>, <1>22</1>, <2>from 192.168.1.0/24</2>, <3>from 10.0.0.1 to any port 22</3>",
+  "headers": {
+    "rule": "Règle",
+    "action": "Action",
+    "from": "Depuis"
+  },
+  "noRules": "Aucune règle.",
+  "noRulesEnabled": "Tout le trafic est bloqué par défaut (policy deny).",
+  "noRulesDisabled": "Le pare-feu est désactivé.",
+  "confirmRequired": "Confirmation requise : {{description}}",
+  "watchdogCountdown": "Si pas de confirmation dans <0>{{count}}s</0>, la modification sera annulée automatiquement.",
+  "confirmRemoveTitle": "Supprimer la règle #{{n}} ?",
+  "watchdogFooter": "⚡ <0>Watchdog-revert</0> : chaque modification est appliquée mais sera annulée automatiquement après 60s si vous ne confirmez pas. Protection contre les règles qui vous coupent l'accès au serveur.",
+  "toastError": "Erreur : {{message}}",
+  "toastConfirmError": "Erreur confirmation : {{message}}",
+  "descEnable": "activer ufw",
+  "descDisable": "désactiver ufw",
+  "descRemoveRule": "supprimer règle #{{n}}"
+}
