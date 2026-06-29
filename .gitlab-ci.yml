@@ -216,8 +216,20 @@ release-agent:
     # inoffensif. La PUBLICATION (vers /release) est faite par deploy-prod.
     - (cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X main.Version=$AGENT_VERSION" -o ../nexus-agent ./cmd/nexus-agent)
     - ./nexus-agent --version
+    # Reconstitue un fichier clé valide, que NEXUS_RELEASE_SECKEY soit une variable
+    # de type "Fichier" (chemin) ou normale (contenu, mono- ou multi-ligne).
+    - |
+      if [ -f "$NEXUS_RELEASE_SECKEY" ]; then
+        cp "$NEXUS_RELEASE_SECKEY" release.key
+      else
+        case "$NEXUS_RELEASE_SECKEY" in
+          "untrusted comment:"*) printf '%s\n' "$NEXUS_RELEASE_SECKEY" > release.key ;;
+          *) printf 'untrusted comment: minisign secret key\n%s\n' "$NEXUS_RELEASE_SECKEY" > release.key ;;
+        esac
+      fi
     # signature en CI (clé privée SANS mot de passe ; </dev/null = garde anti-hang)
-    - minisign -S -s "$NEXUS_RELEASE_SECKEY" -m nexus-agent </dev/null
+    - minisign -S -s release.key -m nexus-agent </dev/null
+    - rm -f release.key
     # (sanity) re-vérif avec la clé publique si fournie
     - if [ -n "$NEXUS_RELEASE_PUBKEY" ]; then printf '%s\n' "$NEXUS_RELEASE_PUBKEY" > release.pub; minisign -Vm nexus-agent -p release.pub; fi
     - printf '%s\n' "$AGENT_VERSION" > VERSION
