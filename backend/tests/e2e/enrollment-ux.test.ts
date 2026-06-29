@@ -118,6 +118,14 @@ describe("Enrollment UX v2 — Docker & Scripts", () => {
     expect(body).toMatch(/SANS --enrollment-token/);
     // Refus pur : le garde-fou ne déclenche aucune purge (pas de table rase ici).
     expect(body).not.toContain("wipe_agent");
+    // La détection d'identité doit cibler le marqueur d'enrôlement v2 "enrolled" (ce que
+    // l'agent teste via IsEnrolled), PAS shared.secret : vestige v1 jamais écrit en v2 →
+    // la détection serait toujours false et le garde-fou inopérant (régression vécue).
+    const detectLine = content
+      .split("\n")
+      .find((l) => l.includes('"$KEY_DIR/enrolled"') && l.includes("MODE"));
+    expect(detectLine, "HAS_LOCAL_IDENTITY doit tester $KEY_DIR/enrolled").toBeTruthy();
+    expect(detectLine).not.toContain("shared.secret");
   });
 
   it("should have docker-compose with repo-root context and AGENT_BACKEND_URL", () => {
@@ -169,7 +177,11 @@ describe("Enrollment UX v2 — Frontend", () => {
   it("should have Régénérer action in MachineCard for pending machines", () => {
     const content = readFileSync(resolve(frontendSrc, "components/MachineCard.tsx"), "utf8");
     expect(content).toContain("isPending");
-    expect(content).toContain("Régénérer");
+    // i18n : l'action est externalisée en clé card.regenerateInstall ; le label
+    // FR "Régénérer l'installation" vit dans le fichier de langue.
+    expect(content).toContain("regenerateInstall");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/machines.json"), "utf8");
+    expect(fr).toContain("Régénérer");
     expect(content).toContain("/enroll");
   });
 

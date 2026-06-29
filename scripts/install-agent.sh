@@ -218,25 +218,30 @@ if [ -z "$MACHINE_ID" ]; then
     read -p "Machine ID : " MACHINE_ID
 fi
 
-# Le token n'est requis QUE si l'agent n'a pas déjà une identité locale
-# (shared.secret). Pour un simple rafraîchissement sudoers/binaire sur une
-# machine déjà enrôlée, l'agent réutilise ses clés existantes et ne ré-enrôle pas.
+# Le token n'est requis QUE si l'agent n'a pas déjà une identité locale ENRÔLÉE.
+# Marqueur v2 = fichier "enrolled" (cf agent keystore.go MarkEnrolled/IsEnrolled : c'est
+# LUI qui fait sauter l'enrôlement au boot) ; on teste aussi agent.key par robustesse
+# (identité résiduelle même si le marqueur manque). ⚠ NE PAS tester shared.secret : c'est
+# un vestige v1, PLUS écrit en v2 (la clé de canal est dérivée par handshake ECDHE, jamais
+# persistée) → s'en servir rendait cette détection TOUJOURS fausse. Pour un simple
+# rafraîchissement sudoers/binaire sur une machine déjà enrôlée, l'agent réutilise ses
+# clés existantes et ne ré-enrôle pas.
 HAS_LOCAL_IDENTITY=false
-if [ -f "$KEY_DIR/shared.secret" ] && [ "$MODE" != "reenroll" ]; then
+if { [ -f "$KEY_DIR/enrolled" ] || [ -f "$KEY_DIR/agent.key" ]; } && [ "$MODE" != "reenroll" ]; then
     HAS_LOCAL_IDENTITY=true
 fi
 
 # Garde-fou anti-deadlock (refus explicite, jamais de purge auto) : un --enrollment-token
 # fourni alors qu'une identité locale existe DÉJÀ est un piège. L'agent saute l'enrollment
-# tant que shared.secret est présent → il IGNORE le token et garde son ancienne identité ;
-# si celle-ci a été invalidée côté serveur (machine supprimée/recréée/ré-enrôlée), le boot
-# part en boucle "Session handshake failed: unexpected handshake response type: error".
+# tant que le marqueur "enrolled" est présent → il IGNORE le token et garde son ancienne
+# identité ; si celle-ci a été invalidée côté serveur (machine supprimée/recréée/ré-enrôlée),
+# le boot part en boucle "Session handshake failed: unexpected handshake response type: error".
 # On refuse plutôt que de démarrer dans le mur. La purge d'identité est DESTRUCTRICE : elle
 # n'est jamais automatique, elle exige le geste délibéré --reenroll (que le bouton
 # « Ré-enrôler » de l'UI ajoute déjà). On NE compare PAS le machine-id : "token + identité"
 # suffit, et un refus est non-destructeur (aucune primitive de purge exploitable).
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then
-    error "Identité Nexus déjà présente sur cet hôte ($KEY_DIR/shared.secret) ET un --enrollment-token a été fourni."
+    error "Identité Nexus déjà présente sur cet hôte (marqueur $KEY_DIR/enrolled) ET un --enrollment-token a été fourni."
     error "L'agent ignorerait ce token et resterait sur son ancienne identité → 'Session handshake failed: error' si elle a été révoquée côté serveur (machine supprimée/recréée/ré-enrôlée)."
     error "Deux issues, au choix :"
     error "  • Ré-enrôler proprement (TABLE RASE de l'identité, puis enrôle avec ce token) : relance la MÊME commande avec --reenroll"
