@@ -386,7 +386,10 @@ describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)"
     expect(apiFile).toMatch(/enableAutoUpdates[\s\S]*security\.enable_auto_updates/);
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("hardenFail2ban");
-    expect(tab).toContain("Remédiations recommandées");
+    // i18n : titre externalisé en clé security:remediations.title (label FR dans le JSON).
+    expect(tab).toContain("remediations.title");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
+    expect(fr).toContain("Remédiations recommandées");
   });
 });
 
@@ -446,7 +449,10 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     expect(apiFile).toContain("sshdConfirm");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("sshdHarden");
-    expect(tab).toContain("Confirmer");
+    // i18n : bouton de confirmation externalisé en clé security:watchdog.confirmButton.
+    expect(tab).toContain("watchdog.confirmButton");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
+    expect(fr).toContain("Confirmer");
   });
 });
 
@@ -538,7 +544,10 @@ describe("Security scan history & trend (Phase 3)", () => {
     expect(apiFile).toContain("securityScans");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("HardeningTrend");
-    expect(tab).toContain("Tendance de l'indice");
+    // i18n : titre externalisé en clé security:trend.title.
+    expect(tab).toContain("trend.title");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
+    expect(fr).toContain("Tendance de l'indice");
   });
 });
 
@@ -601,7 +610,10 @@ describe("Security — remédiation bannière légale (1-clic)", () => {
     expect(api).toContain("setLoginBanner");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("login_banner_set");
-    expect(tab).toContain("Bannière légale");
+    // i18n : libellé externalisé en clé security:remediations.bannerLabel (FR dans le JSON).
+    expect(tab).toContain("remediations.bannerLabel");
+    const frSec = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
+    expect(frSec).toContain("Bannière légale");
   });
 });
 
@@ -643,7 +655,10 @@ describe("Pare-feu : exclusion des ports gérés par Docker", () => {
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("docker_managed");
     expect(tab).toContain("fwDockerServices");
-    expect(tab).toContain("chaîne DOCKER");
+    // i18n : hint externalisé en clé security:firewallWizard.dockerHint (FR dans le JSON).
+    expect(tab).toContain("firewallWizard.dockerHint");
+    const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
+    expect(fr).toContain("chaîne DOCKER");
   });
 });
 

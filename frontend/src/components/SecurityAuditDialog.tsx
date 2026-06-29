@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ShieldCheck, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -32,6 +33,7 @@ function stripAnsi(s: string): string {
 // Modal de progression de l'audit Lynis (comme la MAJ de l'agent) : barre de
 // progression + sortie shell streamée en direct (WebSocket), jusqu'au résultat.
 export default function SecurityAuditDialog({ machineId, machineName, onClose, onResult }: Props) {
+  const { t } = useTranslation(["security", "common"]);
   const [status, setStatus] = useState<Status>("working");
   const [percent, setPercent] = useState(0);
   const [log, setLog] = useState<string[]>([]);
@@ -60,7 +62,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
       setElapsed(Math.floor(ms / 1000));
       if (ms > CLIENT_TIMEOUT_MS) {
         setStatus("failed");
-        setErrorMsg("Délai dépassé : aucune réponse de l'agent. Vérifie l'agent / les sudoers Lynis.");
+        setErrorMsg(t("auditDialog.timeout"));
       }
     }, 1000);
     return () => clearInterval(iv);
@@ -78,8 +80,11 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
         setPercent(100);
         setScore(typeof data.hardening_index === "number" ? data.hardening_index : null);
         append(
-          `✓ Audit terminé — indice ${data.hardening_index >= 0 ? `${data.hardening_index}/100` : "n/a"}, ` +
-            `${data.warning_count} avertissement(s), ${data.suggestion_count} suggestion(s).`
+          t("auditDialog.resultLine", {
+            index: data.hardening_index >= 0 ? `${data.hardening_index}/100` : "n/a",
+            warnings: data.warning_count,
+            suggestions: data.suggestion_count,
+          })
         );
         setStatus("success");
         onResult(data);
@@ -93,10 +98,10 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
   // Démarre l'audit au montage (le dispatch est asynchrone : la suite arrive par WS).
   useEffect(() => {
     startedAtRef.current = Date.now();
-    setLog(["Lancement de l'audit Lynis…"]);
+    setLog([t("auditDialog.starting")]);
     api.securityAudit(machineId).catch((err) => {
-      append(`✗ ${getErrorMessage(err, "Échec du lancement")}`);
-      setErrorMsg(getErrorMessage(err, "Impossible de lancer l'audit"));
+      append(`✗ ${getErrorMessage(err, t("auditDialog.startError"))}`);
+      setErrorMsg(getErrorMessage(err, t("auditDialog.launchError")));
       setStatus("failed");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +121,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
       title={
         <span className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
-          Audit de durcissement{machineName ? ` — ${machineName}` : ""}
+          {machineName ? t("auditDialog.titleWithName", { name: machineName }) : t("auditDialog.title")}
         </span>
       }
     >
@@ -125,7 +130,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-foreground">
               <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--nx-accent)" }} />
-              <span>Lynis analyse la configuration (parefeu, SSH, kernel, comptes, MAJ…)</span>
+              <span>{t("auditDialog.analyzing")}</span>
               <span className="ml-auto text-xs tabular-nums text-muted-foreground">{elapsed}s</span>
             </div>
             <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
@@ -141,11 +146,12 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
           <div className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm bg-emerald-500/10 border border-emerald-500/20">
             <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: "var(--nx-success)" }} />
             <span className="text-foreground">
-              Audit terminé — indice de durcissement{" "}
-              <strong className="tabular-nums" style={{ color: scoreColor }}>
-                {score === null ? "n/a" : `${score}/100`}
-              </strong>
-              . Détail dans l'onglet.
+              <Trans
+                i18nKey="auditDialog.successText"
+                t={t}
+                values={{ score: score === null ? "n/a" : `${score}/100` }}
+                components={[<strong key="0" className="tabular-nums" style={{ color: scoreColor }} />]}
+              />
             </span>
           </div>
         )}
@@ -170,12 +176,12 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
         <div className="flex justify-end gap-2 pt-1">
           {status === "working" && (
             <Button variant="ghost" size="md" disabled>
-              Audit en cours…
+              {t("auditDialog.working")}
             </Button>
           )}
           {status !== "working" && (
             <Button variant="primary" size="md" onClick={onClose}>
-              Fermer
+              {t("common:actions.close")}
             </Button>
           )}
         </div>

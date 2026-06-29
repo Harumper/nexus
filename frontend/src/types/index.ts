@@ -149,6 +149,11 @@ export interface SecurityAuditResult {
 export interface MetricsResponse {
   machineId: string;
   range: string;
+  // Présents depuis le downsampling SQL : taille de bucket (s) et borne basse de
+  // la fenêtre (ISO). Servent au gap-fill front (grille régulière → trous visibles)
+  // et au domaine temporel de l'axe X.
+  bucketSeconds?: number;
+  since?: string;
   count: number;
   metrics: Metric[];
 }

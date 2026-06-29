@@ -1,0 +1,144 @@
+{
+  "header": {
+    "title": "Security hardening",
+    "subtitle": "Audit based on <0>Lynis</0> (open-source, read-only). No change is applied — fixes will be offered in one click.",
+    "runAudit": "Re-run the audit",
+    "startAudit": "Run an audit",
+    "empty": "No audit yet. Run an audit to assess this machine's security posture."
+  },
+  "stale": {
+    "text": "Last known posture{{auditDate}}. The detail of warnings/suggestions is not kept — re-run the audit to see it.",
+    "auditDate": " (audit from {{date}})"
+  },
+  "watchdog": {
+    "subjectSsh": "SSH hardening applied",
+    "subjectFirewall": "Firewall policy applied",
+    "confirm": "{{subject}} — confirm within {{count}}s",
+    "hintSsh": "Test your SSH reconnection.",
+    "hintFirewall": "Check you still have access to the machine.",
+    "revert": "Without confirmation, the previous state will be restored automatically.",
+    "confirmButton": "Confirm ({{count}}s)"
+  },
+  "overview": {
+    "title": "Overview",
+    "inline": "· index {{index}} · {{warnings}} warn. · {{suggestions}} sugg.",
+    "warnings": "Warnings",
+    "suggestions": "Suggestions"
+  },
+  "firewallSummary": {
+    "active": "Firewall active",
+    "inactive": "⚠ Firewall inactive — enable it (Firewall tab)",
+    "noRules": " — but no rule defined"
+  },
+  "remediations": {
+    "title": "Recommended remediations",
+    "sshNote": "SSH hardening validates the config (`sshd -t`) then reloads via SIGHUP with a 120s watchdog (anti-lock-out).",
+    "postureDirty": "Measures applied. Re-run an audit to recompute the index and findings (you can chain other fixes first).",
+    "disabledTitle": "Restricted to AGENT machines / authorized role",
+    "previewTooltip": "See what will be applied",
+    "show": "View",
+    "hide": "Hide",
+    "fail2banName": "Anti-bruteforce protection (fail2ban)",
+    "fail2banInactive": "Installed, inactive",
+    "active": "Active",
+    "configure": "Configure",
+    "installConfigure": "Install + configure",
+    "autoUpdatesLabel": "Automatic security updates (unattended-upgrades)",
+    "autoUpdatesPreviewTitle": "Automatic updates",
+    "enable": "Enable",
+    "sshLabel": "Harden SSH (modern algos + limits)",
+    "sshActive": "Hardened",
+    "sshPreviewTitle": "SSH hardening",
+    "sshPreviewApply": "Apply (120s watchdog)",
+    "bannerLabel": "Legal banner (/etc/issue, /etc/issue.net)",
+    "bannerActive": "In place",
+    "coreDumpsLabel": "Disable core dumps",
+    "coreDumpsActive": "Disabled",
+    "coreDumpsApply": "Disable",
+    "loginDefsLabel": "Harden /etc/login.defs (umask 027 + password ages)",
+    "loginDefsActive": "Hardened",
+    "loginDefsPreviewTitle": "Harden /etc/login.defs",
+    "loginDefsApply": "Harden"
+  },
+  "firewallWizard": {
+    "title": "Firewall wizard",
+    "analyze": "Analyze open ports",
+    "intro": "Detects listening services (non-loopback) and proposes a policy: allow the checked ports + block all inbound by default.",
+    "emptyAll": "No exposed service detected (all on loopback).",
+    "emptyNonDocker": "No non-Docker exposed service. All exposed ports are published by Docker (managed by its own iptables rules) — nothing to add in ufw.",
+    "sshLocked": "SSH (locked)",
+    "applyHint": "Enable ufw (deny inbound) + allow the checked ports. 60s anti-lock-out watchdog.",
+    "applyPolicy": "Apply the policy",
+    "dockerPorts_one": "{{count}} port managed by Docker — excluded from the ufw policy",
+    "dockerPorts_other": "{{count}} ports managed by Docker — excluded from the ufw policy",
+    "dockerHint": "Docker inserts its own iptables rules (DOCKER chain); ufw doesn't filter them. To restrict these ports, publish them on a specific IP (<0>-p 127.0.0.1:…</0>) or via an upstream firewall."
+  },
+  "confirmFirewall": {
+    "title": "Apply this firewall policy?",
+    "desc": "Enables ufw (deny inbound by default) and allows: {{ports}}. 60s watchdog: if you lose access or don't confirm, the previous state is restored automatically.",
+    "noPorts": "(none)",
+    "sshWarning": "\n⚠️ WARNING: no SSH port detected/selected — risk of locking yourself out."
+  },
+  "findings": {
+    "warnings": "Warnings",
+    "suggestions": "Hardening suggestions",
+    "docTitle": "Lynis documentation — {{id}}"
+  },
+  "lynisFooter": "Lynis {{version}} · the hardening score is an indicator of measures taken, not a percentage of \"security\".",
+  "bannerDialog": {
+    "defaultBanner": "*** Restricted access ***\nUnauthorized access to this system is prohibited and may be subject to\nprosecution. All activity may be logged and monitored.",
+    "desc": "Warning shown BEFORE login (console + SSH). Customizable.",
+    "submit": "Set",
+    "placeholder": "Banner text…",
+    "hint": "No effect on access. Max 4096 characters."
+  },
+  "f2bDialog": {
+    "desc": "Installs fail2ban if absent, deploys an SSH jail and enables the service.",
+    "bantime": "Ban duration (bantime)",
+    "findtime": "Detection window (findtime)",
+    "maxretry": "Attempts before ban (maxretry)",
+    "durationsHint": "Durations: seconds or shorthand (<0>600</0>, <1>10m</1>, <2>1h</2>, <3>1d</3>, <4>1w</4>). SSH is protected by default."
+  },
+  "preview": {
+    "titleSuffix": "{{title}} — preview",
+    "exactContent": "Exact content that will be applied (read from the agent, not a copy):",
+    "back": "Back"
+  },
+  "score": {
+    "label": "Hardening index"
+  },
+  "trend": {
+    "title": "Index trend",
+    "seriesName": "Index",
+    "deltaUp": "▲ +{{delta}} since last scan",
+    "deltaDown": "▼ {{delta}} since last scan"
+  },
+  "toasts": {
+    "f2bConfigured": "fail2ban configured.",
+    "f2bError": "fail2ban configuration failed",
+    "bannerDeposited": "Banner set.",
+    "bannerError": "Failed to set the banner",
+    "remediationApplied": "Remediation applied.",
+    "remediationError": "Remediation failed",
+    "previewError": "Preview failed",
+    "sshApplied": "SSH hardening applied — confirm within 120s (test your reconnection).",
+    "sshError": "SSH hardening failed",
+    "confirmed": "Change confirmed.",
+    "confirmError": "Confirmation failed",
+    "analyzeError": "Port analysis failed",
+    "policyApplied": "Policy applied — confirm within 60s (check your access).",
+    "policyError": "Failed to apply the policy"
+  },
+  "auditDialog": {
+    "title": "Hardening audit",
+    "titleWithName": "Hardening audit — {{name}}",
+    "timeout": "Timed out: no response from the agent. Check the agent / the Lynis sudoers.",
+    "resultLine": "✓ Audit done — index {{index}}, {{warnings}} warning(s), {{suggestions}} suggestion(s).",
+    "starting": "Starting the Lynis audit…",
+    "startError": "Launch failed",
+    "launchError": "Unable to start the audit",
+    "analyzing": "Lynis is analyzing the configuration (firewall, SSH, kernel, accounts, updates…)",
+    "successText": "Audit done — hardening index <0>{{score}}</0>. Detail in the tab.",
+    "working": "Audit in progress…"
+  }
+}

@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { api } from "../services/api";
 import { niceYDomain } from "../lib/utils";
-import type { Metric } from "../types";
+import { alignToBucket, buildTimeGrid, formatAxisTick, formatAxisLabel } from "../lib/chartTime";
+import type { MetricsResponse } from "../types";
 
 interface MetricsChartProps {
   machineId: string;
@@ -13,42 +14,82 @@ interface MetricsChartProps {
 
 const RANGES = ["15m", "1h", "6h", "24h", "7d"];
 
+type ChartPoint = {
+  timestamp: number;
+  cpu: number | null;
+  memory: number | null;
+  load: number | null;
+  disk: number | null;
+  networkIn: number | null;
+  networkOut: number | null;
+};
+
 export default function MetricsChart({ machineId }: MetricsChartProps) {
   const { t } = useTranslation("metricsChart");
   const [range, setRange] = useState("1h");
-  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [data, setData] = useState<MetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     api.getMetrics(machineId, range)
-      .then((res) => { if (!cancelled) setMetrics(res.metrics); })
+      .then((res) => { if (!cancelled) setData(res); })
       .catch((err) => console.warn("[MetricsChart] initial fetch failed:", err))
       .finally(() => { if (!cancelled) setLoading(false); });
 
     const interval = setInterval(() => {
       api.getMetrics(machineId, range)
-        .then((res) => { if (!cancelled) setMetrics(res.metrics); })
+        .then((res) => { if (!cancelled) setData(res); })
         .catch((err) => console.warn("[MetricsChart] poll failed:", err));
     }, 60_000);
 
     return () => { cancelled = true; clearInterval(interval); };
   }, [machineId, range]);
 
-  // Transform metrics for Recharts
-  const chartData = metrics.map((m) => ({
-    time: new Date(m.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-    timestamp: new Date(m.timestamp).getTime(),
-    cpu: m.cpuPercent,
-    memory: m.memoryPercent,
-    load: m.loadAvg1 ?? 0,
-    disk: m.disks?.[0]?.percent ?? 0,
-    networkIn: (m.network as any)?.[0]?.rx_bytes_per_sec ? ((m.network as any)[0].rx_bytes_per_sec / 1024) : 0,
-    networkOut: (m.network as any)?.[0]?.tx_bytes_per_sec ? ((m.network as any)[0].tx_bytes_per_sec / 1024) : 0,
-  }));
+  // Transforme la série downsamplée pour Recharts. Axe X = timestamp NUMÉRIQUE
+  // (plus de chaîne "HH:mm" qui collait deux points d'une même minute et
+  // confondait les jours sur 7j). GAP-FILL : on reconstruit une grille régulière
+  // alignée sur le bucket et tout bucket manquant devient un point `null` → un
+  // TROU visible dans le graphe, jamais une ligne droite masquant un agent offline.
+  const chartData = useMemo<ChartPoint[]>(() => {
+    const metrics = data?.metrics ?? [];
+    if (metrics.length === 0) return [];
+    const bucketMs = (data?.bucketSeconds ?? 60) * 1000;
+    const sinceMs = data?.since ? new Date(data.since).getTime() : Date.now();
+    const byTs = new Map<number, (typeof metrics)[number]>();
+    for (const m of metrics) {
+      byTs.set(alignToBucket(new Date(m.timestamp).getTime(), bucketMs), m);
+    }
+    return buildTimeGrid(sinceMs, Date.now(), bucketMs).map((ts) => {
+      const m = byTs.get(ts);
+      if (!m) {
+        return { timestamp: ts, cpu: null, memory: null, load: null, disk: null, networkIn: null, networkOut: null };
+      }
+      const net = (m.network as any)?.[0];
+      return {
+        timestamp: ts,
+        cpu: m.cpuPercent,
+        memory: m.memoryPercent,
+        load: m.loadAvg1 ?? 0,
+        disk: m.disks?.[0]?.percent ?? 0,
+        networkIn: net?.rx_bytes_per_sec != null ? net.rx_bytes_per_sec / 1024 : 0,
+        networkOut: net?.tx_bytes_per_sec != null ? net.tx_bytes_per_sec / 1024 : 0,
+      };
+    });
+  }, [data]);
 
-  const currentValues = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  // Domaine X = fenêtre complète demandée (premier→dernier bucket de la grille).
+  const xDomain: [number, number] | undefined =
+    chartData.length > 0
+      ? [chartData[0].timestamp, chartData[chartData.length - 1].timestamp]
+      : undefined;
+
+  // Valeur « courante » = dernier point RÉEL (ignore les trous de fin de fenêtre).
+  const currentValues = useMemo(
+    () => [...chartData].reverse().find((d) => d.cpu != null) ?? null,
+    [chartData]
+  );
 
   return (
     <div className="space-y-6">
@@ -73,7 +114,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
         </div>
-      ) : metrics.length === 0 ? (
+      ) : chartData.length === 0 ? (
         <div className="text-center py-12 text-sm text-muted-foreground">
           {t("empty")}
         </div>
@@ -81,38 +122,46 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <RechartCard
             title={t("charts.cpu")}
-            currentValue={`${currentValues?.cpu.toFixed(1)}%`}
+            currentValue={`${currentValues?.cpu?.toFixed(1) ?? "—"}%`}
             data={chartData}
             dataKey="cpu"
             color="#3b82f6"
             unit="%"
             max={100}
+            range={range}
+            domain={xDomain}
           />
           <RechartCard
             title={t("charts.memory")}
-            currentValue={`${currentValues?.memory.toFixed(1)}%`}
+            currentValue={`${currentValues?.memory?.toFixed(1) ?? "—"}%`}
             data={chartData}
             dataKey="memory"
             color="#8b5cf6"
             unit="%"
             max={100}
+            range={range}
+            domain={xDomain}
           />
           <RechartCard
             title={t("charts.load")}
-            currentValue={currentValues?.load.toFixed(2) ?? "N/A"}
+            currentValue={currentValues?.load?.toFixed(2) ?? "N/A"}
             data={chartData}
             dataKey="load"
             color="#f59e0b"
             unit=""
+            range={range}
+            domain={xDomain}
           />
           <RechartCard
             title={t("charts.disk")}
-            currentValue={`${currentValues?.disk.toFixed(1)}%`}
+            currentValue={`${currentValues?.disk?.toFixed(1) ?? "—"}%`}
             data={chartData}
             dataKey="disk"
             color="#ef4444"
             unit="%"
             max={100}
+            range={range}
+            domain={xDomain}
           />
           <RechartCard
             title={t("charts.networkIn")}
@@ -121,6 +170,8 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             dataKey="networkIn"
             color="#06b6d4"
             unit=" KB/s"
+            range={range}
+            domain={xDomain}
           />
           <RechartCard
             title={t("charts.networkOut")}
@@ -129,6 +180,8 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             dataKey="networkOut"
             color="#10b981"
             unit=" KB/s"
+            range={range}
+            domain={xDomain}
           />
         </div>
       )}
@@ -144,20 +197,25 @@ function RechartCard({
   color,
   unit,
   max,
+  range,
+  domain,
 }: {
   title: string;
   currentValue: string;
-  data: Array<{ time: string; [key: string]: number | string }>;
+  data: ChartPoint[];
   dataKey: string;
   color: string;
   unit: string;
   max?: number;
+  range: string;
+  domain?: [number, number];
 }) {
   // Échelle Y adaptative : floor 10 pour les % (CPU/mem/disk), pas de cap
   // pour load/network. Le pic reste à l'échelle tant qu'il est dans la
-  // fenêtre temporelle, puis l'axe redescend automatiquement.
+  // fenêtre temporelle, puis l'axe redescend automatiquement. (les null des
+  // trous de gap-fill sont ignorés par le filtre typeof === "number".)
   const yValues = data
-    .map((d) => d[dataKey])
+    .map((d) => (d as Record<string, number | null>)[dataKey])
     .filter((v): v is number => typeof v === "number");
   const yDomain = niceYDomain(yValues, { floor: 10, cap: max });
 
@@ -180,7 +238,11 @@ function RechartCard({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
             <XAxis
-              dataKey="time"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={domain ?? ["dataMin", "dataMax"]}
+              tickFormatter={(ts) => formatAxisTick(ts as number, range)}
               tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
               tickLine={false}
               axisLine={false}
@@ -202,6 +264,7 @@ function RechartCard({
                 color: "var(--foreground)",
               }}
               labelStyle={{ color: "var(--muted-foreground)" }}
+              labelFormatter={(label) => formatAxisLabel(label as number)}
               formatter={(value) => [`${Number(value).toFixed(1)}${unit}`, title]}
             />
             <Area
@@ -212,6 +275,7 @@ function RechartCard({
               fill={`url(#grad-${dataKey})`}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0, fill: color }}
+              connectNulls={false}
             />
           </AreaChart>
         </ResponsiveContainer>

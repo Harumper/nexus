@@ -1,0 +1,144 @@
+{
+  "header": {
+    "title": "Durcissement de sécurité",
+    "subtitle": "Audit basé sur <0>Lynis</0> (open-source, lecture seule). Aucune modification n'est appliquée — les corrections seront proposées en 1 clic.",
+    "runAudit": "Relancer l'audit",
+    "startAudit": "Lancer un audit",
+    "empty": "Aucun audit pour l'instant. Lance un audit pour évaluer la posture de sécurité de cette machine."
+  },
+  "stale": {
+    "text": "Dernière posture connue{{auditDate}}. Le détail des warnings/suggestions n'est pas conservé — relance l'audit pour le voir.",
+    "auditDate": " (audit du {{date}})"
+  },
+  "watchdog": {
+    "subjectSsh": "Durcissement SSH appliqué",
+    "subjectFirewall": "Politique pare-feu appliquée",
+    "confirm": "{{subject}} — confirmer dans {{count}}s",
+    "hintSsh": "Teste ta reconnexion SSH.",
+    "hintFirewall": "Vérifie que tu as toujours accès à la machine.",
+    "revert": "Sans confirmation, l'état précédent sera restauré automatiquement.",
+    "confirmButton": "Confirmer ({{count}}s)"
+  },
+  "overview": {
+    "title": "Vue d'ensemble",
+    "inline": "· indice {{index}} · {{warnings}} avert. · {{suggestions}} sugg.",
+    "warnings": "Avertissements",
+    "suggestions": "Suggestions"
+  },
+  "firewallSummary": {
+    "active": "Pare-feu actif",
+    "inactive": "⚠ Pare-feu inactif — à activer (onglet Pare-feu)",
+    "noRules": " — mais aucune règle définie"
+  },
+  "remediations": {
+    "title": "Remédiations recommandées",
+    "sshNote": "Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec watchdog 120s (anti-lock-out).",
+    "postureDirty": "Mesures appliquées. Relance un audit pour recalculer l'indice et les findings (tu peux d'abord enchaîner d'autres corrections).",
+    "disabledTitle": "Réservé aux machines AGENT / rôle autorisé",
+    "previewTooltip": "Voir ce qui sera appliqué",
+    "show": "Voir",
+    "hide": "Masquer",
+    "fail2banName": "Protection anti-bruteforce (fail2ban)",
+    "fail2banInactive": "Installé, inactif",
+    "active": "Actif",
+    "configure": "Configurer",
+    "installConfigure": "Installer + configurer",
+    "autoUpdatesLabel": "Mises à jour de sécurité automatiques (unattended-upgrades)",
+    "autoUpdatesPreviewTitle": "Mises à jour automatiques",
+    "enable": "Activer",
+    "sshLabel": "Durcir SSH (algos modernes + limites)",
+    "sshActive": "Durci",
+    "sshPreviewTitle": "Durcissement SSH",
+    "sshPreviewApply": "Appliquer (watchdog 120s)",
+    "bannerLabel": "Bannière légale (/etc/issue, /etc/issue.net)",
+    "bannerActive": "En place",
+    "coreDumpsLabel": "Désactiver les core dumps",
+    "coreDumpsActive": "Désactivés",
+    "coreDumpsApply": "Désactiver",
+    "loginDefsLabel": "Durcir /etc/login.defs (umask 027 + âges de mot de passe)",
+    "loginDefsActive": "Durci",
+    "loginDefsPreviewTitle": "Durcir /etc/login.defs",
+    "loginDefsApply": "Durcir"
+  },
+  "firewallWizard": {
+    "title": "Assistant pare-feu",
+    "analyze": "Analyser les ports ouverts",
+    "intro": "Détecte les services en écoute (non-loopback) et propose une politique : autoriser les ports cochés + tout bloquer en entrée par défaut.",
+    "emptyAll": "Aucun service exposé détecté (tout en loopback).",
+    "emptyNonDocker": "Aucun service non-Docker exposé. Tous les ports exposés sont publiés par Docker (gérés par ses propres règles iptables) — rien à ajouter dans ufw.",
+    "sshLocked": "SSH (verrouillé)",
+    "applyHint": "Active ufw (deny entrant) + autorise les ports cochés. Watchdog 60s anti-lock-out.",
+    "applyPolicy": "Appliquer la politique",
+    "dockerPorts_one": "{{count}} port géré par Docker — exclu de la politique ufw",
+    "dockerPorts_other": "{{count}} ports gérés par Docker — exclus de la politique ufw",
+    "dockerHint": "Docker insère ses propres règles iptables (chaîne DOCKER) ; ufw ne les filtre pas. Pour restreindre ces ports, publie-les sur une IP précise (<0>-p 127.0.0.1:…</0>) ou via un pare-feu en amont."
+  },
+  "confirmFirewall": {
+    "title": "Appliquer cette politique pare-feu ?",
+    "desc": "Active ufw (deny entrant par défaut) et autorise : {{ports}}. Watchdog 60s : si tu perds l'accès ou ne confirmes pas, l'état précédent est restauré automatiquement.",
+    "noPorts": "(aucun)",
+    "sshWarning": "\n⚠️ ATTENTION : aucun port SSH détecté/sélectionné — risque de te bloquer dehors."
+  },
+  "findings": {
+    "warnings": "Avertissements",
+    "suggestions": "Suggestions de durcissement",
+    "docTitle": "Documentation Lynis — {{id}}"
+  },
+  "lynisFooter": "Lynis {{version}} · le score de durcissement est un indicateur des mesures prises, pas un pourcentage de « sécurité ».",
+  "bannerDialog": {
+    "defaultBanner": "*** Accès restreint ***\nTout accès non autorisé à ce système est interdit et peut faire l'objet de\npoursuites. Toutes les activités peuvent être journalisées et surveillées.",
+    "desc": "Avertissement affiché AVANT connexion (console + SSH). Personnalisable.",
+    "submit": "Déposer",
+    "placeholder": "Texte de la bannière…",
+    "hint": "Sans incidence sur l'accès. Max 4096 caractères."
+  },
+  "f2bDialog": {
+    "desc": "Installe fail2ban si absent, déploie une jail SSH et active le service.",
+    "bantime": "Durée de bannissement (bantime)",
+    "findtime": "Fenêtre de détection (findtime)",
+    "maxretry": "Essais avant ban (maxretry)",
+    "durationsHint": "Durées : secondes ou abrégé (<0>600</0>, <1>10m</1>, <2>1h</2>, <3>1d</3>, <4>1w</4>). SSH est protégé par défaut."
+  },
+  "preview": {
+    "titleSuffix": "{{title}} — aperçu",
+    "exactContent": "Contenu exact qui sera appliqué (lu depuis l'agent, pas une copie) :",
+    "back": "Retour"
+  },
+  "score": {
+    "label": "Indice de durcissement"
+  },
+  "trend": {
+    "title": "Tendance de l'indice",
+    "seriesName": "Indice",
+    "deltaUp": "▲ +{{delta}} depuis le dernier scan",
+    "deltaDown": "▼ {{delta}} depuis le dernier scan"
+  },
+  "toasts": {
+    "f2bConfigured": "fail2ban configuré.",
+    "f2bError": "Échec de la configuration fail2ban",
+    "bannerDeposited": "Bannière déposée.",
+    "bannerError": "Échec du dépôt de la bannière",
+    "remediationApplied": "Remédiation appliquée.",
+    "remediationError": "Échec de la remédiation",
+    "previewError": "Échec de l'aperçu",
+    "sshApplied": "Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).",
+    "sshError": "Échec du durcissement SSH",
+    "confirmed": "Modification confirmée.",
+    "confirmError": "Échec de la confirmation",
+    "analyzeError": "Échec de l'analyse des ports",
+    "policyApplied": "Politique appliquée — confirme avant 60s (vérifie ton accès).",
+    "policyError": "Échec de l'application de la politique"
+  },
+  "auditDialog": {
+    "title": "Audit de durcissement",
+    "titleWithName": "Audit de durcissement — {{name}}",
+    "timeout": "Délai dépassé : aucune réponse de l'agent. Vérifie l'agent / les sudoers Lynis.",
+    "resultLine": "✓ Audit terminé — indice {{index}}, {{warnings}} avertissement(s), {{suggestions}} suggestion(s).",
+    "starting": "Lancement de l'audit Lynis…",
+    "startError": "Échec du lancement",
+    "launchError": "Impossible de lancer l'audit",
+    "analyzing": "Lynis analyse la configuration (parefeu, SSH, kernel, comptes, MAJ…)",
+    "successText": "Audit terminé — indice de durcissement <0>{{score}}</0>. Détail dans l'onglet.",
+    "working": "Audit en cours…"
+  }
+}

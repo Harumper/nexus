@@ -2,14 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp, ChevronDown, ArrowLeft, X } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm, Dialog, Textarea, Button, Input } from "./ui";
-
-// Bannière par défaut proposée dans l'éditeur (modifiable avant dépôt).
-const DEFAULT_BANNER = `*** Accès restreint ***
-Tout accès non autorisé à ce système est interdit et peut faire l'objet de
-poursuites. Toutes les activités peuvent être journalisées et surveillées.`;
 import SecurityAuditDialog from "./SecurityAuditDialog";
 import type { SecurityAuditResult, ListeningService, SecurityScanPoint } from "../types";
 
@@ -47,6 +43,7 @@ function scanPointToResult(p: SecurityScanPoint): SecurityAuditResult {
 // Onglet « Durcissement » : audit Lynis (lecture seule) + remédiations 1-clic
 // (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
 export default function SecurityTab({ machineId }: SecurityTabProps) {
+  const { t } = useTranslation(["security", "common"]);
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
   // result reconstitué depuis l'historique (détail warnings/suggestions absent).
   const [resultStale, setResultStale] = useState(false);
@@ -63,7 +60,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
   const [fwLoading, setFwLoading] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
-  const [bannerText, setBannerText] = useState(DEFAULT_BANNER);
+  const [bannerText, setBannerText] = useState(() => t("bannerDialog.defaultBanner"));
   const [f2bOpen, setF2bOpen] = useState(false);
   const [f2bBantime, setF2bBantime] = useState("1h");
   const [f2bFindtime, setF2bFindtime] = useState("10m");
@@ -159,11 +156,11 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         findtime: f2bFindtime,
         maxretry: f2bMaxretry,
       });
-      toast.success("fail2ban configuré.");
+      toast.success(t("toasts.f2bConfigured"));
       setF2bOpen(false);
       markApplied({ fail2ban_active: true, fail2ban_installed: true });
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de la configuration fail2ban"));
+      toast.error(getErrorMessage(err, t("toasts.f2bError")));
     } finally {
       setApplying(null);
     }
@@ -173,11 +170,11 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     setApplying("banner");
     try {
       await api.setLoginBanner(machineId, bannerText);
-      toast.success("Bannière déposée.");
+      toast.success(t("toasts.bannerDeposited"));
       setBannerOpen(false);
       markApplied({ login_banner_set: true });
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec du dépôt de la bannière"));
+      toast.error(getErrorMessage(err, t("toasts.bannerError")));
     } finally {
       setApplying(null);
     }
@@ -201,7 +198,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       const res = await api.remediationPreview(machineId, actionId);
       setPreview({ key, title, changes: res.data.changes, note: res.data.note, applyLabel, onApply });
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de l'aperçu"));
+      toast.error(getErrorMessage(err, t("toasts.previewError")));
     } finally {
       setPreviewLoading(null);
     }
@@ -219,9 +216,9 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       await fn();
       markApplied(patch);
       setPreview(null);
-      toast.success("Remédiation appliquée.");
+      toast.success(t("toasts.remediationApplied"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de la remédiation"));
+      toast.error(getErrorMessage(err, t("toasts.remediationError")));
     } finally {
       setApplying(null);
     }
@@ -234,9 +231,9 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       const res = await api.sshdHarden(machineId);
       setPending({ kind: "sshd", requestId: res.data.request_id, expiresAt: Date.now() + 120_000 });
       setPreview(null);
-      toast.success("Durcissement SSH appliqué — confirme avant 120s (teste ta reconnexion).");
+      toast.success(t("toasts.sshApplied"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec du durcissement SSH"));
+      toast.error(getErrorMessage(err, t("toasts.sshError")));
     } finally {
       setApplying(null);
     }
@@ -252,10 +249,10 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         await api.firewallConfirm(machineId, pending.requestId);
       }
       setPending(null);
-      toast.success("Modification confirmée.");
+      toast.success(t("toasts.confirmed"));
       runAudit();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de la confirmation"));
+      toast.error(getErrorMessage(err, t("toasts.confirmError")));
     }
   };
 
@@ -275,7 +272,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       // Présélection : services non-Docker exposés ; SSH toujours coché.
       setFwSelected(new Set(actionable.map((s) => s.port)));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de l'analyse des ports"));
+      toast.error(getErrorMessage(err, t("toasts.analyzeError")));
     } finally {
       setFwLoading(false);
     }
@@ -295,17 +292,14 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     if (!fwServices) return;
     const ports = Array.from(new Set(Array.from(fwSelected).map((p) => `${p}/tcp`)));
     const hasSsh = fwServices.some((s) => s.is_ssh && fwSelected.has(s.port));
-    const sshNote = hasSsh
-      ? ""
-      : "\n⚠️ ATTENTION : aucun port SSH détecté/sélectionné — risque de te bloquer dehors.";
+    const sshNote = hasSsh ? "" : t("confirmFirewall.sshWarning");
     if (
       !(await confirm({
-        title: "Appliquer cette politique pare-feu ?",
+        title: t("confirmFirewall.title"),
         description:
-          `Active ufw (deny entrant par défaut) et autorise : ${ports.join(", ") || "(aucun)"}.` +
-          " Watchdog 60s : si tu perds l'accès ou ne confirmes pas, l'état précédent est restauré automatiquement." +
+          t("confirmFirewall.desc", { ports: ports.join(", ") || t("confirmFirewall.noPorts") }) +
           sshNote,
-        confirmLabel: "Appliquer",
+        confirmLabel: t("common:actions.apply"),
         variant: "danger",
       }))
     )
@@ -314,9 +308,9 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     try {
       const res = await api.firewallApplyPolicy(machineId, ports);
       setPending({ kind: "firewall", requestId: res.data.request_id, expiresAt: Date.now() + 60_000 });
-      toast.success("Politique appliquée — confirme avant 60s (vérifie ton accès).");
+      toast.success(t("toasts.policyApplied"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec de l'application de la politique"));
+      toast.error(getErrorMessage(err, t("toasts.policyError")));
     } finally {
       setApplying(null);
     }
@@ -349,13 +343,14 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             <AlertTriangle className="w-5 h-5" style={{ color: "var(--nx-warning)" }} />
             <div>
               <div className="text-sm font-semibold" style={{ color: "var(--nx-warning)" }}>
-                {pending.kind === "sshd" ? "Durcissement SSH appliqué" : "Politique pare-feu appliquée"} — confirmer dans {remaining}s
+                {t("watchdog.confirm", {
+                  subject: pending.kind === "sshd" ? t("watchdog.subjectSsh") : t("watchdog.subjectFirewall"),
+                  count: remaining,
+                })}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
-                {pending.kind === "sshd"
-                  ? "Teste ta reconnexion SSH."
-                  : "Vérifie que tu as toujours accès à la machine."}{" "}
-                Sans confirmation, l'état précédent sera restauré automatiquement.
+                {pending.kind === "sshd" ? t("watchdog.hintSsh") : t("watchdog.hintFirewall")}{" "}
+                {t("watchdog.revert")}
               </div>
             </div>
           </div>
@@ -365,7 +360,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             style={{ background: "var(--nx-success)", color: "var(--nx-bg-base)" }}
           >
             <CheckCircle2 className="w-4 h-4" />
-            Confirmer ({remaining}s)
+            {t("watchdog.confirmButton", { count: remaining })}
           </button>
         </div>
       )}
@@ -376,11 +371,10 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           <div>
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <ShieldCheck className="w-5 h-5" style={{ color: "var(--nx-accent)" }} />
-              Durcissement de sécurité
+              {t("header.title")}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Audit basé sur <strong>Lynis</strong> (open-source, lecture seule). Aucune
-              modification n'est appliquée — les corrections seront proposées en 1 clic.
+              <Trans i18nKey="header.subtitle" t={t} components={[<strong key="0" />]} />
             </p>
           </div>
           <button
@@ -391,11 +385,11 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           >
             {result ? (
               <>
-                <RefreshCw className="w-4 h-4" /> Relancer l'audit
+                <RefreshCw className="w-4 h-4" /> {t("header.runAudit")}
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" /> Lancer un audit
+                <Play className="w-4 h-4" /> {t("header.startAudit")}
               </>
             )}
           </button>
@@ -419,8 +413,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
       {/* État initial */}
       {!result && !auditOpen && (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          Aucun audit pour l'instant. Lance un audit pour évaluer la posture de sécurité de
-          cette machine.
+          {t("header.empty")}
         </div>
       )}
 
@@ -431,12 +424,11 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             <div className="rounded-lg border border-border bg-elevated px-4 py-2.5 text-xs text-muted-foreground flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 shrink-0" />
               <span>
-                Dernière posture connue
-                {result.scan_date
-                  ? ` (audit du ${new Date(result.scan_date).toLocaleString("fr-FR")})`
-                  : ""}
-                . Le détail des warnings/suggestions n'est pas conservé — relance
-                l'audit pour le voir.
+                {t("stale.text", {
+                  auditDate: result.scan_date
+                    ? t("stale.auditDate", { date: new Date(result.scan_date).toLocaleString("fr-FR") })
+                    : "",
+                })}
               </span>
             </div>
           )}
@@ -450,9 +442,9 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             >
               <span className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
-                Vue d'ensemble
+                {t("overview.title")}
                 <span className="text-xs font-normal text-muted-foreground">
-                  · indice {result.hardening_index} · {result.warning_count} avert. · {result.suggestion_count} sugg.
+                  {t("overview.inline", { index: result.hardening_index, warnings: result.warning_count, suggestions: result.suggestion_count })}
                 </span>
               </span>
               {overviewOpen ? (
@@ -466,13 +458,13 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <HardeningScore index={result.hardening_index} />
                   <StatCard
-                    label="Avertissements"
+                    label={t("overview.warnings")}
                     value={result.warning_count}
                     tone={result.warning_count > 0 ? "danger" : "ok"}
                     icon={AlertTriangle}
                   />
                   <StatCard
-                    label="Suggestions"
+                    label={t("overview.suggestions")}
                     value={result.suggestion_count}
                     tone={result.suggestion_count > 0 ? "warning" : "ok"}
                     icon={Lightbulb}
@@ -487,10 +479,10 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-2 text-sm">
             <Flame className="w-4 h-4" style={{ color: result.firewall_active ? "var(--nx-success)" : "var(--nx-danger)" }} />
             {result.firewall_active
-              ? "Pare-feu actif"
-              : "⚠ Pare-feu inactif — à activer (onglet Pare-feu)"}
+              ? t("firewallSummary.active")
+              : t("firewallSummary.inactive")}
             {result.firewall_active && result.firewall_empty_ruleset && (
-              <span style={{ color: "var(--nx-warning)" }}> — mais aucune règle définie</span>
+              <span style={{ color: "var(--nx-warning)" }}>{t("firewallSummary.noRules")}</span>
             )}
           </div>
 
@@ -498,86 +490,84 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <Wrench className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
-              Remédiations recommandées
+              {t("remediations.title")}
             </h3>
             <div className="space-y-2">
               <RemediationRow
-                label="Protection anti-bruteforce (fail2ban)"
+                label={t("remediations.fail2banName")}
                 active={result.fail2ban_active}
-                activeLabel={result.fail2ban_installed && !result.fail2ban_active ? "Installé, inactif" : "Actif"}
-                actionLabel={result.fail2ban_installed ? "Configurer" : "Installer + configurer"}
+                activeLabel={result.fail2ban_installed && !result.fail2ban_active ? t("remediations.fail2banInactive") : t("remediations.active")}
+                actionLabel={result.fail2ban_installed ? t("remediations.configure") : t("remediations.installConfigure")}
                 busy={applying === "fail2ban"}                onApply={() => setF2bOpen(true)}
               />
 
               <RemediationRow
-                label="Mises à jour de sécurité automatiques (unattended-upgrades)"
+                label={t("remediations.autoUpdatesLabel")}
                 active={result.auto_updates_active}
-                activeLabel="Actif"
+                activeLabel={t("remediations.active")}
                 busy={applying === "autoupd"}
                 previewLoading={previewLoading === "autoupd"}
                 previewing={preview?.key === "autoupd"}                onPreview={() =>
-                  togglePreview("autoupd", "security.enable_auto_updates", "Mises à jour automatiques", "Activer", () =>
+                  togglePreview("autoupd", "security.enable_auto_updates", t("remediations.autoUpdatesPreviewTitle"), t("remediations.enable"), () =>
                     applyFromPreview("autoupd", () => api.enableAutoUpdates(machineId), { auto_updates_active: true })
                   )
                 }
               />
 
               <RemediationRow
-                label="Durcir SSH (algos modernes + limites)"
+                label={t("remediations.sshLabel")}
                 icon={KeyRound}
                 active={result.ssh_hardened}
-                activeLabel="Durci"
+                activeLabel={t("remediations.sshActive")}
                 busy={applying === "sshd"}
                 previewLoading={previewLoading === "sshd"}
                 previewing={preview?.key === "sshd"}
                 disabled={pending !== null}
-                onPreview={() => togglePreview("sshd", "sshd.harden", "Durcissement SSH", "Appliquer (watchdog 120s)", doSshHarden)}
+                onPreview={() => togglePreview("sshd", "sshd.harden", t("remediations.sshPreviewTitle"), t("remediations.sshPreviewApply"), doSshHarden)}
               />
 
               <RemediationRow
-                label="Bannière légale (/etc/issue, /etc/issue.net)"
+                label={t("remediations.bannerLabel")}
                 active={!!result.login_banner_set}
-                activeLabel="En place"
-                actionLabel="Configurer"
+                activeLabel={t("remediations.bannerActive")}
+                actionLabel={t("remediations.configure")}
                 busy={applying === "banner"}                onApply={() => setBannerOpen(true)}
               />
 
               <RemediationRow
-                label="Désactiver les core dumps"
+                label={t("remediations.coreDumpsLabel")}
                 active={!!result.core_dumps_disabled}
-                activeLabel="Désactivés"
+                activeLabel={t("remediations.coreDumpsActive")}
                 busy={applying === "nocore"}
                 previewLoading={previewLoading === "nocore"}
                 previewing={preview?.key === "nocore"}                onPreview={() =>
-                  togglePreview("nocore", "security.disable_core_dumps", "Désactiver les core dumps", "Désactiver", () =>
+                  togglePreview("nocore", "security.disable_core_dumps", t("remediations.coreDumpsLabel"), t("remediations.coreDumpsApply"), () =>
                     applyFromPreview("nocore", () => api.disableCoreDumps(machineId), { core_dumps_disabled: true })
                   )
                 }
               />
 
               <RemediationRow
-                label="Durcir /etc/login.defs (umask 027 + âges de mot de passe)"
+                label={t("remediations.loginDefsLabel")}
                 active={!!result.login_defs_hardened}
-                activeLabel="Durci"
+                activeLabel={t("remediations.loginDefsActive")}
                 busy={applying === "logindefs"}
                 previewLoading={previewLoading === "logindefs"}
                 previewing={preview?.key === "logindefs"}                onPreview={() =>
-                  togglePreview("logindefs", "security.harden_login_defs", "Durcir /etc/login.defs", "Durcir", () =>
+                  togglePreview("logindefs", "security.harden_login_defs", t("remediations.loginDefsPreviewTitle"), t("remediations.loginDefsApply"), () =>
                     applyFromPreview("logindefs", () => api.hardenLoginDefs(machineId), { login_defs_hardened: true })
                   )
                 }
               />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Le durcissement SSH valide la config (`sshd -t`) puis recharge via SIGHUP avec
-              watchdog 120s (anti-lock-out).
+              {t("remediations.sshNote")}
             </p>
 
             {postureDirty && (
               <div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-elevated px-3 py-2">
                 <span className="text-xs text-muted-foreground flex-1">
-                  Mesures appliquées. Relance un audit pour recalculer l'indice et les
-                  findings (tu peux d'abord enchaîner d'autres corrections).
+                  {t("remediations.postureDirty")}
                 </span>
                 <Button
                   variant="primary"
@@ -586,7 +576,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                   disabled={auditOpen}
                   icon={<RefreshCw />}
                 >
-                  Relancer l'audit
+                  {t("header.runAudit")}
                 </Button>
               </div>
             )}
@@ -597,7 +587,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Network className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
-                Assistant pare-feu
+                {t("firewallWizard.title")}
               </h3>
               <button
                 onClick={analyzeFirewall}
@@ -606,25 +596,23 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                 style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
               >
                 {fwLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                Analyser les ports ouverts
+                {t("firewallWizard.analyze")}
               </button>
             </div>
 
             {!fwServices && (
               <p className="text-sm text-muted-foreground">
-                Détecte les services en écoute (non-loopback) et propose une politique :
-                autoriser les ports cochés + tout bloquer en entrée par défaut.
+                {t("firewallWizard.intro")}
               </p>
             )}
 
             {fwServices && fwServices.length === 0 && fwDockerServices.length === 0 && (
-              <p className="text-sm text-muted-foreground">Aucun service exposé détecté (tout en loopback).</p>
+              <p className="text-sm text-muted-foreground">{t("firewallWizard.emptyAll")}</p>
             )}
 
             {fwServices && fwServices.length === 0 && fwDockerServices.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                Aucun service non-Docker exposé. Tous les ports exposés sont publiés par
-                Docker (gérés par ses propres règles iptables) — rien à ajouter dans ufw.
+                {t("firewallWizard.emptyNonDocker")}
               </p>
             )}
 
@@ -646,7 +634,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                       <span className="text-[10px]" style={{ color: "var(--nx-text-weak)" }}>{s.address}</span>
                       {s.is_ssh && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "var(--nx-info-subtle)", color: "var(--nx-info)" }}>
-                          SSH (verrouillé)
+                          {t("firewallWizard.sshLocked")}
                         </span>
                       )}
                     </li>
@@ -654,7 +642,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                 </ul>
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-xs text-muted-foreground">
-                    Active ufw (deny entrant) + autorise les ports cochés. Watchdog 60s anti-lock-out.
+                    {t("firewallWizard.applyHint")}
                   </p>
                   <button
                     onClick={applyFirewallPolicy}
@@ -663,7 +651,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                     style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
                   >
                     {applying === "firewall" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flame className="w-3.5 h-3.5" />}
-                    Appliquer la politique
+                    {t("firewallWizard.applyPolicy")}
                   </button>
                 </div>
               </>
@@ -672,14 +660,10 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             {fwDockerServices.length > 0 && (
               <div className="mt-4 rounded-lg border border-border bg-elevated p-3">
                 <p className="text-xs font-medium text-muted-foreground mb-1.5">
-                  {fwDockerServices.length} port{fwDockerServices.length > 1 ? "s" : ""} géré
-                  {fwDockerServices.length > 1 ? "s" : ""} par Docker — exclu
-                  {fwDockerServices.length > 1 ? "s" : ""} de la politique ufw
+                  {t("firewallWizard.dockerPorts", { count: fwDockerServices.length })}
                 </p>
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  Docker insère ses propres règles iptables (chaîne DOCKER) ; ufw ne les
-                  filtre pas. Pour restreindre ces ports, publie-les sur une IP précise
-                  (<code>-p 127.0.0.1:…</code>) ou via un pare-feu en amont.
+                  <Trans i18nKey="firewallWizard.dockerHint" t={t} components={[<code key="0" />]} />
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {fwDockerServices.map((s) => (
@@ -699,7 +683,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
 
           {result.warnings.length > 0 && (
             <FindingList
-              title="Avertissements"
+              title={t("findings.warnings")}
               items={result.warnings}
               icon={AlertTriangle}
               color="var(--nx-danger)"
@@ -707,7 +691,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           )}
           {result.suggestions.length > 0 && (
             <FindingList
-              title="Suggestions de durcissement"
+              title={t("findings.suggestions")}
               items={result.suggestions}
               icon={Lightbulb}
               color="var(--nx-warning)"
@@ -715,8 +699,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           )}
 
           <p className="text-xs text-muted-foreground">
-            Lynis {result.lynis_version || "?"} · le score de durcissement est un indicateur
-            des mesures prises, pas un pourcentage de « sécurité ».
+            {t("lynisFooter", { version: result.lynis_version || "?" })}
           </p>
         </>
       )}
@@ -726,12 +709,12 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         open={bannerOpen}
         onClose={() => setBannerOpen(false)}
         size="lg"
-        title="Bannière légale (/etc/issue, /etc/issue.net)"
-        description="Avertissement affiché AVANT connexion (console + SSH). Personnalisable."
+        title={t("remediations.bannerLabel")}
+        description={t("bannerDialog.desc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setBannerOpen(false)} disabled={applying === "banner"}>
-              Annuler
+              {t("common:actions.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -739,7 +722,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
               loading={applying === "banner"}
               disabled={bannerText.trim() === ""}
             >
-              Déposer
+              {t("bannerDialog.submit")}
             </Button>
           </>
         }
@@ -749,10 +732,10 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
           onChange={(e) => setBannerText(e.target.value)}
           rows={6}
           className="font-mono text-xs"
-          placeholder="Texte de la bannière…"
+          placeholder={t("bannerDialog.placeholder")}
         />
         <p className="text-[11px] text-muted-foreground mt-2">
-          Sans incidence sur l'accès. Max 4096 caractères.
+          {t("bannerDialog.hint")}
         </p>
       </Dialog>
 
@@ -760,39 +743,38 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         open={f2bOpen}
         onClose={() => setF2bOpen(false)}
         size="md"
-        title="Protection anti-bruteforce (fail2ban)"
-        description="Installe fail2ban si absent, déploie une jail SSH et active le service."
+        title={t("remediations.fail2banName")}
+        description={t("f2bDialog.desc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setF2bOpen(false)} disabled={applying === "fail2ban"}>
-              Annuler
+              {t("common:actions.cancel")}
             </Button>
             <Button
               variant="primary"
               onClick={applyFail2ban}
               loading={applying === "fail2ban"}
             >
-              Appliquer
+              {t("common:actions.apply")}
             </Button>
           </>
         }
       >
         <div className="space-y-3">
           <label className="block">
-            <span className="text-xs font-medium">Durée de bannissement (bantime)</span>
+            <span className="text-xs font-medium">{t("f2bDialog.bantime")}</span>
             <Input value={f2bBantime} onChange={(e) => setF2bBantime(e.target.value)} placeholder="1h" className="font-mono" />
           </label>
           <label className="block">
-            <span className="text-xs font-medium">Fenêtre de détection (findtime)</span>
+            <span className="text-xs font-medium">{t("f2bDialog.findtime")}</span>
             <Input value={f2bFindtime} onChange={(e) => setF2bFindtime(e.target.value)} placeholder="10m" className="font-mono" />
           </label>
           <label className="block">
-            <span className="text-xs font-medium">Essais avant ban (maxretry)</span>
+            <span className="text-xs font-medium">{t("f2bDialog.maxretry")}</span>
             <Input value={f2bMaxretry} onChange={(e) => setF2bMaxretry(e.target.value)} placeholder="5" className="font-mono" />
           </label>
           <p className="text-[11px] text-muted-foreground">
-            Durées : secondes ou abrégé (<code>600</code>, <code>10m</code>, <code>1h</code>, <code>1d</code>, <code>1w</code>).
-            SSH est protégé par défaut.
+            <Trans i18nKey="f2bDialog.durationsHint" t={t} components={[<code key="0" />, <code key="1" />, <code key="2" />, <code key="3" />, <code key="4" />]} />
           </p>
         </div>
       </Dialog>
@@ -827,6 +809,7 @@ function RemediationRow({
   previewing?: boolean;
   previewLoading?: boolean;
 }) {
+  const { t } = useTranslation("security");
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
       <span className="text-sm text-foreground flex items-center gap-2">
@@ -843,7 +826,7 @@ function RemediationRow({
           <button
             onClick={onPreview}
             disabled={disabled || busy}
-            title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : "Voir ce qui sera appliqué"}
+            title={disabled ? t("remediations.disabledTitle") : t("remediations.previewTooltip")}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
             style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
           >
@@ -854,14 +837,14 @@ function RemediationRow({
             ) : (
               <Eye className="w-3.5 h-3.5" />
             )}
-            {previewing ? "Masquer" : "Voir"}
+            {previewing ? t("remediations.hide") : t("remediations.show")}
           </button>
         ) : (
           !active && (
             <button
               onClick={onApply}
               disabled={busy || disabled}
-              title={disabled ? "Réservé aux machines AGENT / rôle autorisé" : undefined}
+              title={disabled ? t("remediations.disabledTitle") : undefined}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
               style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}
             >
@@ -898,6 +881,7 @@ function PreviewOverlay({
   onApply: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(["security", "common"]);
   // Animation d'entrée (slide depuis la droite) + fermeture à la touche Échap.
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -925,10 +909,10 @@ function PreviewOverlay({
       >
         {/* En-tête */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0 bg-elevated">
-          <h3 className="text-sm font-semibold text-foreground truncate">{title} — aperçu</h3>
+          <h3 className="text-sm font-semibold text-foreground truncate">{t("preview.titleSuffix", { title })}</h3>
           <button
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t("common:a11y.close")}
             className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
@@ -937,7 +921,7 @@ function PreviewOverlay({
         {/* Corps : le contenu exact qui sera écrit */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <p className="text-xs text-muted-foreground">
-            Contenu exact qui sera appliqué (lu depuis l'agent, pas une copie) :
+            {t("preview.exactContent")}
           </p>
           {changes.map((c) => (
             <div key={c.path}>
@@ -956,7 +940,7 @@ function PreviewOverlay({
         {/* Pied : Retour / Appliquer */}
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-border shrink-0 bg-elevated">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={applying} icon={<ArrowLeft />}>
-            Retour
+            {t("preview.back")}
           </Button>
           <Button variant="primary" size="sm" onClick={onApply} loading={applying} disabled={disabled} icon={<Wrench />}>
             {applyLabel}
@@ -969,6 +953,7 @@ function PreviewOverlay({
 
 // Courbe d'évolution de l'indice de durcissement (du plus ancien au plus récent).
 function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
+  const { t } = useTranslation("security");
   const points = history
     .filter((s) => s.hardeningIndex >= 0)
     .slice()
@@ -988,14 +973,14 @@ function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <TrendingUp className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
-          Tendance de l'indice
+          {t("trend.title")}
         </h3>
         {delta !== 0 && (
           <span
             className="text-xs font-medium"
             style={{ color: delta > 0 ? "var(--nx-success)" : "var(--nx-danger)" }}
           >
-            {delta > 0 ? "▲ +" : "▼ "}{delta} depuis le dernier scan
+            {delta > 0 ? t("trend.deltaUp", { delta }) : t("trend.deltaDown", { delta })}
           </span>
         )}
       </div>
@@ -1009,7 +994,7 @@ function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
               contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: "var(--nx-text-weak)" }}
             />
-            <Area type="monotone" dataKey="index" stroke="var(--nx-accent)" fill="var(--nx-accent)" fillOpacity={0.15} strokeWidth={2} name="Indice" />
+            <Area type="monotone" dataKey="index" stroke="var(--nx-accent)" fill="var(--nx-accent)" fillOpacity={0.15} strokeWidth={2} name={t("trend.seriesName")} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -1018,6 +1003,7 @@ function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
 }
 
 function HardeningScore({ index }: { index: number }) {
+  const { t } = useTranslation("security");
   const has = index >= 0;
   const color =
     !has ? "var(--nx-text-weak)" : index >= 70 ? "var(--nx-success)" : index >= 50 ? "var(--nx-warning)" : "var(--nx-danger)";
@@ -1028,7 +1014,7 @@ function HardeningScore({ index }: { index: number }) {
         {has && <span className="text-lg text-muted-foreground">/100</span>}
       </div>
       <div className="text-xs uppercase mt-1" style={{ color: "var(--nx-text-weak)" }}>
-        Indice de durcissement
+        {t("score.label")}
       </div>
     </div>
   );
@@ -1071,6 +1057,7 @@ function FindingList({
   icon: typeof AlertTriangle;
   color: string;
 }) {
+  const { t } = useTranslation("security");
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -1093,7 +1080,7 @@ function FindingList({
                   href={docUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title={`Documentation Lynis — ${it.id}`}
+                  title={t("findings.docTitle", { id: it.id })}
                   className={`${idCls} hover:underline`}
                   style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-info)" }}
                 >

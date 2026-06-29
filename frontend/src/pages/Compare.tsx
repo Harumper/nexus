@@ -1,11 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { api } from "../services/api";
-import type { Machine } from "../types";
+import { alignToBucket, buildTimeGrid, formatAxisTick, formatAxisLabel } from "../lib/chartTime";
+import type { Machine, Metric } from "../types";
 
 const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
 const METRIC_VALUES = ["cpu", "memory", "disk", "load"];
+
+type Series = { id: string; metrics: Metric[] };
+
+function metricValue(m: Metric, metric: string): number {
+  switch (metric) {
+    case "memory": return m.memoryPercent;
+    case "disk": return m.disks?.[0]?.percent ?? 0;
+    case "load": return m.loadAvg1 ?? 0;
+    default: return m.cpuPercent;
+  }
+}
 
 export default function Compare() {
   const { t } = useTranslation(["compare", "common"]);
@@ -13,46 +25,70 @@ export default function Compare() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [metric, setMetric] = useState("cpu");
   const [range, setRange] = useState("1h");
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [series, setSeries] = useState<Series[]>([]);
+  const [bucketMs, setBucketMs] = useState(60_000);
+  const [sinceMs, setSinceMs] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     api.getMachines().then(setMachines).catch((err) => console.warn("[Compare] getMachines failed:", err));
   }, []);
 
+  // Fetch DÉCOUPLÉ du choix de métrique : on ne re-télécharge que si la sélection
+  // de machines ou le range change (avant : dépendait aussi de `machines` → re-fetch
+  // inutile à chaque render parent). Le changement de métrique est un simple recalcul.
   useEffect(() => {
-    if (selectedIds.length === 0) { setChartData([]); return; }
+    if (selectedIds.length === 0) { setSeries([]); setSinceMs(null); return; }
+    let cancelled = false;
     setLoading(true);
-
     Promise.all(
-      selectedIds.map(id =>
-        api.getMetrics(id, range).then(res => ({ id, metrics: res.metrics }))
-      )
-    ).then(results => {
-      // Merge metrics by timestamp buckets
-      const timeMap = new Map<string, any>();
+      selectedIds.map((id) => api.getMetrics(id, range).then((res) => ({ res, id })))
+    ).then((results) => {
+      if (cancelled) return;
+      setSeries(results.map((r) => ({ id: r.id, metrics: r.res.metrics })));
+      const first = results[0]?.res;
+      setBucketMs((first?.bucketSeconds ?? 60) * 1000);
+      setSinceMs(first?.since ? new Date(first.since).getTime() : Date.now() - 60 * 60 * 1000);
+    }).catch((err) => console.warn("[Compare] load metrics failed:", err))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedIds, range]);
 
-      for (const { id, metrics } of results) {
-        const name = machines.find(m => m.id === id)?.name || id;
-        for (const m of metrics) {
-          const timeKey = new Date(m.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-          const existing = timeMap.get(timeKey) || { time: timeKey };
+  const nameOf = (id: string) => machines.find((m) => m.id === id)?.name || id;
+  const selectedNames = selectedIds.map(nameOf);
 
-          let value = 0;
-          switch (metric) {
-            case "cpu": value = m.cpuPercent; break;
-            case "memory": value = m.memoryPercent; break;
-            case "disk": value = m.disks?.[0]?.percent ?? 0; break;
-            case "load": value = m.loadAvg1 ?? 0; break;
-          }
-          existing[name] = Math.round(value * 10) / 10;
-          timeMap.set(timeKey, existing);
-        }
+  // Fusion multi-machines par BUCKET ALIGNÉ : le downsampling SQL aligne tous les
+  // timestamps sur les mêmes frontières → la fusion est EXACTE (avant : fusion par
+  // chaîne "HH:mm" → des points à 10:30:15 et 10:30:45 se confondaient, et aucun
+  // tri). GAP-FILL : une machine sans point à un bucket → null (trou visible, pas
+  // de ligne droite). Recalcul léger au changement de métrique, sans re-fetch.
+  const chartData = useMemo(() => {
+    if (series.length === 0 || sinceMs == null) return [];
+    const perMachine = new Map<string, Map<number, number>>();
+    for (const s of series) {
+      const byTs = new Map<number, number>();
+      for (const m of s.metrics) {
+        byTs.set(
+          alignToBucket(new Date(m.timestamp).getTime(), bucketMs),
+          Math.round(metricValue(m, metric) * 10) / 10
+        );
       }
+      perMachine.set(s.id, byTs);
+    }
+    return buildTimeGrid(sinceMs, Date.now(), bucketMs).map((ts) => {
+      const point: Record<string, number | null> = { timestamp: ts };
+      for (const id of selectedIds) {
+        point[nameOf(id)] = perMachine.get(id)?.get(ts) ?? null;
+      }
+      return point;
+    });
+    // nameOf dépend de `machines` (déjà en deps) ; pas de re-fetch, simple remap.
+  }, [series, metric, bucketMs, sinceMs, selectedIds, machines]);
 
-      setChartData(Array.from(timeMap.values()));
-    }).catch((err) => console.warn("[Compare] load metrics failed:", err)).finally(() => setLoading(false));
-  }, [selectedIds, metric, range, machines]);
+  const xDomain: [number, number] | undefined =
+    chartData.length > 0
+      ? [chartData[0].timestamp as number, chartData[chartData.length - 1].timestamp as number]
+      : undefined;
 
   const toggleMachine = (id: string) => {
     setSelectedIds(prev =>
@@ -61,8 +97,6 @@ export default function Compare() {
         : prev.length < 3 ? [...prev, id] : prev
     );
   };
-
-  const selectedNames = selectedIds.map(id => machines.find(m => m.id === id)?.name || id);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -137,7 +171,16 @@ export default function Compare() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  scale="time"
+                  domain={xDomain ?? ["dataMin", "dataMax"]}
+                  tickFormatter={(ts) => formatAxisTick(ts as number, range)}
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={{
@@ -147,6 +190,7 @@ export default function Compare() {
                     fontSize: "12px",
                     color: "var(--foreground)",
                   }}
+                  labelFormatter={(label) => formatAxisLabel(label as number)}
                 />
                 <Legend />
                 {selectedNames.map((name, i) => (
@@ -158,6 +202,7 @@ export default function Compare() {
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4 }}
+                    connectNulls={false}
                   />
                 ))}
               </LineChart>

@@ -42,6 +42,8 @@ import frProcessList from "./locales/fr/processList.json";
 import enProcessList from "./locales/en/processList.json";
 import frUpdatePanel from "./locales/fr/updatePanel.json";
 import enUpdatePanel from "./locales/en/updatePanel.json";
+import frSecurity from "./locales/fr/security.json";
+import enSecurity from "./locales/en/security.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -76,7 +78,7 @@ i18n.use(initReactI18next).init({
       metricsChart: frMetricsChart, attention: frAttention, audit: frAudit, enroll: frEnroll, alerts: frAlerts,
       machineDetail: frMachineDetail, firewall: frFirewall, network: frNetwork,
       services: frServices, storage: frStorage, packages: frPackages, scheduling: frScheduling, processList: frProcessList,
-      updatePanel: frUpdatePanel,
+      updatePanel: frUpdatePanel, security: frSecurity,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
@@ -84,10 +86,10 @@ i18n.use(initReactI18next).init({
       metricsChart: enMetricsChart, attention: enAttention, audit: enAudit, enroll: enEnroll, alerts: enAlerts,
       machineDetail: enMachineDetail, firewall: enFirewall, network: enNetwork,
       services: enServices, storage: enStorage, packages: enPackages, scheduling: enScheduling, processList: enProcessList,
-      updatePanel: enUpdatePanel,
+      updatePanel: enUpdatePanel, security: enSecurity,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,
