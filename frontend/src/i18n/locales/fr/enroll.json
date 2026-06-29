@@ -15,6 +15,8 @@
   "commandsValidUntil": "Commandes valides jusqu'au {{date}}",
   "executeHint": "Exécute ces commandes sur la machine cible (Linux, root requis).",
   "copyAll": "Tout copier",
+  "reenrollLabel": "Réinstallation sur un hôte déjà enrôlé",
+  "reenrollHint": "Coche si cet hôte a déjà hébergé un agent Nexus. Ajoute --reenroll : purge l'identité résiduelle avant d'enrôler (sinon l'agent reste bloqué sur l'ancienne identité).",
   "later": "Plus tard",
   "executed": "J'ai exécuté les commandes",
   "autogenDisabledTitle": "Génération automatique des commandes désactivée",

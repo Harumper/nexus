@@ -22,6 +22,17 @@ import type {
 
 type Step = 1 | 2 | 3;
 
+// Ajoute --reenroll à une commande d'install (idempotent). Utilisé par la case
+// « réinstallation sur hôte déjà enrôlé » : le flag fait faire à l'agent une table
+// rase de l'identité résiduelle AVANT d'enrôler (sinon il garde l'ancienne identité
+// → "Session handshake failed: error"). On ajoute en fin de commande (l'ordre des
+// flags est libre) ; la purge reste un geste DÉLIBÉRÉ (case décochée par défaut).
+function withReenroll(command: string): string {
+  if (/(^|\s)--reenroll(\s|$)/.test(command)) return command;
+  // trim de fin : sinon un \n final casserait la continuation de ligne "\".
+  return `${command.replace(/\s+$/, "")} \\\n  --reenroll`;
+}
+
 export default function MachineEnroll() {
   const { t } = useTranslation(["enroll", "common"]);
   const { id: paramId } = useParams<{ id?: string }>();
@@ -39,6 +50,10 @@ export default function MachineEnroll() {
   const [enrollmentToken, setEnrollmentToken] = useState<string>("");
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Case « réinstallation sur hôte déjà enrôlé » → injecte --reenroll dans la
+  // commande copiée. Pertinente seulement à la création (en régénération, la
+  // commande de reEnrollMachine contient déjà --reenroll).
+  const [reenroll, setReenroll] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -166,6 +181,15 @@ export default function MachineEnroll() {
     machine?.lastHeartbeat &&
     Date.now() - new Date(machine.lastHeartbeat).getTime() < 90_000;
 
+  // Commande affichée/copiée : --reenroll injecté seulement dans l'étape "run"
+  // (pas dans les téléchargements) quand la case est cochée.
+  const installCommand =
+    bootstrap && reenroll ? withReenroll(bootstrap.installCommand) : bootstrap?.installCommand ?? "";
+  const displaySteps =
+    bootstrap?.installSteps.map((s) =>
+      reenroll && s.id === "run" ? { ...s, command: withReenroll(s.command) } : s
+    ) ?? [];
+
   // ===== Render =====
   return (
     <div className="container max-w-3xl mx-auto py-8 px-4">
@@ -252,7 +276,7 @@ export default function MachineEnroll() {
                   </div>
                 </div>
                 <button
-                  onClick={() => copy(bootstrap.installCommand, "all")}
+                  onClick={() => copy(installCommand, "all")}
                   className="shrink-0 flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   {copiedKey === "all" ? (
@@ -264,12 +288,29 @@ export default function MachineEnroll() {
                 </button>
               </div>
 
+              {!isRegenerateMode && (
+                <label className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reenroll}
+                    onChange={(e) => setReenroll(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-foreground">{t("reenrollLabel")}</span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {t("reenrollHint")}
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <div className="space-y-4">
-                {bootstrap.installSteps.map((s, i) => (
+                {displaySteps.map((s, i) => (
                   <CommandCard
                     key={s.id}
                     index={i + 1}
-                    total={bootstrap.installSteps.length}
+                    total={displaySteps.length}
                     step={s}
                     copied={copiedKey === s.id}
                     onCopy={() => copy(s.command, s.id)}

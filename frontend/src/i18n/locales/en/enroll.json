@@ -15,6 +15,8 @@
   "commandsValidUntil": "Commands valid until {{date}}",
   "executeHint": "Run these commands on the target machine (Linux, root required).",
   "copyAll": "Copy all",
+  "reenrollLabel": "Reinstall on a host that was already enrolled",
+  "reenrollHint": "Tick this if the host has already run a Nexus agent. Adds --reenroll: wipes the leftover identity before enrolling (otherwise the agent stays stuck on the old identity).",
   "later": "Later",
   "executed": "I ran the commands",
   "autogenDisabledTitle": "Automatic command generation disabled",
