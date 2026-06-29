@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import {
   LayoutDashboard,
@@ -11,49 +12,56 @@ import {
   LogOut,
   User,
   Palette,
+  Languages,
   BookOpen,
   Container,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 import { api } from "../services/api";
 
-function buildNavSections(integrations: { nautilusEnabled: boolean }) {
+type TFunc = (key: string) => string;
+
+function buildNavSections(integrations: { nautilusEnabled: boolean }, t: TFunc) {
   return [
     {
       items: [
-        { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-        { to: "/machines", icon: Server, label: "Machines" },
+        { to: "/", icon: LayoutDashboard, label: t("nav.dashboard") },
+        { to: "/machines", icon: Server, label: t("nav.machines") },
         ...(integrations.nautilusEnabled
-          ? [{ to: "/containers", icon: Container, label: "Containers" }]
+          ? [{ to: "/containers", icon: Container, label: t("nav.containers") }]
           : []),
       ],
     },
     {
-      label: "Gestion",
+      label: t("nav.groupManagement"),
       items: [
-        { to: "/alerts", icon: Bell, label: "Alertes" },
+        { to: "/alerts", icon: Bell, label: t("nav.alerts") },
       ],
     },
     {
-      label: "Analyse",
+      label: t("nav.groupAnalysis"),
       items: [
-        { to: "/compare", icon: BarChart3, label: "Comparer" },
-        { to: "/audit", icon: ScrollText, label: "Audit Log" },
+        { to: "/compare", icon: BarChart3, label: t("nav.compare") },
+        { to: "/audit", icon: ScrollText, label: t("nav.audit") },
       ],
     },
     {
-      label: "Système",
+      label: t("nav.groupSystem"),
       items: [
-        { to: "/settings", icon: Settings, label: "Paramètres" },
-        { to: "/docs", icon: BookOpen, label: "Documentation" },
+        { to: "/settings", icon: Settings, label: t("nav.settings") },
+        { to: "/docs", icon: BookOpen, label: t("nav.docs") },
       ],
     },
   ];
 }
 
 export default function Layout() {
+  const { t } = useTranslation();
   const { user, logout, provider } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const [nautilusEnabled, setNautilusEnabled] = useState(false);
 
@@ -62,7 +70,7 @@ export default function Layout() {
     api.getNautilusConfig().then((c) => setNautilusEnabled(c.enabled)).catch((err) => console.warn("[Layout] nautilus config failed:", err));
   }, []);
 
-  const navSections = buildNavSections({ nautilusEnabled });
+  const navSections = buildNavSections({ nautilusEnabled }, t);
 
   const handleLogout = async () => {
     // await impératif : logout est désormais async (attend que le backend
@@ -137,26 +145,52 @@ export default function Layout() {
           <div className="flex items-center gap-1.5 mb-2">
             <Palette className="w-3 h-3" style={{ color: "var(--nx-text-weak)" }} />
             <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--nx-text-weak)" }}>
-              Thème
+              {t("theme.label")}
             </span>
           </div>
           <div className="flex gap-1.5">
             {([
-              { id: "dark" as const, bg: "#111217", label: "Sombre" },
-              { id: "light" as const, bg: "#f3f4f6", label: "Clair" },
-              { id: "blue" as const, bg: "#0a101e", label: "Navy" },
-            ]).map((t) => (
+              { id: "dark" as const, bg: "#111217", label: t("theme.dark") },
+              { id: "light" as const, bg: "#f3f4f6", label: t("theme.light") },
+              { id: "blue" as const, bg: "#0a101e", label: t("theme.navy") },
+            ]).map((opt) => (
               <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                title={t.label}
+                key={opt.id}
+                onClick={() => setTheme(opt.id)}
+                title={opt.label}
                 className="w-6 h-6 rounded-full transition-transform"
                 style={{
-                  background: t.bg,
-                  border: theme === t.id ? `2px solid var(--nx-primary)` : "2px solid var(--nx-border)",
-                  transform: theme === t.id ? "scale(1.15)" : "scale(1)",
+                  background: opt.bg,
+                  border: theme === opt.id ? `2px solid var(--nx-primary)` : "2px solid var(--nx-border)",
+                  transform: theme === opt.id ? "scale(1.15)" : "scale(1)",
                 }}
               />
+            ))}
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className="px-4 py-3" style={{ borderTop: "1px solid var(--nx-border)" }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Languages className="w-3 h-3" style={{ color: "var(--nx-text-weak)" }} />
+            <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--nx-text-weak)" }}>
+              {t("language.label")}
+            </span>
+          </div>
+          <div className="flex gap-1.5">
+            {SUPPORTED_LANGUAGES.map((lng) => (
+              <button
+                key={lng}
+                onClick={() => setLanguage(lng)}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-colors"
+                style={{
+                  background: language === lng ? "var(--nx-primary-subtle)" : "transparent",
+                  color: language === lng ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                  border: language === lng ? "1px solid var(--nx-primary)" : "1px solid var(--nx-border)",
+                }}
+              >
+                {lng}
+              </button>
             ))}
           </div>
         </div>
@@ -179,7 +213,7 @@ export default function Layout() {
             <button
               onClick={handleLogout}
               className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-              title="Déconnexion"
+              title={t("user.logout")}
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

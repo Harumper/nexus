@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { useAuth } from "./hooks/useAuth";
 import { PageLoader } from "./components/ui";
 import Layout from "./components/Layout";
@@ -39,6 +40,7 @@ export default function App() {
   const { isAuthenticated } = useAuth();
 
   return (
+    <LanguageProvider>
     <ThemeProvider>
     <Toaster
       position="top-right"
@@ -87,5 +89,6 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </ThemeProvider>
+    </LanguageProvider>
   );
 }
