@@ -1,4 +1,5 @@
 import { Bell, XCircle, Download, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { MachineAttentionData } from "../hooks/useMachineAttention";
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
  * "The bad news at the top" — pattern Datadog/Cockpit.
  */
 export default function HeaderBadges({ data, onTabChange, onShowFailedServices }: Props) {
+  const { t } = useTranslation();
   const { updatesCount, securityUpdates } = data;
   // Garde-fou null : un agent injoignable peut remonter null au lieu de [].
   const alerts = data.alerts ?? [];
@@ -39,7 +41,7 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
           bg="var(--nx-danger-subtle)"
           href="/alerts"
         >
-          {alerts.length} alert{alerts.length > 1 ? "es" : "e"}
+          {t("badges.alerts", { count: alerts.length })}
         </Badge>
       )}
       {failedServices.length > 0 && (
@@ -49,7 +51,7 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
           bg="var(--nx-danger-subtle)"
           onClick={() => (onShowFailedServices ?? (() => onTabChange?.("services")))()}
         >
-          {failedServices.length} service{failedServices.length > 1 ? "s failed" : " failed"}
+          {t("badges.failedServices", { count: failedServices.length })}
         </Badge>
       )}
       {updatesCount > 0 && (
@@ -59,8 +61,8 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
           bg={securityUpdates > 0 ? "var(--nx-warning-subtle)" : "var(--nx-info-subtle)"}
           onClick={() => onTabChange?.("updates")}
         >
-          {updatesCount} update{updatesCount > 1 ? "s" : ""}
-          {securityUpdates > 0 && ` (${securityUpdates} sécu)`}
+          {t("badges.updates", { count: updatesCount })}
+          {securityUpdates > 0 && t("badges.securitySuffix", { count: securityUpdates })}
         </Badge>
       )}
       {expiringCerts.length > 0 && minDays !== null && (
@@ -69,7 +71,7 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
           color={minDays < 7 ? "var(--nx-danger)" : "var(--nx-warning)"}
           bg={minDays < 7 ? "var(--nx-danger-subtle)" : "var(--nx-warning-subtle)"}
         >
-          Cert expire {minDays}j
+          {t("badges.certExpiring", { days: minDays })}
         </Badge>
       )}
     </div>

@@ -1,6 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 
 interface DialogProps {
@@ -31,6 +32,7 @@ export function Dialog({
   size = "md",
   className,
 }: DialogProps) {
+  const { t } = useTranslation();
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogPrimitive.Portal>
@@ -61,7 +63,7 @@ export function Dialog({
               </div>
               <DialogPrimitive.Close
                 className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 ml-2"
-                aria-label="Fermer"
+                aria-label={t("a11y.close")}
               >
                 <X className="w-4 h-4" />
               </DialogPrimitive.Close>
@@ -99,6 +101,7 @@ export function Drawer({
   children: ReactNode;
   className?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogPrimitive.Portal>
@@ -127,7 +130,7 @@ export function Drawer({
             </div>
             <DialogPrimitive.Close
               className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 ml-2"
-              aria-label="Fermer"
+              aria-label={t("a11y.close")}
             >
               <X className="w-4 h-4" />
             </DialogPrimitive.Close>
