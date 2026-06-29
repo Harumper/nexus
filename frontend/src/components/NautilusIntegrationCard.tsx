@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Container, Save, Check, Zap, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { Card, CardHeader, CardTitle, Button, Input } from "./ui";
 import { getErrorMessage } from "../services/errors";
 
 export default function NautilusIntegrationCard() {
+  const { t } = useTranslation(["settings", "common"]);
   const [enabled, setEnabled] = useState(false);
   const [url, setUrl] = useState("http://localhost:26020/metrics");
   const [token, setToken] = useState("");
@@ -43,9 +45,9 @@ export default function NautilusIntegrationCard() {
       setTouched(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      toast.success("Configuration Nautilus enregistrée");
+      toast.success(t("nautilus.toast.saved"));
     } catch (err) {
-      toast.error("Erreur : " + (getErrorMessage(err, "save failed")));
+      toast.error(t("nautilus.toast.saveError", { message: getErrorMessage(err, "save failed") }));
     } finally {
       setSaving(false);
     }
@@ -57,14 +59,19 @@ export default function NautilusIntegrationCard() {
       const r = await api.testNautilus();
       if (r.success) {
         toast.success(
-          `${r.activeServers}/${r.servers} serveurs actifs · ${r.containers} containers · scrape en ${r.durationMs}ms`,
+          t("nautilus.toast.testSuccess", {
+            active: r.activeServers,
+            total: r.servers,
+            containers: r.containers,
+            ms: r.durationMs,
+          }),
           { duration: 5000 }
         );
       } else {
-        toast.error(r.error || "Connexion impossible");
+        toast.error(r.error || t("nautilus.toast.connectionFailed"));
       }
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur de connexion"));
+      toast.error(getErrorMessage(err, t("nautilus.toast.connectionError")));
     } finally {
       setTesting(false);
     }
@@ -75,14 +82,12 @@ export default function NautilusIntegrationCard() {
       <CardHeader>
         <Container className="w-4 h-4 text-primary" />
         <CardTitle className="normal-case tracking-normal text-sm">
-          Intégration Nautilus (Docker)
+          {t("nautilus.title")}
         </CardTitle>
       </CardHeader>
 
       <p className="text-xs text-muted-foreground">
-        Active un onglet <strong>Containers</strong> dans le menu qui lit les métriques
-        Prometheus exposées par Nautilus. Lecture seule — les actions Docker restent dans
-        Nautilus.
+        <Trans i18nKey="nautilus.description" t={t} components={{ strong: <strong /> }} />
       </p>
 
       <label className="flex items-start gap-2 cursor-pointer">
@@ -93,16 +98,16 @@ export default function NautilusIntegrationCard() {
           className="mt-0.5 accent-primary"
         />
         <div className="flex-1">
-          <div className="text-xs font-medium">Activer l'intégration Nautilus</div>
+          <div className="text-xs font-medium">{t("nautilus.enableLabel")}</div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Désactivé par défaut. Activer affichera l'onglet Containers dans le menu.
+            {t("nautilus.enableHint")}
           </p>
         </div>
       </label>
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          URL de l'endpoint /metrics
+          {t("nautilus.urlLabel")}
         </label>
         <Input
           type="text"
@@ -112,9 +117,7 @@ export default function NautilusIntegrationCard() {
           className="font-mono"
         />
         <p className="text-[11px] text-muted-foreground mt-1">
-          Nautilus sur la même machine :{" "}
-          <code>http://localhost:26020/metrics</code>. Sinon utilisez l'URL publique ou
-          l'IP du serveur.
+          <Trans i18nKey="nautilus.urlHint" t={t} components={{ code: <code /> }} />
         </p>
       </div>
 
@@ -129,16 +132,16 @@ export default function NautilusIntegrationCard() {
           ) : (
             <ChevronRight className="w-3.5 h-3.5" />
           )}
-          Options avancées
+          {t("nautilus.advancedOptions")}
           {tokenConfigured && !showAdvanced && (
-            <span className="text-[10px]">(token configuré)</span>
+            <span className="text-[10px]">{t("nautilus.tokenConfiguredBadge")}</span>
           )}
         </button>
 
         {showAdvanced && (
           <div className="mt-3 pl-4 border-l-2 border-border">
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Token d'authentification
+              {t("nautilus.tokenLabel")}
             </label>
             <Input
               type="password"
@@ -149,16 +152,14 @@ export default function NautilusIntegrationCard() {
               }}
               placeholder={
                 tokenConfigured
-                  ? "•••••••• (configuré)"
-                  : "Uniquement si Nautilus est exposé publiquement"
+                  ? t("nautilus.tokenPlaceholderConfigured")
+                  : t("nautilus.tokenPlaceholderUnset")
               }
               className="font-mono"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Inutile si Nautilus tourne en local (non exposé sur internet). Correspond à{" "}
-              <code className="mx-1">PROMETHEUS_SCRAPE_TOKEN</code>
-              dans le <code>.env</code> de Nautilus.
-              {tokenConfigured && " Laissez vide pour conserver le token actuel."}
+              <Trans i18nKey="nautilus.tokenHint" t={t} components={{ code: <code /> }} />
+              {tokenConfigured && ` ${t("nautilus.tokenHintKeep")}`}
             </p>
           </div>
         )}
@@ -172,7 +173,7 @@ export default function NautilusIntegrationCard() {
           loading={saving}
           icon={saved ? <Check /> : <Save />}
         >
-          {saved ? "Enregistré" : "Enregistrer"}
+          {saved ? t("saved") : t("common:actions.save")}
         </Button>
         <Button
           variant="outline"
@@ -181,9 +182,9 @@ export default function NautilusIntegrationCard() {
           disabled={!enabled}
           loading={testing}
           icon={<Zap />}
-          title={!enabled ? "Activez d'abord l'intégration" : ""}
+          title={!enabled ? t("nautilus.testDisabledTitle") : ""}
         >
-          Tester la connexion
+          {t("nautilus.testButton")}
         </Button>
       </div>
     </Card>

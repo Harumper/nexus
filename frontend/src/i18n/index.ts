@@ -4,6 +4,10 @@ import frCommon from "./locales/fr/common.json";
 import enCommon from "./locales/en/common.json";
 import frAuth from "./locales/fr/auth.json";
 import enAuth from "./locales/en/auth.json";
+import frSettings from "./locales/fr/settings.json";
+import enSettings from "./locales/en/settings.json";
+import frContainers from "./locales/fr/containers.json";
+import enContainers from "./locales/en/containers.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -32,10 +36,10 @@ export function getInitialLanguage(): Language {
 // vide à attendre. `useSuspense: false` par sécurité (pas de Suspense i18n).
 i18n.use(initReactI18next).init({
   resources: {
-    fr: { common: frCommon, auth: frAuth },
-    en: { common: enCommon, auth: enAuth },
+    fr: { common: frCommon, auth: frAuth, settings: frSettings, containers: frContainers },
+    en: { common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers },
   },
-  ns: ["common", "auth"],
+  ns: ["common", "auth", "settings", "containers"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

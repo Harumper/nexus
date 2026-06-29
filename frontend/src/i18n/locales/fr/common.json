@@ -87,6 +87,9 @@
     "close": "Fermer",
     "loading": "Chargement"
   },
+  "errors": {
+    "generic": "Erreur"
+  },
   "confirmDialog": {
     "typeToConfirm": "Tapez <code>{{word}}</code> pour confirmer"
   },

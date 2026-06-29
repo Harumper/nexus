@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Settings as SettingsIcon,
   Mail,
@@ -21,13 +22,13 @@ import { PageLoader } from "../components/ui";
 
 type Section = "smtp" | "webhook" | "health" | "lifecycle" | "tags" | "nautilus";
 
-const SECTIONS: { id: Section; label: string; icon: typeof Mail }[] = [
-  { id: "smtp", label: "Email (SMTP)", icon: Mail },
-  { id: "webhook", label: "Webhook", icon: Webhook },
-  { id: "health", label: "Seuils santé", icon: Heart },
-  { id: "lifecycle", label: "Cycle de vie", icon: Clock },
-  { id: "tags", label: "Tags", icon: TagIcon },
-  { id: "nautilus", label: "Intégration Nautilus", icon: Container },
+const SECTIONS: { id: Section; icon: typeof Mail }[] = [
+  { id: "smtp", icon: Mail },
+  { id: "webhook", icon: Webhook },
+  { id: "health", icon: Heart },
+  { id: "lifecycle", icon: Clock },
+  { id: "tags", icon: TagIcon },
+  { id: "nautilus", icon: Container },
 ];
 
 interface SmtpConfig {
@@ -51,6 +52,7 @@ interface LifecycleConfig {
 }
 
 export default function Settings() {
+  const { t } = useTranslation(["settings", "common"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -151,10 +153,10 @@ export default function Settings() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <SettingsIcon className="w-6 h-6" /> Paramètres
+          <SettingsIcon className="w-6 h-6" /> {t("common:nav.settings")}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Configuration du système Nexus
+          {t("subtitle")}
         </p>
       </div>
 
@@ -174,7 +176,7 @@ export default function Settings() {
               }}
             >
               <Icon className="w-3.5 h-3.5 shrink-0" />
-              {s.label}
+              {t(`sections.${s.id}`)}
             </button>
           );
         })}
@@ -187,14 +189,14 @@ export default function Settings() {
           <div className="flex items-center gap-2 mb-5">
             <Mail className="w-4 h-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">
-              Configuration SMTP
+              {t("smtp.title")}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Hôte SMTP
+                {t("smtp.host")}
               </label>
               <input
                 type="text"
@@ -206,7 +208,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Port
+                {t("smtp.port")}
               </label>
               <input
                 type="number"
@@ -219,7 +221,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Utilisateur
+                {t("smtp.user")}
               </label>
               <input
                 type="text"
@@ -231,7 +233,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Mot de passe
+                {t("smtp.password")}
               </label>
               <div className="relative">
                 <input
@@ -257,7 +259,7 @@ export default function Settings() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Adresse expéditeur
+                {t("smtp.from")}
               </label>
               <input
                 type="email"
@@ -282,7 +284,7 @@ export default function Settings() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {saved === "smtp" ? "Enregistré" : "Enregistrer"}
+              {saved === "smtp" ? t("saved") : t("common:actions.save")}
             </button>
             <button
               onClick={() => saveSetting("smtp_test", smtp)}
@@ -294,7 +296,7 @@ export default function Settings() {
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              Tester
+              {t("common:actions.test")}
             </button>
           </div>
         </section>
@@ -305,12 +307,12 @@ export default function Settings() {
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Webhook className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">Webhook</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t("sections.webhook")}</h2>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              Secret webhook
+              {t("webhook.secret")}
             </label>
             <div className="flex gap-3">
               <input
@@ -331,7 +333,7 @@ export default function Settings() {
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
-                Régénérer
+                {t("webhook.regenerate")}
               </button>
             </div>
           </div>
@@ -344,14 +346,14 @@ export default function Settings() {
           <div className="flex items-center gap-2 mb-5">
             <Heart className="w-4 h-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">
-              Seuils d&apos;alerte
+              {t("health.title")}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                CPU (%)
+                {t("health.cpu")}
               </label>
               <input
                 type="number"
@@ -369,7 +371,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Mémoire (%)
+                {t("health.memory")}
               </label>
               <input
                 type="number"
@@ -387,7 +389,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Disque (%)
+                {t("health.disk")}
               </label>
               <input
                 type="number"
@@ -418,7 +420,7 @@ export default function Settings() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {saved === "health_thresholds" ? "Enregistré" : "Enregistrer"}
+              {saved === "health_thresholds" ? t("saved") : t("common:actions.save")}
             </button>
           </div>
         </section>
@@ -430,14 +432,14 @@ export default function Settings() {
           <div className="flex items-center gap-2 mb-5">
             <Clock className="w-4 h-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">
-              Cycle de vie des machines
+              {t("lifecycle.title")}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Stale après (jours)
+                {t("lifecycle.staleAfter")}
               </label>
               <input
                 type="number"
@@ -454,7 +456,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Archiver après (jours)
+                {t("lifecycle.archiveAfter")}
               </label>
               <input
                 type="number"
@@ -471,7 +473,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Supprimer après (jours)
+                {t("lifecycle.deleteAfter")}
               </label>
               <input
                 type="number"
@@ -501,7 +503,7 @@ export default function Settings() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {saved === "lifecycle" ? "Enregistré" : "Enregistrer"}
+              {saved === "lifecycle" ? t("saved") : t("common:actions.save")}
             </button>
           </div>
         </section>

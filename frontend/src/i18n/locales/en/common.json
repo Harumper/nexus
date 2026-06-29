@@ -87,6 +87,9 @@
     "close": "Close",
     "loading": "Loading"
   },
+  "errors": {
+    "generic": "Error"
+  },
   "confirmDialog": {
     "typeToConfirm": "Type <code>{{word}}</code> to confirm"
   },

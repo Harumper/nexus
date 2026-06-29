@@ -1,0 +1,25 @@
+{
+  "title": "Containers Docker",
+  "subtitle": "Données depuis Nautilus",
+  "subtitleStats": " · {{active}}/{{total}} serveurs actifs · scrape en {{ms}}ms",
+  "errorHint": "Vérifiez la configuration dans Paramètres → Intégrations.",
+  "emptyServers": "Aucun serveur Docker dans Nautilus.",
+  "tableTitle": "Containers (par CPU)",
+  "containerCount_one": "{{count}} container",
+  "containerCount_other": "{{count}} containers",
+  "headers": {
+    "container": "Container",
+    "server": "Serveur",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "rx": "RX/s",
+    "tx": "TX/s",
+    "pids": "PIDs"
+  },
+  "states": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "other": "Autre"
+  },
+  "cores": "{{count}} cores"
+}
