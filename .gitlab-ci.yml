@@ -188,13 +188,12 @@ build-agent:
 # ===========================================
 # Release agent — build + sha256 + VERSION (signature & publication = script local)
 # ===========================================
-# release-build (AUTO sur master ET tag) : compile le binaire agent canonique,
-# calcule son sha256, écrit VERSION (= AGENT_VERSION du job `version`, qui dérive la
-# version des tags + du sha agent). ARTEFACTS seulement. Pas besoin de poser un tag
-# par release : le script lit le DERNIER artefact de master via l'API. La SIGNATURE
-# (clé minisign hors-ligne) et la PUBLICATION dans /release sont faites par
-# scripts/nexus-release.sh sur la machine de confiance — la clé privée ne touche
-# JAMAIS la CI. (Poser un tag vX.Y.Z reste possible pour monter le X.Y.Z sémantique.)
+# release-build (AUTO sur tag vX.Y.Z, ANCRÉ tag) : compile le binaire agent
+# canonique, calcule son sha256, écrit VERSION (= AGENT_VERSION du job `version`,
+# dérivée du tag + du sha agent). ARTEFACTS seulement. La SIGNATURE (clé minisign
+# hors-ligne) et la PUBLICATION dans /release sont faites par scripts/nexus-release.sh
+# sur la machine de signature (READ_API seul) — la clé privée ne touche JAMAIS la CI.
+# Flux : ./nexus-release.sh propose → tu crées le tag (UI) → ./nexus-release.sh approve vX.Y.Z.
 release-build:
   stage: release
   image: golang:1.23-alpine
@@ -206,7 +205,7 @@ release-build:
     - ./nexus-agent --version
     - sha256sum nexus-agent | tee nexus-agent.sha256
     - printf '%s\n' "$AGENT_VERSION" > VERSION
-    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve"
+    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve $CI_COMMIT_TAG"
   artifacts:
     paths:
       - nexus-agent
@@ -214,7 +213,6 @@ release-build:
       - VERSION
     expire_in: 30 days
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_TAG'
 
 # ===========================================
