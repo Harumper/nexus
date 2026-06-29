@@ -100,8 +100,10 @@ fetch_tags() {
     404) die "projet introuvable (HTTP 404) — PROJECT_ID ($PROJECT_ID) ?" ;;
     *) die "API tags : HTTP $code." ;;
   esac
+  # || true : zéro tag vX.Y.Z est un état LÉGITIME (1re release) ; sans ça, le grep final
+  # sort en code 1 et, sous pipefail, fait échouer toute la fonction (trap ERR).
   printf '%s' "$body" | grep -oE '"name":"[^"]*"' | sed -E 's/^"name":"//; s/"$//' \
-    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V
+    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V || true
 }
 bump_patch() { local v="${1#v}" M m p; M="${v%%.*}"; v="${v#*.}"; m="${v%%.*}"; p="${v#*.}"; printf 'v%s.%s.%s' "$M" "$m" "$((p+1))"; }
 
