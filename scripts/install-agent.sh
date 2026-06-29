@@ -226,6 +226,26 @@ if [ -f "$KEY_DIR/shared.secret" ] && [ "$MODE" != "reenroll" ]; then
     HAS_LOCAL_IDENTITY=true
 fi
 
+# Garde-fou anti-deadlock (refus explicite, jamais de purge auto) : un --enrollment-token
+# fourni alors qu'une identité locale existe DÉJÀ est un piège. L'agent saute l'enrollment
+# tant que shared.secret est présent → il IGNORE le token et garde son ancienne identité ;
+# si celle-ci a été invalidée côté serveur (machine supprimée/recréée/ré-enrôlée), le boot
+# part en boucle "Session handshake failed: unexpected handshake response type: error".
+# On refuse plutôt que de démarrer dans le mur. La purge d'identité est DESTRUCTRICE : elle
+# n'est jamais automatique, elle exige le geste délibéré --reenroll (que le bouton
+# « Ré-enrôler » de l'UI ajoute déjà). On NE compare PAS le machine-id : "token + identité"
+# suffit, et un refus est non-destructeur (aucune primitive de purge exploitable).
+if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then
+    error "Identité Nexus déjà présente sur cet hôte ($KEY_DIR/shared.secret) ET un --enrollment-token a été fourni."
+    error "L'agent ignorerait ce token et resterait sur son ancienne identité → 'Session handshake failed: error' si elle a été révoquée côté serveur (machine supprimée/recréée/ré-enrôlée)."
+    error "Deux issues, au choix :"
+    error "  • Ré-enrôler proprement (TABLE RASE de l'identité, puis enrôle avec ce token) : relance la MÊME commande avec --reenroll"
+    error "    — le bouton « Ré-enrôler » de l'UI ajoute ce flag automatiquement."
+    error "  • Seulement rafraîchir sudoers/binaire (GARDER l'identité actuelle) : relance SANS --enrollment-token."
+    error "Refus volontaire : la purge d'identité est destructrice et n'est jamais déclenchée automatiquement."
+    exit 1
+fi
+
 if [ -z "$ENROLLMENT_TOKEN" ] && [ "$HAS_LOCAL_IDENTITY" = false ]; then
     read -p "Token d'enrollment : " ENROLLMENT_TOKEN
 fi
