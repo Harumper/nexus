@@ -1,0 +1,105 @@
+{
+  "reconnecting": "Reconnecting",
+  "reconnectingTitle": "WebSocket dropped. The machine stays marked ONLINE for ~90s after a disconnect to absorb network blips; actions will fail until the agent reconnects.",
+  "criticalBadge": "⚠ Critical",
+  "criticalBadgeTitle": "Critical machine: reboot and stop of critical services are blocked",
+  "sudoersBadge": "⚠ Outdated sudoers",
+  "sudoersBadgeTitle": "This agent's sudoers differ from the expected version. Reinstall the agent with install-agent.sh to enable the new actions.",
+  "rebootRequiredTitle": "Reboot required",
+  "actions": {
+    "reloadTooltip": "Reload (machine, metrics, attention)",
+    "reload": "Reload",
+    "sshTooltip": "SSH connection (copies the command + instructions)",
+    "ssh": "SSH connection",
+    "agentUpToDate": "Agent already on the latest version",
+    "agentUpdateAvailable": "Agent update available",
+    "agentUpdate": "Update the agent",
+    "rebootTooltip": "Reboot the machine",
+    "reboot": "Reboot",
+    "revokeTooltip": "Revoke (disconnects the agent immediately)",
+    "revoke": "Revoke",
+    "reEnrollTooltip": "Re-enroll (regenerates identity + install token)",
+    "reEnroll": "Re-enroll",
+    "deleteTooltip": "Delete the machine (irreversible)",
+    "delete": "Delete"
+  },
+  "confirm": {
+    "revokeTitle": "Revoke this machine?",
+    "revokeDesc": "The agent will be disconnected immediately and won't be able to communicate with Nexus until it is re-enrolled.",
+    "deleteTitle": "Permanently delete this machine?",
+    "deleteDesc": "This action is irreversible. All metrics and audit history related to this machine will be deleted.",
+    "rebootTitle": "Reboot the machine?",
+    "rebootDesc": "The machine will go down then come back in about 60s. Confirm by typing REBOOT."
+  },
+  "toast": {
+    "revoked": "Machine revoked",
+    "deleted": "Machine deleted",
+    "rebootTriggered": "Reboot triggered. Back in ~60s.",
+    "rebootError": "Reboot failed"
+  },
+  "gauges": {
+    "diskRoot": "Disk /"
+  },
+  "groups": {
+    "monitoring": "Monitoring",
+    "system": "System",
+    "network": "Network",
+    "software": "Software",
+    "security": "Security"
+  },
+  "tabs": {
+    "overview": { "label": "Overview", "tooltip": "Global status: alerts, failed services, pending updates, expiring certs" },
+    "metrics": { "label": "Metrics", "tooltip": "CPU/RAM/disk/load/network charts from 15m to 24h" },
+    "processes": { "label": "Processes", "tooltip": "Top 10 processes by CPU and RAM, kill possible" },
+    "storage": { "label": "Storage", "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
+    "services": { "label": "Services", "tooltip": "systemd: start/stop/restart, link to journalctl logs" },
+    "scheduling": { "label": "Tasks", "tooltip": "Cron jobs (read) + systemd timers (enable/disable)" },
+    "users": { "label": "Users", "tooltip": "Linux users UID≥1000, sudo membership, SSH keys" },
+    "files": { "label": "Files", "tooltip": "File browser: download, upload restricted to the inbox (50 MB max), generated scp/rsync commands" },
+    "network": { "label": "Interfaces", "tooltip": "ip addr / routes / DNS (read-only)" },
+    "netplan": { "label": "Netplan", "tooltip": "YAML editor /etc/netplan + apply with 120s watchdog" },
+    "firewall": { "label": "Firewall", "tooltip": "ufw: allow/deny rules, 60s watchdog to avoid lock-out" },
+    "updates": { "label": "Updates", "tooltip": "apt list --upgradable + run apt upgrade (all or security only)" },
+    "packages": { "label": "Packages", "tooltip": "Full-text search on the Ubuntu catalog + install/remove + holds" },
+    "security": { "label": "Hardening", "tooltip": "Hardening audit (Lynis): index, warnings, suggestions" }
+  },
+  "metricsHistory": "Metrics history",
+  "overview": {
+    "storage": "Storage",
+    "diskFree": "{{free}} free",
+    "system": "System",
+    "network": "Network",
+    "tags": "Tags",
+    "info": {
+      "os": "OS",
+      "architecture": "Architecture",
+      "hostname": "Hostname",
+      "agent": "Agent",
+      "uptime": "Uptime",
+      "ip": "IP",
+      "lastSignal": "Last signal",
+      "enrolledAt": "Enrolled",
+      "createdAt": "Created"
+    },
+    "notEnrolled": "No"
+  },
+  "networkTab": {
+    "empty": "No network data available",
+    "title": "Network interfaces",
+    "received": "Received",
+    "sent": "Sent",
+    "total": "Total:"
+  },
+  "settings": {
+    "title": "Settings",
+    "nameLabel": "Name",
+    "sshUserLabel": "SSH user",
+    "sshUserPlaceholder": "root, admin, ubuntu…",
+    "sshUserHint": "Pre-filled in the SSH button. Empty = uses the terminal's current user.",
+    "criticalLabel": "⚠ Critical machine",
+    "criticalHint": "If enabled, blocks <0>reboot</0>, <1>service_stop</1> on critical services (docker, nginx, ssh, postgres…) and <2>package.remove</2> on critical packages. Enable it for the Nexus server itself and production machines.",
+    "saving": "Saving…",
+    "saved": "Saved ✓",
+    "save": "Save"
+  }
+}

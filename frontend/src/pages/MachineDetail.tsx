@@ -6,11 +6,12 @@ import {
   Activity, Network, ListTree, Download,
   RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen,
 } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
-  statusColor, statusLabel, formatBytes, formatUptime, timeAgo,
+  statusColor, statusKey, formatBytes, formatUptime, timeAgo,
 } from "../lib/utils";
 import MetricsChart from "../components/MetricsChart";
 import UpdatePanel from "../components/UpdatePanel";
@@ -42,6 +43,7 @@ const ICON_BTN =
   "inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function MachineDetail() {
+  const { t } = useTranslation(["machineDetail", "common"]);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, authConfig } = useAuth();
@@ -149,9 +151,9 @@ export default function MachineDetail() {
     if (!id) return;
     if (
       !(await confirm({
-        title: "Révoquer cette machine ?",
-        description: "L'agent sera déconnecté immédiatement et ne pourra plus communiquer avec Nexus tant qu'il n'est pas ré-enrôlé.",
-        confirmLabel: "Révoquer",
+        title: t("confirm.revokeTitle"),
+        description: t("confirm.revokeDesc"),
+        confirmLabel: t("common:actions.revoke"),
         variant: "warning",
       }))
     )
@@ -159,9 +161,9 @@ export default function MachineDetail() {
     try {
       await api.revokeMachine(id, "Revoked from UI");
       setMachine(await api.getMachine(id));
-      toast.success("Machine révoquée");
+      toast.success(t("toast.revoked"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     }
   };
 
@@ -169,19 +171,19 @@ export default function MachineDetail() {
     if (!id) return;
     if (
       !(await confirm({
-        title: "Supprimer définitivement cette machine ?",
-        description: "Cette action est irréversible. Toutes les métriques et l'historique d'audit liés à cette machine seront supprimés.",
-        confirmLabel: "Supprimer",
+        title: t("confirm.deleteTitle"),
+        description: t("confirm.deleteDesc"),
+        confirmLabel: t("common:actions.delete"),
         variant: "danger",
       }))
     )
       return;
     try {
       await api.deleteMachine(id);
-      toast.success("Machine supprimée");
+      toast.success(t("toast.deleted"));
       navigate("/machines");
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     }
   };
 
@@ -192,20 +194,19 @@ export default function MachineDetail() {
     if (!id) return;
     if (
       !(await confirm({
-        title: "Redémarrer la machine ?",
-        description:
-          "La machine sera coupée puis reviendra en environ 60s. Confirmez en tapant REBOOT.",
+        title: t("confirm.rebootTitle"),
+        description: t("confirm.rebootDesc"),
         confirmWord: "REBOOT",
-        confirmLabel: "Redémarrer",
+        confirmLabel: t("common:actions.reboot"),
         variant: "danger",
       }))
     )
       return;
     try {
       await api.rebootMachine(id);
-      toast.success("Redémarrage déclenché. Retour dans ~60s.");
+      toast.success(t("toast.rebootTriggered"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec du redémarrage"));
+      toast.error(getErrorMessage(err, t("toast.rebootError")));
     }
   };
 
@@ -222,52 +223,55 @@ export default function MachineDetail() {
   const canManagePrivileges =
     isAdmin && authConfig?.features?.userPrivilegeMgmt === true;
 
+  // `key` = identifiant stable du groupe (mémoire de sous-onglet, indépendant de
+  // la langue) ; le libellé affiché vient de t(`groups.${key}`). Les labels/tooltips
+  // d'onglet viennent de t(`tabs.${id}.label|tooltip`).
   const tabGroups: {
-    label: string;
-    tabs: { id: Tab; label: string; icon: typeof Activity; show: boolean; tooltip?: string }[];
+    key: string;
+    tabs: { id: Tab; icon: typeof Activity; show: boolean }[];
   }[] = [
     {
-      label: "",
+      key: "",
       tabs: [
-        { id: "overview", label: "Vue d'ensemble", icon: Activity, show: true, tooltip: "Statut global : alertes, services failed, updates pending, certs expirant" },
+        { id: "overview", icon: Activity, show: true },
       ],
     },
     {
-      label: "Monitoring",
+      key: "monitoring",
       tabs: [
-        { id: "metrics", label: "Métriques", icon: Cpu, show: isOnline, tooltip: "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h" },
-        { id: "processes", label: "Processus", icon: ListTree, show: isOnline, tooltip: "Top 10 processus par CPU et RAM, kill possible" },
-        { id: "storage", label: "Stockage", icon: HardDrive, show: isOnline, tooltip: "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
+        { id: "metrics", icon: Cpu, show: isOnline },
+        { id: "processes", icon: ListTree, show: isOnline },
+        { id: "storage", icon: HardDrive, show: isOnline },
       ],
     },
     {
-      label: "Système",
+      key: "system",
       tabs: [
-        { id: "services", label: "Services", icon: Cog, show: isOnline, tooltip: "systemd : start/stop/restart, lien vers logs journalctl" },
-        { id: "scheduling", label: "Tâches", icon: Clock, show: isOnline, tooltip: "Cron jobs (lecture) + systemd timers (enable/disable)" },
-        { id: "users", label: "Utilisateurs", icon: Server, show: isOnline, tooltip: "Linux users UID≥1000, sudo membership, clés SSH" },
-        { id: "files", label: "Fichiers", icon: FolderOpen, show: isOnline, tooltip: "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées" },
+        { id: "services", icon: Cog, show: isOnline },
+        { id: "scheduling", icon: Clock, show: isOnline },
+        { id: "users", icon: Server, show: isOnline },
+        { id: "files", icon: FolderOpen, show: isOnline },
       ],
     },
     {
-      label: "Réseau",
+      key: "network",
       tabs: [
-        { id: "network", label: "Interfaces", icon: Network, show: isOnline, tooltip: "ip addr / routes / DNS (lecture seule)" },
-        { id: "netplan", label: "Netplan", icon: Globe, show: isOnline, tooltip: "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
-        { id: "firewall", label: "Pare-feu", icon: Shield, show: isOnline, tooltip: "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
+        { id: "network", icon: Network, show: isOnline },
+        { id: "netplan", icon: Globe, show: isOnline },
+        { id: "firewall", icon: Shield, show: isOnline },
       ],
     },
     {
-      label: "Logiciels",
+      key: "software",
       tabs: [
-        { id: "updates", label: "Mises à jour", icon: Download, show: isOnline, tooltip: "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
-        { id: "packages", label: "Paquets", icon: Download, show: isOnline, tooltip: "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
+        { id: "updates", icon: Download, show: isOnline },
+        { id: "packages", icon: Download, show: isOnline },
       ],
     },
     {
-      label: "Sécurité",
+      key: "security",
       tabs: [
-        { id: "security", label: "Durcissement", icon: Shield, show: isOnline, tooltip: "Audit de durcissement (Lynis) : indice, avertissements, suggestions" },
+        { id: "security", icon: Shield, show: isOnline },
       ],
     },
   ];
@@ -276,7 +280,7 @@ export default function MachineDetail() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Back */}
       <Link to="/machines" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Machines
+        <ArrowLeft className="w-3.5 h-3.5" /> {t("common:nav.machines")}
       </Link>
 
       {/* ── Header ─────────────────────────────── */}
@@ -291,7 +295,7 @@ export default function MachineDetail() {
                 <h1 className="text-xl font-bold text-foreground">{machine.name}</h1>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
                   <span className={`w-2 h-2 rounded-full ${status.dot} ${isOnline ? "animate-pulse" : ""}`} />
-                  {statusLabel(machine.status)}
+                  {t(`common:status.${statusKey(machine.status)}`)}
                 </span>
                 {/* Agent en reconnexion : status BDD encore ONLINE (grâce 90s) mais
                     WS coupé. Distingue clairement de "vraiment en ligne" pour éviter
@@ -301,30 +305,30 @@ export default function MachineDetail() {
                   <span
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
                     style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
-                    title="WebSocket coupé. La machine reste marquée ONLINE pendant ~90s après une déconnexion pour absorber les blips réseau ; les actions échoueront tant que l'agent ne s'est pas reconnecté."
+                    title={t("reconnectingTitle")}
                   >
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--nx-warning)" }} />
-                    Reconnexion
+                    {t("reconnecting")}
                   </span>
                 )}
                 {machine.isCritical && (
                   <span
                     className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1"
                     style={{ background: "var(--nx-warning-subtle)", color: "var(--nx-warning)" }}
-                    title="Machine critique : reboot et stop de services critiques bloqués"
+                    title={t("criticalBadgeTitle")}
                   >
-                    ⚠ Critique
+                    {t("criticalBadge")}
                   </span>
                 )}
                 {machine.sudoersOutdated && (
                   <span
                     className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1 bg-warning-subtle text-warning"
-                    title="Les sudoers de cet agent diffèrent de la version attendue. Ré-installez l'agent avec install-agent.sh pour bénéficier des nouvelles actions."
+                    title={t("sudoersBadgeTitle")}
                   >
-                    ⚠ Sudoers obsolètes
+                    {t("sudoersBadge")}
                   </span>
                 )}
-                {machine.rebootRequired && <span title="Reboot requis"><RotateCcw className="w-4 h-4" style={{ color: "var(--nx-warning)" }} /></span>}
+                {machine.rebootRequired && <span title={t("rebootRequiredTitle")}><RotateCcw className="w-4 h-4" style={{ color: "var(--nx-warning)" }} /></span>}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--nx-text-weak)" }}>
                 {machine.hostname && <span>{machine.hostname}</span>}
@@ -343,7 +347,7 @@ export default function MachineDetail() {
 
           {isAdmin && (
             <div className="flex items-center gap-1.5 shrink-0">
-              <Tooltip content="Recharger (machine, métriques, attention)">
+              <Tooltip content={t("actions.reloadTooltip")}>
                 <button
                   onClick={async () => {
                     if (!id) return;
@@ -359,7 +363,7 @@ export default function MachineDetail() {
                       console.warn("[MachineDetail] refresh failed:", err);
                     }
                   }}
-                  aria-label="Recharger"
+                  aria-label={t("actions.reload")}
                   disabled={attention.loading}
                   className={ICON_BTN}
                   style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
@@ -369,10 +373,10 @@ export default function MachineDetail() {
               </Tooltip>
 
               {machine.ipAddress && (
-                <Tooltip content="Connexion SSH (copie la commande + instructions)">
+                <Tooltip content={t("actions.sshTooltip")}>
                   <button
                     onClick={() => setShowSshDialog(true)}
-                    aria-label="Connexion SSH"
+                    aria-label={t("actions.ssh")}
                     className={ICON_BTN}
                     style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text)" }}
                   >
@@ -385,10 +389,10 @@ export default function MachineDetail() {
                 <Tooltip
                   content={
                     agentUpToDate === true
-                      ? "Agent déjà à la dernière version"
+                      ? t("actions.agentUpToDate")
                       : agentUpdateAvailable
-                      ? "Mise à jour de l'agent disponible"
-                      : "Mettre à jour l'agent"
+                      ? t("actions.agentUpdateAvailable")
+                      : t("actions.agentUpdate")
                   }
                 >
                   <button
@@ -396,7 +400,7 @@ export default function MachineDetail() {
                       if (agentUpToDate !== true) setShowAgentUpgrade(true);
                     }}
                     aria-disabled={agentUpToDate === true}
-                    aria-label="Mettre à jour l'agent"
+                    aria-label={t("actions.agentUpdate")}
                     className={`relative ${ICON_BTN} ${agentUpToDate === true ? "opacity-50 cursor-default" : ""}`}
                     style={{
                       border: `1px solid ${
@@ -426,29 +430,29 @@ export default function MachineDetail() {
               )}
 
               {isOnline && !machine.isCritical && (
-                <Tooltip content="Redémarrer la machine">
-                  <button onClick={handleReboot} aria-label="Redémarrer" className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
+                <Tooltip content={t("actions.rebootTooltip")}>
+                  <button onClick={handleReboot} aria-label={t("actions.reboot")} className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                     <Power className="w-4 h-4" />
                   </button>
                 </Tooltip>
               )}
 
               {machine.status !== "REVOKED" && (
-                <Tooltip content="Révoquer (déconnecte l'agent immédiatement)">
-                  <button onClick={handleRevoke} aria-label="Révoquer" className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
+                <Tooltip content={t("actions.revokeTooltip")}>
+                  <button onClick={handleRevoke} aria-label={t("actions.revoke")} className={ICON_BTN} style={{ border: "1px solid var(--nx-warning)", color: "var(--nx-warning)" }}>
                     <ShieldOff className="w-4 h-4" />
                   </button>
                 </Tooltip>
               )}
 
-              <Tooltip content="Ré-enrôler (régénère identité + token d'install)">
-                <button onClick={() => navigate(`/machines/${id}/enroll`)} aria-label="Ré-enrôler" className={ICON_BTN} style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}>
+              <Tooltip content={t("actions.reEnrollTooltip")}>
+                <button onClick={() => navigate(`/machines/${id}/enroll`)} aria-label={t("actions.reEnroll")} className={ICON_BTN} style={{ border: "1px solid var(--nx-accent)", color: "var(--nx-accent)" }}>
                   <RotateCcw className="w-4 h-4" />
                 </button>
               </Tooltip>
 
-              <Tooltip content="Supprimer la machine (irréversible)">
-                <button onClick={handleDelete} aria-label="Supprimer" className={ICON_BTN} style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}>
+              <Tooltip content={t("actions.deleteTooltip")}>
+                <button onClick={handleDelete} aria-label={t("actions.delete")} className={ICON_BTN} style={{ border: "1px solid var(--nx-danger)", color: "var(--nx-danger)" }}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               </Tooltip>
@@ -462,7 +466,7 @@ export default function MachineDetail() {
             <MiniGauge label="CPU" value={latestMetric.cpuPercent} unit="%" icon={Cpu} />
             <MiniGauge label="RAM" value={latestMetric.memoryPercent} unit="%" icon={MemoryStick} subtext={`${formatBytes(latestMetric.memoryUsed)} / ${formatBytes(latestMetric.memoryTotal)}`} />
             {latestMetric.disks?.slice(0, 2).map((d, i) => (
-              <MiniGauge key={i} label={d.mountpoint === "/" ? "Disque /" : d.mountpoint} value={d.percent} unit="%" icon={HardDrive} subtext={`${formatBytes(d.used)} / ${formatBytes(d.total)}`} />
+              <MiniGauge key={i} label={d.mountpoint === "/" ? t("gauges.diskRoot") : d.mountpoint} value={d.percent} unit="%" icon={HardDrive} subtext={`${formatBytes(d.used)} / ${formatBytes(d.total)}`} />
             ))}
             <MiniGauge label="Load" value={latestMetric.loadAvg1 ?? 0} unit="" icon={Activity} subtext={`${(latestMetric.loadAvg5 ?? 0).toFixed(2)} / ${(latestMetric.loadAvg15 ?? 0).toFixed(2)}`} max={100} raw />
             <MiniGauge label="Uptime" value={0} unit="" icon={Clock} subtext={latestMetric.uptime ? formatUptime(latestMetric.uptime) : "?"} raw hideBar />
@@ -474,25 +478,25 @@ export default function MachineDetail() {
       {(() => {
         const activeGroupIdx = tabGroups.findIndex(g => g.tabs.some(t => t.id === activeTab && t.show));
         const activeGroup = activeGroupIdx >= 0 ? tabGroups[activeGroupIdx] : null;
-        const activeSubtabs = activeGroup ? activeGroup.tabs.filter(t => t.show) : [];
-        const showSecondRow = activeGroup && activeGroup.label && activeSubtabs.length >= 2;
+        const activeSubtabs = activeGroup ? activeGroup.tabs.filter(tb => tb.show) : [];
+        const showSecondRow = activeGroup && activeGroup.key && activeSubtabs.length >= 2;
 
         const handleGroupClick = (group: typeof tabGroups[number]) => {
-          const visible = group.tabs.filter(t => t.show);
+          const visible = group.tabs.filter(tb => tb.show);
           if (visible.length === 0) return;
           // Si le groupe contient deja activeTab, on ne change rien
-          if (visible.some(t => t.id === activeTab)) return;
+          if (visible.some(tb => tb.id === activeTab)) return;
           // Sinon : restaurer le dernier sous-onglet visite si toujours visible, ou premier
-          const remembered = group.label ? lastSubtab[group.label] : undefined;
-          const restore = remembered && visible.some(t => t.id === remembered) ? remembered : visible[0].id;
+          const remembered = group.key ? lastSubtab[group.key] : undefined;
+          const restore = remembered && visible.some(tb => tb.id === remembered) ? remembered : visible[0].id;
           setActiveTab(restore);
         };
 
         // Mettre a jour la memoire quand on change d'onglet
         const selectSubtab = (group: typeof tabGroups[number], tabId: Tab) => {
           setActiveTab(tabId);
-          if (group.label) {
-            setLastSubtab(prev => ({ ...prev, [group.label]: tabId }));
+          if (group.key) {
+            setLastSubtab(prev => ({ ...prev, [group.key]: tabId }));
           }
         };
 
@@ -501,33 +505,33 @@ export default function MachineDetail() {
             {/* Row 1 : categories */}
             <div className="flex flex-wrap items-center gap-1 p-1">
               {tabGroups.map((group, gi) => {
-                const visibleTabs = group.tabs.filter(t => t.show);
+                const visibleTabs = group.tabs.filter(tb => tb.show);
                 if (visibleTabs.length === 0) return null;
                 const isActive = gi === activeGroupIdx;
 
-                // Groupe sans label (Vue d'ensemble) = bouton direct du seul sous-onglet
-                if (!group.label && visibleTabs.length === 1) {
-                  const t = visibleTabs[0];
+                // Groupe sans clé (Vue d'ensemble) = bouton direct du seul sous-onglet
+                if (!group.key && visibleTabs.length === 1) {
+                  const onlyTab = visibleTabs[0];
                   return (
                     <button
-                      key={t.id}
-                      onClick={() => setActiveTab(t.id)}
-                      title={t.tooltip}
+                      key={onlyTab.id}
+                      onClick={() => setActiveTab(onlyTab.id)}
+                      title={t(`tabs.${onlyTab.id}.tooltip`)}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium transition-all"
                       style={{
-                        background: activeTab === t.id ? "var(--nx-primary-subtle)" : "transparent",
-                        color: activeTab === t.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
+                        background: activeTab === onlyTab.id ? "var(--nx-primary-subtle)" : "transparent",
+                        color: activeTab === onlyTab.id ? "var(--nx-primary)" : "var(--nx-text-weak)",
                       }}
                     >
-                      <t.icon className="w-3.5 h-3.5" />
-                      {t.label}
+                      <onlyTab.icon className="w-3.5 h-3.5" />
+                      {t(`tabs.${onlyTab.id}.label`)}
                     </button>
                   );
                 }
 
                 return (
                   <button
-                    key={group.label}
+                    key={group.key}
                     onClick={() => handleGroupClick(group)}
                     className="px-4 py-2 rounded-md text-xs font-medium transition-all"
                     style={{
@@ -535,7 +539,7 @@ export default function MachineDetail() {
                       color: isActive ? "var(--nx-primary)" : "var(--nx-text-weak)",
                     }}
                   >
-                    {group.label}
+                    {t(`groups.${group.key}`)}
                   </button>
                 );
               })}
@@ -551,7 +555,7 @@ export default function MachineDetail() {
                   <button
                     key={tab.id}
                     onClick={() => selectSubtab(activeGroup!, tab.id)}
-                    title={tab.tooltip}
+                    title={t(`tabs.${tab.id}.tooltip`)}
                     className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all"
                     style={{
                       background: activeTab === tab.id ? "var(--nx-bg-surface)" : "transparent",
@@ -560,7 +564,7 @@ export default function MachineDetail() {
                     }}
                   >
                     <tab.icon className="w-3.5 h-3.5" />
-                    {tab.label}
+                    {t(`tabs.${tab.id}.label`)}
                   </button>
                 ))}
               </div>
@@ -589,7 +593,7 @@ export default function MachineDetail() {
 
         {activeTab === "metrics" && isOnline && (
           <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-            <h2 className="text-sm font-semibold text-foreground mb-4">Historique des métriques</h2>
+            <h2 className="text-sm font-semibold text-foreground mb-4">{t("metricsHistory")}</h2>
             <MetricsChart machineId={machine.id} />
           </div>
         )}
@@ -698,6 +702,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
   onShowFailedServices?: () => void;
   attention: ReturnType<typeof useMachineAttention>;
 }) {
+  const { t } = useTranslation("machineDetail");
   const isOnlineAgent = machine.status === "ONLINE";
 
   return (
@@ -710,7 +715,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
       {/* 2. Stockage live — info visuelle utile pour repérer un disque qui sature */}
       {latestMetric && latestMetric.disks && latestMetric.disks.length > 0 && (
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Stockage</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.storage")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {latestMetric.disks.map((disk, i) => (
               <div key={i} className="rounded-lg p-3" style={{ background: "var(--nx-bg-elevated)" }}>
@@ -727,7 +732,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
                   }} />
                 </div>
                 <div className="text-[10px]" style={{ color: "var(--nx-text-weak)" }}>
-                  {formatBytes(disk.used)} / {formatBytes(disk.total)} — {formatBytes(disk.free)} libre
+                  {formatBytes(disk.used)} / {formatBytes(disk.total)} — {t("overview.diskFree", { free: formatBytes(disk.free) })}
                 </div>
               </div>
             ))}
@@ -738,23 +743,23 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
       {/* 3. Inventaire compact — info statique en bas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Système</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.system")}</h3>
           <div className="space-y-2.5">
-            <InfoRow label="OS" value={`${machine.os || "?"} ${machine.osVersion || ""}`} />
-            <InfoRow label="Architecture" value={machine.arch || "?"} />
-            <InfoRow label="Hostname" value={machine.hostname || "?"} />
-            <InfoRow label="Agent" value={machine.agentVersion || "?"} />
-            <InfoRow label="Uptime" value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
+            <InfoRow label={t("overview.info.os")} value={`${machine.os || "?"} ${machine.osVersion || ""}`} />
+            <InfoRow label={t("overview.info.architecture")} value={machine.arch || "?"} />
+            <InfoRow label={t("overview.info.hostname")} value={machine.hostname || "?"} />
+            <InfoRow label={t("overview.info.agent")} value={machine.agentVersion || "?"} />
+            <InfoRow label={t("overview.info.uptime")} value={latestMetric?.uptime ? formatUptime(latestMetric.uptime) : "?"} />
           </div>
         </div>
 
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Réseau</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.network")}</h3>
           <div className="space-y-2.5">
-            <InfoRow label="IP" value={machine.ipAddress || "?"} />
-            <InfoRow label="Dernier signal" value={timeAgo(machine.lastHeartbeat)} />
-            <InfoRow label="Enregistré" value={machine.enrolledAt ? new Date(machine.enrolledAt).toLocaleDateString("fr-FR") : "Non"} />
-            <InfoRow label="Créé" value={new Date(machine.createdAt).toLocaleDateString("fr-FR")} />
+            <InfoRow label={t("overview.info.ip")} value={machine.ipAddress || "?"} />
+            <InfoRow label={t("overview.info.lastSignal")} value={timeAgo(machine.lastHeartbeat)} />
+            <InfoRow label={t("overview.info.enrolledAt")} value={machine.enrolledAt ? new Date(machine.enrolledAt).toLocaleDateString("fr-FR") : t("overview.notEnrolled")} />
+            <InfoRow label={t("overview.info.createdAt")} value={new Date(machine.createdAt).toLocaleDateString("fr-FR")} />
           </div>
         </div>
 
@@ -766,7 +771,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
       {/* Tags si présents */}
       {machine.tags && machine.tags.length > 0 && (
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>Tags</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.tags")}</h3>
           <div className="flex flex-wrap gap-2">
             {machine.tags.map((mt: any) => (
               <span key={mt.tag?.id || mt.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -786,20 +791,21 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
    Network Tab
    ══════════════════════════════════════════════ */
 function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
+  const { t } = useTranslation("machineDetail");
   const netInterfaces = (latestMetric?.network as any[]) || [];
 
   if (netInterfaces.length === 0) {
     return (
       <div className="rounded-xl p-8 text-center" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
         <Network className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--nx-text-weak)" }} />
-        <p className="text-sm text-muted-foreground">Aucune donnée réseau disponible</p>
+        <p className="text-sm text-muted-foreground">{t("networkTab.empty")}</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-      <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--nx-text-weak)" }}>Interfaces réseau</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--nx-text-weak)" }}>{t("networkTab.title")}</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {netInterfaces.map((iface: any) => (
           <div key={iface.name} className="rounded-lg p-4" style={{ background: "var(--nx-bg-elevated)" }}>
@@ -809,21 +815,21 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-[10px] uppercase mb-1" style={{ color: "var(--nx-text-weak)" }}>Reçu</div>
+                <div className="text-[10px] uppercase mb-1" style={{ color: "var(--nx-text-weak)" }}>{t("networkTab.received")}</div>
                 <div className="text-sm font-semibold tabular-nums text-foreground">
                   {((iface.rx_bytes_per_sec || 0) / 1024).toFixed(1)} <span className="text-xs font-normal" style={{ color: "var(--nx-text-weak)" }}>KB/s</span>
                 </div>
                 <div className="text-[10px] tabular-nums" style={{ color: "var(--nx-text-weak)" }}>
-                  Total: {formatBytes(iface.rx_bytes || 0)}
+                  {t("networkTab.total")} {formatBytes(iface.rx_bytes || 0)}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] uppercase mb-1" style={{ color: "var(--nx-text-weak)" }}>Envoyé</div>
+                <div className="text-[10px] uppercase mb-1" style={{ color: "var(--nx-text-weak)" }}>{t("networkTab.sent")}</div>
                 <div className="text-sm font-semibold tabular-nums text-foreground">
                   {((iface.tx_bytes_per_sec || 0) / 1024).toFixed(1)} <span className="text-xs font-normal" style={{ color: "var(--nx-text-weak)" }}>KB/s</span>
                 </div>
                 <div className="text-[10px] tabular-nums" style={{ color: "var(--nx-text-weak)" }}>
-                  Total: {formatBytes(iface.tx_bytes || 0)}
+                  {t("networkTab.total")} {formatBytes(iface.tx_bytes || 0)}
                 </div>
               </div>
             </div>
@@ -838,6 +844,7 @@ function NetworkTab({ latestMetric }: { latestMetric: Metric | null }) {
    Subcomponents
    ══════════════════════════════════════════════ */
 function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated: () => void | Promise<void> }) {
+  const { t } = useTranslation(["machineDetail", "common"]);
   const [name, setName] = useState(machine.name);
   const [sshUser, setSshUser] = useState(machine.sshUser || "");
   const [isCritical, setIsCritical] = useState(machine.isCritical);
@@ -868,7 +875,7 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur"));
+      setError(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setSaving(false);
     }
@@ -877,12 +884,12 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
   return (
     <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
       <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>
-        Paramètres
+        {t("settings.title")}
       </h3>
       <div className="space-y-3">
         <div>
           <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--nx-text-weak)" }}>
-            Nom
+            {t("settings.nameLabel")}
           </label>
           <input
             type="text"
@@ -893,17 +900,17 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
         </div>
         <div>
           <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--nx-text-weak)" }}>
-            Utilisateur SSH
+            {t("settings.sshUserLabel")}
           </label>
           <input
             type="text"
             value={sshUser}
             onChange={(e) => setSshUser(e.target.value)}
-            placeholder="root, admin, ubuntu…"
+            placeholder={t("settings.sshUserPlaceholder")}
             className="w-full rounded border border-input bg-background px-3 py-1.5 text-xs font-mono"
           />
           <p className="text-[10px] mt-1" style={{ color: "var(--nx-text-weak)" }}>
-            Pré-rempli dans le bouton SSH. Vide = utilise le user courant du terminal.
+            {t("settings.sshUserHint")}
           </p>
         </div>
 
@@ -918,11 +925,10 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
           />
           <div className="flex-1">
             <div className="text-xs font-semibold" style={{ color: isCritical ? "var(--nx-warning)" : "var(--nx-text)" }}>
-              ⚠ Machine critique
+              {t("settings.criticalLabel")}
             </div>
             <p className="text-[10px] mt-0.5" style={{ color: "var(--nx-text-weak)" }}>
-              Si activé, bloque <code>reboot</code>, <code>service_stop</code> sur services critiques (docker, nginx, ssh, postgres…) et <code>package.remove</code> sur paquets critiques.
-              À activer pour le serveur Nexus lui-même et les machines prod.
+              <Trans i18nKey="settings.criticalHint" t={t} components={[<code key="0" />, <code key="1" />, <code key="2" />]} />
             </p>
           </div>
         </label>
@@ -942,7 +948,7 @@ function EditableSettings({ machine, onUpdated }: { machine: Machine; onUpdated:
             color: "var(--nx-bg-base)",
           }}
         >
-          {saving ? "Enregistrement..." : saved ? "Enregistré ✓" : "Enregistrer"}
+          {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.save")}
         </button>
       </div>
     </div>

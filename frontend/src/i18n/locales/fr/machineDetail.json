@@ -1,0 +1,105 @@
+{
+  "reconnecting": "Reconnexion",
+  "reconnectingTitle": "WebSocket coupé. La machine reste marquée ONLINE pendant ~90s après une déconnexion pour absorber les blips réseau ; les actions échoueront tant que l'agent ne s'est pas reconnecté.",
+  "criticalBadge": "⚠ Critique",
+  "criticalBadgeTitle": "Machine critique : reboot et stop de services critiques bloqués",
+  "sudoersBadge": "⚠ Sudoers obsolètes",
+  "sudoersBadgeTitle": "Les sudoers de cet agent diffèrent de la version attendue. Ré-installez l'agent avec install-agent.sh pour bénéficier des nouvelles actions.",
+  "rebootRequiredTitle": "Reboot requis",
+  "actions": {
+    "reloadTooltip": "Recharger (machine, métriques, attention)",
+    "reload": "Recharger",
+    "sshTooltip": "Connexion SSH (copie la commande + instructions)",
+    "ssh": "Connexion SSH",
+    "agentUpToDate": "Agent déjà à la dernière version",
+    "agentUpdateAvailable": "Mise à jour de l'agent disponible",
+    "agentUpdate": "Mettre à jour l'agent",
+    "rebootTooltip": "Redémarrer la machine",
+    "reboot": "Redémarrer",
+    "revokeTooltip": "Révoquer (déconnecte l'agent immédiatement)",
+    "revoke": "Révoquer",
+    "reEnrollTooltip": "Ré-enrôler (régénère identité + token d'install)",
+    "reEnroll": "Ré-enrôler",
+    "deleteTooltip": "Supprimer la machine (irréversible)",
+    "delete": "Supprimer"
+  },
+  "confirm": {
+    "revokeTitle": "Révoquer cette machine ?",
+    "revokeDesc": "L'agent sera déconnecté immédiatement et ne pourra plus communiquer avec Nexus tant qu'il n'est pas ré-enrôlé.",
+    "deleteTitle": "Supprimer définitivement cette machine ?",
+    "deleteDesc": "Cette action est irréversible. Toutes les métriques et l'historique d'audit liés à cette machine seront supprimés.",
+    "rebootTitle": "Redémarrer la machine ?",
+    "rebootDesc": "La machine sera coupée puis reviendra en environ 60s. Confirmez en tapant REBOOT."
+  },
+  "toast": {
+    "revoked": "Machine révoquée",
+    "deleted": "Machine supprimée",
+    "rebootTriggered": "Redémarrage déclenché. Retour dans ~60s.",
+    "rebootError": "Échec du redémarrage"
+  },
+  "gauges": {
+    "diskRoot": "Disque /"
+  },
+  "groups": {
+    "monitoring": "Monitoring",
+    "system": "Système",
+    "network": "Réseau",
+    "software": "Logiciels",
+    "security": "Sécurité"
+  },
+  "tabs": {
+    "overview": { "label": "Vue d'ensemble", "tooltip": "Statut global : alertes, services failed, updates pending, certs expirant" },
+    "metrics": { "label": "Métriques", "tooltip": "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h" },
+    "processes": { "label": "Processus", "tooltip": "Top 10 processus par CPU et RAM, kill possible" },
+    "storage": { "label": "Stockage", "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
+    "services": { "label": "Services", "tooltip": "systemd : start/stop/restart, lien vers logs journalctl" },
+    "scheduling": { "label": "Tâches", "tooltip": "Cron jobs (lecture) + systemd timers (enable/disable)" },
+    "users": { "label": "Utilisateurs", "tooltip": "Linux users UID≥1000, sudo membership, clés SSH" },
+    "files": { "label": "Fichiers", "tooltip": "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées" },
+    "network": { "label": "Interfaces", "tooltip": "ip addr / routes / DNS (lecture seule)" },
+    "netplan": { "label": "Netplan", "tooltip": "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
+    "firewall": { "label": "Pare-feu", "tooltip": "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
+    "updates": { "label": "Mises à jour", "tooltip": "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
+    "packages": { "label": "Paquets", "tooltip": "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
+    "security": { "label": "Durcissement", "tooltip": "Audit de durcissement (Lynis) : indice, avertissements, suggestions" }
+  },
+  "metricsHistory": "Historique des métriques",
+  "overview": {
+    "storage": "Stockage",
+    "diskFree": "{{free}} libre",
+    "system": "Système",
+    "network": "Réseau",
+    "tags": "Tags",
+    "info": {
+      "os": "OS",
+      "architecture": "Architecture",
+      "hostname": "Hostname",
+      "agent": "Agent",
+      "uptime": "Uptime",
+      "ip": "IP",
+      "lastSignal": "Dernier signal",
+      "enrolledAt": "Enregistré",
+      "createdAt": "Créé"
+    },
+    "notEnrolled": "Non"
+  },
+  "networkTab": {
+    "empty": "Aucune donnée réseau disponible",
+    "title": "Interfaces réseau",
+    "received": "Reçu",
+    "sent": "Envoyé",
+    "total": "Total:"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "nameLabel": "Nom",
+    "sshUserLabel": "Utilisateur SSH",
+    "sshUserPlaceholder": "root, admin, ubuntu…",
+    "sshUserHint": "Pré-rempli dans le bouton SSH. Vide = utilise le user courant du terminal.",
+    "criticalLabel": "⚠ Machine critique",
+    "criticalHint": "Si activé, bloque <0>reboot</0>, <1>service_stop</1> sur services critiques (docker, nginx, ssh, postgres…) et <2>package.remove</2> sur paquets critiques. À activer pour le serveur Nexus lui-même et les machines prod.",
+    "saving": "Enregistrement...",
+    "saved": "Enregistré ✓",
+    "save": "Enregistrer"
+  }
+}
