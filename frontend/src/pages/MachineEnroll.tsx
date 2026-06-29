@@ -51,19 +51,18 @@ export default function MachineEnroll() {
         if (cancelled) return;
         setMachine(m);
         setName(m.name);
-        // Machine déjà enrôlée (ONLINE/OFFLINE/REVOKED) → ré-enrollement complet :
-        // régénère token + clé backend, déconnecte l'agent, et renvoie une
-        // commande --reenroll qui purge l'identité résiduelle côté machine.
-        // Machine encore ENROLLMENT_PENDING → simple régénération des tokens d'install.
-        if (m.status === "ENROLLMENT_PENDING") {
-          const artifacts = await api.regenerateBootstrap(paramId);
-          if (cancelled) return;
-          setBootstrap(artifacts);
-        } else {
-          const res = await api.reEnrollMachine(paramId);
-          if (cancelled) return;
-          setBootstrap(res.bootstrap);
-        }
+        // Re-provision d'une machine existante → TOUJOURS une commande --reenroll
+        // (api.reEnrollMachine → POST /re-enroll, sans guard de statut). Elle régénère
+        // token + paire ECDSA backend, déconnecte l'agent, et PURGE l'identité
+        // résiduelle côté hôte (clés, shared.secret, ancienne clé serveur, snapshots).
+        // On ne distingue PLUS ENROLLMENT_PENDING : une machine PENDING peut avoir une
+        // identité résiduelle d'un cycle précédent (re-enroll antérieur), et l'ancienne
+        // branche `regenerateBootstrap` (install SANS --reenroll) gardait cette clé
+        // périmée → deadlock "Session handshake failed: error". La purge est inoffensive
+        // s'il n'y a rien à purger (hôte neuf), donc --reenroll est toujours sûr ici.
+        const res = await api.reEnrollMachine(paramId);
+        if (cancelled) return;
+        setBootstrap(res.bootstrap);
       } catch (err) {
         if (!cancelled) setError(getErrorMessage(err, "Erreur lors du chargement"));
       } finally {
