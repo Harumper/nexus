@@ -1,0 +1,12 @@
+{
+  "searchPlaceholder": "Rechercher un paquet (ex: nginx, python3-requests)...",
+  "emptyHint": "Tapez au moins 2 caractères pour rechercher dans le catalogue Ubuntu.",
+  "catalogHint": "Le catalogue est rafraîchi quotidiennement (>60k paquets).",
+  "noResults": "Aucun paquet ne correspond à « {{query}} » dans {{suite}}.",
+  "count_one": "{{count}} paquet trouvé",
+  "count_other": "{{count}} paquets trouvés",
+  "confirmInstall": "Installer \"{{name}}\" ?",
+  "confirmRemove": "Désinstaller \"{{name}}\" ?",
+  "toastInstalled": "\"{{name}}\" installé",
+  "toastRemoved": "\"{{name}}\" désinstallé"
+}

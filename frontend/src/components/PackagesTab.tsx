@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Package, Download, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { getErrorMessage } from "../services/errors";
 import { useConfirm } from "./ui";
@@ -35,6 +36,7 @@ function useDebounced<T>(value: T, delay: number): T {
 }
 
 export default function PackagesTab({ machineId }: PackagesTabProps) {
+  const { t } = useTranslation(["packages", "common"]);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounced(query, 300);
   const [results, setResults] = useState<AptPackage[]>([]);
@@ -68,11 +70,11 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
   useEffect(() => { doSearch(); }, [doSearch]);
 
   const handleInstall = async (name: string) => {
-    if (!(await confirm({ title: `Installer "${name}" ?`, confirmLabel: "Installer", variant: "primary" }))) return;
+    if (!(await confirm({ title: t("confirmInstall", { name }), confirmLabel: t("common:actions.install"), variant: "primary" }))) return;
     setActing({ name, kind: "install" });
     try {
       await api.installPackage(machineId, name);
-      toast.success(`"${name}" installé`);
+      toast.success(t("toastInstalled", { name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -81,11 +83,11 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
   };
 
   const handleRemove = async (name: string) => {
-    if (!(await confirm({ title: `Désinstaller "${name}" ?`, confirmLabel: "Désinstaller", variant: "danger" }))) return;
+    if (!(await confirm({ title: t("confirmRemove", { name }), confirmLabel: t("common:actions.uninstall"), variant: "danger" }))) return;
     setActing({ name, kind: "remove" });
     try {
       await api.removePackage(machineId, name);
-      toast.success(`"${name}" désinstallé`);
+      toast.success(t("toastRemoved", { name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -112,7 +114,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un paquet (ex: nginx, python3-requests)..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm"
             autoFocus
           />
@@ -140,10 +142,10 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
         <div className="rounded-xl border border-border p-8 text-center" style={{ background: "var(--nx-bg-surface)" }}>
           <Package className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--nx-text-weak)" }} />
           <p className="text-sm" style={{ color: "var(--nx-text-weak)" }}>
-            Tapez au moins 2 caractères pour rechercher dans le catalogue Ubuntu.
+            {t("emptyHint")}
           </p>
           <p className="text-xs mt-2" style={{ color: "var(--nx-text-weak)" }}>
-            Le catalogue est rafraîchi quotidiennement (&gt;60k paquets).
+            {t("catalogHint")}
           </p>
         </div>
       )}
@@ -151,7 +153,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
       {query && query.length >= 2 && !searching && dedupedResults.length === 0 && !error && (
         <div className="rounded-xl border border-border p-8 text-center" style={{ background: "var(--nx-bg-surface)" }}>
           <p className="text-sm" style={{ color: "var(--nx-text-weak)" }}>
-            Aucun paquet ne correspond à « {query} » dans {suite}.
+            {t("noResults", { query, suite })}
           </p>
         </div>
       )}
@@ -160,7 +162,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
       {dedupedResults.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs" style={{ color: "var(--nx-text-weak)" }}>
-            {dedupedResults.length} paquet{dedupedResults.length > 1 ? "s" : ""} trouvé{dedupedResults.length > 1 ? "s" : ""}
+            {t("count", { count: dedupedResults.length })}
           </div>
           <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
             {dedupedResults.map((pkg) => (
@@ -205,7 +207,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
                     ) : (
                       <Download className="w-3.5 h-3.5" />
                     )}
-                    Installer
+                    {t("common:actions.install")}
                   </button>
                   <button
                     onClick={() => handleRemove(pkg.name)}
@@ -218,7 +220,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
                     ) : (
                       <Trash2 className="w-3.5 h-3.5" />
                     )}
-                    Retirer
+                    {t("common:actions.remove")}
                   </button>
                 </div>
               </div>

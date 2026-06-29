@@ -30,6 +30,16 @@ import frFirewall from "./locales/fr/firewall.json";
 import enFirewall from "./locales/en/firewall.json";
 import frNetwork from "./locales/fr/network.json";
 import enNetwork from "./locales/en/network.json";
+import frServices from "./locales/fr/services.json";
+import enServices from "./locales/en/services.json";
+import frStorage from "./locales/fr/storage.json";
+import enStorage from "./locales/en/storage.json";
+import frPackages from "./locales/fr/packages.json";
+import enPackages from "./locales/en/packages.json";
+import frScheduling from "./locales/fr/scheduling.json";
+import enScheduling from "./locales/en/scheduling.json";
+import frProcessList from "./locales/fr/processList.json";
+import enProcessList from "./locales/en/processList.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -63,15 +73,17 @@ i18n.use(initReactI18next).init({
       dashboard: frDashboard, machines: frMachines, compare: frCompare,
       metricsChart: frMetricsChart, attention: frAttention, audit: frAudit, enroll: frEnroll, alerts: frAlerts,
       machineDetail: frMachineDetail, firewall: frFirewall, network: frNetwork,
+      services: frServices, storage: frStorage, packages: frPackages, scheduling: frScheduling, processList: frProcessList,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
       dashboard: enDashboard, machines: enMachines, compare: enCompare,
       metricsChart: enMetricsChart, attention: enAttention, audit: enAudit, enroll: enEnroll, alerts: enAlerts,
       machineDetail: enMachineDetail, firewall: enFirewall, network: enNetwork,
+      services: enServices, storage: enStorage, packages: enPackages, scheduling: enScheduling, processList: enProcessList,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

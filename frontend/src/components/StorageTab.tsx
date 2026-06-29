@@ -1,5 +1,6 @@
 import { useState, useEffect, type TdHTMLAttributes, type ComponentType } from "react";
 import { HardDrive, Layers, Database, Loader2, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 
 interface Props {
@@ -41,6 +42,7 @@ function formatBytes(n: number | string): string {
 }
 
 export default function StorageTab({ machineId }: Props) {
+  const { t } = useTranslation(["storage", "common"]);
   const [lvm, setLvm] = useState<LvmState | null>(null);
   const [blocks, setBlocks] = useState<BlockDevice[]>([]);
   const [fsList, setFsList] = useState<FilesystemUsage[]>([]);
@@ -60,7 +62,7 @@ export default function StorageTab({ machineId }: Props) {
       setBlocks((blkRes?.data?.devices as BlockDevice[]) || []);
       setFsList((fsRes?.data?.filesystems as FilesystemUsage[]) || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de chargement");
+      setError(err instanceof Error ? err.message : t("common:errors.loadError"));
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,7 @@ export default function StorageTab({ machineId }: Props) {
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Rafraîchir
+          {t("common:actions.refresh")}
         </button>
       </div>
 
@@ -89,21 +91,21 @@ export default function StorageTab({ machineId }: Props) {
       )}
 
       {/* Filesystem usage */}
-      <Section icon={Database} title="Systèmes de fichiers">
+      <Section icon={Database} title={t("fsTitle")}>
         {fsList.length === 0 ? (
-          <Empty label="Aucun système de fichiers monté" />
+          <Empty label={t("fsEmpty")} />
         ) : (
           <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
             <table className="w-full text-xs">
               <thead style={{ background: "var(--nx-bg-elevated)" }}>
                 <tr className="text-left" style={{ color: "var(--nx-text-weak)" }}>
-                  <Th>Point de montage</Th>
-                  <Th>Device</Th>
-                  <Th>Type</Th>
-                  <Th>Taille</Th>
-                  <Th>Utilisé</Th>
-                  <Th>Libre</Th>
-                  <Th>%</Th>
+                  <Th>{t("headers.mountpoint")}</Th>
+                  <Th>{t("headers.device")}</Th>
+                  <Th>{t("headers.type")}</Th>
+                  <Th>{t("headers.size")}</Th>
+                  <Th>{t("headers.used")}</Th>
+                  <Th>{t("headers.free")}</Th>
+                  <Th>{t("headers.percent")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -136,9 +138,9 @@ export default function StorageTab({ machineId }: Props) {
       </Section>
 
       {/* Block devices */}
-      <Section icon={HardDrive} title="Périphériques de bloc">
+      <Section icon={HardDrive} title={t("blockTitle")}>
         {blocks.length === 0 ? (
-          <Empty label="Aucun device détecté (lsblk indisponible)" />
+          <Empty label={t("blockEmpty")} />
         ) : (
           <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
             <BlockTree devices={blocks} />
@@ -149,7 +151,7 @@ export default function StorageTab({ machineId }: Props) {
       {/* LVM */}
       <Section icon={Layers} title="LVM">
         {!lvm || !lvm.available ? (
-          <Empty label="LVM non utilisé sur cette machine" />
+          <Empty label={t("lvmEmpty")} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             <LvmCard title="Physical Volumes" count={(lvm.pvs ?? []).length}>

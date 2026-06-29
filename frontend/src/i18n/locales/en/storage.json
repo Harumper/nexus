@@ -1,0 +1,16 @@
+{
+  "fsTitle": "Filesystems",
+  "fsEmpty": "No filesystem mounted",
+  "blockTitle": "Block devices",
+  "blockEmpty": "No device detected (lsblk unavailable)",
+  "lvmEmpty": "LVM not used on this machine",
+  "headers": {
+    "mountpoint": "Mountpoint",
+    "device": "Device",
+    "type": "Type",
+    "size": "Size",
+    "used": "Used",
+    "free": "Free",
+    "percent": "%"
+  }
+}

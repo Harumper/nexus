@@ -1,0 +1,17 @@
+{
+  "title": "Processus",
+  "errorFetch": "Impossible de récupérer les processus",
+  "errorComm": "Erreur de communication avec l'agent",
+  "loadPrompt": "Cliquez sur \"Charger\" pour récupérer les processus en cours",
+  "confirmKill": "Envoyer SIGTERM au processus {{pid}} ?",
+  "kill": "Tuer",
+  "killFallback": "Échec",
+  "toastKilled": "SIGTERM envoyé à PID {{pid}}",
+  "topCpu": "Top CPU",
+  "topMemory": "Top Mémoire",
+  "headers": {
+    "name": "Nom",
+    "action": "Action"
+  },
+  "killTitle": "Kill (SIGTERM)"
+}

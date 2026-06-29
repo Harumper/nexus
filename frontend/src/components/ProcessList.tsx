@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { RefreshCw, Skull, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useConfirm } from "./ui";
@@ -21,6 +22,7 @@ interface ProcessListProps {
 }
 
 export default function ProcessList({ machineId }: ProcessListProps) {
+  const { t } = useTranslation(["processList", "common"]);
   const { user } = useAuth();
   const [processes, setProcesses] = useState<{ top_cpu: ProcessInfo[]; top_memory: ProcessInfo[] } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,10 +44,10 @@ export default function ProcessList({ machineId }: ProcessListProps) {
       if (result.success && result.data) {
         setProcesses(result.data as any);
       } else {
-        setError("Impossible de récupérer les processus");
+        setError(t("errorFetch"));
       }
     } catch {
-      setError("Erreur de communication avec l'agent");
+      setError(t("errorComm"));
     } finally {
       setLoading(false);
     }
@@ -53,17 +55,17 @@ export default function ProcessList({ machineId }: ProcessListProps) {
 
   const killProcess = async (pid: number) => {
     if (!(await confirm({
-      title: `Envoyer SIGTERM au processus ${pid} ?`,
-      confirmLabel: "Tuer",
+      title: t("confirmKill", { pid }),
+      confirmLabel: t("kill"),
       variant: "danger",
     }))) return;
     setKilling(pid);
     try {
       await api.dispatchActionSync(machineId, "process.kill", { pid, signal: "SIGTERM" }, 10000);
-      toast.success(`SIGTERM envoyé à PID ${pid}`);
+      toast.success(t("toastKilled", { pid }));
       setTimeout(fetchProcesses, 1000);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Échec"));
+      toast.error(getErrorMessage(err, t("killFallback")));
     } finally {
       setKilling(null);
     }
@@ -74,14 +76,14 @@ export default function ProcessList({ machineId }: ProcessListProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Processus</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t("title")}</h3>
         <button
           onClick={fetchProcesses}
           disabled={loading}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          {processes ? "Rafraîchir" : "Charger"}
+          {processes ? t("common:actions.refresh") : t("common:actions.load")}
         </button>
       </div>
 
@@ -91,7 +93,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
 
       {!processes && !loading && (
         <div className="text-center py-8 text-sm text-muted-foreground">
-          Cliquez sur "Charger" pour récupérer les processus en cours
+          {t("loadPrompt")}
         </div>
       )}
 
@@ -99,17 +101,17 @@ export default function ProcessList({ machineId }: ProcessListProps) {
         <>
           {/* Tabs */}
           <div className="flex gap-1 mb-3 border-b border-border">
-            {(["cpu", "memory"] as const).map((t) => (
+            {(["cpu", "memory"] as const).map((tabId) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
+                key={tabId}
+                onClick={() => setTab(tabId)}
                 className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
-                  tab === t
+                  tab === tabId
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Top {t === "cpu" ? "CPU" : "Mémoire"}
+                {tabId === "cpu" ? t("topCpu") : t("topMemory")}
               </button>
             ))}
           </div>
@@ -120,11 +122,11 @@ export default function ProcessList({ machineId }: ProcessListProps) {
               <thead>
                 <tr className="text-muted-foreground border-b border-border">
                   <th className="text-left py-2 px-2">PID</th>
-                  <th className="text-left py-2 px-2">Nom</th>
+                  <th className="text-left py-2 px-2">{t("headers.name")}</th>
                   <th className="text-right py-2 px-2">CPU%</th>
                   <th className="text-right py-2 px-2">MEM%</th>
                   <th className="text-left py-2 px-2">User</th>
-                  {user?.role === "ADMIN" && <th className="text-center py-2 px-2">Action</th>}
+                  {user?.role === "ADMIN" && <th className="text-center py-2 px-2">{t("headers.action")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -149,7 +151,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
                           onClick={() => killProcess(p.pid)}
                           disabled={killing === p.pid}
                           className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
-                          title="Kill (SIGTERM)"
+                          title={t("killTitle")}
                         >
                           {killing === p.pid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Skull className="w-3.5 h-3.5" />}
                         </button>

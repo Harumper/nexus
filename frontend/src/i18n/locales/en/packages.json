@@ -1,0 +1,12 @@
+{
+  "searchPlaceholder": "Search a package (e.g. nginx, python3-requests)...",
+  "emptyHint": "Type at least 2 characters to search the Ubuntu catalog.",
+  "catalogHint": "The catalog is refreshed daily (>60k packages).",
+  "noResults": "No package matches “{{query}}” in {{suite}}.",
+  "count_one": "{{count}} package found",
+  "count_other": "{{count}} packages found",
+  "confirmInstall": "Install \"{{name}}\"?",
+  "confirmRemove": "Uninstall \"{{name}}\"?",
+  "toastInstalled": "\"{{name}}\" installed",
+  "toastRemoved": "\"{{name}}\" uninstalled"
+}

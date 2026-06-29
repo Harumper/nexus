@@ -1,0 +1,24 @@
+{
+  "searchPlaceholder": "Search a service...",
+  "filter": {
+    "all": "All",
+    "active": "Active",
+    "inactive": "Inactive",
+    "failed": "Failed"
+  },
+  "stats": {
+    "total": "Total: {{count}}",
+    "active": "Active: {{count}}",
+    "failed": "Failed: {{count}}"
+  },
+  "headers": {
+    "service": "Service",
+    "state": "State",
+    "description": "Description",
+    "actions": "Actions"
+  },
+  "empty": "No service found.",
+  "confirmAction": "{{verb}} {{service}}?",
+  "toastOk": "{{service}}: {{verb}} OK",
+  "viewLogs": "View logs"
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Clock, CalendarClock, RefreshCw, Loader2, Power, PowerOff } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
 import { getErrorMessage } from "../services/errors";
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function SchedulingTab({ machineId }: Props) {
+  const { t } = useTranslation(["scheduling", "common"]);
   const [cronJobs, setCronJobs] = useState<any[]>([]);
   const [timers, setTimers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,7 +31,7 @@ export default function SchedulingTab({ machineId }: Props) {
       setCronJobs(cron?.data?.jobs || []);
       setTimers(t?.data?.timers || []);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur"));
+      setError(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setLoading(false);
     }
@@ -39,16 +41,16 @@ export default function SchedulingTab({ machineId }: Props) {
 
   const toggle = async (name: string, enabled: boolean) => {
     const verb = enabled ? "disable" : "enable";
-    const label = verb === "enable" ? "Activer" : "Désactiver";
-    if (!(await confirm({ title: `${label} le timer ${name} ?`, confirmLabel: label, variant: "primary" }))) return;
+    const label = verb === "enable" ? t("common:actions.enable") : t("common:actions.disable");
+    if (!(await confirm({ title: t("confirmToggle", { label, name }), confirmLabel: label, variant: "primary" }))) return;
     setActing(name);
     try {
       if (verb === "enable") await api.timerEnable(machineId, name);
       else await api.timerDisable(machineId, name);
-      toast.success(`${name} : ${label.toLowerCase()}`);
+      toast.success(t("toastToggle", { name, label: label.toLowerCase() }));
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Action échouée"));
+      toast.error(getErrorMessage(err, t("common:errors.actionFailed")));
     } finally {
       setActing(null);
     }
@@ -63,10 +65,10 @@ export default function SchedulingTab({ machineId }: Props) {
       <div className="flex items-center justify-between">
         <div className="inline-flex rounded-lg overflow-hidden border border-border" style={{ background: "var(--nx-bg-surface)" }}>
           <TabBtn active={tab === "timers"} onClick={() => setTab("timers")} icon={CalendarClock}>
-            Timers ({timers.length})
+            {t("tabTimers", { count: timers.length })}
           </TabBtn>
           <TabBtn active={tab === "cron"} onClick={() => setTab("cron")} icon={Clock}>
-            Cron ({cronJobs.length})
+            {t("tabCron", { count: cronJobs.length })}
           </TabBtn>
         </div>
         <button
@@ -76,7 +78,7 @@ export default function SchedulingTab({ machineId }: Props) {
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Rafraîchir
+          {t("common:actions.refresh")}
         </button>
       </div>
 
@@ -88,17 +90,17 @@ export default function SchedulingTab({ machineId }: Props) {
 
       {tab === "timers" && (
         sortedTimers.length === 0 ? (
-          <Empty label="Aucun timer détecté" />
+          <Empty label={t("noTimers")} />
         ) : (
           <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
             <table className="w-full text-xs">
               <thead style={{ background: "var(--nx-bg-elevated)" }}>
                 <tr className="text-left" style={{ color: "var(--nx-text-weak)" }}>
-                  <Th>Unit</Th>
-                  <Th>Prochain</Th>
-                  <Th>Dernier</Th>
-                  <Th>Active</Th>
-                  <Th>Enabled</Th>
+                  <Th>{t("timerHeaders.unit")}</Th>
+                  <Th>{t("timerHeaders.next")}</Th>
+                  <Th>{t("timerHeaders.last")}</Th>
+                  <Th>{t("timerHeaders.active")}</Th>
+                  <Th>{t("timerHeaders.enabled")}</Th>
                   <Th />
                 </tr>
               </thead>
@@ -149,7 +151,7 @@ export default function SchedulingTab({ machineId }: Props) {
 
       {tab === "cron" && (
         cronJobs.length === 0 ? (
-          <Empty label="Aucun cron job système détecté" />
+          <Empty label={t("noCron")} />
         ) : (
           <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
             <table className="w-full text-xs">

@@ -1,0 +1,17 @@
+{
+  "title": "Processes",
+  "errorFetch": "Unable to fetch processes",
+  "errorComm": "Communication error with the agent",
+  "loadPrompt": "Click \"Load\" to fetch the running processes",
+  "confirmKill": "Send SIGTERM to process {{pid}}?",
+  "kill": "Kill",
+  "killFallback": "Failure",
+  "toastKilled": "SIGTERM sent to PID {{pid}}",
+  "topCpu": "Top CPU",
+  "topMemory": "Top Memory",
+  "headers": {
+    "name": "Name",
+    "action": "Action"
+  },
+  "killTitle": "Kill (SIGTERM)"
+}

@@ -1,0 +1,16 @@
+{
+  "fsTitle": "Systèmes de fichiers",
+  "fsEmpty": "Aucun système de fichiers monté",
+  "blockTitle": "Périphériques de bloc",
+  "blockEmpty": "Aucun device détecté (lsblk indisponible)",
+  "lvmEmpty": "LVM non utilisé sur cette machine",
+  "headers": {
+    "mountpoint": "Point de montage",
+    "device": "Device",
+    "type": "Type",
+    "size": "Taille",
+    "used": "Utilisé",
+    "free": "Libre",
+    "percent": "%"
+  }
+}

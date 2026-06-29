@@ -1,0 +1,15 @@
+{
+  "tabTimers": "Timers ({{count}})",
+  "tabCron": "Cron ({{count}})",
+  "noTimers": "Aucun timer détecté",
+  "noCron": "Aucun cron job système détecté",
+  "confirmToggle": "{{label}} le timer {{name}} ?",
+  "toastToggle": "{{name}} : {{label}}",
+  "timerHeaders": {
+    "unit": "Unit",
+    "next": "Prochain",
+    "last": "Dernier",
+    "active": "Active",
+    "enabled": "Enabled"
+  }
+}

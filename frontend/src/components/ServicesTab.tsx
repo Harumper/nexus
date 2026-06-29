@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Play, Square, RotateCcw, FileText, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useConfirm } from "./ui";
 import { getErrorMessage } from "../services/errors";
@@ -29,6 +30,7 @@ interface ServicesTabProps {
 type ActionKind = "start" | "stop" | "restart";
 
 export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPendingFilterConsumed }: ServicesTabProps) {
+  const { t } = useTranslation(["services", "common"]);
   const [services, setServices] = useState<SystemdUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -55,24 +57,24 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
       const filtered = list.filter(u => (u.unit || "").endsWith(".service"));
       setServices(filtered);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur de chargement"));
+      setError(getErrorMessage(err, t("common:errors.loadError")));
     } finally {
       setLoading(false);
     }
-  }, [machineId]);
+  }, [machineId, t]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleAction = async (service: string, action: ActionKind) => {
-    const verb = action === "start" ? "Démarrer" : action === "stop" ? "Arrêter" : "Redémarrer";
-    if (!(await confirm({ title: `${verb} ${service} ?`, confirmLabel: verb, variant: action === "stop" ? "danger" : "primary" }))) return;
+    const verb = t(`common:actions.${action}`);
+    if (!(await confirm({ title: t("confirmAction", { verb, service }), confirmLabel: verb, variant: action === "stop" ? "danger" : "primary" }))) return;
     setActingOn({ service, action });
     try {
       await api.serviceAction(machineId, service, action);
-      toast.success(`${service} : ${verb.toLowerCase()} OK`);
+      toast.success(t("toastOk", { service, verb: verb.toLowerCase() }));
       await load();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Action échouée"));
+      toast.error(getErrorMessage(err, t("common:errors.actionFailed")));
     } finally {
       setActingOn(null);
     }
@@ -110,7 +112,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un service..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm"
           />
         </div>
@@ -119,10 +121,10 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
           onChange={(e) => setStateFilter(e.target.value as any)}
           className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
         >
-          <option value="all">Tous</option>
-          <option value="active">Actifs</option>
-          <option value="inactive">Inactifs</option>
-          <option value="failed">En échec</option>
+          <option value="all">{t("filter.all")}</option>
+          <option value="active">{t("filter.active")}</option>
+          <option value="inactive">{t("filter.inactive")}</option>
+          <option value="failed">{t("filter.failed")}</option>
         </select>
         <button
           onClick={load}
@@ -130,7 +132,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
           className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          Rafraîchir
+          {t("common:actions.refresh")}
         </button>
       </div>
 
@@ -143,13 +145,13 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
       {/* Stats */}
       <div className="flex gap-4 text-xs">
         <span style={{ color: "var(--nx-text-weak)" }}>
-          Total : {services.length}
+          {t("stats.total", { count: services.length })}
         </span>
         <span style={{ color: "var(--nx-success)" }}>
-          Actifs : {services.filter(s => s.active === "active").length}
+          {t("stats.active", { count: services.filter(s => s.active === "active").length })}
         </span>
         <span style={{ color: "var(--nx-danger)" }}>
-          Échec : {services.filter(s => s.active === "failed").length}
+          {t("stats.failed", { count: services.filter(s => s.active === "failed").length })}
         </span>
       </div>
 
@@ -158,17 +160,17 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
         <table className="w-full text-sm">
           <thead style={{ background: "var(--nx-bg-elevated)" }}>
             <tr className="text-xs uppercase" style={{ color: "var(--nx-text-weak)" }}>
-              <th className="px-4 py-2 text-left">Service</th>
-              <th className="px-4 py-2 text-left">État</th>
-              <th className="px-4 py-2 text-left">Description</th>
-              <th className="px-4 py-2 text-right">Actions</th>
+              <th className="px-4 py-2 text-left">{t("headers.service")}</th>
+              <th className="px-4 py-2 text-left">{t("headers.state")}</th>
+              <th className="px-4 py-2 text-left">{t("headers.description")}</th>
+              <th className="px-4 py-2 text-right">{t("headers.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && !loading ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: "var(--nx-text-weak)" }}>
-                  Aucun service trouvé.
+                  {t("empty")}
                 </td>
               </tr>
             ) : (
@@ -190,7 +192,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
                         <button
                           onClick={() => onViewLogs(s.unit)}
                           className="p-1.5 rounded hover:bg-muted transition-colors"
-                          title="Voir les logs"
+                          title={t("viewLogs")}
                         >
                           <FileText className="w-3.5 h-3.5" />
                         </button>
@@ -200,7 +202,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
                           onClick={() => handleAction(s.unit, "start")}
                           disabled={actingOn?.service === s.unit}
                           className="p-1.5 rounded hover:bg-muted transition-colors"
-                          title="Démarrer"
+                          title={t("common:actions.start")}
                           style={{ color: "var(--nx-success)" }}
                         >
                           {actingOn?.service === s.unit && actingOn.action === "start" ?
@@ -214,7 +216,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
                             onClick={() => handleAction(s.unit, "restart")}
                             disabled={actingOn?.service === s.unit}
                             className="p-1.5 rounded hover:bg-muted transition-colors"
-                            title="Redémarrer"
+                            title={t("common:actions.restart")}
                             style={{ color: "var(--nx-info)" }}
                           >
                             {actingOn?.service === s.unit && actingOn.action === "restart" ?
@@ -225,7 +227,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
                             onClick={() => handleAction(s.unit, "stop")}
                             disabled={actingOn?.service === s.unit}
                             className="p-1.5 rounded hover:bg-muted transition-colors"
-                            title="Arrêter"
+                            title={t("common:actions.stop")}
                             style={{ color: "var(--nx-warning)" }}
                           >
                             {actingOn?.service === s.unit && actingOn.action === "stop" ?

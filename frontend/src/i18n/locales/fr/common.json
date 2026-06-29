@@ -91,7 +91,9 @@
     "loading": "Chargement"
   },
   "errors": {
-    "generic": "Erreur"
+    "generic": "Erreur",
+    "actionFailed": "Action échouée",
+    "loadError": "Erreur de chargement"
   },
   "confirmDialog": {
     "typeToConfirm": "Tapez <code>{{word}}</code> pour confirmer"

@@ -91,7 +91,9 @@
     "loading": "Loading"
   },
   "errors": {
-    "generic": "Error"
+    "generic": "Error",
+    "actionFailed": "Action failed",
+    "loadError": "Loading error"
   },
   "confirmDialog": {
     "typeToConfirm": "Type <code>{{word}}</code> to confirm"
