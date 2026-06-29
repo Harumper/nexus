@@ -204,7 +204,7 @@ release-build:
     - ./nexus-agent --version
     - sha256sum nexus-agent | tee nexus-agent.sha256
     - printf '%s\n' "$AGENT_VERSION" > VERSION
-    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/release.sh $CI_COMMIT_TAG"
+    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve $CI_COMMIT_TAG"
   artifacts:
     paths:
       - nexus-agent
