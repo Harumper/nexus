@@ -1,0 +1,125 @@
+{
+  "subtitle_one": "{{count}} alerte active",
+  "subtitle_other": "{{count}} alertes actives",
+  "newRule": "Nouvelle règle",
+  "tabs": {
+    "active": "Actives ({{count}})",
+    "rules": "Règles ({{count}})",
+    "history": "Historique"
+  },
+  "noActive": "Aucune alerte active",
+  "acknowledgedBy": "(acquitté par {{user}})",
+  "machineLabel": "Machine :",
+  "valueLabel": "Valeur :",
+  "thresholdInline": "(seuil : {{threshold}}%)",
+  "firedAt": "Déclenchée {{time}}",
+  "resolve": "Résoudre",
+  "ruleActiveCount_one": "{{count}} active",
+  "ruleActiveCount_other": "{{count}} actives",
+  "allMachines": "Toutes les machines",
+  "machinesCount": "{{count}} machine(s)",
+  "testTitle": "Envoyer un événement de test sur tous les canaux configurés",
+  "deleteRuleAria": "Supprimer la règle",
+  "noHistory": "Aucun historique",
+  "historyStatus": {
+    "resolved": "Résolu",
+    "firing": "Actif",
+    "acknowledged": "Acquitté"
+  },
+  "confirmDeleteTitle": "Supprimer cette règle d'alerte ?",
+  "confirmDeleteBody": "La règle <strong>{{name}}</strong> sera supprimée définitivement. L'historique des alertes déclenchées par cette règle sera conservé.",
+  "toast": {
+    "deleted": "Règle supprimée",
+    "deleteError": "Échec de la suppression",
+    "testOk": "Test \"{{name}}\" : {{ok}}/{{total}} canaux OK",
+    "testFail": "Test \"{{name}}\" : {{ok}}/{{total}} OK · {{failed}} échec(s)",
+    "testError": "Erreur test : {{message}}",
+    "loadError": "Erreur de chargement de la règle",
+    "nameRequired": "Le nom est requis",
+    "saved": "Règle modifiée",
+    "created": "Règle créée"
+  },
+  "conditions": {
+    "CPU_ABOVE": "CPU supérieur à",
+    "MEMORY_ABOVE": "Mémoire supérieure à",
+    "DISK_ABOVE": "Disque supérieur à",
+    "MACHINE_OFFLINE": "Machine hors ligne depuis",
+    "LOAD_ABOVE": "Load average supérieur à",
+    "SERVICE_FAILED": "Service systemd en échec",
+    "TIMER_FAILED": "Timer systemd en échec",
+    "CRON_FAILED": "Cron job en échec",
+    "UPDATES_AVAILABLE": "Mises à jour disponibles",
+    "CERT_EXPIRING": "Certificat SSL expirant dans",
+    "HARDENING_INDEX_BELOW": "Indice de durcissement sous"
+  },
+  "conditionsForm": {
+    "UPDATES_AVAILABLE": "Mises à jour disponibles (>X)"
+  },
+  "conditionGroups": {
+    "metrics": "Métriques",
+    "connection": "Connexion",
+    "systemHealth": "Santé système",
+    "security": "Sécurité"
+  },
+  "units": {
+    "seconds": "secondes",
+    "days": "jours",
+    "updates": "updates",
+    "score": "/100",
+    "percent": "%",
+    "none": ""
+  },
+  "severity": {
+    "INFO": "Info",
+    "WARNING": "Warning",
+    "CRITICAL": "Critical"
+  },
+  "form": {
+    "back": "Retour aux alertes",
+    "titleEdit": "Modifier la règle",
+    "titleNew": "Nouvelle règle d'alerte",
+    "subtitleEdit": "Édition d'une règle existante",
+    "subtitleNew": "Créez une règle qui se déclenche quand une condition est remplie",
+    "sectionIdentity": "Identité",
+    "nameLabel": "Nom",
+    "namePlaceholder": "CPU critique",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Optionnel",
+    "severityLabel": "Sévérité",
+    "sectionCondition": "Condition de déclenchement",
+    "conditionTypeLabel": "Type de condition",
+    "thresholdLabel": "Seuil ({{unit}})",
+    "filterLabel": "Filtre (optionnel)",
+    "filterPlaceholderService": "nginx, postgresql (vide = tout service en échec)",
+    "filterPlaceholderDefault": "pattern",
+    "filterHint": "Substring matching. Vide = n'importe quel service en échec déclenche.",
+    "sectionTargets": "Machines ciblées",
+    "allMachinesDefault": "Toutes les machines sont surveillées (par défaut)",
+    "selectedCount_one": "{{count}} machine sélectionnée",
+    "selectedCount_other": "{{count}} machines sélectionnées",
+    "deselectAll": "Tout désélectionner (= toutes les machines)",
+    "sectionBehavior": "Comportement",
+    "durationLabel": "Durée minimale avant déclenchement (s)",
+    "durationHint": "0 = déclenchement immédiat. Sinon la condition doit être vraie X secondes.",
+    "cooldownLabel": "Cooldown anti-spam (s)",
+    "cooldownHint": "Délai minimal entre deux notifications pour la même alerte.",
+    "sectionChannels": "Canaux de notification",
+    "channelsHint": "Discord, Slack, Microsoft Teams, Email ou Webhook personnalisé. Aucun canal = l'alerte est visible uniquement dans l'UI/dashboard sans notification externe.",
+    "submitEdit": "Enregistrer",
+    "submitNew": "Créer la règle"
+  },
+  "channels": {
+    "empty": "Aucun canal configuré. Ajoutez Discord, Slack, Teams, Email ou Webhook.",
+    "add": "Ajouter un canal",
+    "removeTitle": "Supprimer ce canal",
+    "signatureHint": "Header <code>X-Nexus-Signature: sha256=...</code> calculé sur le body JSON.",
+    "hmacPlaceholder": "HMAC secret (optionnel — utilise le secret global si vide)",
+    "types": {
+      "DISCORD": "Discord",
+      "SLACK": "Slack",
+      "TEAMS": "Microsoft Teams",
+      "EMAIL": "Email",
+      "WEBHOOK": "Webhook custom"
+    }
+  }
+}

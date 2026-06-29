@@ -10,6 +10,7 @@ import {
   Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -55,33 +56,19 @@ const SEVERITY_STYLES = {
   CRITICAL: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
 };
 
-const CONDITION_LABELS: Record<string, string> = {
-  CPU_ABOVE: "CPU supérieur à",
-  MEMORY_ABOVE: "Mémoire supérieure à",
-  DISK_ABOVE: "Disque supérieur à",
-  MACHINE_OFFLINE: "Machine hors ligne depuis",
-  LOAD_ABOVE: "Load average supérieur à",
-  SERVICE_FAILED: "Service systemd en échec",
-  TIMER_FAILED: "Timer systemd en échec",
-  CRON_FAILED: "Cron job en échec",
-  UPDATES_AVAILABLE: "Mises à jour disponibles",
-  CERT_EXPIRING: "Certificat SSL expirant dans",
-  HARDENING_INDEX_BELOW: "Indice de durcissement sous",
-};
-
-// Unite du threshold selon conditionType
-function thresholdUnit(conditionType: string): string {
+// Clé i18n de l'unité du threshold selon conditionType (résolue via t(`units.${key}`)).
+function thresholdUnitKey(conditionType: string): string {
   switch (conditionType) {
-    case "MACHINE_OFFLINE": return "secondes";
-    case "CERT_EXPIRING": return "jours";
+    case "MACHINE_OFFLINE": return "seconds";
+    case "CERT_EXPIRING": return "days";
     case "UPDATES_AVAILABLE": return "updates";
-    case "HARDENING_INDEX_BELOW": return "/100";
+    case "HARDENING_INDEX_BELOW": return "score";
     case "SERVICE_FAILED":
     case "TIMER_FAILED":
     case "CRON_FAILED":
-      return ""; // Pas de threshold, juste filtre optionnel
+      return "none"; // Pas de threshold, juste filtre optionnel
     default:
-      return "%";
+      return "percent";
   }
 }
 
@@ -90,6 +77,7 @@ function needsThreshold(conditionType: string): boolean {
 }
 
 export default function Alerts() {
+  const { t } = useTranslation(["alerts", "common"]);
   const { user } = useAuth();
   const [tab, setTab] = useState<"active" | "rules" | "history">("active");
   const [activeAlerts, setActiveAlerts] = useState<AlertState[]>([]);
@@ -180,11 +168,11 @@ export default function Alerts() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${sessionStorage.getItem("nexus_token")}` },
       });
-      if (!res.ok) throw new Error("Échec de la suppression");
-      toast.success("Règle supprimée");
+      if (!res.ok) throw new Error(t("toast.deleteError"));
+      toast.success(t("toast.deleted"));
       fetchData();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     }
   };
 
@@ -208,10 +196,10 @@ export default function Alerts() {
       const r = await api.testAlertRule(id);
       const failed = r.results.filter((res) => !res.success);
       if (failed.length === 0) {
-        toast.success(`Test "${name}" : ${r.ok}/${r.total} canaux OK`, { duration: 4000 });
+        toast.success(t("toast.testOk", { name, ok: r.ok, total: r.total }), { duration: 4000 });
       } else {
         toast.error(
-          `Test "${name}" : ${r.ok}/${r.total} OK · ${failed.length} échec(s)`,
+          t("toast.testFail", { name, ok: r.ok, total: r.total, failed: failed.length }),
           {
             description: failed.map((f) => `${f.type}: ${f.error}`).join(" · "),
             duration: 8000,
@@ -219,7 +207,7 @@ export default function Alerts() {
         );
       }
     } catch (err) {
-      toast.error("Erreur test : " + (getErrorMessage(err, "unknown")));
+      toast.error(t("toast.testError", { message: getErrorMessage(err, "unknown") }));
     } finally {
       setTestingRule(null);
     }
@@ -234,9 +222,9 @@ export default function Alerts() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Alertes</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("common:nav.alerts")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {activeAlerts.filter((a) => a.status === "FIRING").length} alerte{activeAlerts.filter((a) => a.status === "FIRING").length > 1 ? "s" : ""} active{activeAlerts.filter((a) => a.status === "FIRING").length > 1 ? "s" : ""}
+            {t("subtitle", { count: activeAlerts.filter((a) => a.status === "FIRING").length })}
           </p>
         </div>
         {user?.role === "ADMIN" && (
@@ -245,26 +233,26 @@ export default function Alerts() {
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="w-4 h-4" />
-            Nouvelle règle
+            {t("newRule")}
           </Link>
         )}
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border border-border p-1 mb-6 w-fit">
-        {(["active", "rules", "history"] as const).map((t) => (
+        {(["active", "rules", "history"] as const).map((tabId) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabId}
+            onClick={() => setTab(tabId)}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tab === t
+              tab === tabId
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "active" && `Actives (${activeAlerts.length})`}
-            {t === "rules" && `Règles (${rules.length})`}
-            {t === "history" && "Historique"}
+            {tabId === "active" && t("tabs.active", { count: activeAlerts.length })}
+            {tabId === "rules" && t("tabs.rules", { count: rules.length })}
+            {tabId === "history" && t("tabs.history")}
           </button>
         ))}
       </div>
@@ -275,7 +263,7 @@ export default function Alerts() {
           {activeAlerts.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
-              <p>Aucune alerte active</p>
+              <p>{t("noActive")}</p>
             </div>
           ) : (
             activeAlerts.map((alert) => {
@@ -298,22 +286,22 @@ export default function Alerts() {
                           </span>
                           {alert.status === "ACKNOWLEDGED" && (
                             <span className="text-xs text-muted-foreground">
-                              (acquitté par {alert.acknowledgedBy})
+                              {t("acknowledgedBy", { user: alert.acknowledgedBy })}
                             </span>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                          Machine : <span className="text-foreground">{alert.machine.name}</span>
+                          {t("machineLabel")} <span className="text-foreground">{alert.machine.name}</span>
                           {alert.details?.value != null && (
-                            <> — Valeur : <span className="text-foreground">{Number(alert.details.value).toFixed(1)}%</span>
+                            <> — {t("valueLabel")} <span className="text-foreground">{Number(alert.details.value).toFixed(1)}%</span>
                               {alert.details.threshold != null && (
-                                <> (seuil : {alert.details.threshold}%)</>
+                                <> {t("thresholdInline", { threshold: alert.details.threshold })}</>
                               )}
                             </>
                           )}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Déclenchée {timeAgo(alert.firedAt)}
+                          {t("firedAt", { time: timeAgo(alert.firedAt) })}
                         </p>
                       </div>
                     </div>
@@ -330,7 +318,7 @@ export default function Alerts() {
                         onClick={() => resolveAlert(alert.id)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
                       >
-                        Résoudre
+                        {t("resolve")}
                       </button>
                     </div>
                   </div>
@@ -361,16 +349,16 @@ export default function Alerts() {
                     </span>
                     {rule.firingCount > 0 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
-                        {rule.firingCount} active{rule.firingCount > 1 ? "s" : ""}
+                        {t("ruleActiveCount", { count: rule.firingCount })}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {CONDITION_LABELS[rule.conditionType] || rule.conditionType}
-                    {needsThreshold(rule.conditionType) && rule.threshold != null && ` ${rule.threshold} ${thresholdUnit(rule.conditionType)}`}
+                    {t(`conditions.${rule.conditionType}`, { defaultValue: rule.conditionType })}
+                    {needsThreshold(rule.conditionType) && rule.threshold != null && ` ${rule.threshold} ${t(`units.${thresholdUnitKey(rule.conditionType)}`)}`}
                     {rule.targetPattern && ` "${rule.targetPattern}"`}
-                    {rule.machineIds.length > 0 && ` · ${rule.machineIds.length} machine(s)`}
-                    {rule.machineIds.length === 0 && " · Toutes les machines"}
+                    {rule.machineIds.length > 0 && ` · ${t("machinesCount", { count: rule.machineIds.length })}`}
+                    {rule.machineIds.length === 0 && ` · ${t("allMachines")}`}
                   </p>
                   {Array.isArray(rule.channels) && rule.channels.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -390,7 +378,7 @@ export default function Alerts() {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    Modifier
+                    {t("common:actions.edit")}
                   </Link>
                   <Button
                     size="sm"
@@ -398,9 +386,9 @@ export default function Alerts() {
                     onClick={() => testRule(rule.id, rule.name)}
                     loading={testingRule === rule.id}
                     icon={<Zap />}
-                    title="Envoyer un événement de test sur tous les canaux configurés"
+                    title={t("testTitle")}
                   >
-                    Tester
+                    {t("common:actions.test")}
                   </Button>
                   <Button
                     size="sm"
@@ -412,14 +400,14 @@ export default function Alerts() {
                         : "!border-success !text-success hover:!bg-success-subtle"
                     }
                   >
-                    {rule.enabled ? "Désactiver" : "Activer"}
+                    {rule.enabled ? t("common:actions.disable") : t("common:actions.enable")}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => setPendingDelete({ id: rule.id, name: rule.name })}
                     icon={<Trash2 />}
-                    aria-label="Supprimer la règle"
+                    aria-label={t("deleteRuleAria")}
                     className="!text-muted-foreground hover:!text-destructive"
                   />
                 </div>
@@ -434,7 +422,7 @@ export default function Alerts() {
         <div className="space-y-2">
           {history.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
-              Aucun historique
+              {t("noHistory")}
             </div>
           ) : (
             history.map((alert) => (
@@ -448,7 +436,7 @@ export default function Alerts() {
                     alert.status === "FIRING" ? "bg-red-500/10 text-red-400" :
                     "bg-amber-500/10 text-amber-400"
                   }`}>
-                    {alert.status === "RESOLVED" ? "Résolu" : alert.status === "FIRING" ? "Actif" : "Acquitté"}
+                    {alert.status === "RESOLVED" ? t("historyStatus.resolved") : alert.status === "FIRING" ? t("historyStatus.firing") : t("historyStatus.acknowledged")}
                   </span>
                   <span className="text-sm text-foreground">{alert.rule.name}</span>
                   <span className="text-xs text-muted-foreground">{alert.machine.name}</span>
@@ -467,16 +455,18 @@ export default function Alerts() {
         onConfirm={async () => {
           if (pendingDelete) await performDelete(pendingDelete.id);
         }}
-        title="Supprimer cette règle d'alerte ?"
+        title={t("confirmDeleteTitle")}
         description={
           pendingDelete && (
-            <>
-              La règle <strong>{pendingDelete.name}</strong> sera supprimée définitivement.
-              L'historique des alertes déclenchées par cette règle sera conservé.
-            </>
+            <Trans
+              i18nKey="confirmDeleteBody"
+              t={t}
+              values={{ name: pendingDelete.name }}
+              components={{ strong: <strong /> }}
+            />
           )
         }
-        confirmLabel="Supprimer"
+        confirmLabel={t("common:actions.delete")}
         variant="danger"
       />
     </div>

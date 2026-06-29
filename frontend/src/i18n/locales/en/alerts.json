@@ -1,0 +1,125 @@
+{
+  "subtitle_one": "{{count}} active alert",
+  "subtitle_other": "{{count}} active alerts",
+  "newRule": "New rule",
+  "tabs": {
+    "active": "Active ({{count}})",
+    "rules": "Rules ({{count}})",
+    "history": "History"
+  },
+  "noActive": "No active alerts",
+  "acknowledgedBy": "(acknowledged by {{user}})",
+  "machineLabel": "Machine:",
+  "valueLabel": "Value:",
+  "thresholdInline": "(threshold: {{threshold}}%)",
+  "firedAt": "Triggered {{time}}",
+  "resolve": "Resolve",
+  "ruleActiveCount_one": "{{count}} active",
+  "ruleActiveCount_other": "{{count}} active",
+  "allMachines": "All machines",
+  "machinesCount": "{{count}} machine(s)",
+  "testTitle": "Send a test event to all configured channels",
+  "deleteRuleAria": "Delete rule",
+  "noHistory": "No history",
+  "historyStatus": {
+    "resolved": "Resolved",
+    "firing": "Active",
+    "acknowledged": "Acknowledged"
+  },
+  "confirmDeleteTitle": "Delete this alert rule?",
+  "confirmDeleteBody": "The rule <strong>{{name}}</strong> will be permanently deleted. The history of alerts triggered by this rule will be kept.",
+  "toast": {
+    "deleted": "Rule deleted",
+    "deleteError": "Deletion failed",
+    "testOk": "Test \"{{name}}\": {{ok}}/{{total}} channels OK",
+    "testFail": "Test \"{{name}}\": {{ok}}/{{total}} OK · {{failed}} failure(s)",
+    "testError": "Test error: {{message}}",
+    "loadError": "Error loading the rule",
+    "nameRequired": "Name is required",
+    "saved": "Rule updated",
+    "created": "Rule created"
+  },
+  "conditions": {
+    "CPU_ABOVE": "CPU above",
+    "MEMORY_ABOVE": "Memory above",
+    "DISK_ABOVE": "Disk above",
+    "MACHINE_OFFLINE": "Machine offline for",
+    "LOAD_ABOVE": "Load average above",
+    "SERVICE_FAILED": "systemd service failed",
+    "TIMER_FAILED": "systemd timer failed",
+    "CRON_FAILED": "Cron job failed",
+    "UPDATES_AVAILABLE": "Updates available",
+    "CERT_EXPIRING": "SSL certificate expiring in",
+    "HARDENING_INDEX_BELOW": "Hardening index below"
+  },
+  "conditionsForm": {
+    "UPDATES_AVAILABLE": "Updates available (>X)"
+  },
+  "conditionGroups": {
+    "metrics": "Metrics",
+    "connection": "Connection",
+    "systemHealth": "System health",
+    "security": "Security"
+  },
+  "units": {
+    "seconds": "seconds",
+    "days": "days",
+    "updates": "updates",
+    "score": "/100",
+    "percent": "%",
+    "none": ""
+  },
+  "severity": {
+    "INFO": "Info",
+    "WARNING": "Warning",
+    "CRITICAL": "Critical"
+  },
+  "form": {
+    "back": "Back to alerts",
+    "titleEdit": "Edit rule",
+    "titleNew": "New alert rule",
+    "subtitleEdit": "Editing an existing rule",
+    "subtitleNew": "Create a rule that triggers when a condition is met",
+    "sectionIdentity": "Identity",
+    "nameLabel": "Name",
+    "namePlaceholder": "Critical CPU",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Optional",
+    "severityLabel": "Severity",
+    "sectionCondition": "Trigger condition",
+    "conditionTypeLabel": "Condition type",
+    "thresholdLabel": "Threshold ({{unit}})",
+    "filterLabel": "Filter (optional)",
+    "filterPlaceholderService": "nginx, postgresql (empty = any failed service)",
+    "filterPlaceholderDefault": "pattern",
+    "filterHint": "Substring matching. Empty = any failed service triggers.",
+    "sectionTargets": "Targeted machines",
+    "allMachinesDefault": "All machines are monitored (default)",
+    "selectedCount_one": "{{count}} machine selected",
+    "selectedCount_other": "{{count}} machines selected",
+    "deselectAll": "Deselect all (= all machines)",
+    "sectionBehavior": "Behavior",
+    "durationLabel": "Minimum duration before triggering (s)",
+    "durationHint": "0 = immediate triggering. Otherwise the condition must hold for X seconds.",
+    "cooldownLabel": "Anti-spam cooldown (s)",
+    "cooldownHint": "Minimum delay between two notifications for the same alert.",
+    "sectionChannels": "Notification channels",
+    "channelsHint": "Discord, Slack, Microsoft Teams, Email or custom Webhook. No channel = the alert is only visible in the UI/dashboard without external notification.",
+    "submitEdit": "Save",
+    "submitNew": "Create rule"
+  },
+  "channels": {
+    "empty": "No channel configured. Add Discord, Slack, Teams, Email or Webhook.",
+    "add": "Add a channel",
+    "removeTitle": "Remove this channel",
+    "signatureHint": "Header <code>X-Nexus-Signature: sha256=...</code> computed over the JSON body.",
+    "hmacPlaceholder": "HMAC secret (optional — uses the global secret if empty)",
+    "types": {
+      "DISCORD": "Discord",
+      "SLACK": "Slack",
+      "TEAMS": "Microsoft Teams",
+      "EMAIL": "Email",
+      "WEBHOOK": "Custom webhook"
+    }
+  }
+}

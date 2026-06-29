@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bell, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Card, CardHeader, CardTitle, Input, PageHeader, PageLoader } from "../components/ui";
@@ -8,53 +9,32 @@ import { useMachines } from "../hooks/useMachines";
 import { getErrorMessage } from "../services/errors";
 
 const SEVERITY_OPTS = [
-  { value: "INFO", label: "Info", className: "bg-info-subtle text-info border-info" },
-  { value: "WARNING", label: "Warning", className: "bg-warning-subtle text-warning border-warning" },
-  { value: "CRITICAL", label: "Critical", className: "bg-danger-subtle text-danger border-danger" },
+  { value: "INFO", className: "bg-info-subtle text-info border-info" },
+  { value: "WARNING", className: "bg-warning-subtle text-warning border-warning" },
+  { value: "CRITICAL", className: "bg-danger-subtle text-danger border-danger" },
 ] as const;
 
+// Groupes du sélecteur de condition : clé de groupe i18n + valeurs.
+// Le libellé de chaque option vient de t(`conditionsForm.${v}`) avec fallback
+// sur t(`conditions.${v}`) (override seulement là où le form diffère, ex. UPDATES_AVAILABLE).
 const CONDITION_GROUPS = [
-  {
-    label: "Métriques",
-    options: [
-      { value: "CPU_ABOVE", label: "CPU supérieur à" },
-      { value: "MEMORY_ABOVE", label: "Mémoire supérieure à" },
-      { value: "DISK_ABOVE", label: "Disque supérieur à" },
-      { value: "LOAD_ABOVE", label: "Load average supérieur à" },
-    ],
-  },
-  {
-    label: "Connexion",
-    options: [{ value: "MACHINE_OFFLINE", label: "Machine hors ligne depuis" }],
-  },
-  {
-    label: "Santé système",
-    options: [
-      { value: "SERVICE_FAILED", label: "Service systemd en échec" },
-      { value: "TIMER_FAILED", label: "Timer systemd en échec" },
-      { value: "UPDATES_AVAILABLE", label: "Mises à jour disponibles (>X)" },
-      { value: "CERT_EXPIRING", label: "Certificat SSL expirant dans" },
-    ],
-  },
-  {
-    label: "Sécurité",
-    options: [
-      { value: "HARDENING_INDEX_BELOW", label: "Indice de durcissement sous" },
-    ],
-  },
+  { key: "metrics", options: ["CPU_ABOVE", "MEMORY_ABOVE", "DISK_ABOVE", "LOAD_ABOVE"] },
+  { key: "connection", options: ["MACHINE_OFFLINE"] },
+  { key: "systemHealth", options: ["SERVICE_FAILED", "TIMER_FAILED", "UPDATES_AVAILABLE", "CERT_EXPIRING"] },
+  { key: "security", options: ["HARDENING_INDEX_BELOW"] },
 ];
 
-function thresholdUnit(t: string): string {
+function thresholdUnitKey(t: string): string {
   switch (t) {
-    case "MACHINE_OFFLINE": return "secondes";
-    case "CERT_EXPIRING": return "jours";
+    case "MACHINE_OFFLINE": return "seconds";
+    case "CERT_EXPIRING": return "days";
     case "UPDATES_AVAILABLE": return "updates";
-    case "HARDENING_INDEX_BELOW": return "/100";
+    case "HARDENING_INDEX_BELOW": return "score";
     case "SERVICE_FAILED":
     case "TIMER_FAILED":
     case "CRON_FAILED":
-      return "";
-    default: return "%";
+      return "none";
+    default: return "percent";
   }
 }
 
@@ -67,6 +47,7 @@ function needsTargetPattern(t: string): boolean {
 }
 
 export default function AlertCreate() {
+  const { t } = useTranslation(["alerts", "common"]);
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
@@ -105,14 +86,14 @@ export default function AlertCreate() {
         setMachineIds(rule.machineIds || []);
         setChannels(Array.isArray(rule.channels) ? rule.channels : []);
       })
-      .catch(() => toast.error("Erreur de chargement de la règle"))
+      .catch(() => toast.error(t("toast.loadError")))
       .finally(() => setLoading(false));
   }, [isEdit, id]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error("Le nom est requis");
+      toast.error(t("toast.nameRequired"));
       return;
     }
     setSubmitting(true);
@@ -148,10 +129,10 @@ export default function AlertCreate() {
         const data = await res.json();
         throw new Error(data.error || "Échec");
       }
-      toast.success(isEdit ? "Règle modifiée" : "Règle créée");
+      toast.success(isEdit ? t("toast.saved") : t("toast.created"));
       navigate("/alerts");
     } catch (err) {
-      toast.error(getErrorMessage(err, "Erreur"));
+      toast.error(getErrorMessage(err, t("common:errors.generic")));
     } finally {
       setSubmitting(false);
     }
@@ -171,51 +152,47 @@ export default function AlertCreate() {
         to="/alerts"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4"
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> Retour aux alertes
+        <ArrowLeft className="w-3.5 h-3.5" /> {t("form.back")}
       </Link>
 
       <PageHeader
         icon={Bell}
-        title={isEdit ? "Modifier la règle" : "Nouvelle règle d'alerte"}
-        description={
-          isEdit
-            ? "Édition d'une règle existante"
-            : "Créez une règle qui se déclenche quand une condition est remplie"
-        }
+        title={isEdit ? t("form.titleEdit") : t("form.titleNew")}
+        description={isEdit ? t("form.subtitleEdit") : t("form.subtitleNew")}
       />
 
       <form onSubmit={submit} className="space-y-6">
         {/* Identité */}
         <Card>
           <CardHeader>
-            <CardTitle>Identité</CardTitle>
+            <CardTitle>{t("form.sectionIdentity")}</CardTitle>
           </CardHeader>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Nom <span className="text-destructive">*</span>
+                {t("form.nameLabel")} <span className="text-destructive">*</span>
               </label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="CPU critique"
+                placeholder={t("form.namePlaceholder")}
                 required
                 autoFocus={!isEdit}
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Description
+                {t("form.descriptionLabel")}
               </label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optionnel"
+                placeholder={t("form.descriptionPlaceholder")}
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Sévérité
+                {t("form.severityLabel")}
               </label>
               <div className="flex gap-2">
                 {SEVERITY_OPTS.map((s) => (
@@ -229,7 +206,7 @@ export default function AlertCreate() {
                         : "border-border text-muted-foreground hover:bg-muted"
                     }`}
                   >
-                    {s.label}
+                    {t(`severity.${s.value}`)}
                   </button>
                 ))}
               </div>
@@ -240,12 +217,12 @@ export default function AlertCreate() {
         {/* Condition */}
         <Card>
           <CardHeader>
-            <CardTitle>Condition de déclenchement</CardTitle>
+            <CardTitle>{t("form.sectionCondition")}</CardTitle>
           </CardHeader>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Type de condition
+                {t("form.conditionTypeLabel")}
               </label>
               <select
                 value={conditionType}
@@ -253,10 +230,10 @@ export default function AlertCreate() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {CONDITION_GROUPS.map((g) => (
-                  <optgroup key={g.label} label={g.label}>
-                    {g.options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
+                  <optgroup key={g.key} label={t(`conditionGroups.${g.key}`)}>
+                    {g.options.map((v) => (
+                      <option key={v} value={v}>
+                        {t(`conditionsForm.${v}`, { defaultValue: t(`conditions.${v}`) })}
                       </option>
                     ))}
                   </optgroup>
@@ -267,7 +244,7 @@ export default function AlertCreate() {
             {needsThreshold(conditionType) && (
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                  Seuil ({thresholdUnit(conditionType)})
+                  {t("form.thresholdLabel", { unit: t(`units.${thresholdUnitKey(conditionType)}`) })}
                 </label>
                 <Input
                   type="number"
@@ -281,19 +258,19 @@ export default function AlertCreate() {
             {needsTargetPattern(conditionType) && (
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                  Filtre (optionnel)
+                  {t("form.filterLabel")}
                 </label>
                 <Input
                   value={targetPattern}
                   onChange={(e) => setTargetPattern(e.target.value)}
                   placeholder={
                     conditionType === "SERVICE_FAILED"
-                      ? "nginx, postgresql (vide = tout service en échec)"
-                      : "pattern"
+                      ? t("form.filterPlaceholderService")
+                      : t("form.filterPlaceholderDefault")
                   }
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Substring matching. Vide = n'importe quel service en échec déclenche.
+                  {t("form.filterHint")}
                 </p>
               </div>
             )}
@@ -303,13 +280,13 @@ export default function AlertCreate() {
         {/* Cibles */}
         <Card>
           <CardHeader>
-            <CardTitle>Machines ciblées</CardTitle>
+            <CardTitle>{t("form.sectionTargets")}</CardTitle>
           </CardHeader>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               {machineIds.length === 0
-                ? "Toutes les machines sont surveillées (par défaut)"
-                : `${machineIds.length} machine${machineIds.length > 1 ? "s" : ""} sélectionnée${machineIds.length > 1 ? "s" : ""}`}
+                ? t("form.allMachinesDefault")
+                : t("form.selectedCount", { count: machineIds.length })}
             </p>
             {machines.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto">
@@ -337,7 +314,7 @@ export default function AlertCreate() {
                 onClick={() => setMachineIds([])}
                 icon={<Trash2 />}
               >
-                Tout désélectionner (= toutes les machines)
+                {t("form.deselectAll")}
               </Button>
             )}
           </div>
@@ -346,12 +323,12 @@ export default function AlertCreate() {
         {/* Comportement */}
         <Card>
           <CardHeader>
-            <CardTitle>Comportement</CardTitle>
+            <CardTitle>{t("form.sectionBehavior")}</CardTitle>
           </CardHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Durée minimale avant déclenchement (s)
+                {t("form.durationLabel")}
               </label>
               <Input
                 type="number"
@@ -360,12 +337,12 @@ export default function AlertCreate() {
                 onChange={(e) => setDurationSeconds(Number(e.target.value))}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                0 = déclenchement immédiat. Sinon la condition doit être vraie X secondes.
+                {t("form.durationHint")}
               </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Cooldown anti-spam (s)
+                {t("form.cooldownLabel")}
               </label>
               <Input
                 type="number"
@@ -374,7 +351,7 @@ export default function AlertCreate() {
                 onChange={(e) => setCooldownSeconds(Number(e.target.value))}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Délai minimal entre deux notifications pour la même alerte.
+                {t("form.cooldownHint")}
               </p>
             </div>
           </div>
@@ -383,11 +360,10 @@ export default function AlertCreate() {
         {/* Channels */}
         <Card>
           <CardHeader>
-            <CardTitle>Canaux de notification</CardTitle>
+            <CardTitle>{t("form.sectionChannels")}</CardTitle>
           </CardHeader>
           <p className="text-xs text-muted-foreground mb-3">
-            Discord, Slack, Microsoft Teams, Email ou Webhook personnalisé. Aucun canal =
-            l'alerte est visible uniquement dans l'UI/dashboard sans notification externe.
+            {t("form.channelsHint")}
           </p>
           <AlertChannelEditor value={channels} onChange={setChannels} />
         </Card>
@@ -401,7 +377,7 @@ export default function AlertCreate() {
             onClick={() => navigate("/alerts")}
             disabled={submitting}
           >
-            Annuler
+            {t("common:actions.cancel")}
           </Button>
           <Button
             type="submit"
@@ -410,7 +386,7 @@ export default function AlertCreate() {
             loading={submitting}
             icon={<Save />}
           >
-            {isEdit ? "Enregistrer" : "Créer la règle"}
+            {isEdit ? t("form.submitEdit") : t("form.submitNew")}
           </Button>
         </div>
       </form>

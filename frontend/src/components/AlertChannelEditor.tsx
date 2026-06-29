@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Trash2, MessageSquare, Hash, Send, Mail, Webhook as WebhookIcon } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 
 export type ChannelType = "DISCORD" | "SLACK" | "TEAMS" | "EMAIL" | "WEBHOOK";
 
@@ -13,15 +14,17 @@ interface Props {
   onChange: (channels: NotificationChannel[]) => void;
 }
 
-const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof MessageSquare; color: string }> = {
-  DISCORD: { label: "Discord", icon: MessageSquare, color: "#5865F2" },
-  SLACK: { label: "Slack", icon: Hash, color: "#4A154B" },
-  TEAMS: { label: "Microsoft Teams", icon: Send, color: "#6264A7" },
-  EMAIL: { label: "Email", icon: Mail, color: "var(--nx-info)" },
-  WEBHOOK: { label: "Webhook custom", icon: WebhookIcon, color: "var(--nx-text-weak)" },
+// Icône/couleur par canal ; le libellé vient de t(`channels.types.${type}`).
+const CHANNEL_META: Record<ChannelType, { icon: typeof MessageSquare; color: string }> = {
+  DISCORD: { icon: MessageSquare, color: "#5865F2" },
+  SLACK: { icon: Hash, color: "#4A154B" },
+  TEAMS: { icon: Send, color: "#6264A7" },
+  EMAIL: { icon: Mail, color: "var(--nx-info)" },
+  WEBHOOK: { icon: WebhookIcon, color: "var(--nx-text-weak)" },
 };
 
 export default function AlertChannelEditor({ value, onChange }: Props) {
+  const { t } = useTranslation(["alerts", "common"]);
   const [adding, setAdding] = useState(false);
 
   const addChannel = (type: ChannelType) => {
@@ -47,7 +50,7 @@ export default function AlertChannelEditor({ value, onChange }: Props) {
     <div className="space-y-2">
       {value.length === 0 && (
         <div className="rounded-lg p-3 text-xs text-center" style={{ background: "var(--nx-bg-elevated)", color: "var(--nx-text-weak)" }}>
-          Aucun canal configuré. Ajoutez Discord, Slack, Teams, Email ou Webhook.
+          {t("channels.empty")}
         </div>
       )}
 
@@ -74,7 +77,7 @@ export default function AlertChannelEditor({ value, onChange }: Props) {
                 style={{ border: `1px solid ${meta.color}`, color: meta.color }}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {meta.label}
+                {t(`channels.types.${type}`)}
               </button>
             );
           })}
@@ -84,7 +87,7 @@ export default function AlertChannelEditor({ value, onChange }: Props) {
             className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium col-span-2 sm:col-span-5"
             style={{ color: "var(--nx-text-weak)" }}
           >
-            Annuler
+            {t("common:actions.cancel")}
           </button>
         </div>
       ) : (
@@ -94,7 +97,7 @@ export default function AlertChannelEditor({ value, onChange }: Props) {
           className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium border border-dashed border-border hover:bg-muted transition-colors"
           style={{ color: "var(--nx-text-weak)" }}
         >
-          <Plus className="w-3.5 h-3.5" /> Ajouter un canal
+          <Plus className="w-3.5 h-3.5" /> {t("channels.add")}
         </button>
       )}
     </div>
@@ -110,6 +113,7 @@ function ChannelRow({
   onChange: (config: Record<string, any>) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation(["alerts", "common"]);
   const meta = CHANNEL_META[channel.type];
   const Icon = meta.icon;
 
@@ -118,13 +122,13 @@ function ChannelRow({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: meta.color }}>
           <Icon className="w-3.5 h-3.5" />
-          {meta.label}
+          {t(`channels.types.${channel.type}`)}
         </div>
         <button
           type="button"
           onClick={onRemove}
           className="p-1 rounded hover:bg-muted"
-          title="Supprimer ce canal"
+          title={t("channels.removeTitle")}
         >
           <Trash2 className="w-3 h-3" style={{ color: "var(--nx-danger)" }} />
         </button>
@@ -166,11 +170,11 @@ function ChannelRow({
             type="password"
             value={channel.config.hmacSecret || ""}
             onChange={(e) => onChange({ ...channel.config, hmacSecret: e.target.value })}
-            placeholder="HMAC secret (optionnel — utilise le secret global si vide)"
+            placeholder={t("channels.hmacPlaceholder")}
             className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono"
           />
           <p className="text-[10px]" style={{ color: "var(--nx-text-weak)" }}>
-            Header <code>X-Nexus-Signature: sha256=...</code> calculé sur le body JSON.
+            <Trans i18nKey="channels.signatureHint" t={t} components={{ code: <code /> }} />
           </p>
         </div>
       )}
@@ -179,6 +183,7 @@ function ChannelRow({
 }
 
 function EmailRecipients({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation("common");
   const [input, setInput] = useState("");
 
   const add = () => {
@@ -231,7 +236,7 @@ function EmailRecipients({ value, onChange }: { value: string[]; onChange: (v: s
           className="rounded px-3 py-1 text-xs font-medium"
           style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
         >
-          Ajouter
+          {t("actions.add")}
         </button>
       </div>
     </div>
