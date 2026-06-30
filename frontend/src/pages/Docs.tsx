@@ -1,22 +1,24 @@
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight } from "lucide-react";
 
 type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security";
 
-const sections: { id: Section; label: string; icon: typeof Book }[] = [
-  { id: "start", label: "Démarrage rapide", icon: Book },
-  { id: "agent", label: "Installation Agent", icon: Terminal },
-  { id: "self", label: "Self-monitoring", icon: Server },
-  { id: "machines", label: "Gestion des machines", icon: Server },
-  { id: "tags", label: "Tags & Groupes", icon: Tag },
-  { id: "alerts", label: "Alertes & Notifications", icon: Bell },
-  { id: "updates", label: "Mises à jour", icon: Download },
-  { id: "ssh", label: "Configuration SSH", icon: Terminal },
-  { id: "security", label: "Sécurité", icon: Shield },
-  { id: "api", label: "API Reference", icon: Settings },
+const sections: { id: Section; icon: typeof Book }[] = [
+  { id: "start", icon: Book },
+  { id: "agent", icon: Terminal },
+  { id: "self", icon: Server },
+  { id: "machines", icon: Server },
+  { id: "tags", icon: Tag },
+  { id: "alerts", icon: Bell },
+  { id: "updates", icon: Download },
+  { id: "ssh", icon: Terminal },
+  { id: "security", icon: Shield },
+  { id: "api", icon: Settings },
 ];
 
 export default function Docs() {
+  const { t } = useTranslation("docs");
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
@@ -29,10 +31,10 @@ export default function Docs() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Book className="w-6 h-6" /> Documentation
+          <Book className="w-6 h-6" /> {t("pageTitle")}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Guide d'utilisation de Nexus
+          {t("pageSubtitle")}
         </p>
       </div>
 
@@ -52,7 +54,7 @@ export default function Docs() {
               }}
             >
               <Icon className="w-3.5 h-3.5 shrink-0" />
-              {s.label}
+              {t(`nav.${s.id}`)}
             </button>
           );
         })}
@@ -96,429 +98,337 @@ function Code({ children }: { children: string }) {
     </pre>
   );
 }
+/* Inline code with the elevated-background pill style (vs. plain <code>). */
+function IC({ children }: { children?: React.ReactNode }) {
+  return <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>{children}</code>;
+}
 function Tip({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation("docs");
   return (
     <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: "var(--nx-primary-subtle)", borderLeft: "3px solid var(--nx-primary)", color: "var(--nx-text)" }}>
-      <span className="font-bold text-primary">Tip : </span>{children}
+      <span className="font-bold text-primary">{t("callout.tip")}</span>{children}
     </div>
   );
 }
 function Warn({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation("docs");
   return (
     <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: "var(--nx-warning-subtle)", borderLeft: "3px solid var(--nx-warning)", color: "var(--nx-text)" }}>
-      <span className="font-bold" style={{ color: "var(--nx-warning)" }}>Attention : </span>{children}
+      <span className="font-bold" style={{ color: "var(--nx-warning)" }}>{t("callout.warn")}</span>{children}
     </div>
   );
 }
 
+const UL = "list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1";
+
 /* ── Sections ───────────────────────────── */
 
 function StartDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Démarrage rapide</H1>
-    <P>Nexus est une plateforme de gestion d'infrastructure qui permet de surveiller, mettre à jour et administrer vos serveurs Ubuntu/Debian depuis une interface web unifiée.</P>
+    <H1>{t("start.title")}</H1>
+    <P>{t("start.intro")}</P>
 
     <Warn>
-      <strong>Une instance = un seul domaine de confiance</strong> (pas d'isolation par
-      utilisateur ou par locataire). Avant de partager une instance entre plusieurs équipes
-      ou clients, lisez la section <strong>Sécurité</strong> : pour des domaines de confiance
-      distincts, déployez des instances séparées.
+      <Trans t={t} i18nKey="start.trustWarn" components={{ b: <strong /> }} />
     </Warn>
 
-    <H2>Architecture</H2>
-    <P>Nexus se compose de 3 éléments :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Serveur Nexus</strong> — Backend Fastify + Frontend React, déployé via Docker Compose</li>
-      <li><strong className="text-foreground">Agent Nexus</strong> — Binaire Go installé sur chaque machine à gérer (service systemd)</li>
+    <H2>{t("start.archTitle")}</H2>
+    <P>{t("start.archIntro")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="start.archServer" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="start.archAgent" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>Prérequis</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li>Docker + Docker Compose sur le serveur Nexus</li>
-      <li>Ubuntu 20.04+ ou Debian 11+ sur les machines cibles</li>
-      <li>Accès réseau entre les machines et le serveur Nexus (port 26033)</li>
+    <H2>{t("start.prereqTitle")}</H2>
+    <ul className={UL}>
+      <li>{t("start.prereq1")}</li>
+      <li>{t("start.prereq2")}</li>
+      <li>{t("start.prereq3")}</li>
     </ul>
 
-    <H2>Installation du serveur</H2>
-    <Code>{`# Cloner le projet
-git clone <repo> nexus && cd nexus
+    <H2>{t("start.serverInstallTitle")}</H2>
+    <Code>{t("start.installCode")}</Code>
 
-# Configurer l'environnement
-cp .env.example .env
-# Modifier .env avec vos valeurs (JWT_SECRET, ECDSA_MASTER_SECRET, etc.)
+    <H2>{t("start.firstLoginTitle")}</H2>
+    <P>{t("start.firstLoginText")}</P>
 
-# Lancer
-docker compose up -d
-
-# Le dashboard est accessible sur :
-#   https://localhost:26033  (HTTPS auto-signé)
-#   http://localhost:26032   (redirige vers HTTPS)`}</Code>
-
-    <H2>Premier login</H2>
-    <P>Connectez-vous avec le compte admin créé par le seed de la base de données. Changez le mot de passe après la première connexion.</P>
-
-    <H2>Ajouter votre première machine</H2>
-    <P>Depuis le Dashboard ou la page Machines, cliquez sur "Ajouter une machine". Nexus génère un token d'enrollment unique valable 24h. Utilisez ce token pour installer l'agent sur la machine cible.</P>
+    <H2>{t("start.firstMachineTitle")}</H2>
+    <P>{t("start.firstMachineText")}</P>
 
     <Warn>
-      <strong>Ordre de bootstrap obligatoire.</strong> Le binaire de l'agent n'est{" "}
-      <strong>pas</strong> inclus dans l'image backend : il est servi depuis le volume{" "}
-      <code>release/</code>, alimenté <strong>uniquement par une release signée</strong>.
-      Tant qu'aucune release n'est publiée, le téléchargement renvoie une erreur (« binary not
-      available ») — <strong>ni installation ni mise à jour</strong> d'agent possibles. Ordre
-      correct : déployer le backend → <strong>publier la 1ʳᵉ release signée</strong> → puis
-      installer des agents. (Les agents déjà enrôlés ne sont pas affectés.)
+      <Trans t={t} i18nKey="start.bootstrapWarn" components={{ b: <strong />, c: <code /> }} />
     </Warn>
   </>);
 }
 
 function AgentDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Installation de l'Agent</H1>
-    <P>L'agent Nexus est un binaire Go léger qui s'installe comme service systemd sur chaque machine à gérer.</P>
+    <H1>{t("agent.title")}</H1>
+    <P>{t("agent.intro")}</P>
 
-    <H2>1. Créer la machine dans Nexus</H2>
-    <P>Depuis l'interface web, allez dans Machines → Ajouter une machine. Choisissez un nom. Nexus vous donne :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Machine ID</strong> — Identifiant unique</li>
-      <li><strong className="text-foreground">Enrollment Token</strong> — Token d'authentification (valable 24h)</li>
-      <li><strong className="text-foreground">Backend Public Key</strong> — Clé publique du serveur</li>
+    <H2>{t("agent.step1Title")}</H2>
+    <P>{t("agent.step1Text")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="agent.step1MachineId" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.step1Token" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.step1Key" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>2. Installer l'agent via le script</H2>
-    <Code>{`# Sur la machine cible (en root)
-sudo bash install.sh \\
-  --server wss://nexus-server:26033 \\
-  --token enroll_xxxxxxxxxxxx \\
-  --machine-id cmxxxxxxxxx \\
-  --server-key "-----BEGIN PUBLIC KEY-----..."`}</Code>
+    <H2>{t("agent.step2Title")}</H2>
+    <Code>{t("agent.scriptCode")}</Code>
 
-    <P>Le script :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li>Crée l'utilisateur système <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>nexus</code></li>
-      <li>Copie le binaire dans <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>/usr/local/bin/nexus-agent</code></li>
-      <li>Crée la config dans <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>/etc/nexus/agent.env</code></li>
-      <li>Installe et démarre le service systemd</li>
+    <P>{t("agent.scriptIntro")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="agent.scriptStep1" components={{ c: <IC /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.scriptStep2" components={{ c: <IC /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.scriptStep3" components={{ c: <IC /> }} /></li>
+      <li>{t("agent.scriptStep4")}</li>
     </ul>
 
-    <H2>3. Installation manuelle</H2>
-    <Code>{`# Copier le binaire
-sudo cp nexus-agent /usr/local/bin/
-sudo chmod +x /usr/local/bin/nexus-agent
+    <H2>{t("agent.step3Title")}</H2>
+    <Code>{t("agent.manualCode")}</Code>
 
-# Créer la config
-sudo mkdir -p /etc/nexus /opt/nexus/keys
-sudo tee /etc/nexus/agent.env << EOF
-NEXUS_SERVER_URL=wss://nexus-server:26033/ws/agent
-NEXUS_MACHINE_ID=<machine-id>
-NEXUS_ENROLLMENT_TOKEN=<token>
-NEXUS_KEY_PATH=/opt/nexus/keys
-NEXUS_HEARTBEAT_INTERVAL=30
-NEXUS_METRICS_INTERVAL=60
-EOF
-
-# Installer le service systemd
-sudo cp nexus-agent.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now nexus-agent
-
-# Vérifier
-sudo systemctl status nexus-agent
-sudo journalctl -u nexus-agent -f`}</Code>
-
-    <H2>4. Vérification</H2>
-    <P>Après le démarrage, l'agent :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li>Se connecte au serveur via WebSocket (WSS)</li>
-      <li>Effectue l'enrollment ECDSA (échange de clés)</li>
-      <li>Commence à envoyer des heartbeats (toutes les 30s) et des métriques (toutes les 60s)</li>
-      <li>La machine passe en statut <strong className="text-foreground">ONLINE</strong> dans le dashboard</li>
+    <H2>{t("agent.step4Title")}</H2>
+    <P>{t("agent.step4Text")}</P>
+    <ul className={UL}>
+      <li>{t("agent.step4Item1")}</li>
+      <li>{t("agent.step4Item2")}</li>
+      <li>{t("agent.step4Item3")}</li>
+      <li><Trans t={t} i18nKey="agent.step4Item4" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <Tip>L'enrollment est automatique au premier démarrage. Les clés sont stockées dans /opt/nexus/keys/ et réutilisées aux démarrages suivants.</Tip>
+    <Tip>{t("agent.enrollTip")}</Tip>
 
-    <H2>Capacités de l'agent</H2>
-    <P>Un agent enrôlé a un accès complet : métriques, mises à jour, services, firewall, netplan, users, paquets, reboot, etc. Ce que chaque utilisateur peut réellement déclencher dépend de son rôle (ADMIN/OPERATOR/READONLY) et du flag « machine critique ». Les capacités root de l'agent sont définies par le sudoers généré à l'installation.</P>
+    <H2>{t("agent.capsTitle")}</H2>
+    <P>{t("agent.capsText")}</P>
 
-    <H2>Flag "Machine critique"</H2>
-    <P>Dans <em>Paramètres</em>, cochez <strong>⚠ Machine critique</strong> pour les machines sensibles (serveur Nexus, prod DB, etc.). Cela bloque :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><code>system.reboot</code></li>
-      <li><code>service_stop/restart</code> sur docker, nginx, ssh, postgresql, traefik, keycloak</li>
-      <li><code>package.remove</code> sur docker-ce, nginx, postgresql, openssh-*, systemd, sudo, apt</li>
+    <H2>{t("agent.criticalTitle")}</H2>
+    <P><Trans t={t} i18nKey="agent.criticalText" components={{ b: <strong />, e: <em /> }} /></P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="agent.criticalItem1" components={{ c: <code /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.criticalItem2" components={{ c: <code /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.criticalItem3" components={{ c: <code /> }} /></li>
     </ul>
 
-    <H2>Réinstallation (sudoers obsolètes)</H2>
-    <P>
-      Quand une nouvelle version de Nexus ajoute des règles sudo (nouvelles actions agent),
-      les agents existants gardent leurs anciens sudoers et les nouvelles actions échouent.
-      Un badge <strong className="text-foreground">⚠ Sudoers obsolètes</strong> apparaît
-      sur la machine. Pour resynchroniser :
-    </P>
-    <Code>{`# 1. SSH sur la machine concernée
-ssh user@machine-ip
+    <H2>{t("agent.reinstallTitle")}</H2>
+    <P><Trans t={t} i18nKey="agent.reinstallText" components={{ b: <strong className="text-foreground" /> }} /></P>
+    <Code>{t("agent.reinstallCode")}</Code>
+    <P>{t("agent.reinstallAfter")}</P>
 
-# 2. Relance le script avec les mêmes paramètres qu'à l'install initiale.
-#    L'enrollment token n'est PAS nécessaire : l'agent réutilise ses clés ECDSA
-#    existantes (/var/lib/nexus/keys/) et ne se ré-enrôle pas. Le script
-#    rafraîchit uniquement le sudoers et le binaire.
-sudo bash install-agent.sh \\
-  --server-url wss://nexus.example.com/ws/agent \\
-  --machine-id <machine-id>
-
-# 3. Redémarre le service pour que l'agent recharge le hash sudoers
-sudo systemctl restart nexus-agent`}</Code>
-    <P>
-      Au prochain heartbeat (~30s), le badge disparaît automatiquement.
-    </P>
-
-    <H2>Désinstallation complète</H2>
-    <P>
-      Le script gère désormais la désinstallation complète via <strong>--uninstall</strong>
-      (alias <strong>--purge</strong>). Il supprime le service, le binaire, les clés ECDSA,
-      le shared secret, la config, les snapshots watchdog, le sudoers, le user système et
-      le retire du groupe <code>systemd-journal</code> :
-    </P>
-    <Code>{`# Sur la machine cible, en root
-sudo /tmp/install-agent.sh --uninstall
-
-# (le script est aussi dans /opt/nexus si tu l'as conservé)`}</Code>
+    <H2>{t("agent.uninstallTitle")}</H2>
+    <P><Trans t={t} i18nKey="agent.uninstallText" components={{ b: <strong />, c: <code /> }} /></P>
+    <Code>{t("agent.uninstallCode")}</Code>
     <Warn>
-      <strong>--uninstall</strong> supprime aussi les <strong>clés ECDSA</strong> et le shared
-      secret. Pour ré-enrôler ensuite, utilise le bouton <strong>Ré-enrôler</strong> dans l'UI
-      (les anciennes clés ne sont plus valables).
+      <Trans t={t} i18nKey="agent.uninstallWarn" components={{ b: <strong /> }} />
     </Warn>
 
-    <H2>Ré-enrôlement propre</H2>
-    <P>
-      Pour repartir de zéro proprement (clés régénérées côté backend ET purge de l'état
-      résiduel côté machine, qui est la cause des deadlocks de ré-enrollement) :
-    </P>
+    <H2>{t("agent.reenrollTitle")}</H2>
+    <P>{t("agent.reenrollText")}</P>
     <ol className="list-decimal list-inside text-sm text-muted-foreground mb-4 space-y-1 ml-2">
-      <li>Dans l'UI Nexus → la machine → bouton <strong>Ré-enrôler</strong>. Cela régénère un token + une nouvelle paire ECDSA backend, déconnecte l'agent et invalide les anciens tokens d'install.</li>
-      <li>Copie la nouvelle commande d'install affichée : elle contient <code>--reenroll</code>, qui <strong>purge automatiquement</strong> l'identité résiduelle (clés, shared secret, ancienne clé serveur, snapshots watchdog) avant de ré-enrôler.</li>
-      <li>Exécute-la sur la machine. Aucune désinstallation manuelle préalable n'est nécessaire.</li>
+      <li><Trans t={t} i18nKey="agent.reenrollStep1" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="agent.reenrollStep2" components={{ b: <strong />, c: <code /> }} /></li>
+      <li>{t("agent.reenrollStep3")}</li>
     </ol>
-    <P>
-      Équivalent en ligne de commande sans l'UI : <code>install-agent.sh --uninstall</code>
-      puis une nouvelle install — ou directement <code>install-agent.sh --reenroll ...</code>
-      avec le nouveau token.
-    </P>
+    <P><Trans t={t} i18nKey="agent.reenrollCli" components={{ c: <code /> }} /></P>
   </>);
 }
 
 function SelfDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Self-monitoring — Installer l'agent sur le serveur Nexus</H1>
-    <P>
-      Pour surveiller le serveur Nexus lui-même (métriques, services, disk, updates), vous pouvez installer un agent Nexus sur la machine qui héberge Nexus. L'agent tourne en natif sur l'hôte (pas dans un container) et remonte vers l'instance Nexus locale.
-    </P>
+    <H1>{t("self.title")}</H1>
+    <P>{t("self.intro")}</P>
 
-    <Tip>
-      Dogfooding : permet de détecter un serveur Nexus qui rame (CPU saturé, disk plein, container restart), et de recevoir des alertes. Si Nexus tombe complètement, vous ne verrez rien — c'est une limite attendue.
-    </Tip>
+    <Tip>{t("self.dogfoodTip")}</Tip>
 
-    <H2>1. Créer la machine "nexus-server"</H2>
-    <P>
-      Dans l'UI Nexus → Machines → Ajouter une machine. Nom suggéré : <code>nexus-server</code>, type <strong>AGENT</strong>.
-    </P>
+    <H2>{t("self.step1Title")}</H2>
+    <P><Trans t={t} i18nKey="self.step1Text" components={{ b: <strong />, c: <code /> }} /></P>
 
-    <H2>2. Exécuter la commande d'install sur l'hôte</H2>
-    <P>
-      Copier la commande fournie par l'UI et l'exécuter directement sur l'hôte (pas dans un container). L'agent se connecte à Nexus via <code>ws://localhost:3000/ws/agent</code> ou le nom de domaine public selon votre config.
-    </P>
+    <H2>{t("self.step2Title")}</H2>
+    <P><Trans t={t} i18nKey="self.step2Text" components={{ c: <code /> }} /></P>
     <Warn>
-      <strong>Cas particulier Docker</strong> : si Nexus tourne derrière un reverse proxy (nginx/traefik), utilisez l'URL publique dans <code>--server-url</code>. Sinon, vérifiez que le backend est exposé sur localhost:3000.
+      <Trans t={t} i18nKey="self.dockerWarn" components={{ b: <strong />, c: <code /> }} />
     </Warn>
 
-    <H2>3. Vérification</H2>
-    <P>
-      La machine <code>nexus-server</code> apparaît en <span className="text-emerald-400">ONLINE</span> dans quelques secondes. Vous voyez :
-    </P>
+    <H2>{t("self.step3Title")}</H2>
+    <P><Trans t={t} i18nKey="self.step3Text" components={{ c: <code />, on: <span className="text-emerald-400" /> }} /></P>
     <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mb-3 ml-2">
-      <li>CPU/RAM de l'hôte (pas du container Nexus)</li>
-      <li>Le disk du volume Docker</li>
-      <li>Les services systemd (docker.service, etc.)</li>
-      <li>Les timers cron/apt</li>
-      <li>Les certs SSL du reverse proxy</li>
+      <li>{t("self.step3Item1")}</li>
+      <li>{t("self.step3Item2")}</li>
+      <li>{t("self.step3Item3")}</li>
+      <li>{t("self.step3Item4")}</li>
+      <li>{t("self.step3Item5")}</li>
     </ul>
 
-    <H2>Alertes recommandées pour le serveur Nexus</H2>
+    <H2>{t("self.alertsTitle")}</H2>
     <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mb-3 ml-2">
-      <li><strong>DISK_ABOVE 85%</strong> sur nexus-server — évite que les logs Docker / volumes Postgres remplissent le disque</li>
-      <li><strong>MEMORY_ABOVE 90%</strong> — Nexus + Postgres consomment</li>
-      <li><strong>SERVICE_FAILED "docker"</strong> — si Docker tombe, tout Nexus tombe</li>
-      <li><strong>CERT_EXPIRING 14</strong> jours — pour le cert du reverse proxy public</li>
-      <li><strong>UPDATES_AVAILABLE threshold 50</strong> — rappel de patch</li>
+      <li><Trans t={t} i18nKey="self.alert1" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="self.alert2" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="self.alert3" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="self.alert4" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="self.alert5" components={{ b: <strong /> }} /></li>
     </ul>
-    <P>
-      Ces alertes passent par webhook/email standard. En cas de panne Nexus complète, elles ne se déclencheront pas (d'où l'intérêt d'un monitoring externe type uptime-kuma en parallèle).
-    </P>
+    <P>{t("self.alertsAfter")}</P>
   </>);
 }
 
 function MachinesDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Gestion des machines</H1>
-    <P>La page Machines affiche toutes les machines enregistrées avec leur statut en temps réel.</P>
+    <H1>{t("machines.title")}</H1>
+    <P>{t("machines.intro")}</P>
 
-    <H2>Statuts</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-emerald-400">ONLINE</strong> — L'agent est connecté et envoie des données</li>
-      <li><strong className="text-red-400">OFFLINE</strong> — Plus de heartbeat depuis 90s</li>
-      <li><strong className="text-blue-400">ENROLLMENT_PENDING</strong> — Machine créée, en attente de connexion de l'agent</li>
-      <li><strong className="text-amber-400">STALE</strong> — Offline depuis plus de 7 jours (configurable)</li>
-      <li><strong className="text-muted-foreground">ARCHIVED</strong> — Offline depuis plus de 30 jours</li>
-      <li><strong className="text-red-400">REVOKED</strong> — Clés révoquées, l'agent ne peut plus se connecter</li>
+    <H2>{t("machines.statusTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="machines.statusOnline" components={{ b: <strong className="text-emerald-400" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.statusOffline" components={{ b: <strong className="text-red-400" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.statusPending" components={{ b: <strong className="text-blue-400" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.statusStale" components={{ b: <strong className="text-amber-400" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.statusArchived" components={{ b: <strong className="text-muted-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.statusRevoked" components={{ b: <strong className="text-red-400" /> }} /></li>
     </ul>
 
-    <H2>Cycle de vie automatique</H2>
-    <P>Les machines inactives suivent un cycle automatique (délais configurables dans Paramètres) :</P>
-    <Code>{`OFFLINE → (7 jours) → STALE → (30 jours) → ARCHIVED → (90 jours) → Supprimée`}</Code>
+    <H2>{t("machines.lifecycleTitle")}</H2>
+    <P>{t("machines.lifecycleText")}</P>
+    <Code>{t("machines.lifecycleCode")}</Code>
 
-    <H2>Onglets par machine</H2>
-    <P>Depuis la page détail d'une machine (cliquez sur une carte), 11 onglets regroupés en 5 catégories :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Vue d'ensemble</strong> — Infos système, réseau, paramètres éditables, SSL certs</li>
-      <li><strong className="text-foreground">Monitoring</strong> — Métriques (CPU/RAM/Disk/Load historique), Processus, Stockage (LVM/FS/block)</li>
-      <li><strong className="text-foreground">Système</strong> — Services systemd (list + logs + start/stop/restart), Tâches (timers + cron + toggle), Utilisateurs (CRUD + clés SSH)</li>
-      <li><strong className="text-foreground">Réseau</strong> — Interfaces, Netplan (éditeur YAML + watchdog 120s), Pare-feu ufw (allow/deny + watchdog 60s)</li>
-      <li><strong className="text-foreground">Logiciels</strong> — Mises à jour (apt upgrade + package hold/unhold), Paquets (recherche FTS + install/remove)</li>
+    <H2>{t("machines.tabsTitle")}</H2>
+    <P>{t("machines.tabsText")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="machines.tabOverview" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.tabMonitoring" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.tabSystem" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.tabNetwork" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="machines.tabSoftware" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>Actions groupées (bulk)</H2>
-    <P>Sur la page Machines, cochez plusieurs machines pour faire apparaître le bouton <strong>Action groupée (N)</strong>. Vous pouvez lancer en parallèle sur jusqu'à 100 machines :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li>Mise à jour système / sécurité</li>
-      <li>Redémarrage (avec confirmation textuelle "REBOOT")</li>
-      <li>Upgrade de l'agent</li>
-      <li>Start/Stop/Restart d'un service</li>
-      <li>Install/Remove/Hold/Unhold d'un paquet</li>
+    <H2>{t("machines.bulkTitle")}</H2>
+    <P><Trans t={t} i18nKey="machines.bulkText" components={{ b: <strong className="text-foreground" /> }} /></P>
+    <ul className={UL}>
+      <li>{t("machines.bulkItem1")}</li>
+      <li>{t("machines.bulkItem2")}</li>
+      <li>{t("machines.bulkItem3")}</li>
+      <li>{t("machines.bulkItem4")}</li>
+      <li>{t("machines.bulkItem5")}</li>
     </ul>
-    <P>Les actions watchdog-revert (netplan, firewall) restent individuelles par machine (confirmation obligatoire).</P>
+    <P>{t("machines.bulkAfter")}</P>
 
-    <H2>Suppression / Révocation</H2>
-    <P>Le menu contextuel (⋮) sur chaque carte machine permet de révoquer ou supprimer. La révocation invalide les clés de l'agent — il ne pourra plus se reconnecter sans un re-enrollment.</P>
+    <H2>{t("machines.deleteTitle")}</H2>
+    <P>{t("machines.deleteText")}</P>
   </>);
 }
 
 function TagsDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Tags & Groupes</H1>
-    <P>Les tags permettent d'organiser vos machines (ex: "prod", "web", "db"). Les groupes permettent de regrouper des machines pour des actions en masse.</P>
+    <H1>{t("tags.title")}</H1>
+    <P>{t("tags.intro")}</P>
 
-    <H2>Tags</H2>
-    <P>Créez des tags depuis la page Tags. Chaque tag a un nom et une couleur. Assignez des tags aux machines depuis la page détail de la machine.</P>
-    <Tip>Les tags sont utilisés par les Profils pour cibler les machines sur lesquelles exécuter des actions automatiques.</Tip>
+    <H2>{t("tags.tagsTitle")}</H2>
+    <P>{t("tags.tagsText")}</P>
+    <Tip>{t("tags.tagsTip")}</Tip>
 
-    <H2>Groupes</H2>
-    <P>Deux types de groupes :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Statique</strong> — Vous ajoutez/retirez manuellement les machines</li>
-      <li><strong className="text-foreground">Dynamique</strong> — Les machines sont résolues automatiquement selon des filtres (tags, statut)</li>
+    <H2>{t("tags.groupsTitle")}</H2>
+    <P>{t("tags.groupsText")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="tags.groupStatic" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="tags.groupDynamic" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
   </>);
 }
 
 function AlertsDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Alertes & Notifications</H1>
-    <P>Configurez des règles d'alerte pour être notifié quand une machine dépasse un seuil ou devient inaccessible.</P>
+    <H1>{t("alerts.title")}</H1>
+    <P>{t("alerts.intro")}</P>
 
-    <H2>Types de conditions</H2>
-    <p className="text-sm font-semibold text-foreground mb-2">Métriques (évaluées à chaque heartbeat, ~30s)</p>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">CPU_ABOVE</strong> — CPU dépasse X%</li>
-      <li><strong className="text-foreground">MEMORY_ABOVE</strong> — RAM dépasse X%</li>
-      <li><strong className="text-foreground">DISK_ABOVE</strong> — Un disque dépasse X%</li>
-      <li><strong className="text-foreground">LOAD_ABOVE</strong> — Load average dépasse X</li>
+    <H2>{t("alerts.condTitle")}</H2>
+    <p className="text-sm font-semibold text-foreground mb-2">{t("alerts.metricsHeading")}</p>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="alerts.condCpu" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condMem" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condDisk" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condLoad" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
-    <p className="text-sm font-semibold text-foreground mb-2">Connexion (évalué toutes les 60s)</p>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">MACHINE_OFFLINE</strong> — Machine hors ligne depuis X secondes</li>
+    <p className="text-sm font-semibold text-foreground mb-2">{t("alerts.connHeading")}</p>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="alerts.condOffline" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
-    <p className="text-sm font-semibold text-foreground mb-2">Santé système (évalué toutes les 5 min, polls l'agent)</p>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">SERVICE_FAILED</strong> — Service systemd en échec. Filtre optionnel par nom (ex: "nginx", "postgres").</li>
-      <li><strong className="text-foreground">TIMER_FAILED</strong> — Timer systemd dont le service active a échoué.</li>
-      <li><strong className="text-foreground">CRON_FAILED</strong> — Cron job en échec (préparation).</li>
-      <li><strong className="text-foreground">UPDATES_AVAILABLE</strong> — Plus de N mises à jour apt disponibles (threshold = N).</li>
+    <p className="text-sm font-semibold text-foreground mb-2">{t("alerts.healthHeading")}</p>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="alerts.condService" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condTimer" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condCron" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condUpdates" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
-    <p className="text-sm font-semibold text-foreground mb-2">Sécurité (évalué toutes les 6h)</p>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">CERT_EXPIRING</strong> — Au moins un cert SSL expire dans ≤ N jours (threshold = N).</li>
-      <li><strong className="text-foreground">HARDENING_INDEX_BELOW</strong> — L'indice de durcissement (Lynis) du dernier audit passe sous N/100 (threshold = N). Évalué sur le dernier scan persisté + à chaque nouvel audit (onglet Sécurité).</li>
-    </ul>
-
-    <H2>Notifications</H2>
-    <P>Deux canaux de notification disponibles :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Webhook</strong> — POST HTTP signé HMAC-SHA256 vers une URL de votre choix</li>
-      <li><strong className="text-foreground">Email</strong> — Via SMTP (Gmail supporté). Configurez dans Paramètres.</li>
+    <p className="text-sm font-semibold text-foreground mb-2">{t("alerts.securityHeading")}</p>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="alerts.condCert" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.condHardening" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>Configuration SMTP (Gmail)</H2>
-    <Code>{`Host: smtp.gmail.com
-Port: 587
-User: votre.email@gmail.com
-Password: (mot de passe d'application Google)
-From: votre.email@gmail.com`}</Code>
-    <Tip>Pour Gmail, vous devez créer un "mot de passe d'application" dans les paramètres de sécurité de votre compte Google.</Tip>
+    <H2>{t("alerts.notifTitle")}</H2>
+    <P>{t("alerts.notifText")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="alerts.notifWebhook" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="alerts.notifEmail" components={{ b: <strong className="text-foreground" /> }} /></li>
+    </ul>
+
+    <H2>{t("alerts.smtpTitle")}</H2>
+    <Code>{t("alerts.smtpCode")}</Code>
+    <Tip>{t("alerts.smtpTip")}</Tip>
   </>);
 }
 
 function UpdatesDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Mises à jour système</H1>
-    <P>Nexus peut vérifier et installer les mises à jour système sur vos machines Ubuntu/Debian.</P>
+    <H1>{t("updates.title")}</H1>
+    <P>{t("updates.intro")}</P>
 
-    <H2>Vérification</H2>
-    <P>Depuis la page détail d'une machine → onglet "Mises à jour" → "Vérifier les MAJ". L'agent exécute <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>apt-get update</code> et retourne la liste des packages à mettre à jour.</P>
+    <H2>{t("updates.checkTitle")}</H2>
+    <P><Trans t={t} i18nKey="updates.checkText" components={{ c: <IC /> }} /></P>
 
-    <H2>Installation</H2>
-    <P>Deux options :</P>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">Tout mettre à jour</strong> — Exécute <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>apt-get upgrade -y</code></li>
-      <li><strong className="text-foreground">Sécurité uniquement</strong> — Exécute <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>unattended-upgrades</code></li>
+    <H2>{t("updates.installTitle")}</H2>
+    <P>{t("updates.installText")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="updates.installAll" components={{ b: <strong className="text-foreground" />, c: <IC /> }} /></li>
+      <li><Trans t={t} i18nKey="updates.installSec" components={{ b: <strong className="text-foreground" />, c: <IC /> }} /></li>
     </ul>
 
-    <H2>Mise à jour en masse</H2>
-    <P>Depuis la page Machines, sélectionnez plusieurs machines via les checkboxes puis cliquez <strong>Action groupée → Mise à jour système</strong>. Dispatch en parallèle avec concurrence limitée à 10 machines. Les résultats sont consolidés dans une table (OK / Échec / Skipped).</P>
-    <P>Alternative : les Profils permettent de planifier les mises à jour avec staggered delivery et ciblage par tags.</P>
+    <H2>{t("updates.bulkTitle")}</H2>
+    <P><Trans t={t} i18nKey="updates.bulkText" components={{ b: <strong /> }} /></P>
+    <P>{t("updates.bulkAlt")}</P>
 
-    <H2>Package pinning (apt-mark hold)</H2>
-    <P>Dans l'onglet <strong>Logiciels → Mises à jour</strong>, chaque paquet à upgrader a une icône cadenas dans la colonne Hold :</P>
+    <H2>{t("updates.pinTitle")}</H2>
+    <P><Trans t={t} i18nKey="updates.pinText" components={{ b: <strong className="text-foreground" /> }} /></P>
     <ul className="list-disc list-inside text-sm text-muted-foreground mb-3 space-y-1">
-      <li><strong>Cadenas ouvert</strong> (gris) : le paquet suivra le prochain upgrade.</li>
-      <li><strong>Cadenas fermé</strong> (orange) : paquet "held" via <code>apt-mark hold</code>, ne sera PAS upgradé.</li>
+      <li><Trans t={t} i18nKey="updates.pinOpen" components={{ b: <strong /> }} /></li>
+      <li><Trans t={t} i18nKey="updates.pinClosed" components={{ b: <strong />, c: <code /> }} /></li>
     </ul>
-    <P>Cas d'usage : bloquer un kernel précis en attendant de valider un reboot, ou figer postgresql sur une version LTS.</P>
+    <P>{t("updates.pinUse")}</P>
 
-    <Warn>Les mises à jour sont exécutées en root sur la machine cible. Un reboot peut être nécessaire après certaines mises à jour (kernel). L'indicateur "Reboot requis" apparaîtra sur la machine.</Warn>
+    <Warn>{t("updates.rebootWarn")}</Warn>
   </>);
 }
 
 function SshDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Configuration SSH</H1>
-    <P>
-      Le bouton <strong>SSH</strong> dans la page d'une machine utilise le scheme <code>ssh://</code> pour ouvrir votre terminal local pré-connecté. Ce scheme n'est pas configuré par défaut sur les OS modernes. Voici comment l'activer.
-    </P>
+    <H1>{t("ssh.title")}</H1>
+    <P><Trans t={t} i18nKey="ssh.intro" components={{ b: <strong />, c: <code /> }} /></P>
 
-    <Tip>Vous pouvez toujours copier la commande <code>ssh user@ip</code> et la coller manuellement dans votre terminal, sans configuration.</Tip>
+    <Tip><Trans t={t} i18nKey="ssh.copyTip" components={{ c: <code /> }} /></Tip>
 
-    <H2>macOS</H2>
-    <P>
-      Terminal.app n'est plus enregistré comme handler <code>ssh://</code> par défaut depuis macOS 10.6. Le moyen le plus simple pour le réactiver :
-    </P>
-    <Code>{`brew install --cask swiftdefaultappsprefpane
-# Puis Réglages système → SwiftDefaultApps → URL Schemes
-# Associer "ssh" à Terminal.app (ou iTerm2, Warp...)`}</Code>
+    <H2>{t("ssh.macTitle")}</H2>
+    <P><Trans t={t} i18nKey="ssh.macText" components={{ c: <code /> }} /></P>
+    <Code>{t("ssh.macCode")}</Code>
 
-    <H2>Linux (GNOME / KDE / Xfce)</H2>
-    <P>
-      Créer un fichier <code>.desktop</code> qui déclare le handler :
-    </P>
+    <H2>{t("ssh.linuxTitle")}</H2>
+    <P><Trans t={t} i18nKey="ssh.linuxText" components={{ c: <code /> }} /></P>
     <Code>{`# ~/.local/share/applications/ssh-handler.desktop
 [Desktop Entry]
 Name=SSH Handler
@@ -527,12 +437,10 @@ Type=Application
 Terminal=false
 MimeType=x-scheme-handler/ssh;
 NoDisplay=true`}</Code>
-    <P>Puis enregistrer le handler :</P>
+    <P>{t("ssh.linuxRegister")}</P>
     <Code>{`update-desktop-database ~/.local/share/applications/
 xdg-mime default ssh-handler.desktop x-scheme-handler/ssh`}</Code>
-    <P>
-      Remplacez <code>gnome-terminal --</code> par votre émulateur si besoin :
-    </P>
+    <P><Trans t={t} i18nKey="ssh.linuxEmulator" components={{ c: <code /> }} /></P>
     <Code>{`# KDE
 Exec=konsole --new-tab -e ssh %u
 # Xfce
@@ -540,103 +448,88 @@ Exec=xfce4-terminal -e "ssh %u"
 # Alacritty
 Exec=alacritty -e ssh %u`}</Code>
 
-    <H2>Windows 10/11 avec WSL</H2>
-    <P>
-      Si vous utilisez <strong>WSL</strong> (Windows Subsystem for Linux), le plus simple est de rediriger <code>ssh://</code> vers <code>wsl ssh</code>. Créez un fichier <code>nexus-ssh-wsl.reg</code> :
-    </P>
+    <H2>{t("ssh.wslTitle")}</H2>
+    <P><Trans t={t} i18nKey="ssh.wslText" components={{ b: <strong />, c: <code /> }} /></P>
     <Code>{`Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\\ssh]
 "URL Protocol"=""
 @="URL:ssh"
 [HKEY_CLASSES_ROOT\\ssh\\shell\\open\\command]
 @="\\"C:\\\\Windows\\\\System32\\\\wsl.exe\\" ssh %1"`}</Code>
-    <P>
-      Double-cliquer sur le fichier, confirmer l'import. Le terminal WSL s'ouvrira désormais avec la connexion SSH pré-établie.
-    </P>
+    <P>{t("ssh.wslAfter")}</P>
     <Tip>
-      Pour un meilleur rendu dans <strong>Windows Terminal</strong> (profil WSL par défaut) :
+      <Trans t={t} i18nKey="ssh.wtTip" components={{ b: <strong /> }} />
       <code className="block mt-2 font-mono">@="\"C:\\Windows\\System32\\cmd.exe\" /c start wt.exe wsl ssh %1"</code>
     </Tip>
 
-    <H2>Windows 10/11 sans WSL</H2>
-    <P>
-      <strong>OpenSSH natif</strong> (inclus dans Windows 10+). Créez un <code>.reg</code> utilisant <code>wt.exe</code> :
-    </P>
+    <H2>{t("ssh.noWslTitle")}</H2>
+    <P><Trans t={t} i18nKey="ssh.noWslText" components={{ b: <strong />, c: <code /> }} /></P>
     <Code>{`Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\\ssh]
 "URL Protocol"=""
 @="URL:ssh"
 [HKEY_CLASSES_ROOT\\ssh\\shell\\open\\command]
 @="\\"C:\\\\Windows\\\\System32\\\\cmd.exe\\" /c start wt.exe ssh %1"`}</Code>
-    <P>
-      Nécessite Windows Terminal 1.16+ et <code>Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0</code> si le client SSH n'est pas installé.
-    </P>
+    <P><Trans t={t} i18nKey="ssh.noWslAfter" components={{ c: <code /> }} /></P>
 
-    <H2>Windows — PuTTY (legacy)</H2>
-    <P>
-      Lors de l'installation de PuTTY, cocher « associer aux URL ssh:// ». Simple mais rendu visuel moins bon que WSL/Windows Terminal.
-    </P>
+    <H2>{t("ssh.puttyTitle")}</H2>
+    <P>{t("ssh.puttyText")}</P>
 
-    <H2>Pré-remplir le nom d'utilisateur</H2>
-    <P>
-      Dans la page <strong>Vue d'ensemble</strong> d'une machine, la carte <em>Paramètres</em> permet de renseigner un utilisateur SSH par défaut (ex: <code>root</code>, <code>ubuntu</code>). Il sera pré-rempli automatiquement dans le bouton SSH pour cette machine.
-    </P>
+    <H2>{t("ssh.userTitle")}</H2>
+    <P><Trans t={t} i18nKey="ssh.userText" components={{ b: <strong />, e: <em />, c: <code /> }} /></P>
   </>);
 }
 
 function SecurityDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>Sécurité</H1>
+    <H1>{t("security.title")}</H1>
 
     <Warn>
-      <strong>Une instance Nexus = un seul domaine de confiance.</strong> Il n'y a{" "}
-      <strong>aucune isolation</strong> par utilisateur ou par locataire : tout OPERATOR peut
-      agir sur <strong>toutes</strong> les machines, tout READONLY peut lire{" "}
-      <strong>toutes</strong> les machines. Ne déployez pas une instance partagée pour des
-      équipes ou des clients qui ne se font pas mutuellement confiance —{" "}
-      <strong>utilisez des instances séparées</strong>.
+      <Trans t={t} i18nKey="security.trustWarn" components={{ b: <strong /> }} />
     </Warn>
 
-    <P>Nexus utilise plusieurs couches de sécurité pour protéger les communications et les actions.</P>
+    <P>{t("security.intro")}</P>
 
-    <H2>Chiffrement des communications</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">TLS</strong> — HTTPS auto-signé pour le frontend (configurable)</li>
-      <li><strong className="text-foreground">ECDSA P-256</strong> — Signature de chaque message agent ↔ serveur</li>
-      <li><strong className="text-foreground">AES-256-GCM</strong> — Chiffrement du payload des messages</li>
-      <li><strong className="text-foreground">ECDH</strong> — Dérivation du secret partagé lors de l'enrollment</li>
+    <H2>{t("security.cryptoTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="security.cryptoTls" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.cryptoEcdsa" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.cryptoAes" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.cryptoEcdh" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>Anti-replay</H2>
-    <P>Chaque message contient un nonce unique et un timestamp. Les nonces sont stockés dans un cache LRU (TTL 5 min) pour détecter les tentatives de replay.</P>
+    <H2>{t("security.antiReplayTitle")}</H2>
+    <P>{t("security.antiReplayText")}</P>
 
-    <H2>Authentification</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">JWT local</strong> — Authentification par username/password</li>
-      <li><strong className="text-foreground">Keycloak SSO</strong> — Authentification OIDC (configurable)</li>
-      <li><strong className="text-foreground">WebSocket Dashboard</strong> — Token JWT vérifié lors de la connexion WS</li>
+    <H2>{t("security.authTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="security.authJwt" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.authKeycloak" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.authWs" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
-    <H2>Rôles</H2>
-    <ul className="list-disc list-inside text-sm text-muted-foreground mb-4 space-y-1">
-      <li><strong className="text-foreground">ADMIN</strong> — Accès total (créer/supprimer machines, profils, tags, etc.)</li>
-      <li><strong className="text-foreground">OPERATOR</strong> — Lecture + actions sur les machines</li>
-      <li><strong className="text-foreground">READONLY</strong> — Lecture seule</li>
+    <H2>{t("security.rolesTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="security.roleAdmin" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.roleOperator" components={{ b: <strong className="text-foreground" /> }} /></li>
+      <li><Trans t={t} i18nKey="security.roleReadonly" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
   </>);
 }
 
 function ApiDoc() {
+  const { t } = useTranslation("docs");
   return (<>
-    <H1>API Reference</H1>
-    <P>Toutes les routes API nécessitent un header <code className="text-xs px-1 rounded" style={{ background: "var(--nx-bg-elevated)" }}>Authorization: Bearer &lt;token&gt;</code>.</P>
+    <H1>{t("api.title")}</H1>
+    <P>{t("api.introPre")}<IC>{`Authorization: Bearer <token>`}</IC>{t("api.introPost")}</P>
 
-    <H2>Authentification</H2>
+    <H2>{t("api.authTitle")}</H2>
     <Code>{`POST /api/auth/login     { username, password } → { token, user }
 GET  /api/auth/me         → User
 GET  /api/auth/config     → { mode, local, keycloak }`}</Code>
 
-    <H2>Machines</H2>
+    <H2>{t("api.machinesTitle")}</H2>
     <Code>{`GET    /api/machines                   → Machine[]
 GET    /api/machines/:id               → Machine
 POST   /api/machines                   { name, type? } → Machine (ADMIN)
@@ -647,35 +540,35 @@ POST   /api/machines/:id/re-enroll     (ADMIN)
 POST   /api/machines/:id/agent/upgrade (ADMIN) — self-upgrade agent
 POST   /api/bulk/dispatch              { action_id, machineIds[], params?, mode? } (ADMIN)`}</Code>
 
-    <H2>Actions</H2>
+    <H2>{t("api.actionsTitle")}</H2>
     <Code>{`POST /api/machines/:id/actions/sync  { action_id, params?, timeout? } → { success, data }
 POST /api/machines/:id/actions       { action_id, params? } → { request_id }
 POST /api/machines/actions/batch     { action_id, machine_ids?, params? } (ADMIN)`}</Code>
 
-    <H2>Métriques</H2>
+    <H2>{t("api.metricsTitle")}</H2>
     <Code>{`GET /api/machines/:id/metrics?range=1h    → { metrics[], count }
 GET /api/machines/:id/metrics/latest     → Metric
 GET /api/fleet/summary                   → FleetSummary
 GET /api/fleet/trends?range=1h           → { buckets[] }`}</Code>
 
-    <H2>Tags & Groupes</H2>
+    <H2>{t("api.tagsTitle")}</H2>
     <Code>{`GET/POST        /api/tags              (ADMIN)
 PUT/DELETE      /api/tags/:id          (ADMIN)
 POST/DELETE     /api/machines/:id/tags (ADMIN)
 GET/POST        /api/groups            (ADMIN)
 GET             /api/groups/:id/machines`}</Code>
 
-    <H2>Alertes</H2>
+    <H2>{t("api.alertsTitle")}</H2>
     <Code>{`GET/POST        /api/alerts/rules
 PUT/DELETE      /api/alerts/rules/:id
 GET             /api/alerts/active
 GET             /api/alerts/history`}</Code>
 
-    <H2>Paramètres</H2>
+    <H2>{t("api.settingsTitle")}</H2>
     <Code>{`GET /api/settings         → Setting[]
 PUT /api/settings/:key   { value } (ADMIN)`}</Code>
 
-    <H2>Audit</H2>
+    <H2>{t("api.auditTitle")}</H2>
     <Code>{`GET /api/audit?limit=50&page=1   → AuditLog[]`}</Code>
   </>);
 }
