@@ -48,7 +48,7 @@
     "security": "Sécurité"
   },
   "tabs": {
-    "overview": { "label": "Vue d'ensemble", "tooltip": "Statut global : alertes, services failed, updates pending, certs expirant" },
+    "overview": { "label": "Vue d'ensemble", "tooltip": "Statut global : alertes, services en échec, mises à jour en attente, certs expirant" },
     "metrics": { "label": "Métriques", "tooltip": "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h" },
     "processes": { "label": "Processus", "tooltip": "Top 10 processus par CPU et RAM, kill possible" },
     "storage": { "label": "Stockage", "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },

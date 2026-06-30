@@ -6,10 +6,16 @@
   "confirmToggle": "{{label}} le timer {{name}} ?",
   "toastToggle": "{{name}} : {{label}}",
   "timerHeaders": {
-    "unit": "Unit",
+    "unit": "Unité",
     "next": "Prochain",
     "last": "Dernier",
-    "active": "Active",
-    "enabled": "Enabled"
+    "active": "Actif",
+    "enabled": "Activé"
+  },
+  "cronHeaders": {
+    "source": "Source",
+    "user": "Utilisateur",
+    "schedule": "Planification",
+    "command": "Commande"
   }
 }

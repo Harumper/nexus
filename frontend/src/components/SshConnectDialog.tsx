@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Copy, Check, Terminal as TerminalIcon, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Dialog, Button } from "./ui";
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function SshConnectDialog({ ipAddress, defaultUser, onClose }: Props) {
+  const { t } = useTranslation(["sshConnect", "common"]);
   const [copied, setCopied] = useState(false);
   const user = defaultUser || "";
   const command = user ? `ssh ${user}@${ipAddress}` : `ssh ${ipAddress}`;
@@ -30,7 +32,7 @@ export default function SshConnectDialog({ ipAddress, defaultUser, onClose }: Pr
       size="md"
       title={
         <span className="flex items-center gap-2">
-          <TerminalIcon className="w-4 h-4 text-info" /> Connexion SSH
+          <TerminalIcon className="w-4 h-4 text-info" /> {t("title")}
         </span>
       }
     >
@@ -45,7 +47,7 @@ export default function SshConnectDialog({ ipAddress, defaultUser, onClose }: Pr
             onClick={copy}
             icon={copied ? <Check /> : <Copy />}
           >
-            {copied ? "Copié" : "Copier"}
+            {copied ? t("common:actions.copied") : t("common:actions.copy")}
           </Button>
         </div>
 
@@ -54,19 +56,22 @@ export default function SshConnectDialog({ ipAddress, defaultUser, onClose }: Pr
           className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border border-info text-info hover:bg-info-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          Ouvrir dans le terminal
+          {t("openInTerminal")}
         </a>
 
         <p className="text-[11px] text-center text-muted-foreground">
-          Si le bouton ne fait rien, voir la{" "}
-          <Link
-            to="/docs?section=ssh"
-            className="underline text-info hover:opacity-80"
-            onClick={onClose}
-          >
-            configuration SSH par OS
-          </Link>
-          .
+          <Trans
+            t={t}
+            i18nKey="help"
+            components={[
+              <Link
+                key="0"
+                to="/docs?section=ssh"
+                className="underline text-info hover:opacity-80"
+                onClick={onClose}
+              />,
+            ]}
+          />
         </p>
       </div>
     </Dialog>

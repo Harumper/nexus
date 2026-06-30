@@ -17,9 +17,10 @@
     "pids": "PIDs"
   },
   "states": {
-    "running": "Running",
-    "stopped": "Stopped",
+    "running": "En cours",
+    "stopped": "Arrêté",
     "other": "Autre"
   },
-  "cores": "{{count}} cores"
+  "cores_one": "{{count}} cœur",
+  "cores_other": "{{count}} cœurs"
 }

@@ -51,6 +51,7 @@
     "reboot": "Redémarrer",
     "run": "Exécuter",
     "copy": "Copier",
+    "copied": "Copié",
     "download": "Télécharger",
     "send": "Envoyer",
     "test": "Tester",
@@ -101,10 +102,10 @@
   "badges": {
     "alerts_one": "{{count}} alerte",
     "alerts_other": "{{count}} alertes",
-    "failedServices_one": "{{count}} service failed",
-    "failedServices_other": "{{count}} services failed",
-    "updates_one": "{{count}} update",
-    "updates_other": "{{count}} updates",
+    "failedServices_one": "{{count}} service en échec",
+    "failedServices_other": "{{count}} services en échec",
+    "updates_one": "{{count}} mise à jour",
+    "updates_other": "{{count}} mises à jour",
     "securitySuffix": " ({{count}} sécu)",
     "certExpiring": "Cert expire {{days}}j"
   },

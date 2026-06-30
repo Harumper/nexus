@@ -226,7 +226,7 @@
     "cryptoTls": "<b>TLS</b> — HTTPS auto-signé pour le frontend (configurable)",
     "cryptoEcdsa": "<b>ECDSA P-256</b> — Signature de chaque message agent ↔ serveur",
     "cryptoAes": "<b>AES-256-GCM</b> — Chiffrement du payload des messages",
-    "cryptoEcdh": "<b>ECDH</b> — Dérivation du secret partagé lors de l'enrollment",
+    "cryptoEcdh": "<b>ECDHE X25519</b> — Handshake éphémère (forward secrecy) qui établit le secret de session au runtime ; l'enrôlement n'établit que l'identité (scellée contre la clé serveur pinnée), aucun secret de session n'y est dérivé.",
     "antiReplayTitle": "Anti-replay",
     "antiReplayText": "Chaque message contient un nonce unique et un timestamp. Les nonces sont stockés dans un cache LRU (TTL 5 min) pour détecter les tentatives de replay.",
     "authTitle": "Authentification",

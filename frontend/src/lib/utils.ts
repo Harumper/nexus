@@ -51,17 +51,6 @@ export function statusColor(
   }
 }
 
-export function statusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    ONLINE: "En ligne",
-    OFFLINE: "Hors ligne",
-    DEGRADED: "Dégradé",
-    ENROLLMENT_PENDING: "En attente",
-    REVOKED: "Révoqué",
-  };
-  return labels[status] || status;
-}
-
 // Suffixe de clé i18n pour un statut machine (résolu via t(`common:status.${key}`)).
 // Sépare le mapping statut→clé de la traduction, pour les composants i18n-isés.
 export function statusKey(status: string): string {

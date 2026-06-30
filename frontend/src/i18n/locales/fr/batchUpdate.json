@@ -5,7 +5,7 @@
   "noEligible": "Aucune machine éligible",
   "securityOnly": "Mises à jour de sécurité uniquement",
   "pending": "En attente...",
-  "result": "Dispatché : {{dispatched}} | Échec : {{failed}}",
+  "result": "Distribué : {{dispatched}} | Échec : {{failed}}",
   "start": "Lancer",
   "inProgress": "En cours..."
 }

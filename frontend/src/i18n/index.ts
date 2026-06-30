@@ -58,6 +58,8 @@ import frLogsDrawer from "./locales/fr/logsDrawer.json";
 import enLogsDrawer from "./locales/en/logsDrawer.json";
 import frDocs from "./locales/fr/docs.json";
 import enDocs from "./locales/en/docs.json";
+import frSshConnect from "./locales/fr/sshConnect.json";
+import enSshConnect from "./locales/en/sshConnect.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -94,7 +96,7 @@ i18n.use(initReactI18next).init({
       services: frServices, storage: frStorage, packages: frPackages, scheduling: frScheduling, processList: frProcessList,
       updatePanel: frUpdatePanel, security: frSecurity, users: frUsers, files: frFiles,
       agentUpgrade: frAgentUpgrade, bulkAction: frBulkAction, batchUpdate: frBatchUpdate, logsDrawer: frLogsDrawer,
-      docs: frDocs,
+      docs: frDocs, sshConnect: frSshConnect,
     },
     en: {
       common: enCommon, auth: enAuth, settings: enSettings, containers: enContainers,
@@ -104,10 +106,10 @@ i18n.use(initReactI18next).init({
       services: enServices, storage: enStorage, packages: enPackages, scheduling: enScheduling, processList: enProcessList,
       updatePanel: enUpdatePanel, security: enSecurity, users: enUsers, files: enFiles,
       agentUpgrade: enAgentUpgrade, bulkAction: enBulkAction, batchUpdate: enBatchUpdate, logsDrawer: enLogsDrawer,
-      docs: enDocs,
+      docs: enDocs, sshConnect: enSshConnect,
     },
   },
-  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security", "users", "files", "agentUpgrade", "bulkAction", "batchUpdate", "logsDrawer", "docs"],
+  ns: ["common", "auth", "settings", "containers", "dashboard", "machines", "compare", "metricsChart", "attention", "audit", "enroll", "alerts", "machineDetail", "firewall", "network", "services", "storage", "packages", "scheduling", "processList", "updatePanel", "security", "users", "files", "agentUpgrade", "bulkAction", "batchUpdate", "logsDrawer", "docs", "sshConnect"],
   defaultNS: DEFAULT_NS,
   lng: getInitialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,

@@ -127,7 +127,7 @@ export default function AlertCreate() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Échec");
+        throw new Error(data.error || t("common:errors.generic"));
       }
       toast.success(isEdit ? t("toast.saved") : t("toast.created"));
       navigate("/alerts");

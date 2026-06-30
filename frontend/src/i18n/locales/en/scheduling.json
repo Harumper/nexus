@@ -11,5 +11,11 @@
     "last": "Last",
     "active": "Active",
     "enabled": "Enabled"
+  },
+  "cronHeaders": {
+    "source": "Source",
+    "user": "User",
+    "schedule": "Schedule",
+    "command": "Command"
   }
 }

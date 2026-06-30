@@ -28,7 +28,7 @@
     "LOGOUT": "Déconnexion",
     "MACHINE_CREATE": "Machine créée",
     "MACHINE_DELETE": "Machine supprimée",
-    "MACHINE_ENROLL": "Enrollment",
+    "MACHINE_ENROLL": "Enrôlement",
     "MACHINE_REVOKE": "Révocation",
     "ACTION_REQUEST": "Action demandée",
     "ACTION_COMPLETE": "Action terminée",

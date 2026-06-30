@@ -125,7 +125,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
                   <th className="text-left py-2 px-2">{t("headers.name")}</th>
                   <th className="text-right py-2 px-2">CPU%</th>
                   <th className="text-right py-2 px-2">MEM%</th>
-                  <th className="text-left py-2 px-2">User</th>
+                  <th className="text-left py-2 px-2">{t("headers.user")}</th>
                   {user?.role === "ADMIN" && <th className="text-center py-2 px-2">{t("headers.action")}</th>}
                 </tr>
               </thead>

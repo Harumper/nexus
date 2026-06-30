@@ -11,6 +11,7 @@
   "topMemory": "Top Memory",
   "headers": {
     "name": "Name",
+    "user": "User",
     "action": "Action"
   },
   "killTitle": "Kill (SIGTERM)"

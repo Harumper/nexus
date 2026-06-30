@@ -137,7 +137,7 @@ export default function SchedulingTab({ machineId }: Props) {
                           style={{ border: `1px solid ${enabled ? "var(--nx-warning)" : "var(--nx-success)"}`, color: enabled ? "var(--nx-warning)" : "var(--nx-success)" }}
                         >
                           {acting === unit ? <Loader2 className="w-3 h-3 animate-spin" /> : enabled ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-                          {enabled ? "Disable" : "Enable"}
+                          {enabled ? t("common:actions.disable") : t("common:actions.enable")}
                         </button>
                       </Td>
                     </tr>
@@ -157,10 +157,10 @@ export default function SchedulingTab({ machineId }: Props) {
             <table className="w-full text-xs">
               <thead style={{ background: "var(--nx-bg-elevated)" }}>
                 <tr className="text-left" style={{ color: "var(--nx-text-weak)" }}>
-                  <Th>Source</Th>
-                  <Th>User</Th>
-                  <Th>Schedule</Th>
-                  <Th>Command</Th>
+                  <Th>{t("cronHeaders.source")}</Th>
+                  <Th>{t("cronHeaders.user")}</Th>
+                  <Th>{t("cronHeaders.schedule")}</Th>
+                  <Th>{t("cronHeaders.command")}</Th>
                 </tr>
               </thead>
               <tbody>
