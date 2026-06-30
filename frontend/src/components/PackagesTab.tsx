@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { formatBytes as fmtBytes } from "../lib/format";
 import { Search, Package, Download, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -20,10 +21,10 @@ interface AptPackage {
   component: string;
 }
 
+// Entrée en Ko (apt) → octets, puis format central locale-aware. « — » si vide.
 function formatSize(kb: number | null): string {
   if (!kb || kb <= 0) return "—";
-  if (kb < 1024) return `${kb} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
+  return fmtBytes(kb * 1024);
 }
 
 function useDebounced<T>(value: T, delay: number): T {

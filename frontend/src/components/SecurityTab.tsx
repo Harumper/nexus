@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { formatDateTime } from "../lib/format";
 import { ShieldCheck, AlertTriangle, Lightbulb, Loader2, Play, RefreshCw, Flame, Wrench, Check, CheckCircle2, KeyRound, Network, TrendingUp, Eye, ChevronUp, ChevronDown, ArrowLeft, X } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
@@ -426,7 +427,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
               <span>
                 {t("stale.text", {
                   auditDate: result.scan_date
-                    ? t("stale.auditDate", { date: new Date(result.scan_date).toLocaleString("fr-FR") })
+                    ? t("stale.auditDate", { date: formatDateTime(result.scan_date) })
                     : "",
                 })}
               </span>
@@ -959,7 +960,7 @@ function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
     .slice()
     .reverse()
     .map((s) => ({
-      t: new Date(s.scannedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      t: formatDateTime(s.scannedAt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
       index: s.hardeningIndex,
     }));
   if (points.length < 2) return null;

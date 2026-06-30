@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { formatTime } from "../lib/format";
 import { RefreshCw, Search, Copy, WrapText, ArrowDownToLine, Check } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -61,7 +62,7 @@ function parseLine(line: string): ParsedLine {
   return {
     kind: "log",
     ts: valid ? ts : undefined,
-    timeStr: valid ? ts.toLocaleTimeString("fr-FR", { hour12: false }) : tsRaw,
+    timeStr: valid ? formatTime(ts, { hour12: false }) : tsRaw,
     dateStr: valid ? ts.toISOString().slice(0, 10) : undefined,
     host,
     proc: procRaw.trim(),

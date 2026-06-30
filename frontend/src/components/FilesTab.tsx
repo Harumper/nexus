@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { formatBytes, formatDateTime } from "../lib/format";
 import {
   RefreshCw, Folder, File as FileIcon, FileText, Image, Link2, ChevronRight,
   Download, Upload, Copy, Check, Search, Lock, AlertTriangle, Loader2, Home, Eye, X,
@@ -71,12 +72,7 @@ const QUICK_PATHS = [
   { label: "/tmp", path: "/tmp" },
 ];
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
+// formatBytes : helper central locale-aware (lib/format).
 
 function iconFor(entry: FsEntry): React.ReactNode {
   const cls = "w-4 h-4 shrink-0";
@@ -487,7 +483,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
                       {e.kind === "file" ? formatBytes(e.size) : ""}
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell text-xs" style={{ color: "var(--nx-text-weak)" }}>
-                      {e.mtime ? new Date(e.mtime).toLocaleString("fr-FR") : ""}
+                      {e.mtime ? formatDateTime(e.mtime) : ""}
                     </td>
                     <td className="px-4 py-2 hidden lg:table-cell text-xs font-mono" style={{ color: "var(--nx-text-weak)" }}>
                       {e.mode}

@@ -5,35 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatBytes(bytes: number, decimals = 1): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizes[i];
-}
-
-export function formatUptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}j ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
-export function timeAgo(date: string | null): string {
-  if (!date) return "jamais";
-  const now = Date.now();
-  const then = new Date(date).getTime();
-  const diff = Math.floor((now - then) / 1000);
-
-  if (diff < 10) return "maintenant";
-  if (diff < 60) return `il y a ${diff}s`;
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`;
-  return `il y a ${Math.floor(diff / 86400)}j`;
-}
+// formatBytes / formatUptime / timeAgo ont migré vers lib/format.ts (Lot 9a,
+// formatage sensible à la langue). Importe-les depuis "../lib/format".
 
 export function statusColor(
   status: string

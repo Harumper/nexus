@@ -1,4 +1,5 @@
 import { useState, useEffect, type TdHTMLAttributes, type ComponentType } from "react";
+import { formatBytes as fmtBytes } from "../lib/format";
 import { HardDrive, Layers, Database, Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -31,14 +32,11 @@ interface FilesystemUsage {
   percent: string | number;
 }
 
+// Affiche « — » pour vide/0 (donnée absente), sinon délègue au format central locale-aware.
 function formatBytes(n: number | string): string {
   const b = typeof n === "string" ? parseInt(n, 10) : n;
   if (!b || b <= 0) return "—";
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-  if (b < 1024 ** 4) return `${(b / 1024 ** 3).toFixed(1)} GB`;
-  return `${(b / 1024 ** 4).toFixed(2)} TB`;
+  return fmtBytes(b);
 }
 
 export default function StorageTab({ machineId }: Props) {

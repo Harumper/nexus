@@ -22,6 +22,7 @@ import { useMachines } from "../hooks/useMachines";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { api } from "../services/api";
 import { niceYDomain } from "../lib/utils";
+import { formatAxisTick, formatAxisLabel } from "../lib/chartTime";
 import MachineCard from "../components/MachineCard";
 import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
@@ -391,11 +392,11 @@ function TrendChart({ data, dataKey, label, seriesName, color, gradientId }: {
               </linearGradient>
             </defs>
             <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false}
-              tickFormatter={(v) => new Date(v).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} />
+              tickFormatter={(v) => formatAxisTick(Number(v), "1h")} />
             <YAxis domain={yDomain} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
             <Tooltip
               contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
-              labelFormatter={(v) => new Date(v as string).toLocaleTimeString("fr-FR")}
+              labelFormatter={(v) => formatAxisLabel(Number(v))}
               formatter={(value: any) => [`${Number(value).toFixed(1)}%`, seriesName]}
             />
             <Area type="monotone" dataKey={dataKey} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />

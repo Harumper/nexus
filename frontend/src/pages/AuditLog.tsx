@@ -13,7 +13,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { timeAgo } from "../lib/utils";
+import { timeAgo, formatDateTime } from "../lib/format";
 import { Spinner } from "../components/ui";
 
 interface AuditEntry {
@@ -242,7 +242,7 @@ export default function AuditLog() {
               <DetailRow label={t("detail.machine")} value={selectedLog.machine?.name || "—"} />
               <DetailRow label={t("detail.user")} value={selectedLog.user?.username || t("system")} />
               <DetailRow label={t("detail.ip")} value={selectedLog.ipAddress || "—"} />
-              <DetailRow label={t("detail.date")} value={new Date(selectedLog.createdAt).toLocaleString("fr-FR")} />
+              <DetailRow label={t("detail.date")} value={formatDateTime(selectedLog.createdAt)} />
               {selectedLog.details && (
                 <div>
                   <span className="text-xs text-muted-foreground">{t("detail.details")}</span>

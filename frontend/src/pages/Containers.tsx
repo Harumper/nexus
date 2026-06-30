@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { formatBytes as fmtBytes } from "../lib/format";
 import { Container, RefreshCw, Loader2, Server, AlertTriangle, Cpu, MemoryStick, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -35,13 +36,10 @@ interface NautilusContainer {
   pids: number;
 }
 
+// Affiche « — » pour vide/0, sinon délègue au format central locale-aware.
 function formatBytes(n: number): string {
   if (!n || n <= 0) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
-  if (n < 1024 ** 4) return `${(n / 1024 ** 3).toFixed(1)} GB`;
-  return `${(n / 1024 ** 4).toFixed(2)} TB`;
+  return fmtBytes(n);
 }
 
 function formatRate(n: number | null): string {

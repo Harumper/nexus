@@ -107,5 +107,18 @@
     "updates_other": "{{count}} updates",
     "securitySuffix": " ({{count}} security)",
     "certExpiring": "Cert expires in {{days}}d"
+  },
+  "relativeTime": {
+    "never": "never",
+    "now": "now",
+    "seconds": "{{n}}s ago",
+    "minutes": "{{n}}m ago",
+    "hours": "{{n}}h ago",
+    "days": "{{n}}d ago"
+  },
+  "uptime": {
+    "days": "{{d}}d {{h}}h",
+    "hours": "{{h}}h {{m}}m",
+    "minutes": "{{m}}m"
   }
 }

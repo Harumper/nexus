@@ -11,8 +11,9 @@ import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
-  statusColor, statusKey, formatBytes, formatUptime, timeAgo,
+  statusColor, statusKey,
 } from "../lib/utils";
+import { formatBytes, formatUptime, timeAgo, formatDate } from "../lib/format";
 import MetricsChart from "../components/MetricsChart";
 import UpdatePanel from "../components/UpdatePanel";
 import ProcessList from "../components/ProcessList";
@@ -758,8 +759,8 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
           <div className="space-y-2.5">
             <InfoRow label={t("overview.info.ip")} value={machine.ipAddress || "?"} />
             <InfoRow label={t("overview.info.lastSignal")} value={timeAgo(machine.lastHeartbeat)} />
-            <InfoRow label={t("overview.info.enrolledAt")} value={machine.enrolledAt ? new Date(machine.enrolledAt).toLocaleDateString("fr-FR") : t("overview.notEnrolled")} />
-            <InfoRow label={t("overview.info.createdAt")} value={new Date(machine.createdAt).toLocaleDateString("fr-FR")} />
+            <InfoRow label={t("overview.info.enrolledAt")} value={machine.enrolledAt ? formatDate(machine.enrolledAt) : t("overview.notEnrolled")} />
+            <InfoRow label={t("overview.info.createdAt")} value={formatDate(machine.createdAt)} />
           </div>
         </div>
 

@@ -14,7 +14,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { timeAgo } from "../lib/utils";
+import { timeAgo } from "../lib/format";
 import type { WSDashboardMessage } from "../types";
 import type { NotificationChannel } from "../components/AlertChannelEditor";
 import { Button, ConfirmDialog, PageLoader } from "../components/ui";

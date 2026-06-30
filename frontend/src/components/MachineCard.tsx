@@ -3,7 +3,8 @@ import { Server, Cpu, MemoryStick, HardDrive, Clock, AlertTriangle, Trash2, Shie
 import { useState, memo } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { statusColor, statusKey, timeAgo } from "../lib/utils";
+import { statusColor, statusKey } from "../lib/utils";
+import { timeAgo } from "../lib/format";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useConfirm } from "./ui";

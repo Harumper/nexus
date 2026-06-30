@@ -1,25 +1,25 @@
 // Formats temporels des axes de graphes — CENTRALISÉS ici.
 //
-// COORDINATION i18n (Lot 9, formats date/nombre locale-aware) : tout format de
-// date d'axe/tooltip passe par CE module. Le Lot 9 n'aura qu'à remplacer
-// CHART_LOCALE par la locale active (et adapter les options Intl) en UN endroit,
-// au lieu de rechasser des `toLocaleString("fr-FR")` éparpillés dans les graphes.
-const CHART_LOCALE = "fr-FR";
+// COORDINATION i18n (Lot 9a, formats date/nombre locale-aware) : tout format de
+// date d'axe/tooltip passe par CE module. La locale active vient de
+// lib/format (localeTag → fr-FR / en-GB) ; on ne rechasse pas des
+// `toLocaleString("fr-FR")` éparpillés dans les composants de graphes.
+import { localeTag } from "./format";
 
 // Tick de l'axe X : heure (HH:mm) pour les fenêtres <= 24h ; date (JJ/MM) au-delà
 // (7j/30j), où l'heure n'a plus de sens et où les jours se confondraient sinon.
 export function formatAxisTick(ts: number, range: string): string {
   const d = new Date(ts);
   if (range === "7d" || range === "30d") {
-    return d.toLocaleDateString(CHART_LOCALE, { day: "2-digit", month: "2-digit" });
+    return d.toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit" });
   }
-  return d.toLocaleTimeString(CHART_LOCALE, { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" });
 }
 
 // Libellé du tooltip : TOUJOURS date + heure complètes — lève l'ambiguïté de
 // minuit (24h) et des jours identiques (7j).
 export function formatAxisLabel(ts: number): string {
-  return new Date(ts).toLocaleString(CHART_LOCALE, {
+  return new Date(ts).toLocaleString(localeTag(), {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",

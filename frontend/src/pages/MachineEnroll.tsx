@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
+import { formatDateTime } from "../lib/format";
 import { useNavigate, useParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { getErrorMessage } from "../services/errors";
@@ -269,7 +270,7 @@ export default function MachineEnroll() {
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
                 <div className="text-sm">
                   <div className="font-medium text-foreground">
-                    {t("commandsValidUntil", { date: new Date(bootstrap.expiresAt).toLocaleString("fr-FR") })}
+                    {t("commandsValidUntil", { date: formatDateTime(bootstrap.expiresAt) })}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {t("executeHint")}
