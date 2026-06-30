@@ -6,10 +6,19 @@
 // `toLocaleString("fr-FR")` éparpillés dans les composants de graphes.
 import { localeTag } from "./format";
 
+// Parse un timestamp d'axe : accepte un epoch ms (number, MetricsChart/Compare) OU
+// une date ISO (string, ex. buckets /fleet/trends du Dashboard). Retourne null si
+// invalide → les formateurs rendent "" plutôt que "Invalid Date" à l'écran.
+function toAxisDate(ts: number | string): Date | null {
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // Tick de l'axe X : heure (HH:mm) pour les fenêtres <= 24h ; date (JJ/MM) au-delà
 // (7j/30j), où l'heure n'a plus de sens et où les jours se confondraient sinon.
-export function formatAxisTick(ts: number, range: string): string {
-  const d = new Date(ts);
+export function formatAxisTick(ts: number | string, range: string): string {
+  const d = toAxisDate(ts);
+  if (!d) return "";
   if (range === "7d" || range === "30d") {
     return d.toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit" });
   }
@@ -18,8 +27,10 @@ export function formatAxisTick(ts: number, range: string): string {
 
 // Libellé du tooltip : TOUJOURS date + heure complètes — lève l'ambiguïté de
 // minuit (24h) et des jours identiques (7j).
-export function formatAxisLabel(ts: number): string {
-  return new Date(ts).toLocaleString(localeTag(), {
+export function formatAxisLabel(ts: number | string): string {
+  const d = toAxisDate(ts);
+  if (!d) return "";
+  return d.toLocaleString(localeTag(), {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",

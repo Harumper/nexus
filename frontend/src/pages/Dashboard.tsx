@@ -392,11 +392,11 @@ function TrendChart({ data, dataKey, label, seriesName, color, gradientId }: {
               </linearGradient>
             </defs>
             <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false}
-              tickFormatter={(v) => formatAxisTick(Number(v), "1h")} />
+              tickFormatter={(v) => formatAxisTick(v as string | number, "1h")} />
             <YAxis domain={yDomain} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
             <Tooltip
               contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
-              labelFormatter={(v) => formatAxisLabel(Number(v))}
+              labelFormatter={(v) => formatAxisLabel(v as string | number)}
               formatter={(value: any) => [`${Number(value).toFixed(1)}%`, seriesName]}
             />
             <Area type="monotone" dataKey={dataKey} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />
