@@ -48,5 +48,9 @@ agent/nexus-agent
 agent/tmp/
 frontend/tsconfig.tsbuildinfo
 
+# Release artifacts (signed binary + .minisig + VERSION) mounted into the backend
+# — never commit these. See RELEASING.md.
+/release/
+
 # Pentest tracking (findings/PoC) — tracked in a SEPARATE repo, never in this repo
 /pentest/

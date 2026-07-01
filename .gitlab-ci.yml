@@ -192,8 +192,10 @@ build-agent:
 # agent binary, computes its sha256, writes VERSION (= AGENT_VERSION from the `version`
 # job, derived from the tag + the agent sha). ARTIFACTS only. The SIGNATURE (offline
 # minisign key) and the PUBLICATION into /release are done by scripts/nexus-release.sh
-# on the signing machine (READ_API only) — the private key NEVER touches the CI.
-# Flow: ./nexus-release.sh propose → you create the tag (UI) → ./nexus-release.sh approve vX.Y.Z.
+# on the signing machine (project-scoped write_api token) — the private key NEVER
+# touches the CI.
+# Flow: ./nexus-release.sh creates the tag via the API, waits for this build's
+# artifact, shows the sha256 for approval, signs offline, and publishes to /release.
 release-build:
   stage: release
   image: golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
