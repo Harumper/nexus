@@ -14,6 +14,11 @@ short; please read it before opening an issue or a pull request.
 - **Security vulnerabilities**: see the dedicated section below — **do not open a
   public issue.**
 
+> **Workflow note.** GitHub is the public home of Nexus; development and CI run on
+> an upstream GitLab. Your pull request is reviewed and integrated there, then
+> mirrored back to GitHub — so a merged contribution may land as a commit rather
+> than a merged GitHub PR. Your authorship is preserved.
+
 ## Opening a PR means accepting the CLA
 
 Every pull request implies acceptance of the **Contributor License Agreement**
@@ -24,14 +29,13 @@ first contribution.
 
 ## Before touching security: read the threat model
 
-Nexus has an explicit threat model: [`THREAT-MODEL.md`](THREAT-MODEL.md)
-(currently in French; an English translation is a welcome post-publication
-contribution). If your change touches enrollment, the agent↔backend channel,
+Nexus has an explicit threat model: [`THREAT-MODEL.md`](THREAT-MODEL.md).
+If your change touches enrollment, the agent↔backend channel,
 agent confinement (sudoers, privhelper), RBAC, SSRF, or authentication, **read it
 first** — it defines what is protected, what is not, and the invariants you must
 not break.
 
-Example of an invariant to respect (§5.3, "Invariant pour les contributeurs"):
+Example of an invariant to respect (§5.3, "Invariant for contributors"):
 > All RBAC safety rests on the fact that **no user-reachable path calls
 > `dispatchAction` without a role**. If you add an entry point to
 > `dispatchAction`, it **must** propagate the caller's role — otherwise you open a
