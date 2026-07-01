@@ -13,9 +13,10 @@ if [ ! -f .env ]; then
     ECDSA_SECRET=$(openssl rand -hex 32)
     PG_PASSWORD=$(openssl rand -hex 16)
 
-    sed -i "s/change_me_to_random_64_chars_minimum/$JWT_SECRET/" .env
-    sed -i "s/change_me_in_production/$PG_PASSWORD/g" .env
-    sed -i "0,/change_me_to_random_64_chars_minimum/s//$ECDSA_SECRET/" .env
+    # Fill the (blank) secret assignments in .env — .env.example ships them empty.
+    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
+    sed -i "s|^ECDSA_MASTER_SECRET=.*|ECDSA_MASTER_SECRET=$ECDSA_SECRET|" .env
+    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$PG_PASSWORD|" .env
 
     echo "  .env created with generated secrets"
 else
