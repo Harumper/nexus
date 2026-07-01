@@ -13,15 +13,15 @@ func init() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// network.listening_services : liste les sockets TCP en écoute (ss -tlnp)
-// pour alimenter l'assistant pare-feu (proposer allow pour les services
-// détectés + default-deny). LECTURE SEULE.
+// network.listening_services: lists listening TCP sockets (ss -tlnp)
+// to feed the firewall assistant (propose allow for the detected
+// services + default-deny). READ-ONLY.
 // ═══════════════════════════════════════════════════════════════
 
 type ListeningServicesAction struct{}
 
-func (a *ListeningServicesAction) ID() string                          { return "network.listening_services" }
-func (a *ListeningServicesAction) Capability() string                  { return "monitoring" }
+func (a *ListeningServicesAction) ID() string                              { return "network.listening_services" }
+func (a *ListeningServicesAction) Capability() string                      { return "monitoring" }
 func (a *ListeningServicesAction) Validate(_ map[string]interface{}) error { return nil }
 
 var ssPaths = []string{"/usr/sbin/ss", "/usr/bin/ss"}
@@ -38,10 +38,10 @@ func ssPath() string {
 func (a *ListeningServicesAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	bin := ssPath()
 	if bin == "" {
-		return nil, fmt.Errorf("ss (iproute2) introuvable")
+		return nil, fmt.Errorf("ss (iproute2) not found")
 	}
-	// -H pas d'en-tête, -t tcp, -l listening, -n numérique, -p process (sudo
-	// requis pour voir les noms de process). Fallback sans -p si sudo échoue.
+	// -H no header, -t tcp, -l listening, -n numeric, -p process (sudo
+	// required to see process names). Fallback without -p if sudo fails.
 	out, err := exec.Command("sudo", "-n", bin, "-Htlnp").Output()
 	if err != nil {
 		out, err = exec.Command(bin, "-Htln").Output()
@@ -59,14 +59,14 @@ type listeningService struct {
 	Address       string `json:"address"`
 	Port          string `json:"port"`
 	Process       string `json:"process"`
-	Exposed       bool   `json:"exposed"` // écoute sur une adresse non-loopback
+	Exposed       bool   `json:"exposed"` // listens on a non-loopback address
 	IsSSH         bool   `json:"is_ssh"`
-	DockerManaged bool   `json:"docker_managed"` // publié par Docker (règles iptables propres → ufw inopérant)
+	DockerManaged bool   `json:"docker_managed"` // published by Docker (own iptables rules → ufw ineffective)
 }
 
 var ssProcRegex = regexp.MustCompile(`\(\("([^"]+)"`)
 
-// parseSsListening parse la sortie de `ss -Htlnp` (une socket par ligne).
+// parseSsListening parses the output of `ss -Htlnp` (one socket per line).
 func parseSsListening(out string) []listeningService {
 	seen := map[string]bool{}
 	services := []listeningService{}
@@ -99,9 +99,9 @@ func parseSsListening(out string) []listeningService {
 		seen[key] = true
 
 		isSSH := proc == "sshd" || port == "22"
-		// docker-proxy = port publié par Docker ; dockerd = idem (host net).
-		// Ces ports sont gérés par les règles iptables de Docker, ufw ne les
-		// filtre pas → on les marque pour les exclure de l'assistant pare-feu.
+		// docker-proxy = port published by Docker; dockerd = same (host net).
+		// These ports are managed by Docker's iptables rules, ufw does not
+		// filter them → we mark them to exclude them from the firewall assistant.
 		dockerManaged := proc == "docker-proxy" || proc == "dockerd"
 		services = append(services, listeningService{
 			Proto:         "tcp",
@@ -116,8 +116,8 @@ func parseSsListening(out string) []listeningService {
 	return services
 }
 
-// isExposedAddr : true si l'adresse d'écoute n'est pas du loopback
-// (donc joignable depuis l'extérieur → pertinente pour le pare-feu).
+// isExposedAddr: true if the listening address is not loopback
+// (thus reachable from outside → relevant for the firewall).
 func isExposedAddr(addr string) bool {
 	if strings.HasPrefix(addr, "127.") {
 		return false

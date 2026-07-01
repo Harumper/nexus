@@ -23,7 +23,7 @@ func init() {
 	Register(&FirewallApplyPolicyAction{})
 }
 
-// Port ou port/proto strict (pas de métacaractères) pour l'assistant pare-feu.
+// Strict port or port/proto (no metacharacters) for the firewall assistant.
 var firewallPortRegex = regexp.MustCompile(`^[0-9]{1,5}(/(tcp|udp))?$`)
 
 const (
@@ -31,7 +31,7 @@ const (
 	snapshotDir      = "/var/lib/nexus-agent"
 )
 
-// PendingRevert represente une modification firewall en attente de confirmation.
+// PendingRevert represents a firewall change awaiting confirmation.
 type PendingRevert struct {
 	RequestID    string
 	SnapshotFile string
@@ -43,10 +43,10 @@ type PendingRevert struct {
 var (
 	pendingMu        sync.Mutex
 	pending          = map[string]*PendingRevert{}
-	pendingReserving bool // réservation in-flight (check→snapshot→insert atomique)
+	pendingReserving bool // in-flight reservation (check→snapshot→insert atomic)
 )
 
-// HandleConfirm est appele par main.go quand un message action.confirm est recu du backend.
+// HandleConfirm is called by main.go when an action.confirm message is received from the backend.
 func HandleConfirm(requestID string) {
 	pendingMu.Lock()
 	defer pendingMu.Unlock()
@@ -63,9 +63,9 @@ func HandleConfirm(requestID string) {
 	log.Printf("[Firewall] Change confirmed for request_id=%s, snapshot discarded", requestID)
 }
 
-// RecoverPendingSnapshots est appele au demarrage de l'agent.
-// Si des fichiers de snapshot existent (agent a crash pendant la fenetre 60s),
-// revert immediatement.
+// RecoverPendingSnapshots is called at agent startup.
+// If snapshot files exist (agent crashed during the 60s window),
+// revert immediately.
 func RecoverPendingSnapshots() {
 	entries, err := os.ReadDir(snapshotDir)
 	if err != nil {
@@ -105,7 +105,7 @@ func ufwIsActive() bool {
 }
 
 func restoreFromSnapshot(snapshotFile string, ufwShouldBeEnabled bool) error {
-	// iptables-restore lit depuis stdin
+	// iptables-restore reads from stdin
 	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/iptables-restore")
 	data, err := os.ReadFile(snapshotFile)
 	if err != nil {
@@ -124,13 +124,13 @@ func restoreFromSnapshot(snapshotFile string, ufwShouldBeEnabled bool) error {
 	return nil
 }
 
-// registerPendingRevert snapshot + arme le timer. Retourne un request_id.
+// registerPendingRevert snapshot + arms the timer. Returns a request_id.
 func registerPendingRevert(requestID string) (*PendingRevert, error) {
-	// Serialize : rejeter si un revert est déjà pending OU en cours de
-	// réservation. Le flag `reserving` ferme la fenêtre TOCTOU : sans lui, deux
-	// requêtes concurrentes (goroutines, request_id distincts) passaient toutes
-	// les deux la garde `len(pending)>0` avant insertion → 2ᵉ snapshot d'un état
-	// déjà muté = anti-lock-out cassé.
+	// Serialize: reject if a revert is already pending OR being
+	// reserved. The `reserving` flag closes the TOCTOU window: without it, two
+	// concurrent requests (goroutines, distinct request_ids) would both
+	// pass the `len(pending)>0` guard before insertion → 2nd snapshot of an
+	// already-mutated state = anti-lock-out broken.
 	pendingMu.Lock()
 	if len(pending) > 0 || pendingReserving {
 		pendingMu.Unlock()
@@ -139,7 +139,7 @@ func registerPendingRevert(requestID string) (*PendingRevert, error) {
 	pendingReserving = true
 	pendingMu.Unlock()
 
-	// À partir d'ici on DOIT relâcher la réservation sur tout chemin d'erreur.
+	// From here on we MUST release the reservation on every error path.
 	ufwEnabled := ufwIsActive()
 	snapshotFile, err := snapshotIptables(requestID)
 	if err != nil {
@@ -205,10 +205,10 @@ func (a *FirewallStatusAction) Execute(params map[string]interface{}) (interface
 	pendingMu.Unlock()
 
 	return map[string]interface{}{
-		"enabled":  enabled,
-		"raw":      outStr,
-		"pending":  pendingList,
-		"error":    err != nil,
+		"enabled": enabled,
+		"raw":     outStr,
+		"pending": pendingList,
+		"error":   err != nil,
 	}, nil
 }
 
@@ -248,16 +248,16 @@ func (a *FirewallAllowAction) Execute(params map[string]interface{}) (interface{
 	cmd := exec.Command("/usr/bin/sudo", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Revert immediatement en cas d'echec
-		HandleConfirm(reqID) // libere le pending (timer + snapshot)
+		// Revert immediately on failure
+		HandleConfirm(reqID) // releases the pending (timer + snapshot)
 		return nil, fmt.Errorf("ufw allow failed: %w: %s", err, string(output))
 	}
 	return map[string]interface{}{
-		"applied":              true,
-		"request_id":           reqID,
-		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
-		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
-		"output":               string(output),
+		"applied":             true,
+		"request_id":          reqID,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
+		"output":              string(output),
 	}, nil
 }
 
@@ -268,7 +268,7 @@ type FirewallDenyAction struct{}
 func (a *FirewallDenyAction) ID() string         { return "firewall.deny" }
 func (a *FirewallDenyAction) Capability() string { return "firewall" }
 func (a *FirewallDenyAction) Validate(params map[string]interface{}) error {
-	// meme validation que allow
+	// same validation as allow
 	allow := FirewallAllowAction{}
 	return allow.Validate(params)
 }
@@ -290,11 +290,11 @@ func (a *FirewallDenyAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("ufw deny failed: %w: %s", err, string(output))
 	}
 	return map[string]interface{}{
-		"applied":              true,
-		"request_id":           reqID,
-		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
-		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
-		"output":               string(output),
+		"applied":             true,
+		"request_id":          reqID,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
+		"output":              string(output),
 	}, nil
 }
 
@@ -321,7 +321,7 @@ func (a *FirewallRuleRemoveAction) Execute(params map[string]interface{}) (inter
 	if err != nil {
 		return nil, err
 	}
-	// `ufw --force delete N` pour ne pas demander confirmation interactive
+	// `ufw --force delete N` to avoid asking for interactive confirmation
 	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ufw", "--force", "delete", strconv.Itoa(n))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -329,11 +329,11 @@ func (a *FirewallRuleRemoveAction) Execute(params map[string]interface{}) (inter
 		return nil, fmt.Errorf("ufw delete failed: %w: %s", err, string(output))
 	}
 	return map[string]interface{}{
-		"applied":              true,
-		"request_id":           reqID,
-		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
-		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
-		"output":               string(output),
+		"applied":             true,
+		"request_id":          reqID,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
+		"output":              string(output),
 	}, nil
 }
 
@@ -362,11 +362,11 @@ func (a *FirewallEnableAction) Execute(params map[string]interface{}) (interface
 		return nil, fmt.Errorf("ufw enable failed: %w: %s", err, string(output))
 	}
 	return map[string]interface{}{
-		"applied":              true,
-		"request_id":           reqID,
-		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
-		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
-		"output":               string(output),
+		"applied":             true,
+		"request_id":          reqID,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
+		"output":              string(output),
 	}, nil
 }
 
@@ -395,19 +395,19 @@ func (a *FirewallDisableAction) Execute(params map[string]interface{}) (interfac
 		return nil, fmt.Errorf("ufw disable failed: %w: %s", err, string(output))
 	}
 	return map[string]interface{}{
-		"applied":              true,
-		"request_id":           reqID,
-		"watchdog_expires_in":  int(watchdogDuration.Seconds()),
-		"watchdog_expires_at":  pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
-		"output":               string(output),
+		"applied":             true,
+		"request_id":          reqID,
+		"watchdog_expires_in": int(watchdogDuration.Seconds()),
+		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
+		"output":              string(output),
 	}, nil
 }
 
 // ===================== firewall.apply_policy =====================
-// Assistant pare-feu : autorise une liste de ports détectés puis active ufw
-// (deny entrant par défaut). UNE seule opération watchdog'd (snapshot iptables
-// + revert 60s). Anti-lock-out : le port SSH doit figurer dans 'allow' (garanti
-// côté UI), et le watchdog restaure tout si l'accès est perdu.
+// Firewall assistant: allows a list of detected ports then enables ufw
+// (deny incoming by default). ONE single watchdog'd operation (iptables snapshot
+// + 60s revert). Anti-lock-out: the SSH port must be present in 'allow' (guaranteed
+// on the UI side), and the watchdog restores everything if access is lost.
 
 type FirewallApplyPolicyAction struct{}
 
@@ -417,7 +417,7 @@ func (a *FirewallApplyPolicyAction) Capability() string { return "firewall" }
 func (a *FirewallApplyPolicyAction) Validate(params map[string]interface{}) error {
 	raw, ok := params["allow"].([]interface{})
 	if !ok || len(raw) == 0 {
-		return fmt.Errorf("required parameter 'allow' missing (liste de ports, ex. [\"22/tcp\",\"80/tcp\"])")
+		return fmt.Errorf("required parameter 'allow' missing (port list, e.g. [\"22/tcp\",\"80/tcp\"])")
 	}
 	if len(raw) > 100 {
 		return fmt.Errorf("too many rules (max 100)")
@@ -425,7 +425,7 @@ func (a *FirewallApplyPolicyAction) Validate(params map[string]interface{}) erro
 	for _, item := range raw {
 		s, ok := item.(string)
 		if !ok || !firewallPortRegex.MatchString(s) {
-			return fmt.Errorf("invalid allow entry %q (attendu: port ou port/tcp|udp)", item)
+			return fmt.Errorf("invalid allow entry %q (expected: port or port/tcp|udp)", item)
 		}
 	}
 	return nil
@@ -448,14 +448,14 @@ func (a *FirewallApplyPolicyAction) Execute(params map[string]interface{}) (inte
 		return nil, err
 	}
 
-	// fail : revert immédiat depuis le snapshot puis libère le pending.
+	// fail: immediate revert from the snapshot then releases the pending.
 	fail := func(format string, args ...interface{}) (interface{}, error) {
 		_ = restoreFromSnapshot(pr.SnapshotFile, pr.UfwEnabled)
 		HandleConfirm(reqID)
 		return nil, fmt.Errorf(format, args...)
 	}
 
-	// 1. Autoriser les ports AVANT d'activer (les règles sont en place avant l'enforcement).
+	// 1. Allow the ports BEFORE enabling (rules are in place before enforcement).
 	for _, port := range allow {
 		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ufw", "allow", port)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -463,7 +463,7 @@ func (a *FirewallApplyPolicyAction) Execute(params map[string]interface{}) (inte
 		}
 	}
 
-	// 2. Activer ufw (deny entrant par défaut sur une activation standard).
+	// 2. Enable ufw (deny incoming by default on a standard activation).
 	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ufw", "--force", "enable")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fail("ufw enable failed: %w: %s", err, string(out))

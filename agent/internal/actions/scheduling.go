@@ -17,30 +17,30 @@ func init() {
 	Register(&TimerDisableAction{})
 }
 
-// Regex pour noms de timer valides (meme que services)
+// Regex for valid timer names (same as services)
 var timerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9@_.\-]+(\.timer)?$`)
 
 // ═══════════════════════════════════════════════════════════════
-// cron.list : parse /etc/crontab + /etc/cron.d/* + crontabs users
+// cron.list: parse /etc/crontab + /etc/cron.d/* + user crontabs
 // ═══════════════════════════════════════════════════════════════
 
 type CronJob struct {
 	Source   string `json:"source"`   // "/etc/crontab", "/etc/cron.d/foo", "user:root"
-	User     string `json:"user"`     // Utilisateur d'execution
-	Schedule string `json:"schedule"` // "0 3 * * *" ou "@daily"
+	User     string `json:"user"`     // Execution user
+	Schedule string `json:"schedule"` // "0 3 * * *" or "@daily"
 	Command  string `json:"command"`
 }
 
 type CronListAction struct{}
 
-func (a *CronListAction) ID() string                                 { return "cron.list" }
-func (a *CronListAction) Capability() string                         { return "monitoring" }
-func (a *CronListAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *CronListAction) ID() string                              { return "cron.list" }
+func (a *CronListAction) Capability() string                      { return "monitoring" }
+func (a *CronListAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *CronListAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	jobs := []CronJob{}
 
-	// /etc/crontab (6 champs : min h dom mon dow user command)
+	// /etc/crontab (6 fields: min h dom mon dow user command)
 	jobs = append(jobs, parseSystemCrontab("/etc/crontab")...)
 
 	// /etc/cron.d/*
@@ -53,9 +53,9 @@ func (a *CronListAction) Execute(_ map[string]interface{}) (interface{}, error) 
 		}
 	}
 
-	// crontabs users via `sudo crontab -l -u <user>` serait trop intrusif.
-	// On lit /var/spool/cron/crontabs si accessible (necessiterait sudo typique).
-	// Pour v1 on reste sur les crontabs systeme.
+	// user crontabs via `sudo crontab -l -u <user>` would be too intrusive.
+	// We read /var/spool/cron/crontabs if accessible (would typically require sudo).
+	// For v1 we stick to the system crontabs.
 
 	return map[string]interface{}{
 		"jobs":  jobs,
@@ -75,11 +75,11 @@ func parseSystemCrontab(path string) []CronJob {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		// Skip les lignes de variables (NAME=value)
+		// Skip variable lines (NAME=value)
 		if strings.Contains(line, "=") && !strings.ContainsAny(line, " \t") {
 			continue
 		}
-		// Format: min h dom mon dow user command... (ou @daily user command...)
+		// Format: min h dom mon dow user command... (or @daily user command...)
 		fields := strings.Fields(line)
 		if len(fields) < 7 {
 			continue
@@ -94,7 +94,7 @@ func parseSystemCrontab(path string) []CronJob {
 			user = fields[1]
 			command = strings.Join(fields[2:], " ")
 		} else {
-			// 5 champs + user + command
+			// 5 fields + user + command
 			schedule = strings.Join(fields[0:5], " ")
 			user = fields[5]
 			command = strings.Join(fields[6:], " ")
@@ -115,9 +115,9 @@ func parseSystemCrontab(path string) []CronJob {
 
 type TimerListAction struct{}
 
-func (a *TimerListAction) ID() string                                 { return "timer.list" }
-func (a *TimerListAction) Capability() string                         { return "monitoring" }
-func (a *TimerListAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *TimerListAction) ID() string                              { return "timer.list" }
+func (a *TimerListAction) Capability() string                      { return "monitoring" }
+func (a *TimerListAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *TimerListAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	cmd := exec.Command("/usr/bin/systemctl", "list-timers", "--all", "--no-pager", "--output", "json")
@@ -127,11 +127,11 @@ func (a *TimerListAction) Execute(_ map[string]interface{}) (interface{}, error)
 	}
 	var timers []map[string]interface{}
 	if err := json.Unmarshal(out, &timers); err != nil {
-		// Fallback si pas de JSON support (systemd ancien)
+		// Fallback if no JSON support (old systemd)
 		return nil, fmt.Errorf("failed to parse timers json: %w", err)
 	}
 
-	// Enrichir avec l'etat enabled/disabled via is-enabled (batch)
+	// Enrich with the enabled/disabled state via is-enabled (batch)
 	for i, t := range timers {
 		if unit, ok := t["unit"].(string); ok {
 			enabledCmd := exec.Command("/usr/bin/systemctl", "is-enabled", unit)
@@ -195,8 +195,8 @@ func runTimerCommand(verb string, params map[string]interface{}) (interface{}, e
 	if !strings.HasSuffix(name, ".timer") {
 		name = name + ".timer"
 	}
-	// NEXUS-AGENT-006 : contrôle de service via le privhelper compilé (verbe +
-	// unité canonicalisés, options non injectables).
+	// NEXUS-AGENT-006: service control via the compiled privhelper (canonicalized
+	// verb + unit, non-injectable options).
 	cmd := exec.Command("sudo", "-n", nexusAgentBin, "privhelper", "svc", verb, name)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

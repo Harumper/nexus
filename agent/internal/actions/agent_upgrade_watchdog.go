@@ -12,20 +12,20 @@ import (
 	"time"
 )
 
-// NEXUS-SELF-UPGRADE-005 — watchdog-revert appliqué à l'auto-upgrade (le seul
-// mutateur self qui sautait le pattern snapshot→apply→revert-si-non-confirmé de
-// firewall/netplan/sshd). Une release valide-mais-mauvaise ne doit pas bricker
-// l'hôte sans retour.
+// NEXUS-SELF-UPGRADE-005 — watchdog-revert applied to auto-upgrade (the only
+// self mutator that skipped the snapshot→apply→revert-if-not-confirmed pattern of
+// firewall/netplan/sshd). A valid-but-bad release must not brick
+// the host with no way back.
 //
-// Flow :
-//  1. avant d'installer le nouveau binaire : snapshot du courant → .prev (root) ;
-//  2. après install : marqueur "upgrade en attente" (SHA attendu) ;
-//  3. au boot (RecoverPendingUpgrade) : si un marqueur existe et que le binaire
-//     courant est bien le nouveau, on ARME un dead-man's switch — si l'agent ne
-//     CONFIRME pas (reconnexion + auth) sous le délai, on restaure .prev et on
-//     redémarre sur le binaire connu-bon ;
-//  4. ConfirmUpgrade (appelé sur reconnexion réussie) annule le switch + efface
-//     le marqueur. On NE supprime PAS .prev (fallback conservé, écrasé au prochain
+// Flow:
+//  1. before installing the new binary: snapshot the current one → .prev (root);
+//  2. after install: "upgrade pending" marker (expected SHA);
+//  3. at boot (RecoverPendingUpgrade): if a marker exists and the current
+//     binary is indeed the new one, we ARM a dead-man's switch — if the agent does
+//     not CONFIRM (reconnection + auth) within the delay, we restore .prev and
+//     restart on the known-good binary;
+//  4. ConfirmUpgrade (called on successful reconnection) cancels the switch + erases
+//     the marker. We do NOT delete .prev (fallback kept, overwritten at the next
 //     upgrade).
 const (
 	prevBinPath       = "/var/lib/nexus-agent/nexus-agent.prev"
@@ -48,8 +48,8 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h[:]), nil
 }
 
-// snapshotPreviousBinary copie le binaire courant en .prev (root-owned) AVANT
-// l'écrasement — on ne supprime jamais la seule copie de secours.
+// snapshotPreviousBinary copies the current binary to .prev (root-owned) BEFORE
+// overwriting — we never delete the only backup copy.
 func snapshotPreviousBinary() error {
 	out, err := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", agentFinalBinPath, prevBinPath).CombinedOutput()
 	if err != nil {
@@ -58,39 +58,39 @@ func snapshotPreviousBinary() error {
 	return nil
 }
 
-// markUpgradePending écrit le marqueur (SHA attendu du nouveau binaire).
+// markUpgradePending writes the marker (expected SHA of the new binary).
 func markUpgradePending(expectedSHA string) error {
 	return os.WriteFile(upgradeMarkerPath, []byte(expectedSHA+"\n"), 0600)
 }
 
-// RecoverPendingUpgrade — appelé au BOOT (comme RecoverPendingSnapshots/Netplan/
-// Sshd). Arme le dead-man's switch si une upgrade est en attente.
+// RecoverPendingUpgrade — called at BOOT (like RecoverPendingSnapshots/Netplan/
+// Sshd). Arms the dead-man's switch if an upgrade is pending.
 func RecoverPendingUpgrade() {
 	data, err := os.ReadFile(upgradeMarkerPath)
 	if err != nil {
-		return // pas d'upgrade en attente
+		return // no upgrade pending
 	}
 	expected := strings.TrimSpace(string(data))
 
 	cur, err := fileSHA256(agentFinalBinPath)
 	if err == nil && cur != expected {
-		// Le binaire courant n'est PAS le nouveau attendu → restaurer le connu-bon.
-		log.Printf("[Upgrade] binaire courant ≠ attendu (%s ≠ %s) → restauration .prev", cur, expected)
+		// The current binary is NOT the expected new one → restore the known-good.
+		log.Printf("[Upgrade] current binary ≠ expected (%s ≠ %s) → restoring .prev", cur, expected)
 		revertUpgrade()
 		return
 	}
 
 	upgradeMu.Lock()
 	upgradeRevertTimer = time.AfterFunc(upgradeGrace, func() {
-		log.Printf("[Upgrade] pas de confirmation sous %v → restauration .prev (dead-man's switch)", upgradeGrace)
+		log.Printf("[Upgrade] no confirmation within %v → restoring .prev (dead-man's switch)", upgradeGrace)
 		revertUpgrade()
 	})
 	upgradeMu.Unlock()
-	log.Printf("[Upgrade] nouveau binaire démarré ; health-gate armé (%v jusqu'à confirmation)", upgradeGrace)
+	log.Printf("[Upgrade] new binary started; health-gate armed (%v until confirmation)", upgradeGrace)
 }
 
-// ConfirmUpgrade — appelé sur reconnexion + auth réussie. Annule le switch et
-// efface le marqueur : l'upgrade est validé.
+// ConfirmUpgrade — called on successful reconnection + auth. Cancels the switch and
+// erases the marker: the upgrade is validated.
 func ConfirmUpgrade() {
 	upgradeMu.Lock()
 	if upgradeRevertTimer != nil {
@@ -100,22 +100,22 @@ func ConfirmUpgrade() {
 	upgradeMu.Unlock()
 	if _, err := os.Stat(upgradeMarkerPath); err == nil {
 		os.Remove(upgradeMarkerPath)
-		log.Printf("[Upgrade] confirmé (reconnexion OK) ; marqueur effacé (.prev conservé comme fallback)")
+		log.Printf("[Upgrade] confirmed (reconnection OK); marker erased (.prev kept as fallback)")
 	}
 }
 
-// revertUpgrade restaure le binaire de secours .prev et redémarre.
+// revertUpgrade restores the .prev backup binary and restarts.
 func revertUpgrade() {
 	if _, err := os.Stat(prevBinPath); err != nil {
-		log.Printf("[Upgrade] .prev absent — revert impossible")
+		log.Printf("[Upgrade] .prev missing — revert impossible")
 		return
 	}
 	out, err := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", prevBinPath, agentFinalBinPath).CombinedOutput()
 	if err != nil {
-		log.Printf("[Upgrade] revert install échoué: %v %s", err, strings.TrimSpace(string(out)))
+		log.Printf("[Upgrade] revert install failed: %v %s", err, strings.TrimSpace(string(out)))
 		return
 	}
 	os.Remove(upgradeMarkerPath)
-	log.Printf("[Upgrade] binaire restauré depuis .prev → redémarrage sur le connu-bon")
-	os.Exit(1) // Restart=always relance l'agent sur le binaire restauré
+	log.Printf("[Upgrade] binary restored from .prev → restarting on the known-good")
+	os.Exit(1) // Restart=always restarts the agent on the restored binary
 }

@@ -10,8 +10,8 @@ import (
 
 type Config struct {
 	// Server connection
-	ServerURL      string
-	MachineID      string
+	ServerURL       string
+	MachineID       string
 	EnrollmentToken string
 	ServerPublicKey string
 
@@ -43,39 +43,39 @@ func Load() (*Config, error) {
 		HeartbeatInterval: getEnvInt("NEXUS_HEARTBEAT_INTERVAL", 30),
 		MetricsInterval:   getEnvInt("NEXUS_METRICS_INTERVAL", 60),
 		ProcessInterval:   getEnvInt("NEXUS_PROCESS_INTERVAL", 600),
-		Version:           "dev", // écrasé par main.Version (injecté au build)
+		Version:           "dev", // overwritten by main.Version (injected at build)
 	}
 
 	if cfg.ServerURL == "" {
 		return nil, fmt.Errorf("NEXUS_SERVER_URL is required")
 	}
 
-	// NEXUS-ENROLLMENT-001 — couche 1 : forcer wss:// (TLS obligatoire pour le
-	// bootstrap). La requête d'enrôlement porte le token single-use ET la clé
-	// publique de l'agent en clair au niveau applicatif ; sans TLS, un attaquant
-	// on-path lit le token et substitue sa propre clé. Le pinning de la clé serveur
-	// ne protège que la RÉPONSE, pas cette requête. Fail-closed : tout schéma ≠
-	// wss:// est refusé au boot, sauf override EXPLICITE NEXUS_ALLOW_INSECURE=1
-	// (dev local sur réseau de confiance uniquement).
+	// NEXUS-ENROLLMENT-001 — layer 1: force wss:// (TLS mandatory for the
+	// bootstrap). The enrollment request carries the single-use token AND the
+	// agent's public key in clear at the application level; without TLS, an
+	// on-path attacker reads the token and substitutes its own key. Pinning the
+	// server key only protects the RESPONSE, not this request. Fail-closed: any
+	// scheme ≠ wss:// is refused at boot, except with the EXPLICIT override
+	// NEXUS_ALLOW_INSECURE=1 (local dev on a trusted network only).
 	allowInsecure := getEnv("NEXUS_ALLOW_INSECURE", "") == "1"
 	if !strings.HasPrefix(cfg.ServerURL, "wss://") {
 		if !allowInsecure {
-			return nil, fmt.Errorf("NEXUS_SERVER_URL doit utiliser wss:// (TLS obligatoire pour le bootstrap) ; schéma fourni: %q. "+
-				"Posez NEXUS_ALLOW_INSECURE=1 pour le dev local uniquement", cfg.ServerURL)
+			return nil, fmt.Errorf("NEXUS_SERVER_URL must use wss:// (TLS mandatory for the bootstrap); scheme provided: %q. "+
+				"Set NEXUS_ALLOW_INSECURE=1 for local dev only", cfg.ServerURL)
 		}
-		// Override actif ET transport en clair : avertir BRUYAMMENT à CHAQUE boot,
-		// jamais une échappatoire silencieuse.
-		log.Printf("[Agent] ⚠️  SÉCURITÉ: NEXUS_ALLOW_INSECURE=1 — transport NON CHIFFRÉ (%s). "+
-			"Le token d'enrôlement et la clé publique de l'agent transitent EN CLAIR (MITM possible au bootstrap). "+
-			"À réserver au dev local sur réseau de confiance ; utilisez wss:// en production.", cfg.ServerURL)
+		// Override active AND cleartext transport: warn LOUDLY on EVERY boot,
+		// never a silent escape hatch.
+		log.Printf("[Agent] ⚠️  SECURITY: NEXUS_ALLOW_INSECURE=1 — UNENCRYPTED transport (%s). "+
+			"The enrollment token and the agent's public key travel IN CLEAR (MITM possible at bootstrap). "+
+			"Reserve this for local dev on a trusted network; use wss:// in production.", cfg.ServerURL)
 	}
 
 	return cfg, nil
 }
 
-// loadServerPublicKey charge la cle publique du serveur depuis :
-// 1. NEXUS_SERVER_PUBLIC_KEY (PEM inline, legacy) — deconseille pour systemd
-// 2. NEXUS_SERVER_PUBLIC_KEY_FILE (chemin vers un fichier PEM) — recommande
+// loadServerPublicKey loads the server's public key from:
+// 1. NEXUS_SERVER_PUBLIC_KEY (inline PEM, legacy) — discouraged for systemd
+// 2. NEXUS_SERVER_PUBLIC_KEY_FILE (path to a PEM file) — recommended
 func loadServerPublicKey() string {
 	if inline := os.Getenv("NEXUS_SERVER_PUBLIC_KEY"); inline != "" {
 		return inline

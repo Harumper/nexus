@@ -12,8 +12,8 @@ var (
 	registry = make(map[string]security.Action)
 )
 
-// Register enregistre une action dans le registre
-// Appelé dans les init() de chaque fichier d'action
+// Register registers an action in the registry
+// Called from the init() of each action file
 func Register(action security.Action) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -24,7 +24,7 @@ func Register(action security.Action) {
 	registry[id] = action
 }
 
-// Get retourne une action par son ID
+// Get returns an action by its ID
 func Get(actionID string) (security.Action, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -32,7 +32,7 @@ func Get(actionID string) (security.Action, bool) {
 	return a, ok
 }
 
-// ListAll retourne tous les IDs d'actions enregistrées
+// ListAll returns all registered action IDs
 func ListAll() []string {
 	mu.RLock()
 	defer mu.RUnlock()

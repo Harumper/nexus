@@ -2,7 +2,7 @@ package actions
 
 import "testing"
 
-// Échantillon réaliste de /var/log/lynis-report.dat (format plat key=value).
+// Realistic sample of /var/log/lynis-report.dat (flat key=value format).
 const sampleLynisReport = `# Lynis Report
 report_version_major=1
 lynis_version=3.1.2

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// GetCPU lit /proc/stat deux fois à 1s d'intervalle pour calculer le % CPU
+// GetCPU reads /proc/stat twice 1s apart to compute the CPU %
 func GetCPU(procPath string) (float64, error) {
 	idle1, total1, err := readCPUStat(procPath)
 	if err != nil {

@@ -9,7 +9,7 @@ func init() { Register(&HeartbeatAction{}) }
 type HeartbeatAction struct{}
 
 func (a *HeartbeatAction) ID() string         { return "system.heartbeat" }
-func (a *HeartbeatAction) Capability() string  { return "monitoring" }
+func (a *HeartbeatAction) Capability() string { return "monitoring" }
 
 func (a *HeartbeatAction) Validate(params map[string]interface{}) error {
 	return nil

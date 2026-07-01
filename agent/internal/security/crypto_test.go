@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// Tests comportementaux de la crypto agent : signature ECDSA, dérivation ECDH,
-// PEM, fenêtre timestamp et surtout VerifyServerMessage (signature + anti-replay).
-// Zone précédemment NON couverte alors qu'elle est au cœur de la sécurité du canal.
+// Behavioral tests of the agent crypto: ECDSA signature, ECDH derivation,
+// PEM, timestamp window and above all VerifyServerMessage (signature + anti-replay).
+// Previously UNCOVERED area even though it is at the heart of the channel security.
 
 func TestSignVerifyRoundTrip(t *testing.T) {
 	priv, err := GenerateECDSAKeypair()
@@ -22,16 +22,16 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 		t.Fatalf("sign: %v", err)
 	}
 	if !VerifySignature(payload, sig, &priv.PublicKey) {
-		t.Fatal("signature valide rejetée")
+		t.Fatal("valid signature rejected")
 	}
-	// Payload altéré → rejet
+	// Tampered payload → reject
 	if VerifySignature(payload+"x", sig, &priv.PublicKey) {
-		t.Fatal("payload altéré accepté")
+		t.Fatal("tampered payload accepted")
 	}
-	// Mauvaise clé → rejet
+	// Wrong key → reject
 	other, _ := GenerateECDSAKeypair()
 	if VerifySignature(payload, sig, &other.PublicKey) {
-		t.Fatal("signature acceptée avec une mauvaise clé")
+		t.Fatal("signature accepted with a wrong key")
 	}
 }
 
@@ -45,16 +45,16 @@ func TestPublicKeyPEMRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	// La clé reparsée doit valider une signature de la clé d'origine.
+	// The reparsed key must validate a signature from the original key.
 	sig, _ := SignPayload("x", priv)
 	if !VerifySignature("x", sig, parsed) {
-		t.Fatal("clé publique reparsée incohérente")
+		t.Fatal("reparsed public key inconsistent")
 	}
 }
 
-// CRYPTO-004 : la clé de session est dérivée d'un ECDHE X25519 éphémère. Les deux
-// parties (agent ea, backend eb) doivent dériver le MÊME K ; un machine_id
-// différent doit donner un K différent (domain-separation HKDF).
+// CRYPTO-004: the session key is derived from an ephemeral X25519 ECDHE. Both
+// parties (agent ea, backend eb) must derive the SAME K; a different machine_id
+// must give a different K (HKDF domain-separation).
 func TestSessionKeyDerivationSymmetry(t *testing.T) {
 	ea, _ := ecdh.X25519().GenerateKey(rand.Reader)
 	eb, _ := ecdh.X25519().GenerateKey(rand.Reader)
@@ -75,25 +75,25 @@ func TestSessionKeyDerivationSymmetry(t *testing.T) {
 		t.Fatalf("deriveSessionKey b: %v", err)
 	}
 	if len(ka) != 32 || string(ka) != string(kb) {
-		t.Fatal("clé de session non symétrique entre les deux parties éphémères")
+		t.Fatal("session key not symmetric between the two ephemeral parties")
 	}
 	kc, _ := deriveSessionKey(sa, "m2")
 	if string(ka) == string(kc) {
-		t.Fatal("domain-separation par machine_id absente (HKDF info)")
+		t.Fatal("domain-separation by machine_id absent (HKDF info)")
 	}
 }
 
 func TestIsTimestampValid(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	if !IsTimestampValid(now, 5*time.Minute) {
-		t.Fatal("timestamp courant rejeté")
+		t.Fatal("current timestamp rejected")
 	}
 	old := time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
 	if IsTimestampValid(old, 5*time.Minute) {
-		t.Fatal("timestamp vieux de 10min accepté (fenêtre 5min)")
+		t.Fatal("10min-old timestamp accepted (5min window)")
 	}
-	if IsTimestampValid("pas-une-date", 5*time.Minute) {
-		t.Fatal("timestamp invalide accepté")
+	if IsTimestampValid("not-a-date", 5*time.Minute) {
+		t.Fatal("invalid timestamp accepted")
 	}
 }
 
@@ -119,41 +119,41 @@ func TestVerifyServerMessage(t *testing.T) {
 		return msg
 	}
 
-	// 1. Message valide → accepté
+	// 1. Valid message → accepted
 	ok := build()
 	if err := VerifyServerMessage(ok, &server.PublicKey); err != nil {
-		t.Fatalf("message valide rejeté: %v", err)
+		t.Fatalf("valid message rejected: %v", err)
 	}
 
-	// 2. Rejeu du MÊME message (même nonce) → rejeté
+	// 2. Replay of the SAME message (same nonce) → rejected
 	if err := VerifyServerMessage(ok, &server.PublicKey); err == nil {
-		t.Fatal("rejeu (nonce dupliqué) accepté")
+		t.Fatal("replay (duplicate nonce) accepted")
 	}
 
-	// 3. Signature invalide (payload altéré après signature) → rejeté
+	// 3. Invalid signature (payload tampered after signature) → rejected
 	tampered := build()
 	tampered.Payload = "tampered"
 	if err := VerifyServerMessage(tampered, &server.PublicKey); err == nil {
-		t.Fatal("message à signature invalide accepté")
+		t.Fatal("message with invalid signature accepted")
 	}
 
-	// 4. Mauvaise clé serveur (pinning) → rejeté
+	// 4. Wrong server key (pinning) → rejected
 	other, _ := GenerateECDSAKeypair()
 	if err := VerifyServerMessage(build(), &other.PublicKey); err == nil {
-		t.Fatal("message accepté avec une mauvaise clé serveur (pinning cassé)")
+		t.Fatal("message accepted with a wrong server key (pinning broken)")
 	}
 
-	// 5. Timestamp hors fenêtre → rejeté
+	// 5. Timestamp out of window → rejected
 	stale := build()
 	stale.Timestamp = time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
 	if err := VerifyServerMessage(stale, &server.PublicKey); err == nil {
-		t.Fatal("message à timestamp périmé accepté")
+		t.Fatal("message with stale timestamp accepted")
 	}
 
-	// 6. Version de protocole non supportée (v1 / champ v absent) → rejeté
+	// 6. Unsupported protocol version (v1 / v field absent) → rejected
 	badVersion := build()
 	badVersion.V = 1
 	if err := VerifyServerMessage(badVersion, &server.PublicKey); err == nil {
-		t.Fatal("message à version de protocole non supportée accepté")
+		t.Fatal("message with unsupported protocol version accepted")
 	}
 }

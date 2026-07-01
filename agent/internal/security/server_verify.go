@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// VerifyServerMessageInput regroupe les champs verifies d'un message
-// reçu du backend. Decouple de transport.Message pour eviter le cycle import.
+// VerifyServerMessageInput groups the verified fields of a message
+// received from the backend. Decoupled from transport.Message to avoid the import cycle.
 type VerifyServerMessageInput struct {
 	V         int
 	Type      string
@@ -20,30 +20,30 @@ type VerifyServerMessageInput struct {
 	Signature string
 }
 
-// nonceStore garde en memoire les nonces deja vus dans la fenetre timestamp
-// pour bloquer les replays cote agent (defense en profondeur, le backend
-// utilise deja un cache LRU equivalent cote serveur).
+// nonceStore keeps in memory the nonces already seen within the timestamp window
+// to block replays on the agent side (defense in depth; the backend already uses
+// an equivalent LRU cache on the server side).
 var (
 	nonceStore = struct {
 		sync.Mutex
 		seen map[string]time.Time
 	}{seen: make(map[string]time.Time)}
 
-	// Aligne sur la fenetre timestamp (5 min) — tout nonce plus vieux est
-	// rejete par IsTimestampValid de toute facon, on le purge.
+	// Aligned with the timestamp window (5 min) — any older nonce is rejected by
+	// IsTimestampValid anyway, so we purge it.
 	nonceTTL = 5 * time.Minute
 )
 
-// rememberNonce retourne true si le nonce est nouveau, false s'il a deja
-// ete vu dans la fenetre TTL (= replay attack).
+// rememberNonce returns true if the nonce is new, false if it has already been
+// seen within the TTL window (= replay attack).
 func rememberNonce(nonce string) bool {
 	nonceStore.Lock()
 	defer nonceStore.Unlock()
 
 	now := time.Now()
 
-	// Purge opportuniste des nonces expires (sans goroutine dediee, sufficient
-	// car la map croit lentement et on purge a chaque insert)
+	// Opportunistic purge of expired nonces (no dedicated goroutine, sufficient
+	// since the map grows slowly and we purge on every insert)
 	for k, t := range nonceStore.seen {
 		if now.Sub(t) > nonceTTL {
 			delete(nonceStore.seen, k)
@@ -57,16 +57,16 @@ func rememberNonce(nonce string) bool {
 	return true
 }
 
-// VerifyServerMessage valide un message recu du backend :
-//  1. Timestamp dans la fenetre 5 min (anti drift + anti vieux replay)
-//  2. Nonce non vu (anti replay strict)
-//  3. Signature ECDSA valide avec la cle publique du serveur
+// VerifyServerMessage validates a message received from the backend:
+//  1. Timestamp within the 5 min window (anti-drift + anti old-replay)
+//  2. Nonce not seen (strict anti-replay)
+//  3. Valid ECDSA signature with the server's public key
 //
-// A appeler AVANT toute action sensible (notamment action.confirm qui
-// annule un watchdog-revert firewall/netplan).
+// To be called BEFORE any sensitive action (notably action.confirm, which
+// cancels a firewall/netplan watchdog-revert).
 func VerifyServerMessage(msg VerifyServerMessageInput, serverPubKey *ecdsa.PublicKey) error {
-	// Version de protocole d'abord : un message d'un backend v1 (ou sans champ v)
-	// est rejeté explicitement, pas traité à l'aveugle.
+	// Protocol version first: a message from a v1 backend (or without a v field)
+	// is rejected explicitly, not processed blindly.
 	if msg.V != ProtocolVersion {
 		return fmt.Errorf("unsupported protocol version %d (expected %d)", msg.V, ProtocolVersion)
 	}
@@ -83,9 +83,9 @@ func VerifyServerMessage(msg VerifyServerMessageInput, serverPubKey *ecdsa.Publi
 		return fmt.Errorf("invalid server signature")
 	}
 
-	// NEXUS-CRYPTO-005 (mirror agent) : on n'enregistre le nonce qu'APRÈS la
-	// vérification de signature, pour qu'un message non authentifié ne puisse pas
-	// empoisonner le cache anti-replay côté agent (défense en profondeur).
+	// NEXUS-CRYPTO-005 (agent mirror): we record the nonce only AFTER the signature
+	// verification, so that an unauthenticated message cannot poison the agent-side
+	// anti-replay cache (defense in depth).
 	if !rememberNonce(msg.Nonce) {
 		return fmt.Errorf("duplicate nonce (replay): %s", msg.Nonce)
 	}

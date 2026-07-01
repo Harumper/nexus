@@ -11,7 +11,7 @@ func init() { Register(&PackageListAction{}) }
 type PackageListAction struct{}
 
 func (a *PackageListAction) ID() string         { return "system.package_list" }
-func (a *PackageListAction) Capability() string  { return "updates" }
+func (a *PackageListAction) Capability() string { return "updates" }
 
 func (a *PackageListAction) Validate(params map[string]interface{}) error {
 	return nil
@@ -40,11 +40,11 @@ func (a *PackageListAction) Execute(params map[string]interface{}) (interface{},
 	}
 
 	return map[string]interface{}{
-		"package_manager": string(pm),
-		"total_updates":   len(updates),
+		"package_manager":  string(pm),
+		"total_updates":    len(updates),
 		"security_updates": securityCount,
-		// Paquets différés (phased/kept-back) : listés mais non installés
-		// immédiatement par `apt-get upgrade`. Explique l'écart avec le MOTD.
+		// Deferred packages (phased/kept-back): listed but not installed
+		// immediately by `apt-get upgrade`. Explains the discrepancy with the MOTD.
 		"deferred_updates": deferredCount,
 		"packages":         updates,
 	}, nil

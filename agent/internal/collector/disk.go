@@ -17,7 +17,7 @@ type DiskInfo struct {
 	Percent    float64 `json:"percent"`
 }
 
-// GetDisks lit /proc/mounts et utilise syscall.Statfs
+// GetDisks reads /proc/mounts and uses syscall.Statfs
 func GetDisks(procPath string) ([]DiskInfo, error) {
 	data, err := os.ReadFile(filepath.Join(procPath, "mounts"))
 	if err != nil {
@@ -37,12 +37,12 @@ func GetDisks(procPath string) ([]DiskInfo, error) {
 		mountpoint := fields[1]
 		fstype := fields[2]
 
-		// Ignorer les systèmes de fichiers virtuels
+		// Ignore virtual filesystems
 		if isVirtualFS(fstype) {
 			continue
 		}
 
-		// Ignorer les doublons (même device)
+		// Ignore duplicates (same device)
 		if seen[device] {
 			continue
 		}

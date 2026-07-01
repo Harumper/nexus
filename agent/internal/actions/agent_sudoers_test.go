@@ -13,7 +13,7 @@ func TestAgentSudoersCheckActionMetadata(t *testing.T) {
 	if a.Capability() != "monitoring" {
 		t.Errorf("Capability() = %q, want %q", a.Capability(), "monitoring")
 	}
-	// Validate accepte n'importe quel param (lecture seule, pas d'input user)
+	// Validate accepts any param (read-only, no user input)
 	if err := a.Validate(map[string]interface{}{}); err != nil {
 		t.Errorf("Validate({}) = %v, want nil", err)
 	}
@@ -23,8 +23,8 @@ func TestAgentSudoersCheckActionMetadata(t *testing.T) {
 }
 
 func TestGetSudoersHashFormat(t *testing.T) {
-	// GetSudoersHash retourne soit "" (sudo echec / fichier absent)
-	// soit un SHA256 hex de 64 chars. Toute autre valeur est un bug.
+	// GetSudoersHash returns either "" (sudo failure / file missing)
+	// or a 64-char hex SHA256. Any other value is a bug.
 	hash := GetSudoersHash()
 	if hash == "" {
 		t.Skip("sudoers file unreadable (expected in test env without sudo)")
@@ -35,13 +35,13 @@ func TestGetSudoersHashFormat(t *testing.T) {
 }
 
 func TestComputeSudoersHashIdempotent(t *testing.T) {
-	// Deux appels successifs doivent retourner le meme hash : le fichier
-	// sudoers n'est pas suppose changer pendant l'execution. Si un attacker
-	// modifie le fichier entre deux appels, les hashes différeront —
-	// mais c'est le but du drift detection et pas un bug ici.
+	// Two successive calls must return the same hash: the sudoers file
+	// is not supposed to change during execution. If an attacker modifies
+	// the file between two calls, the hashes will differ — but that's the
+	// point of drift detection and not a bug here.
 	h1 := computeSudoersHash()
 	h2 := computeSudoersHash()
 	if h1 != h2 {
-		t.Errorf("hash mismatch entre deux appels: %q vs %q", h1, h2)
+		t.Errorf("hash mismatch between two calls: %q vs %q", h1, h2)
 	}
 }

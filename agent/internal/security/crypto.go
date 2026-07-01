@@ -16,12 +16,12 @@ import (
 	"time"
 )
 
-// GenerateECDSAKeypair génère une paire de clés ECDSA P-256
+// GenerateECDSAKeypair generates an ECDSA P-256 keypair
 func GenerateECDSAKeypair() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-// MarshalPublicKeyPEM convertit une clé publique en PEM
+// MarshalPublicKeyPEM converts a public key to PEM
 func MarshalPublicKeyPEM(pub *ecdsa.PublicKey) (string, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
@@ -31,7 +31,7 @@ func MarshalPublicKeyPEM(pub *ecdsa.PublicKey) (string, error) {
 	return string(pem.EncodeToMemory(block)), nil
 }
 
-// MarshalPrivateKeyPEM convertit une clé privée en PEM
+// MarshalPrivateKeyPEM converts a private key to PEM
 func MarshalPrivateKeyPEM(priv *ecdsa.PrivateKey) (string, error) {
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
@@ -41,7 +41,7 @@ func MarshalPrivateKeyPEM(priv *ecdsa.PrivateKey) (string, error) {
 	return string(pem.EncodeToMemory(block)), nil
 }
 
-// ParsePublicKeyPEM parse une clé publique PEM
+// ParsePublicKeyPEM parses a PEM public key
 func ParsePublicKeyPEM(pemStr string) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
@@ -58,7 +58,7 @@ func ParsePublicKeyPEM(pemStr string) (*ecdsa.PublicKey, error) {
 	return ecdsaPub, nil
 }
 
-// ParsePrivateKeyPEM parse une clé privée PEM
+// ParsePrivateKeyPEM parses a PEM private key
 func ParsePrivateKeyPEM(pemStr string) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
@@ -75,7 +75,7 @@ func ParsePrivateKeyPEM(pemStr string) (*ecdsa.PrivateKey, error) {
 	return ecdsaKey, nil
 }
 
-// SignPayload signe un payload avec ECDSA SHA-256
+// SignPayload signs a payload with ECDSA SHA-256
 func SignPayload(payload string, privateKey *ecdsa.PrivateKey) (string, error) {
 	hash := sha256.Sum256([]byte(payload))
 	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
@@ -92,7 +92,7 @@ func SignPayload(payload string, privateKey *ecdsa.PrivateKey) (string, error) {
 	return base64.StdEncoding.EncodeToString(sig), nil
 }
 
-// VerifySignature vérifie une signature ECDSA
+// VerifySignature verifies an ECDSA signature
 func VerifySignature(payload, signature string, publicKey *ecdsa.PublicKey) bool {
 	sigBytes, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil || len(sigBytes) != 64 {
@@ -104,10 +104,10 @@ func VerifySignature(payload, signature string, publicKey *ecdsa.PublicKey) bool
 	return ecdsa.Verify(publicKey, hash[:], r, s)
 }
 
-// DecryptAES déchiffre avec AES-256-GCM
-// Supporte 2 formats :
-//   - Go:   nonce:ciphertext+tag (2 parties)
-//   - Node: iv:authTag:ciphertext (3 parties)
+// DecryptAES decrypts with AES-256-GCM
+// Supports 2 formats:
+//   - Go:   nonce:ciphertext+tag (2 parts)
+//   - Node: iv:authTag:ciphertext (3 parts)
 func DecryptAES(encrypted string, key []byte) (string, error) {
 	parts := strings.Split(encrypted, ":")
 
@@ -116,7 +116,7 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 
 	switch len(parts) {
 	case 2:
-		// Format Go : nonce:ciphertext (tag inclus dans ciphertext par GCM)
+		// Go format: nonce:ciphertext (tag included in ciphertext by GCM)
 		nonce, err = base64.StdEncoding.DecodeString(parts[0])
 		if err != nil {
 			return "", fmt.Errorf("decode nonce: %w", err)
@@ -127,7 +127,7 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 		}
 
 	case 3:
-		// Format Node.js : iv:authTag:ciphertext
+		// Node.js format: iv:authTag:ciphertext
 		nonce, err = base64.StdEncoding.DecodeString(parts[0])
 		if err != nil {
 			return "", fmt.Errorf("decode iv: %w", err)
@@ -140,7 +140,7 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("decode ciphertext: %w", err)
 		}
-		// GCM attend ciphertext+tag concaténés
+		// GCM expects ciphertext+tag concatenated
 		ciphertext = append(ct, authTag...)
 
 	default:
@@ -151,11 +151,11 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// NEXUS-CRYPTO-006 — format canonique : nonce GCM de 12 octets (96 bits)
-	// UNIQUEMENT. On n'accepte plus une longueur de nonce arbitraire issue du blob
-	// (dériver la taille GCM depuis le blob transformait une primitive en parseur
-	// réglable par l'attaquant et faisait varier la dérivation J0/GHASH). Une
-	// longueur ≠ 12 est rejetée d'emblée.
+	// NEXUS-CRYPTO-006 — canonical format: 12-byte (96-bit) GCM nonce ONLY.
+	// We no longer accept an arbitrary nonce length taken from the blob (deriving
+	// the GCM size from the blob turned a primitive into a parser tunable by the
+	// attacker and made the J0/GHASH derivation vary). A length ≠ 12 is rejected
+	// outright.
 	if len(nonce) != 12 {
 		return "", fmt.Errorf("invalid GCM nonce length %d (expected 12)", len(nonce))
 	}
@@ -170,7 +170,7 @@ func DecryptAES(encrypted string, key []byte) (string, error) {
 	return string(plaintext), nil
 }
 
-// GenerateNonce génère un nonce aléatoire hex
+// GenerateNonce generates a random hex nonce
 func GenerateNonce() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -179,13 +179,13 @@ func GenerateNonce() string {
 	return fmt.Sprintf("%x", b)
 }
 
-// ProtocolVersion est la version du protocole de canal vérifiée côté agent.
-// Doit rester en phase avec transport.ProtocolVersion et le backend.
+// ProtocolVersion is the channel protocol version verified on the agent side.
+// Must stay in sync with transport.ProtocolVersion and the backend.
 const ProtocolVersion = 2
 
-// BuildSignaturePayload construit le payload à signer. La version est liée EN TÊTE
-// du payload signé : un attaquant ne peut pas downgrader le protocole sans casser
-// la signature.
+// BuildSignaturePayload builds the payload to sign. The version is bound AT THE
+// HEAD of the signed payload: an attacker cannot downgrade the protocol without
+// breaking the signature.
 func BuildSignaturePayload(version int, msgType, requestID, machineID, timestamp, nonce, payload string) string {
 	return fmt.Sprintf("%d:%s:%s:%s:%s:%s:%s", version, msgType, requestID, machineID, timestamp, nonce, payload)
 }
@@ -199,7 +199,7 @@ func BuildEnrollmentProofPayload(machineID, enrollmentToken, nonce, timestamp st
 	return fmt.Sprintf("nexus-enroll-proof:v2:%s:%s:%s:%s", machineID, enrollmentToken, nonce, timestamp)
 }
 
-// IsTimestampValid vérifie que le timestamp est dans la fenêtre acceptable
+// IsTimestampValid checks that the timestamp is within the acceptable window
 func IsTimestampValid(timestamp string, maxSkew time.Duration) bool {
 	t, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {

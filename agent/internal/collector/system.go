@@ -29,7 +29,7 @@ type LoadAvg struct {
 	Avg15 float64 `json:"avg15"`
 }
 
-// GetSystemInfo collecte les informations système
+// GetSystemInfo collects system information
 func GetSystemInfo(procPath string) (*SystemInfo, error) {
 	if procPath == "" {
 		procPath = "/proc"
@@ -39,7 +39,7 @@ func GetSystemInfo(procPath string) (*SystemInfo, error) {
 		Arch: runtime.GOARCH,
 	}
 
-	// Hostname — priorité : env var > /proc de l'hôte > os.Hostname()
+	// Hostname — priority: env var > host's /proc > os.Hostname()
 	if envHost := os.Getenv("NEXUS_HOSTNAME"); envHost != "" {
 		info.Hostname = envHost
 	} else if hostHostname, err := os.ReadFile(filepath.Join(procPath, "sys/kernel/hostname")); err == nil {
@@ -48,7 +48,7 @@ func GetSystemInfo(procPath string) (*SystemInfo, error) {
 		info.Hostname = hostname
 	}
 
-	// OS info depuis /etc/os-release (ou /host/etc/os-release dans Docker)
+	// OS info from /etc/os-release (or /host/etc/os-release in Docker)
 	osRelease := readOSRelease()
 	info.OS = osRelease["ID"]
 	info.OSVersion = osRelease["VERSION_ID"]
@@ -56,7 +56,7 @@ func GetSystemInfo(procPath string) (*SystemInfo, error) {
 		info.OS = runtime.GOOS
 	}
 
-	// Kernel version depuis /proc/version
+	// Kernel version from /proc/version
 	kernelData, err := os.ReadFile(filepath.Join(procPath, "version"))
 	if err == nil {
 		parts := strings.Fields(string(kernelData))
@@ -65,7 +65,7 @@ func GetSystemInfo(procPath string) (*SystemInfo, error) {
 		}
 	}
 
-	// IPs — priorité : env var > /proc/net/fib_trie
+	// IPs — priority: env var > /proc/net/fib_trie
 	if envIPs := os.Getenv("NEXUS_HOST_IPS"); envIPs != "" {
 		for _, ip := range strings.Split(envIPs, ",") {
 			ip = strings.TrimSpace(ip)
@@ -80,7 +80,7 @@ func GetSystemInfo(procPath string) (*SystemInfo, error) {
 	return info, nil
 }
 
-// getHostIPs lit les adresses IPv4 depuis /proc/net/fib_trie
+// getHostIPs reads the IPv4 addresses from /proc/net/fib_trie
 func getHostIPs(procPath string) []string {
 	data, err := os.ReadFile(filepath.Join(procPath, "net/fib_trie"))
 	if err != nil {
@@ -92,15 +92,15 @@ func getHostIPs(procPath string) []string {
 	lines := strings.Split(string(data), "\n")
 
 	for i, line := range lines {
-		// Les IPs locales apparaissent après "/32 host LOCAL"
+		// Local IPs appear after "/32 host LOCAL"
 		trimmed := strings.TrimSpace(line)
 		if strings.Contains(trimmed, "/32 host LOCAL") && i > 0 {
 			prevLine := strings.TrimSpace(lines[i-1])
-			// Vérifier que c'est une IP valide
+			// Check that it's a valid IP
 			parts := strings.Split(prevLine, "|-- ")
 			if len(parts) == 2 {
 				ip := strings.TrimSpace(parts[1])
-				// Ignorer localhost et les IPs Docker
+				// Ignore localhost and Docker IPs
 				if ip != "127.0.0.1" && !strings.HasPrefix(ip, "172.") && !strings.HasPrefix(ip, "192.168.") && !seen[ip] {
 					seen[ip] = true
 					ips = append(ips, ip)
@@ -109,7 +109,7 @@ func getHostIPs(procPath string) []string {
 		}
 	}
 
-	// Si pas d'IPs trouvées (filtrage trop agressif), inclure les 192.168 et 10.x
+	// If no IPs found (filtering too aggressive), include the 192.168 and 10.x
 	if len(ips) == 0 {
 		seen = make(map[string]bool)
 		for i, line := range lines {
@@ -131,7 +131,7 @@ func getHostIPs(procPath string) []string {
 	return ips
 }
 
-// GetUptime lit /proc/uptime
+// GetUptime reads /proc/uptime
 func GetUptime(procPath string) (uint64, error) {
 	if procPath == "" {
 		procPath = "/proc"
@@ -154,7 +154,7 @@ func GetUptime(procPath string) (uint64, error) {
 	return uint64(uptime), nil
 }
 
-// GetLoadAvg lit /proc/loadavg
+// GetLoadAvg reads /proc/loadavg
 func GetLoadAvg(procPath string) (*LoadAvg, error) {
 	if procPath == "" {
 		procPath = "/proc"
@@ -179,7 +179,7 @@ func GetLoadAvg(procPath string) (*LoadAvg, error) {
 func readOSRelease() map[string]string {
 	result := make(map[string]string)
 
-	// Essayer plusieurs chemins (host monté ou local)
+	// Try several paths (mounted host or local)
 	paths := []string{
 		"/host/etc/os-release",
 		"/etc/os-release",

@@ -13,17 +13,17 @@ import (
 	"github.com/nexus/agent/internal/security"
 )
 
-// scriptSigningPubKeyPath : clé(s) publique(s) minisign DÉDIÉE(S) à la signature
-// de script (verrou indépendant du canal), déposée(s) par l'opérateur à
-// l'installation (root:root 0644). Distincte de la clé serveur pinnée (canal) et
-// de la clé de release (binaire) : keypair propre, révocable indépendamment.
+// scriptSigningPubKeyPath: minisign public key(s) DEDICATED to script signing
+// (a lock independent of the channel), deployed by the operator at install time
+// (root:root 0644). Distinct from the pinned server key (channel) and the release
+// key (binary): its own keypair, revocable independently.
 const scriptSigningPubKeyPath = "/etc/nexus/script-signing.pub"
 
 func init() { Register(&ScriptExecuteAction{}) }
 
 type ScriptExecuteAction struct{}
 
-func (a *ScriptExecuteAction) ID() string        { return "script.execute" }
+func (a *ScriptExecuteAction) ID() string         { return "script.execute" }
 func (a *ScriptExecuteAction) Capability() string { return "scripts" }
 
 func (a *ScriptExecuteAction) Validate(params map[string]interface{}) error {
@@ -41,16 +41,16 @@ func (a *ScriptExecuteAction) Execute(params map[string]interface{}) (interface{
 	script := params["script"].(string)
 	scriptSig, _ := params["script_sig"].(string)
 
-	// ---- VERROU INDÉPENDANT DU CANAL : signature de script ----
-	// On vérifie une signature minisign détachée des octets EXACTS du script
-	// (avant tout ajout de shebang) contre une accept-list LOCALE déposée par
-	// l'opérateur. Le backend relaie `script_sig` mais ne détient pas la clé
-	// privée hors-ligne → un canal compromis ne peut pas injecter de script.
-	// Fail-closed : clé absente/illisible/vide, signature absente ou invalide
-	// ⇒ refus, AVANT toute écriture sur disque ou exécution.
+	// ---- CHANNEL-INDEPENDENT LOCK: script signature ----
+	// We verify a detached minisign signature over the EXACT script bytes
+	// (before any shebang is prepended) against a LOCAL accept-list deployed by
+	// the operator. The backend relays `script_sig` but does not hold the offline
+	// private key → a compromised channel cannot inject a script.
+	// Fail-closed: missing/unreadable/empty key, missing or invalid signature
+	// ⇒ refuse, BEFORE any write to disk or execution.
 	keys, err := security.LoadMinisignAcceptList(scriptSigningPubKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("clé de signature de script absente/invalide : exécution refusée : %w", err)
+		return nil, fmt.Errorf("script signing key missing/invalid: execution refused: %w", err)
 	}
 	sigOK, signerID := false, uint64(0)
 	if scriptSig != "" {
@@ -60,9 +60,9 @@ func (a *ScriptExecuteAction) Execute(params map[string]interface{}) (interface{
 		return nil, fmt.Errorf("script signature invalid — refusing to execute")
 	}
 
-	// Audit append-only : journald (store root:systemd-journal ; nexus-agent y a
-	// un accès LECTURE seule → peut émettre mais pas réécrire/tronquer le passé).
-	// Le principal (utilisateur web) est journalisé côté backend (AuditLog).
+	// Append-only audit: journald (root:systemd-journal store; nexus-agent has
+	// READ-only access → it can emit but not rewrite/truncate the past).
+	// The principal (web user) is logged on the backend side (AuditLog).
 	scriptHash := sha256.Sum256([]byte(script))
 	log.Printf("AUDIT script.execute hash=%s signer_keyid=%016x bytes=%d",
 		hex.EncodeToString(scriptHash[:]), signerID, len(script))
@@ -99,7 +99,7 @@ func (a *ScriptExecuteAction) Execute(params map[string]interface{}) (interface{
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	// Via sudo — l'agent tourne sous nexus-agent (non-root)
+	// Via sudo — the agent runs as nexus-agent (non-root)
 	cmd := exec.CommandContext(ctx, "/usr/bin/sudo", "/bin/bash", tmpFile.Name())
 	output, err := cmd.CombinedOutput()
 

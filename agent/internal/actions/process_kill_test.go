@@ -5,15 +5,15 @@ import (
 	"testing"
 )
 
-// NEXUS-AGENT-004 — la garde refuse le process de l'agent lui-même (désarmement
-// watchdog). Test déterministe : protectedKillTarget(os.Getpid()) doit refuser.
+// NEXUS-AGENT-004 — the guard refuses the agent's own process (watchdog
+// disarming). Deterministic test: protectedKillTarget(os.Getpid()) must refuse.
 func TestProcessKill_RefusesOwnPid(t *testing.T) {
 	if protectedKillTarget(os.Getpid()) == "" {
-		t.Fatal("la garde laisse l'agent se tuer lui-même")
+		t.Fatal("the guard lets the agent kill itself")
 	}
-	// Un PID arbitraire qui n'est ni l'agent ni un service critique → autorisé
-	// (pid 999999 improbablement un MainPID critique sur l'hôte de CI).
+	// An arbitrary PID that is neither the agent nor a critical service → allowed
+	// (pid 999999 unlikely to be a critical MainPID on the CI host).
 	if r := protectedKillTarget(999999); r != "" {
-		t.Logf("pid 999999 refusé (%s) — acceptable s'il matche un service ; informatif", r)
+		t.Logf("pid 999999 refused (%s) — acceptable if it matches a service; informational", r)
 	}
 }

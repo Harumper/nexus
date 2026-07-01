@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// Action est l'interface que chaque action whitelistée doit implémenter
+// Action is the interface that each whitelisted action must implement
 type Action interface {
 	ID() string
 	Capability() string
@@ -12,16 +12,16 @@ type Action interface {
 	Execute(params map[string]interface{}) (interface{}, error)
 }
 
-// Sandbox valide puis execute une action. Le contrôle d'accès (rôle utilisateur,
-// isCritical, actions privilégiées) est appliqué côté backend (dispatcher) ; la
-// capacité root de l'agent est définie par le sudoers généré à l'install.
+// Sandbox validates then executes an action. Access control (user role,
+// isCritical, privileged actions) is enforced on the backend side (dispatcher);
+// the agent's root capability is defined by the sudoers generated at install.
 type Sandbox struct{}
 
 func NewSandbox() *Sandbox {
 	return &Sandbox{}
 }
 
-// ValidateAndExecute valide les params puis execute
+// ValidateAndExecute validates the params then executes
 func (s *Sandbox) ValidateAndExecute(action Action, params map[string]interface{}) (interface{}, error) {
 	if err := action.Validate(params); err != nil {
 		return nil, fmt.Errorf("validation failed for action '%s': %w", action.ID(), err)

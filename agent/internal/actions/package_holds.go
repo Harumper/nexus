@@ -13,18 +13,18 @@ func init() {
 	Register(&PackageUnholdAction{})
 }
 
-// Nom de paquet valide (conforme Debian policy)
+// Valid package name (compliant with Debian policy)
 var pkgNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9+.\-]*$`)
 
 // ═══════════════════════════════════════════════════════════════
-// package.holds_list : apt-mark showhold
+// package.holds_list: apt-mark showhold
 // ═══════════════════════════════════════════════════════════════
 
 type PackageHoldsListAction struct{}
 
-func (a *PackageHoldsListAction) ID() string                                 { return "package.holds_list" }
-func (a *PackageHoldsListAction) Capability() string                         { return "monitoring" }
-func (a *PackageHoldsListAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *PackageHoldsListAction) ID() string                              { return "package.holds_list" }
+func (a *PackageHoldsListAction) Capability() string                      { return "monitoring" }
+func (a *PackageHoldsListAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *PackageHoldsListAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	cmd := exec.Command("sudo", "-n", "/usr/bin/apt-mark", "showhold")
@@ -46,7 +46,7 @@ func (a *PackageHoldsListAction) Execute(_ map[string]interface{}) (interface{},
 }
 
 // ═══════════════════════════════════════════════════════════════
-// package.hold : apt-mark hold <pkg>
+// package.hold: apt-mark hold <pkg>
 // ═══════════════════════════════════════════════════════════════
 
 type PackageHoldAction struct{}
@@ -73,7 +73,7 @@ func (a *PackageHoldAction) Execute(params map[string]interface{}) (interface{},
 }
 
 // ═══════════════════════════════════════════════════════════════
-// package.unhold : apt-mark unhold <pkg>
+// package.unhold: apt-mark unhold <pkg>
 // ═══════════════════════════════════════════════════════════════
 
 type PackageUnholdAction struct{}

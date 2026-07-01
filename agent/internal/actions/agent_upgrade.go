@@ -17,42 +17,42 @@ import (
 	"aead.dev/minisign"
 )
 
-// RunningVersion est la version de l'agent EN COURS d'exécution (injectée via
-// main.Version au build, propagée par main.go au démarrage). "dev" = build local
-// non estampillé. Sert de plancher anti-rollback (NEXUS-SELF-UPGRADE-002).
+// RunningVersion is the version of the agent CURRENTLY running (injected via
+// main.Version at build, propagated by main.go at startup). "dev" = local build
+// not stamped. Serves as the anti-rollback floor (NEXUS-SELF-UPGRADE-002).
 var RunningVersion = "dev"
 
-// PinnedServerURL est l'URL du backend ENRÔLÉ (cfg.ServerURL, wss://host/…),
-// propagée par main.go. L'auto-upgrade n'accepte de télécharger (et d'envoyer son
-// token bearer) QUE vers cet hôte, en https (NEXUS-SELF-UPGRADE-003).
+// PinnedServerURL is the URL of the ENROLLED backend (cfg.ServerURL, wss://host/…),
+// propagated by main.go. Auto-upgrade only accepts to download (and to send its
+// bearer token) TO that host, over https (NEXUS-SELF-UPGRADE-003).
 var PinnedServerURL string
 
-// validateDownloadURL épingle l'origine du download sur le backend pinné : https
-// + même hôte + chemin /api/agents/download. Renvoie l'erreur AVANT que le token
-// bearer ne soit attaché ou la requête émise.
+// validateDownloadURL pins the download origin to the pinned backend: https
+// + same host + path /api/agents/download. Returns the error BEFORE the bearer
+// token is attached or the request is issued.
 func validateDownloadURL(downloadURL string) error {
 	pinned, perr := url.Parse(PinnedServerURL)
 	if perr != nil || pinned.Host == "" {
-		return fmt.Errorf("URL serveur pinnée indisponible/invalide")
+		return fmt.Errorf("pinned server URL unavailable/invalid")
 	}
 	du, derr := url.Parse(downloadURL)
 	if derr != nil {
-		return fmt.Errorf("download_url invalide : %w", derr)
+		return fmt.Errorf("invalid download_url: %w", derr)
 	}
 	if du.Scheme != "https" {
-		return fmt.Errorf("download_url doit être https:// (origine pinnée), schéma=%q", du.Scheme)
+		return fmt.Errorf("download_url must be https:// (pinned origin), scheme=%q", du.Scheme)
 	}
 	if !strings.EqualFold(du.Host, pinned.Host) {
-		return fmt.Errorf("download_url hôte non pinné : %q (attendu %q)", du.Host, pinned.Host)
+		return fmt.Errorf("download_url host not pinned: %q (expected %q)", du.Host, pinned.Host)
 	}
 	if !strings.HasPrefix(du.Path, "/api/agents/download") {
-		return fmt.Errorf("download_url chemin non autorisé : %q", du.Path)
+		return fmt.Errorf("download_url path not allowed: %q", du.Path)
 	}
 	return nil
 }
 
-// parseSemver extrait (major, minor, patch) d'une version "X.Y.Z[-N-gSHA][+meta]".
-// ok=false si non parsable (ex. "dev", version vide).
+// parseSemver extracts (major, minor, patch) from a version "X.Y.Z[-N-gSHA][+meta]".
+// ok=false if not parsable (e.g. "dev", empty version).
 func parseSemver(v string) (maj, min, pat int, ok bool) {
 	core := strings.TrimSpace(v)
 	if i := strings.IndexAny(core, "-+"); i >= 0 {
@@ -75,9 +75,9 @@ func parseSemver(v string) (maj, min, pat int, ok bool) {
 	return maj, min, pat, true
 }
 
-// isDowngrade renvoie true si target < current (comparaison semver). Si l'une des
-// deux versions n'est pas parsable (ex. current "dev"), on NE bloque PAS — le
-// build dev / version inconnue n'a pas de plancher.
+// isDowngrade returns true if target < current (semver comparison). If either
+// of the two versions is not parsable (e.g. current "dev"), we do NOT block — the
+// dev build / unknown version has no floor.
 func isDowngrade(target, current string) bool {
 	tm, tn, tp, tok := parseSemver(target)
 	cm, cn, cp, cok := parseSemver(current)
@@ -95,10 +95,10 @@ func isDowngrade(target, current string) bool {
 
 func init() { Register(&AgentUpgradeAction{}) }
 
-// OnAgentUpgradeProgress est appelé à chaque étape de la mise à jour de
-// l'agent (téléchargement, vérification, installation, redémarrage). Branché
-// par main.go pour streamer la progression vers le backend (agent.upgrade.progress).
-// Distinct de OnUpdateProgress (MAJ système apt) : contexte UI différent.
+// OnAgentUpgradeProgress is called at each step of the agent update
+// (download, verification, installation, restart). Wired
+// by main.go to stream progress to the backend (agent.upgrade.progress).
+// Distinct from OnUpdateProgress (apt system update): different UI context.
 var OnAgentUpgradeProgress func(line string, percent int)
 
 func upgradeProgress(line string, percent int) {
@@ -107,25 +107,25 @@ func upgradeProgress(line string, percent int) {
 	}
 }
 
-// releasePubKeyPath est l'accept-list minisign des clés publiques de release,
-// déposée par l'OPÉRATEUR à l'installation (root:root 0644, sibling de
-// server-public-key.pem). Elle est LOCALE et de confiance ; le backend n'y
-// touche jamais — c'est ce qui rend l'authenticité de l'auto-upgrade
-// indépendante du canal de commande (un backend compromis ne détient pas la
-// clé privée hors-ligne et ne peut donc pas signer un binaire trojané).
+// releasePubKeyPath is the minisign accept-list of release public keys,
+// placed by the OPERATOR at install time (root:root 0644, sibling of
+// server-public-key.pem). It is LOCAL and trusted; the backend never
+// touches it — this is what makes the authenticity of auto-upgrade
+// independent of the command channel (a compromised backend does not hold the
+// offline private key and therefore cannot sign a trojaned binary).
 const releasePubKeyPath = "/etc/nexus/release.pub"
 
-// loadReleasePubKeys lit et parse l'accept-list locale : une clé publique
-// minisign par ligne non vide. Les lignes vides, les commentaires (`#`) et la
-// ligne d'en-tête `untrusted comment:` d'un fichier .pub collé tel quel sont
-// ignorés. La fonction renvoie TOUJOURS une erreur plutôt qu'une liste vide
-// silencieuse, de sorte que l'appelant échoue fermé : fichier absent, illisible,
-// vide ou contenant une clé non parsable ⇒ erreur ⇒ upgrade refusé. Aucune
-// variable d'env, aucun flag, aucun fallback.
+// loadReleasePubKeys reads and parses the local accept-list: one minisign
+// public key per non-empty line. Empty lines, comments (`#`) and the
+// `untrusted comment:` header line of a .pub file pasted as-is are
+// ignored. The function ALWAYS returns an error rather than a silent empty
+// list, so the caller fails closed: missing, unreadable,
+// empty file, or a file containing an unparsable key ⇒ error ⇒ upgrade refused. No
+// env variable, no flag, no fallback.
 func loadReleasePubKeys() ([]minisign.PublicKey, error) {
 	data, err := os.ReadFile(releasePubKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("lecture %s : %w", releasePubKeyPath, err)
+		return nil, fmt.Errorf("read %s: %w", releasePubKeyPath, err)
 	}
 	var keys []minisign.PublicKey
 	for _, line := range strings.Split(string(data), "\n") {
@@ -135,21 +135,21 @@ func loadReleasePubKeys() ([]minisign.PublicKey, error) {
 		}
 		var pk minisign.PublicKey
 		if err := pk.UnmarshalText([]byte(line)); err != nil {
-			return nil, fmt.Errorf("clé publique invalide dans %s : %w", releasePubKeyPath, err)
+			return nil, fmt.Errorf("invalid public key in %s: %w", releasePubKeyPath, err)
 		}
-		keys = append(keys, pk) // accept-list = liste dès la 1re entrée (current[, next] pour la rotation)
+		keys = append(keys, pk) // accept-list = list from the 1st entry (current[, next] for rotation)
 	}
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("%s ne contient aucune clé publique utilisable", releasePubKeyPath)
+		return nil, fmt.Errorf("%s contains no usable public key", releasePubKeyPath)
 	}
 	return keys, nil
 }
 
-// verifyAnyReleaseKey applique un OR logique sur l'accept-list : la signature
-// minisign détachée est acceptée si N'IMPORTE quelle clé de la liste la valide.
-// minisign.Verify gère de façon transparente le format brut (Ed) comme le format
-// pré-hashé Blake2b-512 (ED), et vérifie aussi la signature globale du trusted
-// comment.
+// verifyAnyReleaseKey applies a logical OR over the accept-list: the detached
+// minisign signature is accepted if ANY key in the list validates it.
+// minisign.Verify transparently handles the raw format (Ed) as well as the
+// pre-hashed Blake2b-512 format (ED), and also verifies the global signature of the
+// trusted comment.
 func verifyAnyReleaseKey(keys []minisign.PublicKey, message, sig []byte) bool {
 	for _, pk := range keys {
 		if minisign.Verify(pk, message, sig) {
@@ -159,18 +159,18 @@ func verifyAnyReleaseKey(keys []minisign.PublicKey, message, sig []byte) bool {
 	return false
 }
 
-// AgentUpgradeAction met a jour le binaire de l'agent lui-meme.
-// Flow :
-//   1. Telecharge le nouveau binaire dans /var/lib/nexus-agent/nexus-agent.new
-//   2. Verifie le SHA256 (si fourni)
-//   3. sudo install -m 755 pour remplacer /usr/local/bin/nexus-agent
-//   4. Retourne ACK
-//   5. os.Exit(0) apres un bref delai
-//   6. systemd (Restart=always) relance le service avec le nouveau binaire
+// AgentUpgradeAction updates the agent binary itself.
+// Flow:
+//  1. Downloads the new binary to /var/lib/nexus-agent/nexus-agent.new
+//  2. Verifies the SHA256 (if provided)
+//  3. sudo install -m 755 to replace /usr/local/bin/nexus-agent
+//  4. Returns ACK
+//  5. os.Exit(0) after a brief delay
+//  6. systemd (Restart=always) restarts the service with the new binary
 type AgentUpgradeAction struct{}
 
 func (a *AgentUpgradeAction) ID() string         { return "agent.upgrade" }
-func (a *AgentUpgradeAction) Capability() string { return "monitoring" } // toujours disponible
+func (a *AgentUpgradeAction) Capability() string { return "monitoring" } // always available
 
 func (a *AgentUpgradeAction) Validate(params map[string]interface{}) error {
 	if _, ok := params["download_url"].(string); !ok {
@@ -188,62 +188,62 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	expectedSHA256, _ := params["sha256"].(string)
 	signature, _ := params["signature"].(string)
 
-	// ---- POINT DE DÉCISION FAIL-CLOSED UNIQUE (indépendant du canal) ----
-	// Le binaire installé doit être signé par une clé de release HORS-LIGNE dont
-	// la moitié publique est déposée LOCALEMENT par l'opérateur (release.pub,
-	// root:root 0644). Le backend ne fournit jamais cette clé : il signe le canal
-	// WS, sert le binaire et son SHA, mais ne détient pas la clé privée hors-ligne
-	// — il ne peut donc pas pousser de code. On charge l'accept-list locale
-	// d'abord ; absence/illisibilité/vacuité ⇒ refus, sans échappatoire.
+	// ---- SINGLE FAIL-CLOSED DECISION POINT (channel-independent) ----
+	// The installed binary must be signed by an OFFLINE release key whose
+	// public half is placed LOCALLY by the operator (release.pub,
+	// root:root 0644). The backend never provides this key: it signs the WS
+	// channel, serves the binary and its SHA, but does not hold the offline private key
+	// — so it cannot push code. We load the local accept-list
+	// first; absence/unreadability/emptiness ⇒ refusal, no escape hatch.
 	releaseKeys, err := loadReleasePubKeys()
 	if err != nil {
-		return nil, fmt.Errorf("clé(s) de release introuvable(s)/invalide(s) : mise à jour refusée : %w", err)
+		return nil, fmt.Errorf("release key(s) not found/invalid: update refused: %w", err)
 	}
-	// Le SHA-256 fourni par le backend reste un PRÉ-CHECK de corruption transit,
-	// JAMAIS l'autorité de validation : l'autorité est la signature minisign
-	// vérifiée plus bas contre la clé locale. Un sha256 vide = backend incohérent.
+	// The SHA-256 provided by the backend remains a PRE-CHECK for transit corruption,
+	// NEVER the validation authority: the authority is the minisign signature
+	// verified below against the local key. An empty sha256 = inconsistent backend.
 	if expectedSHA256 == "" {
-		return nil, fmt.Errorf("sha256 attendu manquant : mise à jour refusée (intégrité non vérifiable)")
+		return nil, fmt.Errorf("expected sha256 missing: update refused (integrity not verifiable)")
 	}
-	// La signature détachée est obligatoire (relayée par le backend depuis le
-	// .minisig servi à côté du binaire ; le backend la transporte mais ne peut
-	// pas la forger sans la clé privée hors-ligne).
+	// The detached signature is mandatory (relayed by the backend from the
+	// .minisig served alongside the binary; the backend transports it but cannot
+	// forge it without the offline private key).
 	if signature == "" {
-		return nil, fmt.Errorf("signature de release manquante : mise à jour refusée")
+		return nil, fmt.Errorf("release signature missing: update refused")
 	}
 
-	// NEXUS-SELF-UPGRADE-002 — anti-rollback (plancher de version). Même un binaire
-	// validement SIGNÉ d'une ancienne release reste signé à vie → la signature seule
-	// n'empêche pas un downgrade vers une version vulnérable. On exige la version
-	// cible et on refuse target < courant, sauf break-glass explicite et tracé.
+	// NEXUS-SELF-UPGRADE-002 — anti-rollback (version floor). Even a validly
+	// SIGNED binary of an old release stays signed forever → the signature alone
+	// does not prevent a downgrade to a vulnerable version. We require the target
+	// version and refuse target < current, except for an explicit and logged break-glass.
 	target, _ := params["target_version"].(string)
 	allowDowngrade, _ := params["allow_downgrade"].(bool)
 	if target == "" {
-		return nil, fmt.Errorf("target_version manquant : mise à jour refusée (anti-rollback)")
+		return nil, fmt.Errorf("target_version missing: update refused (anti-rollback)")
 	}
 	if isDowngrade(target, RunningVersion) {
 		if !allowDowngrade {
-			return nil, fmt.Errorf("downgrade refusé : cible %s < courant %s (allow_downgrade explicite requis)", target, RunningVersion)
+			return nil, fmt.Errorf("downgrade refused: target %s < current %s (explicit allow_downgrade required)", target, RunningVersion)
 		}
-		upgradeProgress(fmt.Sprintf("⚠️ DOWNGRADE explicite %s → %s (allow_downgrade)", RunningVersion, target), 5)
+		upgradeProgress(fmt.Sprintf("⚠️ explicit DOWNGRADE %s → %s (allow_downgrade)", RunningVersion, target), 5)
 	}
 
-	// NEXUS-SELF-UPGRADE-003 — épingler l'origine AVANT d'envoyer le token bearer :
-	// un download_url vers un hôte arbitraire exfiltrerait le token et ferait de
-	// chaque agent un pivot SSRF (endpoints internes / metadata cloud).
+	// NEXUS-SELF-UPGRADE-003 — pin the origin BEFORE sending the bearer token:
+	// a download_url to an arbitrary host would exfiltrate the token and make
+	// each agent an SSRF pivot (internal endpoints / cloud metadata).
 	if err := validateDownloadURL(downloadURL); err != nil {
-		return nil, fmt.Errorf("origine de téléchargement refusée : %w", err)
+		return nil, fmt.Errorf("download origin refused: %w", err)
 	}
 
 	newBinPath := "/var/lib/nexus-agent/nexus-agent.new"
 	finalBinPath := "/usr/local/bin/nexus-agent"
 
-	// S'assurer que le dossier existe (StateDirectory devrait l'avoir cree)
+	// Ensure the directory exists (StateDirectory should have created it)
 	os.MkdirAll("/var/lib/nexus-agent", 0700)
 
-	// 1. Telecharger. Token en header Authorization (pas en query : évite la
-	// fuite du token dans les logs d'accès proxy/reverse-proxy).
-	upgradeProgress("Téléchargement du nouveau binaire…", 10)
+	// 1. Download. Token in the Authorization header (not in the query: avoids
+	// leaking the token into proxy/reverse-proxy access logs).
+	upgradeProgress("Downloading the new binary…", 10)
 	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
@@ -274,28 +274,28 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 	}
 
 	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
-	upgradeProgress(fmt.Sprintf("Téléchargé : %d octets", written), 45)
+	upgradeProgress(fmt.Sprintf("Downloaded: %d bytes", written), 45)
 
-	// 2. Pré-check SHA256 (corruption transit uniquement, NON autorité).
-	upgradeProgress("Vérification de l'intégrité (SHA256)…", 55)
+	// 2. SHA256 pre-check (transit corruption only, NOT authority).
+	upgradeProgress("Verifying integrity (SHA256)…", 55)
 	if expectedSHA256 != actualSHA256 {
 		os.Remove(newBinPath)
 		return nil, fmt.Errorf("sha256 mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
 	}
 
-	// 2b. AUTORITÉ DE VALIDATION : signature minisign détachée du binaire
-	// téléchargé, vérifiée contre l'accept-list LOCALE, AVANT toute installation.
-	// Indépendante du canal : même un backend entièrement compromis ne peut pas
-	// faire passer un binaire non signé par la clé hors-ligne de l'opérateur.
-	upgradeProgress("Vérification de la signature de release…", 65)
-	staged, err := os.ReadFile(newBinPath) // fenêtre verify→install : TOCTOU traitée par SELF-UPGRADE-004
+	// 2b. VALIDATION AUTHORITY: detached minisign signature of the downloaded
+	// binary, verified against the LOCAL accept-list, BEFORE any installation.
+	// Channel-independent: even a fully compromised backend cannot
+	// slip through a binary not signed by the operator's offline key.
+	upgradeProgress("Verifying the release signature…", 65)
+	staged, err := os.ReadFile(newBinPath) // verify→install window: TOCTOU handled by SELF-UPGRADE-004
 	if err != nil {
 		os.Remove(newBinPath)
-		return nil, fmt.Errorf("relecture du binaire stagé : %w", err)
+		return nil, fmt.Errorf("re-read of the staged binary: %w", err)
 	}
 	if !verifyAnyReleaseKey(releaseKeys, staged, []byte(signature)) {
 		os.Remove(newBinPath)
-		return nil, fmt.Errorf("signature de release invalide : mise à jour refusée")
+		return nil, fmt.Errorf("invalid release signature: update refused")
 	}
 
 	// chmod +x
@@ -303,74 +303,74 @@ func (a *AgentUpgradeAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("chmod: %w", err)
 	}
 
-	// SELF-UPGRADE-002 — lier l'assertion de version à l'ARTEFACT vérifié, pas juste
-	// au param : lire la version du binaire (maintenant SIGNÉ → exécution sûre) et
-	// exiger qu'elle == la cible signée. Empêche un backend de prétendre une version
-	// tout en servant un autre binaire (signé) plus ancien.
+	// SELF-UPGRADE-002 — bind the version assertion to the verified ARTIFACT, not just
+	// to the param: read the binary's version (now SIGNED → safe to execute) and
+	// require that it == the signed target. Prevents a backend from claiming one version
+	// while serving another (signed) older binary.
 	verOut, verErr := exec.Command(newBinPath, "--version").Output()
 	gotVer := strings.TrimSpace(string(verOut))
 	if verErr != nil || gotVer != strings.TrimSpace(target) {
 		os.Remove(newBinPath)
-		return nil, fmt.Errorf("version du binaire (%q) ≠ cible signée %q : mise à jour refusée", gotVer, target)
+		return nil, fmt.Errorf("binary version (%q) ≠ signed target %q: update refused", gotVer, target)
 	}
 
-	// SELF-UPGRADE-004 (anti-TOCTOU, front) — re-hash le binaire stagé IMMÉDIATEMENT
-	// avant install : si nexus-agent l'a swappé depuis la vérif signature, l'install
-	// ne copierait pas les octets vérifiés. Mismatch → refus.
+	// SELF-UPGRADE-004 (anti-TOCTOU, front) — re-hash the staged binary IMMEDIATELY
+	// before install: if nexus-agent swapped it since the signature check, install
+	// would not copy the verified bytes. Mismatch → refusal.
 	recheck, rerr := os.ReadFile(newBinPath)
 	if rerr != nil {
 		os.Remove(newBinPath)
-		return nil, fmt.Errorf("relecture pré-install : %w", rerr)
+		return nil, fmt.Errorf("pre-install re-read: %w", rerr)
 	}
 	rh := sha256.Sum256(recheck)
 	if hex.EncodeToString(rh[:]) != actualSHA256 {
 		os.Remove(newBinPath)
-		return nil, fmt.Errorf("binaire stagé modifié avant install (TOCTOU) : mise à jour refusée")
+		return nil, fmt.Errorf("staged binary modified before install (TOCTOU): update refused")
 	}
 
-	// SELF-UPGRADE-005 — snapshot (backup) du binaire COURANT en nexus-agent.prev
-	// AVANT de l'écraser : on ne supprime JAMAIS la seule copie de secours. Le
-	// dead-man's switch au boot restaurera nexus-agent.prev si le nouveau binaire
-	// ne confirme pas sa reconnexion.
+	// SELF-UPGRADE-005 — snapshot (backup) of the CURRENT binary to nexus-agent.prev
+	// BEFORE overwriting it: we NEVER delete the only backup copy. The
+	// dead-man's switch at boot will restore nexus-agent.prev if the new binary
+	// does not confirm its reconnection.
 	if err := snapshotPreviousBinary(); err != nil {
-		return nil, fmt.Errorf("snapshot du binaire courant (watchdog) : %w", err)
+		return nil, fmt.Errorf("snapshot of the current binary (watchdog): %w", err)
 	}
 
-	// 3. Remplacer le binaire actuel via sudo install (atomic)
-	upgradeProgress("Installation du binaire (atomique)…", 75)
+	// 3. Replace the current binary via sudo install (atomic)
+	upgradeProgress("Installing the binary (atomic)…", 75)
 	cmd := exec.Command("/usr/bin/sudo", "/usr/bin/install", "-m", "755", newBinPath, finalBinPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("install failed: %w: %s", err, string(output))
 	}
 
-	// SELF-UPGRADE-004 (anti-TOCTOU, back) — re-vérifier le binaire INSTALLÉ avant
-	// de redémarrer dedans : on lit /usr/local/bin/nexus-agent et on exige que son
-	// SHA == celui vérifié. Sinon on REFUSE l'exit (pas de redémarrage dans un
-	// binaire trafiqué), même si l'install a "réussi".
+	// SELF-UPGRADE-004 (anti-TOCTOU, back) — re-verify the INSTALLED binary before
+	// restarting into it: we read /usr/local/bin/nexus-agent and require that its
+	// SHA == the verified one. Otherwise we REFUSE the exit (no restart into a
+	// tampered binary), even if the install "succeeded".
 	installed, ierr := os.ReadFile(finalBinPath)
 	if ierr != nil {
-		return nil, fmt.Errorf("relecture du binaire installé : %w", ierr)
+		return nil, fmt.Errorf("re-read of the installed binary: %w", ierr)
 	}
 	ih := sha256.Sum256(installed)
 	installedSHA := hex.EncodeToString(ih[:])
 	if installedSHA != actualSHA256 {
-		return nil, fmt.Errorf("binaire installé (%s) ≠ vérifié (%s) : redémarrage REFUSÉ (TOCTOU)", installedSHA, actualSHA256)
+		return nil, fmt.Errorf("installed binary (%s) ≠ verified (%s): restart REFUSED (TOCTOU)", installedSHA, actualSHA256)
 	}
 
-	// SELF-UPGRADE-005 — marquer l'upgrade en attente (SHA attendu) : au boot,
-	// RecoverPendingUpgrade armera le dead-man's switch et restaurera .prev si le
-	// nouveau binaire ne confirme pas sa reconnexion dans le délai de grâce
-	// (ConfirmUpgrade annule le revert). Voir agent_upgrade_watchdog.go.
+	// SELF-UPGRADE-005 — mark the upgrade as pending (expected SHA): at boot,
+	// RecoverPendingUpgrade will arm the dead-man's switch and restore .prev if the
+	// new binary does not confirm its reconnection within the grace period
+	// (ConfirmUpgrade cancels the revert). See agent_upgrade_watchdog.go.
 	if err := markUpgradePending(actualSHA256); err != nil {
-		log.Printf("[Upgrade] avertissement : marqueur watchdog non écrit (%v) — .prev reste le fallback", err)
+		log.Printf("[Upgrade] warning: watchdog marker not written (%v) — .prev remains the fallback", err)
 	}
 
-	// Nettoyer le fichier temporaire (.new, PAS le fallback .prev)
+	// Clean up the temporary file (.new, NOT the .prev fallback)
 	os.Remove(newBinPath)
 
-	// 4. Lancer un exit differe (apres avoir retourne la reponse)
-	// systemd va redemarrer l'agent (Restart=always) avec le nouveau binaire.
-	upgradeProgress("Installé. Redémarrage de l'agent dans 2s…", 90)
+	// 4. Launch a deferred exit (after returning the response)
+	// systemd will restart the agent (Restart=always) with the new binary.
+	upgradeProgress("Installed. Restarting the agent in 2s…", 90)
 	go func() {
 		time.Sleep(2 * time.Second)
 		os.Exit(0)

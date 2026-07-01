@@ -9,14 +9,14 @@ import (
 )
 
 type MemoryInfo struct {
-	Total   uint64  `json:"total"`
-	Used    uint64  `json:"used"`
-	Free    uint64  `json:"free"`
-	Available uint64 `json:"available"`
-	Percent float64 `json:"percent"`
+	Total     uint64  `json:"total"`
+	Used      uint64  `json:"used"`
+	Free      uint64  `json:"free"`
+	Available uint64  `json:"available"`
+	Percent   float64 `json:"percent"`
 }
 
-// GetMemory lit /proc/meminfo
+// GetMemory reads /proc/meminfo
 func GetMemory(procPath string) (*MemoryInfo, error) {
 	data, err := os.ReadFile(filepath.Join(procPath, "meminfo"))
 	if err != nil {
@@ -36,7 +36,7 @@ func GetMemory(procPath string) (*MemoryInfo, error) {
 		if err != nil {
 			continue
 		}
-		// Les valeurs dans /proc/meminfo sont en kB
+		// Values in /proc/meminfo are in kB
 		values[key] = val * 1024
 	}
 

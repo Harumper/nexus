@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// Keystore gère le stockage des clés sur disque
+// Keystore manages on-disk key storage
 type Keystore struct {
 	basePath   string
 	privateKey *ecdsa.PrivateKey
@@ -29,30 +29,30 @@ func NewKeystore(basePath string) *Keystore {
 	return &Keystore{basePath: basePath}
 }
 
-// NEXUS-CRYPTO-001 — chiffrement au repos de agent.key (machine-binding LOGICIEL).
+// NEXUS-CRYPTO-001 — at-rest encryption of agent.key (SOFTWARE machine-binding).
 //
-// Variables (et non const) pour permettre l'injection en test ; valeurs de prod
-// figées. La clé d'enrobage est dérivée de machine-id (non-secret) + un sel
-// par-install. Couture `wrappingKey()` ISOLÉE pour greffer un backend TPM plus
-// tard (DEF-1) sans réécrire GenerateAndSave/Load.
+// Variables (not const) to allow injection in tests; prod values are fixed. The
+// wrapping key is derived from machine-id (non-secret) + a per-install salt. The
+// `wrappingKey()` seam is ISOLATED to graft a TPM backend later (DEF-1) without
+// rewriting GenerateAndSave/Load.
 //
-// CE QUE ÇA PROTÈGE :
-//   - copie du fichier agent.key SEUL (sans machine-id ni sel) → inutilisable ;
-//   - réutilisation sur une AUTRE machine (machine-id différent) → échec ;
-//   - process live non-root/non-agent → fermé par AGENT-002 (cap retirée).
+// WHAT THIS PROTECTS:
+//   - copy of the agent.key file ALONE (without machine-id or salt) → unusable;
+//   - reuse on ANOTHER machine (different machine-id) → failure;
+//   - live non-root/non-agent process → closed by AGENT-002 (cap dropped).
 //
-// CE QUE ÇA NE PROTÈGE PAS (limite documentée — README/fix) :
-//   - SNAPSHOT / BACKUP DISQUE COMPLET (PBS, Proxmox) : machine-id ET le sel y
-//     voyagent → la clé d'enrobage est re-dérivable. SEUL LE TPM (DEF-1) ferme ce cas.
-//   - compromission live de l'user nexus-agent ou root : a tous les inputs.
+// WHAT THIS DOES NOT PROTECT (documented limitation — README/fix):
+//   - FULL DISK SNAPSHOT / BACKUP (PBS, Proxmox): machine-id AND the salt travel
+//     with it → the wrapping key is re-derivable. ONLY THE TPM (DEF-1) closes this case.
+//   - live compromise of the nexus-agent user or root: has all the inputs.
 var (
 	machineIDPath = "/etc/machine-id"
-	keySaltPath   = "/etc/nexus/agent-keysalt" // root:nexus-agent 0640, scope-split du KEY_DIR
+	keySaltPath   = "/etc/nexus/agent-keysalt" // root:nexus-agent 0640, scope-split from KEY_DIR
 )
 
-// wrappingKey dérive la clé AES-256 d'enrobage : HKDF(machine-id, sel, info).
-// Sel séparé du KEY_DIR (config vs state) : une exfil scopée d'un seul dir rate
-// une moitié. Fail-closed : machine-id/sel absent ou trop court → erreur.
+// wrappingKey derives the AES-256 wrapping key: HKDF(machine-id, salt, info).
+// Salt kept separate from KEY_DIR (config vs state): an exfil scoped to a single
+// dir misses one half. Fail-closed: machine-id/salt missing or too short → error.
 func wrappingKey() ([]byte, error) {
 	mid, err := os.ReadFile(machineIDPath)
 	if err != nil {
@@ -78,8 +78,8 @@ func wrappingKey() ([]byte, error) {
 	return key, nil
 }
 
-// sealAtRest chiffre EN MÉMOIRE (AES-256-GCM, format "nonce:ciphertext"). Le clair
-// n'est jamais écrit sur disque par l'appelant.
+// sealAtRest encrypts IN MEMORY (AES-256-GCM, "nonce:ciphertext" format). The
+// plaintext is never written to disk by the caller.
 func sealAtRest(plaintext []byte) (string, error) {
 	wk, err := wrappingKey()
 	if err != nil {
@@ -101,7 +101,7 @@ func sealAtRest(plaintext []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(nonce) + ":" + base64.StdEncoding.EncodeToString(ct), nil
 }
 
-// openAtRest déchiffre (tag GCM vérifié par DecryptAES, lève si invalide).
+// openAtRest decrypts (GCM tag verified by DecryptAES, raises if invalid).
 func openAtRest(blob string) ([]byte, error) {
 	wk, err := wrappingKey()
 	if err != nil {
@@ -114,14 +114,14 @@ func openAtRest(blob string) ([]byte, error) {
 	return []byte(pt), nil
 }
 
-// HasKeypair vérifie si une paire de clés existe
+// HasKeypair checks whether a keypair exists
 func (ks *Keystore) HasKeypair() bool {
 	privPath := filepath.Join(ks.basePath, "agent.key")
 	_, err := os.Stat(privPath)
 	return err == nil
 }
 
-// GenerateAndSave génère une nouvelle paire et la sauvegarde
+// GenerateAndSave generates a new keypair and saves it
 func (ks *Keystore) GenerateAndSave() error {
 	if err := os.MkdirAll(ks.basePath, 0700); err != nil {
 		return fmt.Errorf("failed to create key directory: %w", err)
@@ -144,8 +144,8 @@ func (ks *Keystore) GenerateAndSave() error {
 	privPath := filepath.Join(ks.basePath, "agent.key")
 	pubPath := filepath.Join(ks.basePath, "agent.pub")
 
-	// NEXUS-CRYPTO-001 : chiffrer EN MÉMOIRE avant tout WriteFile. Le PEM clair de
-	// la clé privée ne touche JAMAIS le disque — l'unique écriture est le chiffré.
+	// NEXUS-CRYPTO-001: encrypt IN MEMORY before any WriteFile. The private key's
+	// cleartext PEM NEVER touches the disk — the only write is the ciphertext.
 	sealed, err := sealAtRest([]byte(privPEM))
 	if err != nil {
 		return fmt.Errorf("seal agent key at rest: %w", err)
@@ -153,7 +153,7 @@ func (ks *Keystore) GenerateAndSave() error {
 	if err := os.WriteFile(privPath, []byte(sealed), 0600); err != nil {
 		return fmt.Errorf("failed to write private key: %w", err)
 	}
-	// La clé PUBLIQUE reste en clair (elle est publique).
+	// The PUBLIC key stays in cleartext (it is public).
 	if err := os.WriteFile(pubPath, []byte(pubPEM), 0644); err != nil {
 		return fmt.Errorf("failed to write public key: %w", err)
 	}
@@ -164,7 +164,7 @@ func (ks *Keystore) GenerateAndSave() error {
 	return nil
 }
 
-// Load charge les clés depuis le disque (déchiffre agent.key au repos).
+// Load loads the keys from disk (decrypts agent.key at rest).
 func (ks *Keystore) Load() error {
 	privPath := filepath.Join(ks.basePath, "agent.key")
 	blob, err := os.ReadFile(privPath)
@@ -184,22 +184,22 @@ func (ks *Keystore) Load() error {
 	ks.privateKey = priv
 	ks.publicKey = &priv.PublicKey
 
-	// Auto-migration : un agent d'avant CRYPTO-001 a une clé en CLAIR. On la
-	// re-chiffre EN PLACE, sans laisser de clair derrière (temp chiffré + rename
-	// atomique ; pas de .bak, pas de fichier temp en clair). Non-fatal : la clé
-	// est déjà chargée.
+	// Auto-migration: an agent from before CRYPTO-001 has a CLEARTEXT key. We
+	// re-encrypt it IN PLACE, without leaving any cleartext behind (encrypted temp
+	// + atomic rename; no .bak, no cleartext temp file). Non-fatal: the key is
+	// already loaded.
 	if legacy {
 		if err := rewriteEncryptedInPlace(privPath, privPEM); err != nil {
-			log.Printf("[Keystore] at-rest migration warning (clé chargée, re-chiffrement à refaire au prochain boot): %v", err)
+			log.Printf("[Keystore] at-rest migration warning (key loaded, re-encryption to be retried at next boot): %v", err)
 		} else {
-			log.Printf("[Keystore] agent.key migrée vers le chiffrement au repos (CRYPTO-001)")
+			log.Printf("[Keystore] agent.key migrated to at-rest encryption (CRYPTO-001)")
 		}
 	}
 	return nil
 }
 
-// decryptOrDetectLegacy : si le contenu est un PEM CLAIR (legacy pré-CRYPTO-001),
-// le retourne tel quel avec legacy=true ; sinon déchiffre le blob au repos.
+// decryptOrDetectLegacy: if the content is a CLEARTEXT PEM (legacy pre-CRYPTO-001),
+// returns it as-is with legacy=true; otherwise decrypts the at-rest blob.
 func decryptOrDetectLegacy(blob string) (pem string, legacy bool, err error) {
 	if strings.Contains(blob, "-----BEGIN") {
 		return blob, true, nil
@@ -211,9 +211,9 @@ func decryptOrDetectLegacy(blob string) (pem string, legacy bool, err error) {
 	return string(pt), false, nil
 }
 
-// rewriteEncryptedInPlace re-chiffre le PEM et remplace le fichier de façon
-// atomique. Le fichier temporaire contient le CHIFFRÉ (jamais le clair) ; le
-// rename écrase l'ancien fichier (pas de .bak). Aucun clair ne subsiste.
+// rewriteEncryptedInPlace re-encrypts the PEM and atomically replaces the file.
+// The temporary file contains the CIPHERTEXT (never the cleartext); the rename
+// overwrites the old file (no .bak). No cleartext remains.
 func rewriteEncryptedInPlace(privPath, plaintextPEM string) error {
 	sealed, err := sealAtRest([]byte(plaintextPEM))
 	if err != nil {
@@ -230,12 +230,12 @@ func rewriteEncryptedInPlace(privPath, plaintextPEM string) error {
 	return nil
 }
 
-// GetPrivateKey retourne la clé privée
+// GetPrivateKey returns the private key
 func (ks *Keystore) GetPrivateKey() *ecdsa.PrivateKey {
 	return ks.privateKey
 }
 
-// GetPublicKeyPEM retourne la clé publique en PEM
+// GetPublicKeyPEM returns the public key in PEM
 func (ks *Keystore) GetPublicKeyPEM() (string, error) {
 	if ks.publicKey == nil {
 		return "", fmt.Errorf("no public key loaded")
@@ -243,20 +243,20 @@ func (ks *Keystore) GetPublicKeyPEM() (string, error) {
 	return MarshalPublicKeyPEM(ks.publicKey)
 }
 
-// Protocole v2 (CRYPTO-004) : la clé de session AES n'est PLUS persistée — elle
-// est dérivée à chaque connexion via le handshake ECDHE éphémère (forward
-// secrecy). On ne garde sur disque que l'identité long-terme (agent.key) et un
-// marqueur d'enrôlement réussi (l'ancien rôle « double » de shared.secret comme
-// preuve d'enrôlement est repris par ce marqueur, sans secret de canal au repos).
+// Protocol v2 (CRYPTO-004): the AES session key is NO LONGER persisted — it is
+// derived on each connection via the ephemeral ECDHE handshake (forward secrecy).
+// We keep on disk only the long-term identity (agent.key) and a successful-
+// enrollment marker (the former "dual" role of shared.secret as enrollment proof
+// is taken over by this marker, with no channel secret at rest).
 
-// MarkEnrolled écrit le marqueur d'enrôlement réussi (purgé au --reenroll qui fait
-// table rase de $KEY_DIR).
+// MarkEnrolled writes the successful-enrollment marker (purged on --reenroll,
+// which wipes $KEY_DIR clean).
 func (ks *Keystore) MarkEnrolled() error {
 	path := filepath.Join(ks.basePath, "enrolled")
 	return os.WriteFile(path, []byte("v2\n"), 0600)
 }
 
-// IsEnrolled indique si l'agent a déjà complété un enrôlement (identité présente).
+// IsEnrolled indicates whether the agent has already completed an enrollment (identity present).
 func (ks *Keystore) IsEnrolled() bool {
 	path := filepath.Join(ks.basePath, "enrolled")
 	_, err := os.Stat(path)

@@ -11,7 +11,7 @@ type SystemInfoAction struct {
 }
 
 func (a *SystemInfoAction) ID() string         { return "system.info" }
-func (a *SystemInfoAction) Capability() string  { return "monitoring" }
+func (a *SystemInfoAction) Capability() string { return "monitoring" }
 
 func (a *SystemInfoAction) Validate(params map[string]interface{}) error {
 	return nil

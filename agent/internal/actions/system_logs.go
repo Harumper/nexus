@@ -10,10 +10,10 @@ import (
 
 func init() { Register(&SystemLogsAction{}) }
 
-// Format accepte pour 'since' : "5m", "1h", "2d", "today", "yesterday", ou ISO8601
+// Accepted format for 'since': "5m", "1h", "2d", "today", "yesterday", or ISO8601
 var sinceRegex = regexp.MustCompile(`^(\d+[smhd]|today|yesterday|\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?)$`)
 
-// Nom de service valide (meme que services.go)
+// Valid service name (same as services.go)
 var logsServiceRegex = regexp.MustCompile(`^[a-zA-Z0-9@_.\-]+$`)
 
 type SystemLogsAction struct{}
@@ -64,12 +64,12 @@ func (a *SystemLogsAction) Execute(params map[string]interface{}) (interface{}, 
 	cmd := exec.Command("/usr/bin/journalctl", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// journalctl peut retourner exit != 0 mais le texte reste utile
+		// journalctl may return exit != 0 but the text is still useful
 		outStr := string(output)
 		if strings.Contains(outStr, "No journal files were found") {
 			return nil, fmt.Errorf("no journal access (agent must be in systemd-journal group; restart agent after install)")
 		}
-		// fallback : retourner quand meme
+		// fallback: return anyway
 	}
 
 	lines2 := strings.Split(strings.TrimRight(string(output), "\n"), "\n")

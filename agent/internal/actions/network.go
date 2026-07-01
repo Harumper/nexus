@@ -25,27 +25,27 @@ const (
 	netplanWatchdogDuration = 120 * time.Second
 	netplanDir              = "/etc/netplan"
 	netplanSnapshotPrefix   = "netplan-snapshot-"
-	netplanTargetFilename   = "99-nexus.yaml" // fichier gere par Nexus (ne touche pas aux autres)
+	netplanTargetFilename   = "99-nexus.yaml" // file managed by Nexus (does not touch the others)
 )
 
 // Regex YAML filename
 var yamlFilenameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+\.yaml$`)
 
-// PendingNetplan est une modification netplan en attente de confirmation.
+// PendingNetplan is a netplan change awaiting confirmation.
 type PendingNetplan struct {
-	RequestID    string
-	SnapshotDir  string
-	Timer        *time.Timer
-	CreatedAt    time.Time
+	RequestID   string
+	SnapshotDir string
+	Timer       *time.Timer
+	CreatedAt   time.Time
 }
 
 var (
 	netplanMu        sync.Mutex
 	pendingNetplan   = map[string]*PendingNetplan{}
-	netplanReserving bool // réservation in-flight (ferme la fenêtre TOCTOU)
+	netplanReserving bool // in-flight reservation (closes the TOCTOU window)
 )
 
-// HandleNetplanConfirm annule le revert pending.
+// HandleNetplanConfirm cancels the pending revert.
 func HandleNetplanConfirm(requestID string) {
 	netplanMu.Lock()
 	defer netplanMu.Unlock()
@@ -59,7 +59,7 @@ func HandleNetplanConfirm(requestID string) {
 	log.Printf("[Netplan] Change confirmed for request_id=%s, snapshot discarded", requestID)
 }
 
-// RecoverPendingNetplan est appele au demarrage de l'agent.
+// RecoverPendingNetplan is called at agent startup.
 func RecoverPendingNetplan() {
 	entries, err := os.ReadDir(snapshotDir)
 	if err != nil {
@@ -81,7 +81,7 @@ func RecoverPendingNetplan() {
 	}
 }
 
-// snapshotNetplan copie tous les fichiers .yaml de /etc/netplan dans un tempdir.
+// snapshotNetplan copies all .yaml files from /etc/netplan into a tempdir.
 func snapshotNetplan(requestID string) (string, error) {
 	os.MkdirAll(snapshotDir, 0700)
 	snapDir := filepath.Join(snapshotDir, netplanSnapshotPrefix+requestID)
@@ -106,9 +106,9 @@ func snapshotNetplan(requestID string) (string, error) {
 	return snapDir, nil
 }
 
-// restoreNetplanFromSnapshot remplace /etc/netplan/*.yaml par le snapshot et apply.
+// restoreNetplanFromSnapshot replaces /etc/netplan/*.yaml with the snapshot and applies.
 func restoreNetplanFromSnapshot(snapDir string) error {
-	// 1. Supprimer tous les .yaml actuels
+	// 1. Remove all current .yaml files
 	currentEntries, _ := os.ReadDir(netplanDir)
 	for _, e := range currentEntries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".yaml") {
@@ -117,7 +117,7 @@ func restoreNetplanFromSnapshot(snapDir string) error {
 			}
 		}
 	}
-	// 2. Restaurer depuis snapshot
+	// 2. Restore from snapshot
 	snapEntries, _ := os.ReadDir(snapDir)
 	for _, e := range snapEntries {
 		if e.IsDir() {
@@ -125,8 +125,8 @@ func restoreNetplanFromSnapshot(snapDir string) error {
 		}
 		src := filepath.Join(snapDir, e.Name())
 		dst := filepath.Join(netplanDir, e.Name())
-		// AGENT-008 : privhelper (src realpath sous staging + dst validée sous
-		// /etc/netplan, *.yaml, sans traversal).
+		// AGENT-008: privhelper (src realpath under staging + dst validated under
+		// /etc/netplan, *.yaml, no traversal).
 		if err := sudoRun(nexusAgentBin, "privhelper", "install-netplan", src, dst); err != nil {
 			return fmt.Errorf("install %s: %w", dst, err)
 		}
@@ -139,7 +139,7 @@ func restoreNetplanFromSnapshot(snapDir string) error {
 	return nil
 }
 
-// registerPendingNetplan snapshot + arme le timer 120s.
+// registerPendingNetplan snapshot + arms the 120s timer.
 func registerPendingNetplan(requestID string) (*PendingNetplan, error) {
 	netplanMu.Lock()
 	if len(pendingNetplan) > 0 || netplanReserving {
@@ -184,27 +184,27 @@ func registerPendingNetplan(requestID string) (*PendingNetplan, error) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// network.status : ip -j addr, routes, DNS, netplan pending info
+// network.status: ip -j addr, routes, DNS, netplan pending info
 // ═══════════════════════════════════════════════════════════════
 
 type NetworkStatusAction struct{}
 
-func (a *NetworkStatusAction) ID() string                                 { return "network.status" }
-func (a *NetworkStatusAction) Capability() string                         { return "monitoring" }
-func (a *NetworkStatusAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *NetworkStatusAction) ID() string                              { return "network.status" }
+func (a *NetworkStatusAction) Capability() string                      { return "monitoring" }
+func (a *NetworkStatusAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *NetworkStatusAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	addrRaw, addrErr := exec.Command("/usr/sbin/ip", "-j", "addr").Output()
 	routeRaw, routeErr := exec.Command("/usr/sbin/ip", "-j", "route").Output()
 
-	// Si les deux commandes échouent, remonter une vraie erreur plutôt que de
-	// renvoyer des champs null (qui font planter le .map côté frontend).
+	// If both commands fail, surface a real error rather than
+	// returning null fields (which crash the .map on the frontend side).
 	if addrErr != nil && routeErr != nil {
-		return nil, fmt.Errorf("ip addr/route indisponibles: %v / %v", addrErr, routeErr)
+		return nil, fmt.Errorf("ip addr/route unavailable: %v / %v", addrErr, routeErr)
 	}
 
-	// Slices initialisées non-nil : un JSON {"addresses":[],"routes":[]} plutôt
-	// que null, même si une commande échoue ou renvoie du vide.
+	// Non-nil initialized slices: a JSON {"addresses":[],"routes":[]} rather
+	// than null, even if a command fails or returns empty.
 	addrs := []interface{}{}
 	routes := []interface{}{}
 	_ = json.Unmarshal(addrRaw, &addrs)
@@ -230,14 +230,14 @@ func (a *NetworkStatusAction) Execute(_ map[string]interface{}) (interface{}, er
 }
 
 // ═══════════════════════════════════════════════════════════════
-// network.interfaces : liste simple des interfaces avec etat
+// network.interfaces: simple list of interfaces with state
 // ═══════════════════════════════════════════════════════════════
 
 type NetworkInterfacesAction struct{}
 
-func (a *NetworkInterfacesAction) ID() string                                 { return "network.interfaces" }
-func (a *NetworkInterfacesAction) Capability() string                         { return "monitoring" }
-func (a *NetworkInterfacesAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *NetworkInterfacesAction) ID() string                              { return "network.interfaces" }
+func (a *NetworkInterfacesAction) Capability() string                      { return "monitoring" }
+func (a *NetworkInterfacesAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *NetworkInterfacesAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	out, err := exec.Command("/usr/sbin/ip", "-j", "link").Output()
@@ -252,14 +252,14 @@ func (a *NetworkInterfacesAction) Execute(_ map[string]interface{}) (interface{}
 }
 
 // ═══════════════════════════════════════════════════════════════
-// netplan.get : lit tous les .yaml de /etc/netplan
+// netplan.get: reads all .yaml files from /etc/netplan
 // ═══════════════════════════════════════════════════════════════
 
 type NetplanGetAction struct{}
 
-func (a *NetplanGetAction) ID() string                                 { return "netplan.get" }
-func (a *NetplanGetAction) Capability() string                         { return "monitoring" }
-func (a *NetplanGetAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *NetplanGetAction) ID() string                              { return "netplan.get" }
+func (a *NetplanGetAction) Capability() string                      { return "monitoring" }
+func (a *NetplanGetAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *NetplanGetAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	entries, err := os.ReadDir(netplanDir)
@@ -271,7 +271,7 @@ func (a *NetplanGetAction) Execute(_ map[string]interface{}) (interface{}, error
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
 		}
-		// Utilise sudo cat car certains fichiers netplan sont 600
+		// Use sudo cat because some netplan files are 600
 		out, err := exec.Command("sudo", "-n", "/bin/cat", filepath.Join(netplanDir, e.Name())).Output()
 		if err != nil {
 			continue
@@ -282,15 +282,15 @@ func (a *NetplanGetAction) Execute(_ map[string]interface{}) (interface{}, error
 		})
 	}
 	return map[string]interface{}{
-		"dir":            netplanDir,
-		"files":          files,
-		"target_file":    netplanTargetFilename,
+		"dir":              netplanDir,
+		"files":            files,
+		"target_file":      netplanTargetFilename,
 		"managed_by_nexus": netplanTargetFilename,
 	}, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
-// netplan.apply : ecrit 99-nexus.yaml, snapshot, apply, watchdog
+// netplan.apply: writes 99-nexus.yaml, snapshot, apply, watchdog
 // ═══════════════════════════════════════════════════════════════
 
 type NetplanApplyAction struct{}
@@ -306,7 +306,7 @@ func (a *NetplanApplyAction) Validate(params map[string]interface{}) error {
 	if len(content) > 65536 {
 		return fmt.Errorf("content too large (max 64KB)")
 	}
-	// Validation basique : doit commencer par "network:" et ne pas contenir de null bytes
+	// Basic validation: must start with "network:" and not contain null bytes
 	if strings.Contains(content, "\x00") {
 		return fmt.Errorf("content contains null bytes")
 	}
@@ -333,7 +333,7 @@ func (a *NetplanApplyAction) Execute(params map[string]interface{}) (interface{}
 		return nil, err
 	}
 
-	// 2. Ecrire le nouveau fichier dans un tempfile puis sudo install
+	// 2. Write the new file into a tempfile then sudo install
 	tmp, err := os.CreateTemp(snapshotDir, "netplan-new-*.yaml")
 	if err != nil {
 		HandleNetplanConfirm(reqID)
@@ -352,7 +352,7 @@ func (a *NetplanApplyAction) Execute(params map[string]interface{}) (interface{}
 	// 3. Apply
 	cmd := exec.Command("sudo", "-n", "/usr/sbin/netplan", "apply")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		// Apply a echoue -> revert immediat
+		// Apply failed -> immediate revert
 		HandleNetplanConfirm(reqID)
 		restoreNetplanFromSnapshot(pr.SnapshotDir)
 		return nil, fmt.Errorf("netplan apply failed: %w: %s", err, string(out))
@@ -386,5 +386,5 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// Placeholder pour eviter unused import si jamais
+// Placeholder to avoid unused import just in case
 var _ = yamlFilenameRegex

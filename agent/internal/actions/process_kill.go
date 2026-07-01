@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// NEXUS-AGENT-004 — services dont le MainPID ne doit JAMAIS être tué par
-// process.kill (désarmerait les watchdog-revert si on tue l'agent ; DoS/lockout
-// si on tue un daemon critique). Aligné sur le set critique de
-// machine-protection.ts. Le PID est résolu LIVE au moment du kill (un service qui
-// redémarre a un nouveau PID — un cache laisserait passer le kill du nouveau).
+// NEXUS-AGENT-004 — services whose MainPID must NEVER be killed by
+// process.kill (would disarm the watchdog-reverts if the agent is killed; DoS/lockout
+// if a critical daemon is killed). Aligned with the critical set of
+// machine-protection.ts. The PID is resolved LIVE at kill time (a service that
+// restarts has a new PID — a cache would let the kill of the new one through).
 var killProtectedServices = []string{
 	"nexus-agent", "ssh", "sshd", "docker", "nginx",
 	"postgresql", "postgres", "mariadb", "mysql", "containerd",
 }
 
-// serviceMainPID résout le MainPID d'un service systemd MAINTENANT (jamais caché).
+// serviceMainPID resolves the MainPID of a systemd service NOW (never cached).
 func serviceMainPID(svc string) int {
 	out, err := exec.Command("systemctl", "show", "-p", "MainPID", "--value", svc).Output()
 	if err != nil {
@@ -28,8 +28,8 @@ func serviceMainPID(svc string) int {
 	return pid
 }
 
-// protectedKillTarget retourne une raison non vide si `pid` ne doit pas être tué :
-// le process de l'agent lui-même, ou le MainPID (résolu LIVE) d'un service critique.
+// protectedKillTarget returns a non-empty reason if `pid` must not be killed:
+// the agent's own process, or the MainPID (resolved LIVE) of a critical service.
 func protectedKillTarget(pid int) string {
 	if pid == os.Getpid() {
 		return "agent's own process"
@@ -47,7 +47,7 @@ func init() { Register(&ProcessKillAction{}) }
 type ProcessKillAction struct{}
 
 func (a *ProcessKillAction) ID() string         { return "process.kill" }
-func (a *ProcessKillAction) Capability() string  { return "scripts" }
+func (a *ProcessKillAction) Capability() string { return "scripts" }
 
 func (a *ProcessKillAction) Validate(params map[string]interface{}) error {
 	pidRaw, ok := params["pid"]
@@ -101,11 +101,11 @@ func (a *ProcessKillAction) Execute(params map[string]interface{}) (interface{},
 		pid, _ = strconv.Atoi(v)
 	}
 
-	// NEXUS-AGENT-004 — garde autoritaire (le sudoers ne peut pas denylister un
-	// PID). Résolution LIVE au moment du kill. Refuse l'agent lui-même (désarmement
-	// watchdog) et les daemons critiques (DoS/lockout) — non couverts par isCritical
-	// (basé sur les NOMS de service) ni par le blocage systemctl (ici c'est un kill
-	// brut).
+	// NEXUS-AGENT-004 — authoritative guard (sudoers cannot denylist a
+	// PID). LIVE resolution at kill time. Refuses the agent itself (watchdog
+	// disarming) and critical daemons (DoS/lockout) — not covered by isCritical
+	// (based on service NAMES) nor by the systemctl block (here it's a raw
+	// kill).
 	if reason := protectedKillTarget(pid); reason != "" {
 		return nil, fmt.Errorf("refusing to kill PID %d (%s)", pid, reason)
 	}
@@ -115,7 +115,7 @@ func (a *ProcessKillAction) Execute(params map[string]interface{}) (interface{},
 		signal = strings.ToUpper(sig)
 	}
 
-	// Via sudo — l'agent tourne sous nexus-agent (non-root)
+	// Via sudo — the agent runs as nexus-agent (non-root)
 	cmd := exec.Command("/usr/bin/sudo", "/bin/kill", fmt.Sprintf("-%s", signal), strconv.Itoa(pid))
 	output, err := cmd.CombinedOutput()
 

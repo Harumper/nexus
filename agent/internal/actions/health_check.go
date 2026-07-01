@@ -16,16 +16,16 @@ func init() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// system.health_summary : compile services_failed + timers_failed +
-// updates_available en une seule reponse (pour l'alert-engine qui poll
-// periodiquement).
+// system.health_summary: compiles services_failed + timers_failed +
+// updates_available into a single response (for the alert-engine that polls
+// periodically).
 // ═══════════════════════════════════════════════════════════════
 
 type SystemHealthSummaryAction struct{}
 
-func (a *SystemHealthSummaryAction) ID() string                                 { return "system.health_summary" }
-func (a *SystemHealthSummaryAction) Capability() string                         { return "monitoring" }
-func (a *SystemHealthSummaryAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *SystemHealthSummaryAction) ID() string                              { return "system.health_summary" }
+func (a *SystemHealthSummaryAction) Capability() string                      { return "monitoring" }
+func (a *SystemHealthSummaryAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *SystemHealthSummaryAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	servicesAct := &SystemServicesFailedAction{}
@@ -44,14 +44,14 @@ func (a *SystemHealthSummaryAction) Execute(_ map[string]interface{}) (interface
 }
 
 // ═══════════════════════════════════════════════════════════════
-// system.services_failed : systemctl list-units --failed --type=service
+// system.services_failed: systemctl list-units --failed --type=service
 // ═══════════════════════════════════════════════════════════════
 
 type SystemServicesFailedAction struct{}
 
-func (a *SystemServicesFailedAction) ID() string                                 { return "system.services_failed" }
-func (a *SystemServicesFailedAction) Capability() string                         { return "monitoring" }
-func (a *SystemServicesFailedAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *SystemServicesFailedAction) ID() string                              { return "system.services_failed" }
+func (a *SystemServicesFailedAction) Capability() string                      { return "monitoring" }
+func (a *SystemServicesFailedAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *SystemServicesFailedAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	cmd := exec.Command("/usr/bin/systemctl", "list-units",
@@ -67,7 +67,7 @@ func (a *SystemServicesFailedAction) Execute(_ map[string]interface{}) (interfac
 	if err := json.Unmarshal(out, &units); err != nil {
 		return nil, fmt.Errorf("parse json: %w", err)
 	}
-	// Extraire juste name + description pour alleger
+	// Extract just name + description to keep it lightweight
 	failed := make([]map[string]interface{}, 0, len(units))
 	for _, u := range units {
 		failed = append(failed, map[string]interface{}{
@@ -84,17 +84,17 @@ func (a *SystemServicesFailedAction) Execute(_ map[string]interface{}) (interfac
 }
 
 // ═══════════════════════════════════════════════════════════════
-// system.timers_failed : timers dont LastTriggerResult n'est pas success
+// system.timers_failed: timers whose LastTriggerResult is not success
 // ═══════════════════════════════════════════════════════════════
 
 type SystemTimersFailedAction struct{}
 
-func (a *SystemTimersFailedAction) ID() string                                 { return "system.timers_failed" }
-func (a *SystemTimersFailedAction) Capability() string                         { return "monitoring" }
-func (a *SystemTimersFailedAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *SystemTimersFailedAction) ID() string                              { return "system.timers_failed" }
+func (a *SystemTimersFailedAction) Capability() string                      { return "monitoring" }
+func (a *SystemTimersFailedAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *SystemTimersFailedAction) Execute(_ map[string]interface{}) (interface{}, error) {
-	// Lister tous les timers
+	// List all timers
 	listCmd := exec.Command("/usr/bin/systemctl", "list-timers", "--all", "--no-pager", "--output=json")
 	out, err := listCmd.Output()
 	if err != nil {
@@ -111,7 +111,7 @@ func (a *SystemTimersFailedAction) Execute(_ map[string]interface{}) (interface{
 		if unit == "" {
 			continue
 		}
-		// Recuperer le status du service activé par le timer
+		// Retrieve the status of the service activated by the timer
 		activates, _ := t["activates"].(string)
 		if activates == "" {
 			continue
@@ -142,19 +142,19 @@ func (a *SystemTimersFailedAction) Execute(_ map[string]interface{}) (interface{
 }
 
 // ═══════════════════════════════════════════════════════════════
-// system.updates_available : juste un count
-// (reutilise system.package_list en cas de besoin, ici simple wrapper)
+// system.updates_available: just a count
+// (reuses system.package_list if needed, here a simple wrapper)
 // ═══════════════════════════════════════════════════════════════
 
 type SystemUpdatesAvailableAction struct{}
 
-func (a *SystemUpdatesAvailableAction) ID() string                                 { return "system.updates_available" }
-func (a *SystemUpdatesAvailableAction) Capability() string                         { return "monitoring" }
-func (a *SystemUpdatesAvailableAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *SystemUpdatesAvailableAction) ID() string                              { return "system.updates_available" }
+func (a *SystemUpdatesAvailableAction) Capability() string                      { return "monitoring" }
+func (a *SystemUpdatesAvailableAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *SystemUpdatesAvailableAction) Execute(_ map[string]interface{}) (interface{}, error) {
-	// apt list --upgradable ne necessite pas sudo en mode list
-	// LC_ALL=C : sortie déterministe quelle que soit la langue système
+	// apt list --upgradable does not require sudo in list mode
+	// LC_ALL=C: deterministic output regardless of the system language
 	cmd := exec.Command("/usr/bin/apt", "list", "--upgradable", "-qq")
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive", "LC_ALL=C", "LANG=C")
 	out, _ := cmd.Output()

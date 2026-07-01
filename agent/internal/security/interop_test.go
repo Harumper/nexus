@@ -11,16 +11,16 @@ import (
 	"testing"
 )
 
-// Filet d'interop cross-langage Go↔Node (TEST-DEBT-001, filet partiel permanent).
+// Cross-language Go↔Node interop safety net (TEST-DEBT-001, permanent partial net).
 //
-// Le fichier testdata/interop-vectors.json est produit par le VRAI code Go
-// (deriveSessionKey + SealToServer). Deux gardes le consomment :
-//   - ici (Go)            : la dérivation/format Go reste cohérent avec le fixture.
-//   - backend (Node)      : Node dérive le même K (X25519) et OUVRE le seal Go
-//                           (P-256). Voir backend/tests/e2e/interop-vectors.test.ts.
-// Si l'un des deux dérive, son test casse → l'accord Go↔Node est garanti par le
-// fixture partagé. Ce N'EST PAS le e2e complet (TEST-DEBT-001), c'est le filet
-// d'interop le plus critique, quasi gratuit.
+// The testdata/interop-vectors.json file is produced by the REAL Go code
+// (deriveSessionKey + SealToServer). Two guards consume it:
+//   - here (Go)           : the Go derivation/format stays consistent with the fixture.
+//   - backend (Node)      : Node derives the same K (X25519) and OPENS the Go seal
+//                           (P-256). See backend/tests/e2e/interop-vectors.test.ts.
+// If either side drifts, its test breaks → the Go↔Node agreement is guaranteed by
+// the shared fixture. This is NOT the full e2e (TEST-DEBT-001), it's the most
+// critical interop net, nearly free.
 
 type interopVectors struct {
 	X25519 struct {
@@ -41,15 +41,15 @@ type interopVectors struct {
 
 func vectorsPath() string { return filepath.Join("testdata", "interop-vectors.json") }
 
-// TestEmitInteropVectors régénère le fixture à la demande (outil, non exécuté en
-// CI) : INTEROP_REGEN=1 go test ./internal/security/ -run TestEmitInteropVectors
+// TestEmitInteropVectors regenerates the fixture on demand (tool, not run in
+// CI): INTEROP_REGEN=1 go test ./internal/security/ -run TestEmitInteropVectors
 func TestEmitInteropVectors(t *testing.T) {
 	if os.Getenv("INTEROP_REGEN") != "1" {
-		t.Skip("régénération du fixture : poser INTEROP_REGEN=1")
+		t.Skip("fixture regeneration: set INTEROP_REGEN=1")
 	}
 	var v interopVectors
 
-	// X25519 : vecteur déterministe (K = HKDF(ECDH) ne dépend que des clés).
+	// X25519: deterministic vector (K = HKDF(ECDH) depends only on the keys).
 	ea, _ := ecdh.X25519().GenerateKey(rand.Reader)
 	eb, _ := ecdh.X25519().GenerateKey(rand.Reader)
 	v.X25519.MachineID = "machine-interop-x25519"
@@ -66,8 +66,8 @@ func TestEmitInteropVectors(t *testing.T) {
 	v.X25519.EbPub = base64.StdEncoding.EncodeToString(eb.PublicKey().Bytes())
 	v.X25519.KHex = hex.EncodeToString(k)
 
-	// Seal P-256 : produit par le VRAI SealToServer (nonce aléatoire → on commit le
-	// blob tel quel ; Node l'ouvrira, l'ouverture est déterministe).
+	// Seal P-256: produced by the REAL SealToServer (random nonce → we commit the
+	// blob as-is; Node will open it, opening is deterministic).
 	server, _ := GenerateECDSAKeypair()
 	serverPrivPEM, _ := MarshalPrivateKeyPEM(server)
 	v.Seal.MachineID = "machine-interop-seal"
@@ -90,18 +90,18 @@ func TestEmitInteropVectors(t *testing.T) {
 	}
 }
 
-// TestInteropVectorsGo (permanent) : le code Go reste cohérent avec le fixture.
+// TestInteropVectorsGo (permanent): the Go code stays consistent with the fixture.
 func TestInteropVectorsGo(t *testing.T) {
 	raw, err := os.ReadFile(vectorsPath())
 	if err != nil {
-		t.Fatalf("fixture introuvable (régénérer avec INTEROP_REGEN=1) : %v", err)
+		t.Fatalf("fixture not found (regenerate with INTEROP_REGEN=1): %v", err)
 	}
 	var v interopVectors
 	if err := json.Unmarshal(raw, &v); err != nil {
 		t.Fatal(err)
 	}
 
-	// X25519 : Go redérive K depuis (eb_priv, ea_pub) → doit égaler k_hex.
+	// X25519: Go re-derives K from (eb_priv, ea_pub) → must equal k_hex.
 	eaPubBytes, _ := base64.StdEncoding.DecodeString(v.X25519.EaPub)
 	ebPrivBytes, _ := base64.StdEncoding.DecodeString(v.X25519.EbPriv)
 	eaPub, err := ecdh.X25519().NewPublicKey(eaPubBytes)
@@ -121,6 +121,6 @@ func TestInteropVectorsGo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if hex.EncodeToString(k) != v.X25519.KHex {
-		t.Fatalf("X25519 K Go ≠ fixture : got %s want %s", hex.EncodeToString(k), v.X25519.KHex)
+		t.Fatalf("X25519 K Go ≠ fixture: got %s want %s", hex.EncodeToString(k), v.X25519.KHex)
 	}
 }

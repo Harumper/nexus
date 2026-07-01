@@ -14,9 +14,9 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// deriveSessionKey calcule la clé de session AES-256 à partir d'un secret ECDH
-// X25519, avec domain-separation par machine_id (info="nexus-session:<id>", salt
-// vide pour correspondre au backend crypto.hkdfSync).
+// deriveSessionKey computes the AES-256 session key from an X25519 ECDH secret,
+// with domain-separation by machine_id (info="nexus-session:<id>", empty salt to
+// match the backend crypto.hkdfSync).
 func deriveSessionKey(ecdhSecret []byte, machineID string) ([]byte, error) {
 	r := hkdf.New(sha256.New, ecdhSecret, nil, []byte("nexus-session:"+machineID))
 	key := make([]byte, 32)
@@ -26,17 +26,17 @@ func deriveSessionKey(ecdhSecret []byte, machineID string) ([]byte, error) {
 	return key, nil
 }
 
-// PerformSessionHandshake exécute le handshake ECDHE X25519 (forward secrecy) sur
-// une connexion DÉJÀ établie :
-//  1. génère une paire éphémère X25519,
-//  2. envoie session.hello {ephemeral_pub} SIGNÉ par la clé long-terme (non chiffré),
-//  3. reçoit session.hello.ack, le vérifie contre la clé serveur PINNÉE,
-//  4. dérive et retourne la clé de session K.
+// PerformSessionHandshake runs the X25519 ECDHE handshake (forward secrecy) over
+// an ALREADY-established connection:
+//  1. generates an ephemeral X25519 keypair,
+//  2. sends session.hello {ephemeral_pub} SIGNED by the long-term key (unencrypted),
+//  3. receives session.hello.ack, verifies it against the PINNED server key,
+//  4. derives and returns the session key K.
 //
-// La clé privée éphémère (eph) vit UNIQUEMENT dans cette fonction : jamais stockée
-// dans une struct, jamais loggée, jamais retournée. Elle sort de portée au retour
-// → impossible de recalculer K même si la clé long-terme fuite plus tard. K
-// n'est ni persisté ni loggé (mémoire seule, retourné à l'appelant).
+// The ephemeral private key (eph) lives ONLY in this function: never stored in a
+// struct, never logged, never returned. It goes out of scope on return → K cannot
+// be recomputed even if the long-term key leaks later. K is neither persisted nor
+// logged (memory only, returned to the caller).
 func PerformSessionHandshake(
 	send func([]byte) error,
 	receive func(time.Duration) ([]byte, error),
@@ -80,7 +80,7 @@ func PerformSessionHandshake(
 	if ack.Type != "session.hello.ack" {
 		return nil, fmt.Errorf("unexpected handshake response type: %q", ack.Type)
 	}
-	// Vérif clé serveur PINNÉE (version + timestamp + signature + nonce).
+	// Verify against the PINNED server key (version + timestamp + signature + nonce).
 	if err := VerifyServerMessage(VerifyServerMessageInput{
 		V: ack.V, Type: ack.Type, RequestID: "", MachineID: ack.MachineID,
 		Timestamp: ack.Timestamp, Nonce: ack.Nonce, Payload: ack.Payload, Signature: ack.Signature,
@@ -107,5 +107,5 @@ func PerformSessionHandshake(
 		return nil, fmt.Errorf("X25519 ECDH: %w", err)
 	}
 	return deriveSessionKey(secret, machineID)
-	// eph (clé privée éphémère) sort de portée → jetée. Forward secrecy.
+	// eph (ephemeral private key) goes out of scope → discarded. Forward secrecy.
 }

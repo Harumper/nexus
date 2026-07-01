@@ -8,22 +8,20 @@ import (
 	"aead.dev/minisign"
 )
 
-// Vérification d'une accept-list de clés publiques minisign lue depuis un fichier
-// LOCAL root-owned déposé par l'opérateur. Mutualisé entre l'auto-upgrade
-// (release.pub) et la signature de script (script-signing.pub) : la pubkey vit
-// hors du canal de commande, le backend n'y touche jamais, et chaque clé a un
-// rôle/keypair distinct.
+// Verification of a minisign public-key accept-list read from a LOCAL root-owned
+// file deposited by the operator. Shared between auto-upgrade (release.pub) and
+// script signing (script-signing.pub): the pubkey lives outside the command
+// channel, the backend never touches it, and each key has a distinct role/keypair.
 
-// LoadMinisignAcceptList lit et parse une accept-list minisign : une clé publique
-// par ligne non vide. Lignes vides, commentaires (`#`) et en-tête `untrusted
-// comment:` d'un fichier .pub collé tel quel sont ignorés. Renvoie TOUJOURS une
-// erreur plutôt qu'une liste vide silencieuse → l'appelant échoue fermé : fichier
-// absent, illisible, vide ou clé non parsable ⇒ erreur. Aucune variable d'env,
-// aucun flag, aucun fallback.
+// LoadMinisignAcceptList reads and parses a minisign accept-list: one public key
+// per non-empty line. Empty lines, comments (`#`) and the `untrusted comment:`
+// header of a .pub file pasted as-is are ignored. ALWAYS returns an error rather
+// than a silent empty list → the caller fails closed: missing, unreadable, empty
+// file or unparsable key ⇒ error. No env variable, no flag, no fallback.
 func LoadMinisignAcceptList(path string) ([]minisign.PublicKey, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("lecture %s : %w", path, err)
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	var keys []minisign.PublicKey
 	for _, line := range strings.Split(string(data), "\n") {
@@ -33,21 +31,21 @@ func LoadMinisignAcceptList(path string) ([]minisign.PublicKey, error) {
 		}
 		var pk minisign.PublicKey
 		if err := pk.UnmarshalText([]byte(line)); err != nil {
-			return nil, fmt.Errorf("clé publique invalide dans %s : %w", path, err)
+			return nil, fmt.Errorf("invalid public key in %s: %w", path, err)
 		}
-		keys = append(keys, pk) // accept-list = liste dès la 1re entrée (current[, next])
+		keys = append(keys, pk) // accept-list = list from the 1st entry (current[, next])
 	}
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("%s ne contient aucune clé publique utilisable", path)
+		return nil, fmt.Errorf("%s contains no usable public key", path)
 	}
 	return keys, nil
 }
 
-// VerifyMinisignAny applique un OR logique sur l'accept-list : la signature
-// détachée est acceptée si N'IMPORTE quelle clé de la liste la valide.
-// minisign.Verify gère le format brut (Ed) comme le pré-hashé Blake2b-512 (ED) et
-// vérifie aussi la signature globale du trusted comment. Renvoie l'ID 64 bits de
-// la clé qui a validé (pour journalisation du signataire) ; 0 si aucune.
+// VerifyMinisignAny applies a logical OR over the accept-list: the detached
+// signature is accepted if ANY key in the list validates it.
+// minisign.Verify handles both the raw format (Ed) and the pre-hashed Blake2b-512
+// (ED), and also verifies the global signature of the trusted comment. Returns the
+// 64-bit ID of the key that validated (for signer logging); 0 if none.
 func VerifyMinisignAny(keys []minisign.PublicKey, message, sig []byte) (ok bool, keyID uint64) {
 	for _, pk := range keys {
 		if minisign.Verify(pk, message, sig) {

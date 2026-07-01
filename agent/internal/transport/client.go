@@ -28,7 +28,7 @@ type Client struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	onMessage    func(Message)
-	msgCh        chan []byte // Pour l'enrollment synchrone
+	msgCh        chan []byte // For synchronous enrollment
 	done         chan struct{}
 	doneOnce     sync.Once
 }
@@ -45,8 +45,8 @@ func NewClient(serverURL, machineID string) *Client {
 	}
 }
 
-// Done est fermé quand la boucle de lecture s'arrête sur une erreur (connexion
-// perdue). Permet à main de réagir à une déconnexion réelle.
+// Done is closed when the read loop stops on an error (connection lost).
+// Lets main react to a real disconnection.
 func (c *Client) Done() <-chan struct{} {
 	return c.done
 }
@@ -62,9 +62,9 @@ func (c *Client) SetKeys(privateKey *ecdsa.PrivateKey, sharedSecret []byte) {
 	c.sharedSecret = sharedSecret
 }
 
-// SessionKey retourne la clé de session AES (K, dérivée par le handshake ECDHE,
-// mémoire seule). Utilisée pour déchiffrer les action.request entrants. Jamais
-// persistée ni loggée.
+// SessionKey returns the AES session key (K, derived by the ECDHE handshake,
+// memory only). Used to decrypt incoming action.request. Never persisted or
+// logged.
 func (c *Client) SessionKey() []byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -75,7 +75,7 @@ func (c *Client) OnMessage(handler func(Message)) {
 	c.onMessage = handler
 }
 
-// Connect établit la connexion WebSocket
+// Connect establishes the WebSocket connection
 func (c *Client) Connect() error {
 	conn, _, err := websocket.Dial(c.ctx, c.serverURL, &websocket.DialOptions{
 		CompressionMode: websocket.CompressionDisabled,
@@ -83,7 +83,7 @@ func (c *Client) Connect() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %w", c.serverURL, err)
 	}
-	// Augmenter la taille max des messages
+	// Increase the max message size
 	conn.SetReadLimit(1024 * 1024) // 1MB
 	c.mu.Lock()
 	c.conn = conn
@@ -93,7 +93,7 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-// ReadLoop lit les messages entrants
+// ReadLoop reads incoming messages
 func (c *Client) ReadLoop() {
 	for {
 		select {
@@ -109,7 +109,7 @@ func (c *Client) ReadLoop() {
 			return
 		}
 
-		// Si on est en mode enrollment, envoyer au channel
+		// If we're in enrollment mode, send to the channel
 		select {
 		case c.msgCh <- data:
 		default:
@@ -127,7 +127,7 @@ func (c *Client) ReadLoop() {
 	}
 }
 
-// SendRaw envoie un message brut (pour l'enrollment)
+// SendRaw sends a raw message (for enrollment)
 func (c *Client) SendRaw(data []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -137,7 +137,7 @@ func (c *Client) SendRaw(data []byte) error {
 	return c.conn.Write(c.ctx, websocket.MessageText, data)
 }
 
-// ReceiveRaw attend un message brut (pour l'enrollment)
+// ReceiveRaw waits for a raw message (for enrollment)
 func (c *Client) ReceiveRaw(timeout time.Duration) ([]byte, error) {
 	select {
 	case data := <-c.msgCh:
@@ -149,7 +149,7 @@ func (c *Client) ReceiveRaw(timeout time.Duration) ([]byte, error) {
 	}
 }
 
-// SendSigned envoie un message signé et chiffré
+// SendSigned sends a signed and encrypted message
 func (c *Client) SendSigned(msgType string, requestID string, payloadData interface{}) error {
 	c.mu.Lock()
 	privateKey := c.privateKey
@@ -160,13 +160,13 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 		return fmt.Errorf("no private key set")
 	}
 
-	// Sérialiser le payload
+	// Serialize the payload
 	payloadJSON, err := json.Marshal(payloadData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Chiffrer si on a un secret partagé
+	// Encrypt if we have a shared secret
 	var payload string
 	if sharedSecret != nil {
 		encrypted, err := encryptAES(string(payloadJSON), sharedSecret)
@@ -178,7 +178,7 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 		payload = string(payloadJSON)
 	}
 
-	// Construire le message
+	// Build the message
 	nonce := generateNonce()
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
@@ -209,7 +209,7 @@ func (c *Client) SendSigned(msgType string, requestID string, payloadData interf
 	return c.SendRaw(data)
 }
 
-// Close ferme la connexion
+// Close closes the connection
 func (c *Client) Close() {
 	c.cancel()
 	c.mu.Lock()
@@ -219,7 +219,7 @@ func (c *Client) Close() {
 	}
 }
 
-// ===================== Crypto locale (éviter import cycle avec security) =====================
+// ===================== Local crypto (avoid import cycle with security) =====================
 
 func signPayload(payload string, privateKey *ecdsa.PrivateKey) (string, error) {
 	hash := sha256.Sum256([]byte(payload))

@@ -60,8 +60,8 @@ func TestFirewallAllowValidateAccepts(t *testing.T) {
 }
 
 func TestFirewallDenyDelegatesValidate(t *testing.T) {
-	// Deny utilise la meme validation que allow : verifier que le rejet
-	// d'injection fonctionne aussi cote deny (meme code path).
+	// Deny uses the same validation as allow: verify that injection
+	// rejection also works on the deny side (same code path).
 	a := &FirewallDenyAction{}
 	if err := a.Validate(map[string]interface{}{"rule": "80/tcp; evil"}); err == nil {
 		t.Error("Deny should reject shell injection like Allow")
@@ -95,8 +95,8 @@ func TestFirewallRuleRemoveValidate(t *testing.T) {
 }
 
 func TestHandleConfirmUnknownIDIsSafe(t *testing.T) {
-	// HandleConfirm sur un request_id inconnu doit logger + return sans paniquer.
-	// Sinon un attacker pourrait crash l'agent en spamming des confirms forges.
+	// HandleConfirm on an unknown request_id must log + return without panicking.
+	// Otherwise an attacker could crash the agent by spamming forged confirms.
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("HandleConfirm panicked on unknown ID: %v", r)

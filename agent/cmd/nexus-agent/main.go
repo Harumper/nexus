@@ -26,19 +26,19 @@ import (
 	"github.com/nexus/agent/internal/transport"
 )
 
-// selfSHA256 renvoie le SHA256 (hex) du binaire de l'agent en cours
-// d'exécution, calculé une seule fois. Sert au backend pour comparer la
-// version installée à celle qu'il sert (détection "à jour" + fin d'upgrade).
+// selfSHA256 returns the SHA256 (hex) of the currently running agent binary,
+// computed only once. Used by the backend to compare the installed version
+// against the one it serves ("up-to-date" detection + upgrade completion).
 var (
 	selfSHAOnce  sync.Once
 	selfSHAValue string
 )
 
-// ===================== Idempotence des actions =====================
-// Un même request_id ne doit JAMAIS être ré-exécuté : un re-dispatch (ou une
-// redélivraison WS de la même trame après perte d'ack) rejouerait une mutation
-// destructrice (reboot, apt remove, user.create...). On mémorise les request_id
-// traités + leur réponse pour renvoyer le résultat sans ré-exécuter.
+// ===================== Action idempotency =====================
+// A given request_id must NEVER be re-executed: a re-dispatch (or a WS
+// redelivery of the same frame after a lost ack) would replay a destructive
+// mutation (reboot, apt remove, user.create...). We memorize processed
+// request_ids + their response to return the result without re-executing.
 type idemEntry struct {
 	done     bool
 	response map[string]interface{}
@@ -52,8 +52,8 @@ var (
 
 const idemTTL = 10 * time.Minute
 
-// idemReserve réserve un request_id pour exécution. Retourne (réponse mémorisée,
-// estDuplicata). Si duplicata et exécution terminée, la réponse est non-nil.
+// idemReserve reserves a request_id for execution. Returns (memorized response,
+// isDuplicate). If it's a duplicate and execution is done, the response is non-nil.
 func idemReserve(requestID string) (map[string]interface{}, bool) {
 	idemMu.Lock()
 	defer idemMu.Unlock()
@@ -72,7 +72,7 @@ func idemReserve(requestID string) (map[string]interface{}, bool) {
 	return nil, false
 }
 
-// idemComplete enregistre la réponse finale pour un request_id réservé.
+// idemComplete records the final response for a reserved request_id.
 func idemComplete(requestID string, response map[string]interface{}) {
 	idemMu.Lock()
 	defer idemMu.Unlock()
@@ -103,12 +103,12 @@ func selfSHA256() string {
 	return selfSHAValue
 }
 
-// notifySocket : chemin du socket systemd capturé une seule fois au boot.
-// On RETIRE NOTIFY_SOCKET de l'environnement (initSystemdNotify) pour qu'il ne
-// soit PAS hérité par les processus enfants (lynis, apt, systemctl…) : sinon
-// ces enfants écrivent dans le socket et systemd inonde le journal de
-// « Got notification message from PID X, but reception only permitted for main PID ».
-// (Équivalent du flag unset_environment de sd_notify.)
+// notifySocket: path of the systemd socket captured once at boot.
+// We REMOVE NOTIFY_SOCKET from the environment (initSystemdNotify) so it is
+// NOT inherited by child processes (lynis, apt, systemctl…): otherwise those
+// children write to the socket and systemd floods the journal with
+// "Got notification message from PID X, but reception only permitted for main PID".
+// (Equivalent to sd_notify's unset_environment flag.)
 var notifySocket string
 
 func initSystemdNotify() {
@@ -118,8 +118,8 @@ func initSystemdNotify() {
 	}
 }
 
-// sdNotify envoie un message au gestionnaire de service (systemd) via le socket
-// capturé au boot. No-op hors systemd. Gère les sockets abstraits (@ -> NUL).
+// sdNotify sends a message to the service manager (systemd) via the socket
+// captured at boot. No-op outside systemd. Handles abstract sockets (@ -> NUL).
 func sdNotify(state string) {
 	if notifySocket == "" {
 		return
@@ -136,10 +136,10 @@ func sdNotify(state string) {
 	conn.Write([]byte(state))
 }
 
-// runWatchdog notifie systemd (WATCHDOG=1) à la moitié de l'intervalle
-// WatchdogSec. SANS ça, l'unit `WatchdogSec=120` faisait tuer+relancer l'agent
-// toutes les 120s (d'où les déconnexions périodiques observées). No-op si le
-// watchdog n'est pas activé (WATCHDOG_USEC absent).
+// runWatchdog notifies systemd (WATCHDOG=1) at half the WatchdogSec interval.
+// WITHOUT this, the unit `WatchdogSec=120` caused the agent to be killed+
+// restarted every 120s (hence the periodic disconnections observed). No-op if
+// the watchdog is not enabled (WATCHDOG_USEC absent).
 func runWatchdog() {
 	usecStr := os.Getenv("WATCHDOG_USEC")
 	if usecStr == "" {
@@ -159,26 +159,26 @@ func runWatchdog() {
 }
 
 var (
-	// Version est injectée au build via -ldflags "-X main.Version=...".
-	// "dev" = binaire compilé sans estampillage (build local).
+	// Version is injected at build via -ldflags "-X main.Version=...".
+	// "dev" = binary compiled without stamping (local build).
 	Version = "dev"
 
-	// serverPublicKey est la cle publique ECDSA du backend, parsee une fois
-	// au boot et utilisee pour verifier les messages serveur (action.confirm).
+	// serverPublicKey is the backend's ECDSA public key, parsed once at boot
+	// and used to verify server messages (action.confirm).
 	serverPublicKey *ecdsa.PublicKey
 )
 
 func main() {
-	// NEXUS-AGENT-003/008 — mode privhelper (wrapper root COMPILÉ) : invoqué via
-	// `sudo nexus-agent privhelper <op> …`, il exécute une opération privilégiée
-	// strictement validée puis sort. AVANT tout le reste (pas de config, pas de
-	// systemd notify) : c'est un sous-processus root court-vécu, pas l'agent.
+	// NEXUS-AGENT-003/008 — privhelper mode (COMPILED root wrapper): invoked via
+	// `sudo nexus-agent privhelper <op> …`, it runs a strictly validated
+	// privileged operation then exits. BEFORE everything else (no config, no
+	// systemd notify): it's a short-lived root subprocess, not the agent.
 	if len(os.Args) >= 2 && os.Args[1] == "privhelper" {
 		os.Exit(privhelper.Run(os.Args[2:]))
 	}
 
-	// `--version` : utilisé par l'auto-upgrade pour lier la version à l'artefact
-	// (SELF-UPGRADE-002). Imprime la version injectée au build et sort.
+	// `--version`: used by the auto-upgrade to tie the version to the artifact
+	// (SELF-UPGRADE-002). Prints the version injected at build and exits.
 	if len(os.Args) >= 2 && os.Args[1] == "--version" {
 		fmt.Println(Version)
 		os.Exit(0)
@@ -187,31 +187,31 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	// Capturer NOTIFY_SOCKET et le retirer de l'env AVANT de lancer le moindre
-	// sous-processus, pour ne pas le fuiter aux enfants (sinon flood du journal).
+	// Capture NOTIFY_SOCKET and remove it from the env BEFORE launching any
+	// subprocess, so as not to leak it to children (otherwise journal flood).
 	initSystemdNotify()
 
-	// Charger la configuration
+	// Load the configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	cfg.Version = Version
-	// Origine pinnée pour l'auto-upgrade (SELF-UPGRADE-003).
+	// Pinned origin for the auto-upgrade (SELF-UPGRADE-003).
 	actions.PinnedServerURL = cfg.ServerURL
 
 	log.Printf("[Nexus Agent] Version %s starting...", Version)
 
-	// Parser la cle publique du serveur une fois au boot. Utilisee pour
-	// verifier les messages action.confirm (annulation watchdog firewall/netplan).
-	// PINNING STRICT (isolation entre projets) : la clé publique du serveur est
-	// OBLIGATOIRE. Sans elle, n'importe quel backend pourrait piloter cet agent
-	// (et action.request/action.confirm seraient de toute façon rejetés). On
-	// échoue donc au boot plutôt que de tourner dans un état inutilisable.
+	// Parse the server's public key once at boot. Used to verify action.confirm
+	// messages (firewall/netplan watchdog cancellation).
+	// STRICT PINNING (isolation between projects): the server's public key is
+	// MANDATORY. Without it, any backend could drive this agent (and
+	// action.request/action.confirm would be rejected anyway). We therefore fail
+	// at boot rather than run in an unusable state.
 	if cfg.ServerPublicKey == "" {
-		log.Fatal("[Agent] FATAL: aucune clé publique serveur configurée (NEXUS_SERVER_PUBLIC_KEY_FILE). " +
-			"Elle est obligatoire pour authentifier le backend et isoler l'agent. " +
-			"Ré-enrôlez l'agent avec --server-public-key-file (UI : bouton Ré-enrôler).")
+		log.Fatal("[Agent] FATAL: no server public key configured (NEXUS_SERVER_PUBLIC_KEY_FILE). " +
+			"It is mandatory to authenticate the backend and isolate the agent. " +
+			"Re-enroll the agent with --server-public-key-file (UI: Re-enroll button).")
 	}
 	parsedServerKey, err := security.ParsePublicKeyPEM(cfg.ServerPublicKey)
 	if err != nil {
@@ -219,16 +219,16 @@ func main() {
 	}
 	serverPublicKey = parsedServerKey
 
-	// Dead man's switch : si l'agent a crash pendant une modif (firewall/netplan),
-	// revert tous les snapshots pending au demarrage
+	// Dead man's switch: if the agent crashed during a change (firewall/netplan),
+	// revert all pending snapshots at startup
 	actions.RecoverPendingSnapshots()
 	actions.RecoverPendingNetplan()
 	actions.RecoverPendingSshd()
-	actions.RecoverPendingUpgrade() // SELF-UPGRADE-005 : dead-man's switch de l'auto-upgrade
+	actions.RecoverPendingUpgrade() // SELF-UPGRADE-005: dead-man's switch for the auto-upgrade
 
-	// Cleanup périodique de l'inbox fs.upload (fichiers > 7j). Une fois au boot
-	// puis toutes les 24h. Pas critique si rate (les fichiers seront pris au
-	// prochain tick), donc goroutine non bloquante.
+	// Periodic cleanup of the fs.upload inbox (files > 7d). Once at boot then
+	// every 24h. Not critical if missed (files will be picked up on the next
+	// tick), so a non-blocking goroutine.
 	go func() {
 		for {
 			if n, err := actions.CleanupInbox(); err != nil {
@@ -240,27 +240,27 @@ func main() {
 		}
 	}()
 
-	// Initialiser le keystore
+	// Initialize the keystore
 	keystore := security.NewKeystore(cfg.KeyPath)
 	sandbox := security.NewSandbox()
 
-	// Créer le client WebSocket
+	// Create the WebSocket client
 	client := transport.NewClient(cfg.ServerURL, cfg.MachineID)
 
-	// Se connecter au serveur
+	// Connect to the server
 	log.Printf("[Agent] Connecting to %s...", cfg.ServerURL)
 	if err := client.Connect(); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
-	// Enrollment si nécessaire (identité = agent.key + marqueur d'enrôlement ;
-	// la clé de session AES n'est plus persistée — cf. handshake ci-dessous).
+	// Enrollment if needed (identity = agent.key + enrollment marker; the AES
+	// session key is no longer persisted — cf. handshake below).
 	if !keystore.IsEnrolled() {
 		if cfg.EnrollmentToken == "" {
 			log.Fatal("Not enrolled and no enrollment token provided. Cannot authenticate.")
 		}
 
-		// Démarrer la lecture en background pour recevoir la réponse d'enrollment
+		// Start reading in the background to receive the enrollment response
 		go client.ReadLoop()
 
 		if err := security.Enroll(
@@ -274,7 +274,7 @@ func main() {
 			log.Fatalf("Enrollment failed: %v", err)
 		}
 
-		// Après enrollment, se reconnecter pour un flux propre (nouveau WS).
+		// After enrollment, reconnect for a clean stream (new WS).
 		log.Println("[Agent] Reconnecting after enrollment...")
 		client.Close()
 		time.Sleep(1 * time.Second)
@@ -283,17 +283,17 @@ func main() {
 			log.Fatalf("Failed to reconnect: %v", err)
 		}
 	} else {
-		// Charger l'identité long-terme existante
+		// Load the existing long-term identity
 		if err := keystore.Load(); err != nil {
 			log.Fatalf("Failed to load keys: %v", err)
 		}
 	}
 
-	// Handshake ECDHE X25519 (forward secrecy) : dérive la clé de session K en
-	// MÉMOIRE sur la connexion établie. Remplace l'ancien shared secret persisté.
-	// Au démarrage, sharedSecret=nil → session.hello est signé mais NON chiffré.
-	// L'agent sort/redémarre sur perte de connexion (systemd relance) → un nouveau
-	// K éphémère est négocié à chaque connexion.
+	// ECDHE X25519 handshake (forward secrecy): derives the session key K IN
+	// MEMORY over the established connection. Replaces the old persisted shared
+	// secret. At startup, sharedSecret=nil → session.hello is signed but NOT
+	// encrypted. The agent exits/restarts on connection loss (systemd restarts)
+	// → a new ephemeral K is negotiated on each connection.
 	client.SetKeys(keystore.GetPrivateKey(), nil)
 	go client.ReadLoop()
 	sessionKey, err := security.PerformSessionHandshake(
@@ -305,14 +305,14 @@ func main() {
 	}
 	client.SetKeys(keystore.GetPrivateKey(), sessionKey)
 
-	// SELF-UPGRADE-005 — reconnexion + auth réussies : confirmer un éventuel
-	// upgrade en attente (annule le dead-man's switch, garde le nouveau binaire).
+	// SELF-UPGRADE-005 — reconnection + auth succeeded: confirm any pending
+	// upgrade (cancels the dead-man's switch, keeps the new binary).
 	actions.ConfirmUpgrade()
 
 	log.Printf("[Agent] Authenticated")
 	log.Printf("[Agent] Registered actions: %v", actions.ListAll())
 
-	// Connecter le callback de progression des mises à jour système (apt)
+	// Wire the progress callback for system updates (apt)
 	actions.OnUpdateProgress = func(line string, percent int) {
 		client.SendSigned(transport.TypeUpdateProgress, "", map[string]interface{}{
 			"line":    line,
@@ -320,9 +320,9 @@ func main() {
 		})
 	}
 
-	// Connecter le callback de progression de la MAJ de l'agent lui-même.
-	// Canal distinct : le frontend suit ça dans une modal dédiée jusqu'au
-	// redémarrage, puis détecte la reconnexion via le SHA du heartbeat.
+	// Wire the progress callback for the agent's own upgrade.
+	// Distinct channel: the frontend follows this in a dedicated modal until the
+	// restart, then detects the reconnection via the heartbeat SHA.
 	actions.OnAgentUpgradeProgress = func(line string, percent int) {
 		client.SendSigned(transport.TypeAgentUpgradeProgress, "", map[string]interface{}{
 			"line":    line,
@@ -330,7 +330,7 @@ func main() {
 		})
 	}
 
-	// Progression de l'audit de sécurité (Lynis) — console live côté UI.
+	// Security audit progress (Lynis) — live console on the UI side.
 	actions.OnSecurityProgress = func(line string, percent int) {
 		client.SendSigned(transport.TypeSecurityProgress, "", map[string]interface{}{
 			"line":    line,
@@ -338,28 +338,28 @@ func main() {
 		})
 	}
 
-	// Handler pour les messages entrants. La boucle de lecture (ReadLoop) a déjà
-	// été démarrée avant le handshake ; on branche seulement le dispatcher métier.
+	// Handler for incoming messages. The read loop (ReadLoop) was already started
+	// before the handshake; we only wire the business dispatcher here.
 	client.OnMessage(func(msg transport.Message) {
 		handleMessage(msg, client, sandbox, cfg, keystore)
 	})
 
-	// Démarrer le heartbeat
+	// Start the heartbeat
 	go runHeartbeat(client, cfg)
 
-	// Démarrer la collecte de métriques
+	// Start metrics collection
 	go runMetrics(client, cfg)
 
-	// Notifier systemd que le service est prêt + entretenir le watchdog
-	// (WatchdogSec dans l'unit). Sans ça, systemd tue l'agent périodiquement.
+	// Notify systemd that the service is ready + maintain the watchdog
+	// (WatchdogSec in the unit). Without this, systemd kills the agent periodically.
 	sdNotify("READY=1")
 	go runWatchdog()
 
 	log.Println("[Agent] Running. Waiting for signals...")
 
-	// Attendre soit un signal d'arrêt, soit la perte de connexion WS.
-	// L'agent n'a pas de reconnexion in-process : sur déconnexion réelle, on
-	// sort proprement et systemd relance (Restart=always, RestartSec=10).
+	// Wait for either a shutdown signal or the loss of the WS connection.
+	// The agent has no in-process reconnection: on a real disconnection, we exit
+	// cleanly and systemd restarts (Restart=always, RestartSec=10).
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	select {
@@ -375,17 +375,17 @@ func main() {
 }
 
 func handleMessage(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, cfg *config.Config, keystore *security.Keystore) {
-	// Gate de version de protocole (fondation v2) : tout message serveur DOIT
-	// porter v == ProtocolVersion, sinon il est rejeté ici, avant tout traitement.
+	// Protocol version gate (v2 foundation): every server message MUST carry
+	// v == ProtocolVersion, otherwise it is rejected here, before any processing.
 	//
-	// EXCEPTION UNIQUE ET VOLONTAIRE : TypeError. C'est le canal par lequel le
-	// backend renvoie le message expliquant un rejet de version — exiger v2 dessus
-	// serait circulaire (l'agent ne pourrait pas recevoir l'explication de son
-	// propre rejet v1). Aucune autre exception : tout autre type (y compris
-	// TypePing, aujourd'hui non émis par le backend) est gaté, par DÉCISION — on
-	// ferme la porte gratuitement plutôt que de dépendre de « ce chemin ne fait
-	// rien aujourd'hui », qui casse à la prochaine évolution. Quiconque ajoute un
-	// handler ci-dessous verra ce gate et son unique exception justifiée.
+	// SINGLE AND DELIBERATE EXCEPTION: TypeError. It's the channel through which
+	// the backend returns the message explaining a version rejection — requiring
+	// v2 on it would be circular (the agent could not receive the explanation of
+	// its own v1 rejection). No other exception: any other type (including
+	// TypePing, not emitted by the backend today) is gated, by DECISION — we
+	// close the door for free rather than depend on "this path does nothing
+	// today", which breaks at the next evolution. Whoever adds a handler below
+	// will see this gate and its single justified exception.
 	if msg.Type != transport.TypeError && msg.V != security.ProtocolVersion {
 		log.Printf("[Agent] Rejected %q: unsupported protocol version %d (expected %d) — re-enroll",
 			msg.Type, msg.V, security.ProtocolVersion)
@@ -394,14 +394,14 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 
 	switch msg.Type {
 	case transport.TypeActionRequest:
-		// SECURITE CRITIQUE : action.request dispatche TOUTES les actions
-		// mutantes (script.execute, package.install, user.create, firewall...).
-		// On exige la meme verification que action.confirm — signature ECDSA du
-		// backend + timestamp + nonce (anti-replay) — AVANT tout dechiffrement
-		// ou dispatch. Sans cela, une trame chiffree capturee serait rejouable
-		// dans la fenetre de validite, et l'authenticite ne reposerait que sur
-		// le secret AES symetrique (que l'agent possede aussi) au lieu de la cle
-		// publique du serveur. Le backend signe deja ce message.
+		// CRITICAL SECURITY: action.request dispatches ALL mutating actions
+		// (script.execute, package.install, user.create, firewall...). We require
+		// the same verification as action.confirm — backend ECDSA signature +
+		// timestamp + nonce (anti-replay) — BEFORE any decryption or dispatch.
+		// Without it, a captured encrypted frame would be replayable within the
+		// validity window, and authenticity would rest only on the symmetric AES
+		// secret (which the agent also holds) instead of the server's public key.
+		// The backend already signs this message.
 		if serverPublicKey == nil {
 			log.Printf("[Agent] Rejected action.request: server public key not configured")
 			return
@@ -422,10 +422,10 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 		go handleActionRequest(msg, client, sandbox, keystore)
 
 	case transport.TypeActionConfirm:
-		// Confirmation d'une action firewall/netplan (watchdog-revert).
-		// SECURITE CRITIQUE : verifier signature + timestamp + nonce avant de
-		// dispatcher, sinon un attaquant reseau pourrait forger un confirm
-		// pour annuler le watchdog et laisser une regle dangereuse appliquee.
+		// Confirmation of a firewall/netplan action (watchdog-revert).
+		// CRITICAL SECURITY: verify signature + timestamp + nonce before
+		// dispatching, otherwise a network attacker could forge a confirm to
+		// cancel the watchdog and leave a dangerous rule applied.
 		if serverPublicKey == nil {
 			log.Printf("[Agent] Rejected action.confirm: server public key not configured")
 			return
@@ -443,7 +443,7 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 			log.Printf("[Agent] Rejected action.confirm (request_id=%s): %v", msg.RequestID, err)
 			return
 		}
-		// On dispatch selon le prefix du request_id
+		// Dispatch based on the request_id prefix
 		if strings.HasPrefix(msg.RequestID, "netplan-") {
 			actions.HandleNetplanConfirm(msg.RequestID)
 		} else if strings.HasPrefix(msg.RequestID, "sshd-") {
@@ -465,8 +465,8 @@ func handleMessage(msg transport.Message, client *transport.Client, sandbox *sec
 }
 
 func handleActionRequest(msg transport.Message, client *transport.Client, sandbox *security.Sandbox, keystore *security.Keystore) {
-	// Déchiffrement avec la clé de SESSION (K du handshake ECDHE, mémoire seule),
-	// pas un secret persisté.
+	// Decryption with the SESSION key (K from the ECDHE handshake, memory only),
+	// not a persisted secret.
 	sessionKey := client.SessionKey()
 	if sessionKey == nil {
 		log.Printf("[Agent] Rejected action.request: no session key (handshake incomplete)")
@@ -485,28 +485,28 @@ func handleActionRequest(msg transport.Message, client *transport.Client, sandbo
 		return
 	}
 
-	// Filet de sécurité : un panic dans Validate/Execute d'une action ne doit
-	// JAMAIS faire tomber tout le process (sinon 10s d'indispo via restart
-	// systemd + perte du cache d'idempotence + des timers watchdog en cours).
-	// On renvoie une erreur propre et on libère la réservation d'idempotence.
+	// Safety net: a panic in an action's Validate/Execute must NEVER bring down
+	// the whole process (otherwise 10s of downtime via systemd restart + loss of
+	// the idempotency cache + of in-flight watchdog timers). We return a clean
+	// error and release the idempotency reservation.
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[Agent] PANIC dans l'action %s (request_id=%s): %v", request.ActionID, request.RequestID, r)
+			log.Printf("[Agent] PANIC in action %s (request_id=%s): %v", request.ActionID, request.RequestID, r)
 			sendActionResponse(client, request.RequestID, request.ActionID, false, nil, fmt.Sprintf("internal agent error: %v", r))
 		}
 	}()
 
 	log.Printf("[Agent] Action request: %s (request_id: %s)", request.ActionID, request.RequestID)
 
-	// Idempotence : ne jamais ré-exécuter un request_id déjà traité.
+	// Idempotency: never re-execute an already-processed request_id.
 	if cached, dup := idemReserve(request.RequestID); dup {
 		if cached != nil {
-			log.Printf("[Agent] request_id=%s déjà traité — renvoi de la réponse mémorisée (pas de ré-exécution)", request.RequestID)
+			log.Printf("[Agent] request_id=%s already processed — returning memorized response (no re-execution)", request.RequestID)
 			if err := client.SendSigned(transport.TypeActionResponse, request.RequestID, cached); err != nil {
 				log.Printf("[Agent] Failed to resend cached action response: %v", err)
 			}
 		} else {
-			log.Printf("[Agent] request_id=%s en cours de traitement — duplicata ignoré", request.RequestID)
+			log.Printf("[Agent] request_id=%s in progress — duplicate ignored", request.RequestID)
 		}
 		return
 	}
@@ -539,8 +539,8 @@ func sendActionResponse(client *transport.Client, requestID, actionID string, su
 		response["error"] = errMsg
 	}
 
-	// Mémoriser la réponse pour l'idempotence (renvoyée telle quelle si le même
-	// request_id est redélivré, sans ré-exécuter l'action).
+	// Memorize the response for idempotency (returned as-is if the same
+	// request_id is redelivered, without re-executing the action).
 	idemComplete(requestID, response)
 
 	if err := client.SendSigned(transport.TypeActionResponse, requestID, response); err != nil {
@@ -552,7 +552,7 @@ func runHeartbeat(client *transport.Client, cfg *config.Config) {
 	ticker := time.NewTicker(time.Duration(cfg.HeartbeatInterval) * time.Second)
 	defer ticker.Stop()
 
-	// Envoyer immédiatement
+	// Send immediately
 	sendHeartbeat(client, cfg)
 
 	for range ticker.C {
@@ -581,9 +581,9 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 		"agent_version":   cfg.Version,
 		"reboot_required": rebootRequired,
 		"sudoers_hash":    actions.GetSudoersHash(),
-		// SHA256 du binaire en cours d'exécution : permet au backend de
-		// savoir de façon fiable si l'agent tourne la dernière version servie
-		// (et donc de confirmer une self-upgrade après reconnexion).
+		// SHA256 of the currently running binary: lets the backend reliably know
+		// whether the agent is running the latest served version (and thus
+		// confirm a self-upgrade after reconnection).
 		"agent_sha256": selfSHA256(),
 	}
 	if err := client.SendSigned(transport.TypeHeartbeat, "", data); err != nil {
@@ -592,7 +592,7 @@ func sendHeartbeat(client *transport.Client, cfg *config.Config) {
 }
 
 func runMetrics(client *transport.Client, cfg *config.Config) {
-	// Attendre un peu avant la première collecte
+	// Wait a bit before the first collection
 	time.Sleep(5 * time.Second)
 
 	ticker := time.NewTicker(time.Duration(cfg.MetricsInterval) * time.Second)

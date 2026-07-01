@@ -14,14 +14,14 @@ func init() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// storage.lvm_list : liste PV/VG/LV via pvs/vgs/lvs JSON
+// storage.lvm_list: lists PV/VG/LV via pvs/vgs/lvs JSON
 // ═══════════════════════════════════════════════════════════════
 
 type StorageLvmListAction struct{}
 
-func (a *StorageLvmListAction) ID() string                                 { return "storage.lvm_list" }
-func (a *StorageLvmListAction) Capability() string                         { return "monitoring" }
-func (a *StorageLvmListAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *StorageLvmListAction) ID() string                              { return "storage.lvm_list" }
+func (a *StorageLvmListAction) Capability() string                      { return "monitoring" }
+func (a *StorageLvmListAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *StorageLvmListAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	pvs := runLvmReport("pvs", "pv_name,vg_name,pv_size,pv_free,pv_used")
@@ -36,10 +36,10 @@ func (a *StorageLvmListAction) Execute(_ map[string]interface{}) (interface{}, e
 	}, nil
 }
 
-// runLvmReport retourne la liste des entries pour pvs/vgs/lvs.
-// Si la commande echoue (LVM absent) on retourne une liste vide (pas d'erreur).
+// runLvmReport returns the list of entries for pvs/vgs/lvs.
+// If the command fails (LVM absent) we return an empty list (no error).
 func runLvmReport(tool, fields string) []map[string]string {
-	// --reportformat json, -o champs, --units b pour tailles normalisees en bytes
+	// --reportformat json, -o fields, --units b for sizes normalized in bytes
 	cmd := exec.Command("sudo", "-n", "/usr/sbin/"+tool,
 		"--reportformat", "json",
 		"--units", "b",
@@ -50,7 +50,7 @@ func runLvmReport(tool, fields string) []map[string]string {
 	if err != nil {
 		return []map[string]string{}
 	}
-	// Structure: {"report":[{"pv":[{...}]}]} ou "vg"/"lv"
+	// Structure: {"report":[{"pv":[{...}]}]} or "vg"/"lv"
 	var parsed struct {
 		Report []map[string][]map[string]string `json:"report"`
 	}
@@ -60,7 +60,7 @@ func runLvmReport(tool, fields string) []map[string]string {
 	if len(parsed.Report) == 0 {
 		return []map[string]string{}
 	}
-	// Prendre la premiere cle trouvee (pv/vg/lv)
+	// Take the first key found (pv/vg/lv)
 	for _, entries := range parsed.Report[0] {
 		return entries
 	}
@@ -73,9 +73,9 @@ func runLvmReport(tool, fields string) []map[string]string {
 
 type StorageBlockDevicesAction struct{}
 
-func (a *StorageBlockDevicesAction) ID() string                                 { return "storage.block_devices" }
-func (a *StorageBlockDevicesAction) Capability() string                         { return "monitoring" }
-func (a *StorageBlockDevicesAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *StorageBlockDevicesAction) ID() string                              { return "storage.block_devices" }
+func (a *StorageBlockDevicesAction) Capability() string                      { return "monitoring" }
+func (a *StorageBlockDevicesAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *StorageBlockDevicesAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	cmd := exec.Command("/usr/bin/lsblk", "-J", "-b",
@@ -96,17 +96,17 @@ func (a *StorageBlockDevicesAction) Execute(_ map[string]interface{}) (interface
 }
 
 // ═══════════════════════════════════════════════════════════════
-// storage.filesystem_usage : df -P (plus complet que les metrics)
+// storage.filesystem_usage: df -P (more complete than the metrics)
 // ═══════════════════════════════════════════════════════════════
 
 type StorageFilesystemUsageAction struct{}
 
-func (a *StorageFilesystemUsageAction) ID() string                                 { return "storage.filesystem_usage" }
-func (a *StorageFilesystemUsageAction) Capability() string                         { return "monitoring" }
-func (a *StorageFilesystemUsageAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *StorageFilesystemUsageAction) ID() string                              { return "storage.filesystem_usage" }
+func (a *StorageFilesystemUsageAction) Capability() string                      { return "monitoring" }
+func (a *StorageFilesystemUsageAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *StorageFilesystemUsageAction) Execute(_ map[string]interface{}) (interface{}, error) {
-	// -x pour exclure les FS pseudo, -B1 pour bytes, -T pour type de FS
+	// -x to exclude pseudo FS, -B1 for bytes, -T for FS type
 	cmd := exec.Command("/usr/bin/df", "-T", "-B1",
 		"-x", "tmpfs", "-x", "devtmpfs", "-x", "overlay", "-x", "squashfs",
 	)

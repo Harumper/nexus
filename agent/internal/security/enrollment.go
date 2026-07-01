@@ -9,14 +9,14 @@ import (
 	"github.com/nexus/agent/internal/collector"
 )
 
-// SendFunc envoie un message brut via WebSocket (injectée par main.go)
+// SendFunc sends a raw message over the WebSocket (injected by main.go)
 type SendFunc func(data []byte) error
 
-// ReceiveFunc attend un message et le retourne (injectée par main.go)
+// ReceiveFunc waits for a message and returns it (injected by main.go)
 type ReceiveFunc func(timeout time.Duration) ([]byte, error)
 
-// EnrollmentMessage reproduit la structure d'un message WS
-// sans importer le package transport (éviter le cycle)
+// EnrollmentMessage mirrors the structure of a WS message
+// without importing the transport package (avoids the import cycle)
 type EnrollmentMessage struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
@@ -27,7 +27,7 @@ type EnrollmentMessage struct {
 	Signature string `json:"signature"`
 }
 
-// Enroll effectue le processus d'enrollment avec le serveur
+// Enroll performs the enrollment process with the server
 func Enroll(
 	sendFn SendFunc,
 	receiveFn ReceiveFunc,
@@ -38,7 +38,7 @@ func Enroll(
 ) error {
 	log.Println("[Enrollment] Starting enrollment process...")
 
-	// 1. Générer la paire de clés de l'agent
+	// 1. Generate the agent keypair
 	if !keystore.HasKeypair() {
 		log.Println("[Enrollment] Generating ECDSA keypair...")
 		if err := keystore.GenerateAndSave(); err != nil {
@@ -50,21 +50,21 @@ func Enroll(
 		}
 	}
 
-	// 2. Obtenir la clé publique de l'agent en PEM
+	// 2. Get the agent's public key in PEM
 	agentPubPEM, err := keystore.GetPublicKeyPEM()
 	if err != nil {
 		return err
 	}
 
-	// NEXUS-ENROLLMENT-002 — freshness générée AVANT le proof et liée DANS le seal
-	// authentifié (pas l'enveloppe externe, modifiable on-path). Le proof signe un
-	// payload composite (machineID|token|nonce|timestamp) au lieu du seul machineID
-	// statique : il devient frais et non rejouable, et lie la possession de la clé
-	// à CET enrôlement précis.
+	// NEXUS-ENROLLMENT-002 — freshness generated BEFORE the proof and bound INSIDE
+	// the authenticated seal (not the external envelope, which is modifiable
+	// on-path). The proof signs a composite payload (machineID|token|nonce|timestamp)
+	// instead of the static machineID alone: it becomes fresh and non-replayable,
+	// and binds key possession to THIS specific enrollment.
 	nonce := GenerateNonce()
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
-	// 3. Signer le payload composite comme preuve (lié au token + nonce + timestamp)
+	// 3. Sign the composite payload as proof (bound to token + nonce + timestamp)
 	proof, err := SignPayload(
 		BuildEnrollmentProofPayload(machineID, enrollmentToken, nonce, timestamp),
 		keystore.GetPrivateKey(),
@@ -73,15 +73,15 @@ func Enroll(
 		return fmt.Errorf("failed to sign proof: %w", err)
 	}
 
-	// 4. Collecter les infos système
+	// 4. Collect system info
 	sysInfo, err := collector.GetSystemInfo("")
 	if err != nil {
 		sysInfo = &collector.SystemInfo{OS: "unknown", Hostname: "unknown"}
 	}
 
-	// 5. Construire le message d'enrollment. nonce + timestamp sont placés DANS le
-	// payload scellé : le backend les lit depuis le seal authentifié pour valider
-	// la fenêtre temporelle et l'anti-replay, et pour reconstruire le proof.
+	// 5. Build the enrollment message. nonce + timestamp are placed INSIDE the
+	// sealed payload: the backend reads them from the authenticated seal to validate
+	// the time window and anti-replay, and to rebuild the proof.
 	enrollPayload := map[string]interface{}{
 		"enrollment_token": enrollmentToken,
 		"agent_public_key": agentPubPEM,
@@ -103,21 +103,21 @@ func Enroll(
 		return err
 	}
 
-	// PINNING STRICT : la clé serveur est OBLIGATOIRE (isolation entre projets /
-	// MITM bootstrap) ET nécessaire ICI pour sceller la requête.
+	// STRICT PINNING: the server key is MANDATORY (isolation between projects /
+	// bootstrap MITM) AND needed HERE to seal the request.
 	if serverPublicKeyPEM == "" {
-		return fmt.Errorf("clé publique serveur obligatoire pour l'enrollement (pinning)")
+		return fmt.Errorf("server public key mandatory for enrollment (pinning)")
 	}
 	pinnedServerKey, err := ParsePublicKeyPEM(serverPublicKeyPEM)
 	if err != nil {
 		return fmt.Errorf("failed to parse server public key: %w", err)
 	}
 
-	// NEXUS-ENROLLMENT-001 (seal) : sceller la requête (token + clé publique agent
-	// + proof) vers la clé serveur PINNÉE (ECIES P-256). Confidentialité du token +
-	// intégrité de la pubkey, même si TLS est strippé/terminé au proxy — un
-	// attaquant on-path sans la clé privée serveur ne peut ni lire le token ni
-	// substituer la pubkey agent.
+	// NEXUS-ENROLLMENT-001 (seal): seal the request (token + agent public key +
+	// proof) to the PINNED server key (ECIES P-256). Token confidentiality +
+	// pubkey integrity, even if TLS is stripped/terminated at the proxy — an
+	// on-path attacker without the server private key can neither read the token
+	// nor substitute the agent pubkey.
 	ephPubPEM, sealed, err := SealToServer(payloadJSON, pinnedServerKey, machineID)
 	if err != nil {
 		return fmt.Errorf("failed to seal enrollment request: %w", err)
@@ -134,8 +134,8 @@ func Enroll(
 		V:         ProtocolVersion,
 		Type:      "enrollment.request",
 		MachineID: machineID,
-		// Mêmes nonce/timestamp que ceux scellés et signés dans le proof (cohérence).
-		// Le backend valide la freshness sur les copies SCELLÉES, pas sur l'enveloppe.
+		// Same nonce/timestamp as those sealed and signed in the proof (consistency).
+		// The backend validates freshness on the SEALED copies, not on the envelope.
 		Timestamp: timestamp,
 		Nonce:     nonce,
 		Payload:   string(sealedEnvelope),
@@ -147,13 +147,13 @@ func Enroll(
 		return err
 	}
 
-	// 6. Envoyer la demande d'enrollment
+	// 6. Send the enrollment request
 	log.Println("[Enrollment] Sending enrollment request...")
 	if err := sendFn(data); err != nil {
 		return fmt.Errorf("failed to send enrollment request: %w", err)
 	}
 
-	// 7. Attendre la réponse (timeout 30s)
+	// 7. Wait for the response (30s timeout)
 	log.Println("[Enrollment] Waiting for response...")
 	respData, err := receiveFn(30 * time.Second)
 	if err != nil {
@@ -173,14 +173,14 @@ func Enroll(
 		return fmt.Errorf("unexpected response type: %s", response.Type)
 	}
 
-	// Version de protocole de la réponse serveur : rejet explicite d'un backend v1.
+	// Server response protocol version: explicit rejection of a v1 backend.
 	if response.V != ProtocolVersion {
 		return fmt.Errorf("unsupported protocol version %d in enrollment response (expected %d) — re-enroll", response.V, ProtocolVersion)
 	}
 
-	// 8. Vérifier la signature du serveur avec la clé PINNÉE (déjà parsée plus haut
-	// pour sceller la requête). La signature prouve que la réponse vient du
-	// détenteur de la clé pinnée.
+	// 8. Verify the server signature with the PINNED key (already parsed above to
+	// seal the request). The signature proves the response comes from the holder
+	// of the pinned key.
 	sigPayload := BuildSignaturePayload(
 		response.V, response.Type, "", response.MachineID,
 		response.Timestamp, response.Nonce, response.Payload,
@@ -190,7 +190,7 @@ func Enroll(
 	}
 	log.Println("[Enrollment] Server signature verified (pinned key)")
 
-	// 9. Parser la réponse
+	// 9. Parse the response
 	var responseData struct {
 		ServerPublicKey string `json:"server_public_key"`
 	}
@@ -198,10 +198,10 @@ func Enroll(
 		return fmt.Errorf("failed to parse enrollment response: %w", err)
 	}
 
-	// 10. Dériver le secret partagé via ECDH avec la clé PINNÉE (et non celle
-	// reçue dans le payload) : la signature ci-dessus prouve déjà que la réponse
-	// vient du détenteur de la clé pinnée. On vérifie en plus que la clé du
-	// payload correspond, par cohérence.
+	// 10. Derive the shared secret via ECDH with the PINNED key (not the one
+	// received in the payload): the signature above already proves the response
+	// comes from the holder of the pinned key. We additionally verify that the key
+	// in the payload matches, for consistency.
 	if responseData.ServerPublicKey != "" {
 		if respKey, perr := ParsePublicKeyPEM(responseData.ServerPublicKey); perr == nil {
 			if !respKey.Equal(pinnedServerKey) {
@@ -210,10 +210,10 @@ func Enroll(
 		}
 	}
 
-	// Protocole v2 (CRYPTO-004) : plus de dérivation/persistance de secret de canal
-	// à l'enrôlement. L'enrôlement n'établit que l'IDENTITÉ (agent.key ↔ machine
-	// côté backend) ; la clé de session AES sera dérivée à chaque connexion par le
-	// handshake ECDHE éphémère. On marque seulement l'enrôlement réussi.
+	// Protocol v2 (CRYPTO-004): no more channel secret derivation/persistence at
+	// enrollment. Enrollment establishes only IDENTITY (agent.key ↔ machine on the
+	// backend side); the AES session key will be derived on each connection by the
+	// ephemeral ECDHE handshake. We only mark the enrollment as successful.
 	if err := keystore.MarkEnrolled(); err != nil {
 		return fmt.Errorf("failed to mark enrolled: %w", err)
 	}

@@ -11,13 +11,13 @@ import (
 
 // NetworkInterface represents stats for a single network interface
 type NetworkInterface struct {
-	Name         string  `json:"name"`
-	RxBytes      uint64  `json:"rx_bytes"`
-	TxBytes      uint64  `json:"tx_bytes"`
-	RxPackets    uint64  `json:"rx_packets"`
-	TxPackets    uint64  `json:"tx_packets"`
-	RxErrors     uint64  `json:"rx_errors"`
-	TxErrors     uint64  `json:"tx_errors"`
+	Name          string  `json:"name"`
+	RxBytes       uint64  `json:"rx_bytes"`
+	TxBytes       uint64  `json:"tx_bytes"`
+	RxPackets     uint64  `json:"rx_packets"`
+	TxPackets     uint64  `json:"tx_packets"`
+	RxErrors      uint64  `json:"rx_errors"`
+	TxErrors      uint64  `json:"tx_errors"`
 	RxBytesPerSec float64 `json:"rx_bytes_per_sec"`
 	TxBytesPerSec float64 `json:"tx_bytes_per_sec"`
 }
@@ -27,7 +27,7 @@ var (
 	prevNetTime  time.Time
 )
 
-// GetNetworkStats lit /proc/net/dev et retourne les stats réseau par interface
+// GetNetworkStats reads /proc/net/dev and returns network stats per interface
 func GetNetworkStats(procPath string) ([]NetworkInterface, error) {
 	devPath := filepath.Join(procPath, "net", "dev")
 

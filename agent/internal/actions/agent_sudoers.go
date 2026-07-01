@@ -12,19 +12,19 @@ func init() {
 	Register(&AgentSudoersCheckAction{})
 }
 
-// AgentSudoersCheckAction lit le fichier sudoers via sudo cat (le fichier
-// est root:root 0440, l'agent ne peut pas le lire directement) et retourne
-// son SHA256. Le backend compare avec sa version de reference pour detecter
-// si l'agent doit etre reinstalle (drift sudoers apres ajout de nouvelles
+// AgentSudoersCheckAction reads the sudoers file via sudo cat (the file
+// is root:root 0440, the agent cannot read it directly) and returns
+// its SHA256. The backend compares it against its reference version to detect
+// whether the agent needs to be reinstalled (sudoers drift after adding new
 // actions).
 //
-// Detection seule : aucune ecriture cote agent. La mise a jour reste
-// manuelle via re-execution de install-agent.sh par l'admin SSH.
+// Detection only: no write on the agent side. The update remains
+// manual via re-running install-agent.sh by the SSH admin.
 type AgentSudoersCheckAction struct{}
 
-func (a *AgentSudoersCheckAction) ID() string                                 { return "agent.sudoers_check" }
-func (a *AgentSudoersCheckAction) Capability() string                         { return "monitoring" }
-func (a *AgentSudoersCheckAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *AgentSudoersCheckAction) ID() string                              { return "agent.sudoers_check" }
+func (a *AgentSudoersCheckAction) Capability() string                      { return "monitoring" }
+func (a *AgentSudoersCheckAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *AgentSudoersCheckAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	cmd := exec.Command("sudo", "-n", "/bin/cat", "/etc/sudoers.d/nexus-agent")
@@ -40,8 +40,8 @@ func (a *AgentSudoersCheckAction) Execute(_ map[string]interface{}) (interface{}
 	}, nil
 }
 
-// computeSudoersHash est utilise au demarrage de l'agent pour cacher le
-// hash et l'inclure dans le heartbeat (evite un appel sudo a chaque
+// computeSudoersHash is used at agent startup to cache the
+// hash and include it in the heartbeat (avoids a sudo call on every
 // heartbeat).
 func computeSudoersHash() string {
 	cmd := exec.Command("sudo", "-n", "/bin/cat", "/etc/sudoers.d/nexus-agent")
@@ -53,8 +53,8 @@ func computeSudoersHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
-// SudoersHash retourne le SHA256 cache (calcule au demarrage agent).
-// Vide si le fichier est introuvable ou sudo echoue.
+// SudoersHash returns the cached SHA256 (computed at agent startup).
+// Empty if the file is not found or sudo fails.
 var cachedSudoersHash string
 
 func init() {

@@ -17,12 +17,12 @@ func init() {
 	Register(&SystemUpdateSecurityAction{})
 }
 
-// ProgressCallback est appelé pour chaque ligne de sortie
-// Permet le streaming de progression vers le serveur
+// ProgressCallback is called for each output line
+// Enables progress streaming to the server
 type ProgressCallback func(line string, percent int)
 
-// Variable globale pour le callback de progression
-// Sera défini par main.go quand il connecte le client WS
+// Global variable for the progress callback
+// Will be set by main.go when it connects the WS client
 var OnUpdateProgress ProgressCallback
 
 // ===================== Full Update =====================
@@ -30,7 +30,7 @@ var OnUpdateProgress ProgressCallback
 type SystemUpdateAction struct{}
 
 func (a *SystemUpdateAction) ID() string         { return "system.update" }
-func (a *SystemUpdateAction) Capability() string  { return "updates" }
+func (a *SystemUpdateAction) Capability() string { return "updates" }
 
 func (a *SystemUpdateAction) Validate(params map[string]interface{}) error {
 	return nil
@@ -59,7 +59,7 @@ func (a *SystemUpdateAction) Execute(params map[string]interface{}) (interface{}
 type SystemUpdateSecurityAction struct{}
 
 func (a *SystemUpdateSecurityAction) ID() string         { return "system.update_security" }
-func (a *SystemUpdateSecurityAction) Capability() string  { return "updates" }
+func (a *SystemUpdateSecurityAction) Capability() string { return "updates" }
 
 func (a *SystemUpdateSecurityAction) Validate(params map[string]interface{}) error {
 	return nil
@@ -83,9 +83,9 @@ func (a *SystemUpdateSecurityAction) Execute(params map[string]interface{}) (int
 	return result, nil
 }
 
-// aptUpdateEnv force la locale C pendant l'upgrade : la trace est alors en
-// anglais (standard pour les logs apt) et l'heuristique de progression qui
-// compte "Unpacking"/"Setting up" reste fiable quelle que soit la langue système.
+// aptUpdateEnv forces the C locale during the upgrade: the trace is then in
+// English (standard for apt logs) and the progress heuristic that counts
+// "Unpacking"/"Setting up" stays reliable whatever the system language.
 func aptUpdateEnv() []string {
 	return append(os.Environ(),
 		"DEBIAN_FRONTEND=noninteractive",
@@ -94,7 +94,7 @@ func aptUpdateEnv() []string {
 	)
 }
 
-// ===================== Exécution (commandes HARDCODÉES) =====================
+// ===================== Execution (HARDCODED commands) =====================
 
 func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID string) (*collector.UpdateResult, error) {
 	var cmd *exec.Cmd
@@ -109,9 +109,9 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 
 	switch pm {
 	case collector.PMApt:
-		// Étape 1 : apt-get update (refresh index)
-		// Via sudo — l'agent tourne sous nexus-agent (non-root)
-		sendProgress("Mise à jour de l'index des paquets...", 10)
+		// Step 1: apt-get update (refresh index)
+		// Via sudo — the agent runs as nexus-agent (non-root)
+		sendProgress("Updating package index...", 10)
 		updateCmd := exec.Command("/usr/bin/sudo", "/usr/bin/apt-get", "update")
 		updateCmd.Env = aptUpdateEnv()
 		if out, err := updateCmd.CombinedOutput(); err != nil {
@@ -122,10 +122,10 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 			}, nil
 		}
 
-		// Étape 2 : apt-get upgrade
-		// "-q" (et non "-qq") : on garde les lignes "Unpacking"/"Setting up"
-		// pour alimenter la trace temps réel ; "-qq" les supprimait.
-		sendProgress("Installation des mises à jour...", 30)
+		// Step 2: apt-get upgrade
+		// "-q" (and not "-qq"): we keep the "Unpacking"/"Setting up" lines
+		// to feed the real-time trace; "-qq" would suppress them.
+		sendProgress("Installing updates...", 30)
 		if securityOnly {
 			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/unattended-upgrades", "--minimal_upgrade_steps")
 		} else {
@@ -134,7 +134,7 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		cmd.Env = aptUpdateEnv()
 
 	case collector.PMDnf:
-		sendProgress("Installation des mises à jour...", 20)
+		sendProgress("Installing updates...", 20)
 		if securityOnly {
 			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/dnf", "update", "--security", "-y", "-q")
 		} else {
@@ -142,7 +142,7 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		}
 
 	case collector.PMYum:
-		sendProgress("Installation des mises à jour...", 20)
+		sendProgress("Installing updates...", 20)
 		if securityOnly {
 			cmd = exec.Command("/usr/bin/sudo", "/usr/bin/yum", "update", "--security", "-y", "-q")
 		} else {
@@ -153,39 +153,39 @@ func executeUpdate(pm collector.PackageManager, securityOnly bool, requestID str
 		return nil, fmt.Errorf("unsupported package manager: %s", pm)
 	}
 
-	// Exécuter avec streaming de la sortie
+	// Execute with output streaming
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
-	cmd.Stderr = cmd.Stdout // Combiner stderr dans stdout
+	cmd.Stderr = cmd.Stdout // Combine stderr into stdout
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start update: %w", err)
 	}
 
-	// Lire la sortie ligne par ligne pour le streaming
+	// Read the output line by line for streaming
 	packageCount := 0
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Printf("[Update] %s", line)
 
-		// Compter les paquets installés
+		// Count the installed packages
 		if strings.Contains(line, "Unpacking") || strings.Contains(line, "Setting up") ||
 			strings.Contains(line, "Installing") || strings.Contains(line, "Updating") {
 			packageCount++
 		}
 
-		// Estimer la progression
+		// Estimate progress
 		percent := 30 + min(packageCount*2, 60)
 		sendProgress(line, percent)
 	}
 
 	err = cmd.Wait()
-	sendProgress("Terminé.", 100)
+	sendProgress("Done.", 100)
 
-	// Drainer le reste de stdout si nécessaire
+	// Drain the rest of stdout if necessary
 	io.Copy(io.Discard, stdout)
 
 	result := &collector.UpdateResult{

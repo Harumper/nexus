@@ -35,7 +35,7 @@ type procStat struct {
 	stime uint64
 }
 
-// GetTopProcesses retourne les top processus par CPU et mémoire
+// GetTopProcesses returns the top processes by CPU and memory
 func GetTopProcesses(procPath string, count int) (*ProcessList, error) {
 	numCPUs := runtime.NumCPU()
 
@@ -158,7 +158,9 @@ func readAllProcStats(procPath string) (map[int]*procStat, error) {
 
 // parseProcStat parses a line from /proc/[pid]/stat
 // Format: pid (comm) state ppid pgrp session tty_nr tpgid flags
-//         minflt cminflt majflt cmajflt utime stime ...
+//
+//	minflt cminflt majflt cmajflt utime stime ...
+//
 // Fields are space-separated, but comm can contain spaces and is in parens
 func parseProcStat(pid int, data string) (*procStat, error) {
 	// Find the comm field (between first '(' and last ')')

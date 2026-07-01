@@ -8,7 +8,7 @@ func init() { Register(&ProcessListAction{}) }
 
 type ProcessListAction struct{}
 
-func (a *ProcessListAction) ID() string        { return "system.processes" }
+func (a *ProcessListAction) ID() string         { return "system.processes" }
 func (a *ProcessListAction) Capability() string { return "monitoring" }
 
 func (a *ProcessListAction) Validate(params map[string]interface{}) error {

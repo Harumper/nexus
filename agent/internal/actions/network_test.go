@@ -44,12 +44,12 @@ func TestYamlFilenameRegex(t *testing.T) {
 		{"my_config.yaml", true},
 		{"a.yaml", true},
 
-		{"config.yml", false},          // .yml pas .yaml
-		{"../etc/passwd", false},       // path traversal
-		{"foo.yaml.bak", false},        // double extension
-		{"foo bar.yaml", false},        // espace
-		{"foo;rm.yaml", false},         // semicolon
-		{".yaml", false},               // pas de nom
+		{"config.yml", false},    // .yml not .yaml
+		{"../etc/passwd", false}, // path traversal
+		{"foo.yaml.bak", false},  // double extension
+		{"foo bar.yaml", false},  // space
+		{"foo;rm.yaml", false},   // semicolon
+		{".yaml", false},         // no name
 		{"", false},
 	}
 
@@ -64,8 +64,8 @@ func TestYamlFilenameRegex(t *testing.T) {
 }
 
 func TestHandleNetplanConfirmUnknownIDIsSafe(t *testing.T) {
-	// Comme HandleConfirm cote firewall : un confirm sur ID inconnu ne doit
-	// pas paniquer, juste logger et return.
+	// Like HandleConfirm on the firewall side: a confirm on an unknown ID must
+	// not panic, just log and return.
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("HandleNetplanConfirm panicked on unknown ID: %v", r)
@@ -75,13 +75,16 @@ func TestHandleNetplanConfirmUnknownIDIsSafe(t *testing.T) {
 }
 
 func TestNetplanActionsMetadata(t *testing.T) {
-	// Verif rapide que les ID/Capability sont cohérents — un drift entre
-	// ces strings et la READ_ONLY_ACTIONS (backend) ou la sudoers cause des
-	// bugs silencieux.
+	// Quick check that the ID/Capability are consistent — a drift between
+	// these strings and READ_ONLY_ACTIONS (backend) or the sudoers causes
+	// silent bugs.
 	cases := []struct {
-		action     interface{ ID() string; Capability() string }
-		wantID     string
-		wantCap    string
+		action interface {
+			ID() string
+			Capability() string
+		}
+		wantID  string
+		wantCap string
 	}{
 		{&NetworkStatusAction{}, "network.status", "monitoring"},
 		{&NetworkInterfacesAction{}, "network.interfaces", "monitoring"},

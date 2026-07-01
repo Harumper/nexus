@@ -27,7 +27,7 @@ func TestParseSsListening(t *testing.T) {
 
 	pg := byKey["127.0.0.1:5432"]
 	if pg.Exposed {
-		t.Errorf("postgres sur loopback ne doit pas être exposed: %+v", pg)
+		t.Errorf("postgres on loopback must not be exposed: %+v", pg)
 	}
 	if pg.Process != "postgres" {
 		t.Errorf("postgres process = %q", pg.Process)
@@ -35,7 +35,7 @@ func TestParseSsListening(t *testing.T) {
 
 	resolved := byKey["127.0.0.53%lo:53"]
 	if resolved.Exposed {
-		t.Errorf("systemd-resolve %%lo ne doit pas être exposed: %+v", resolved)
+		t.Errorf("systemd-resolve %%lo must not be exposed: %+v", resolved)
 	}
 
 	nginx := byKey["0.0.0.0:80"]

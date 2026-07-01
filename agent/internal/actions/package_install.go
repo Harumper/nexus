@@ -11,13 +11,13 @@ func init() { Register(&PackageInstallAction{}) }
 
 type PackageInstallAction struct{}
 
-func (a *PackageInstallAction) ID() string        { return "package.install" }
+func (a *PackageInstallAction) ID() string         { return "package.install" }
 func (a *PackageInstallAction) Capability() string { return "packages" }
 
-// validPackageName valide un nom de paquet apt. Charset restreint + refus du
-// '-' en tête (sinon "-oDPkg::Pre-Invoke::=<cmd>" passerait à apt-get : seul le
-// tag NOEXEC du sudoers l'empêchait, ce qui violait la règle "barrière côté Go").
-// Partagé par package.install ET package.remove.
+// validPackageName validates an apt package name. Restricted charset + refusal of
+// a leading '-' (otherwise "-oDPkg::Pre-Invoke::=<cmd>" would pass to apt-get: only
+// the sudoers NOEXEC tag prevented it, which violated the "barrier on the Go side" rule).
+// Shared by package.install AND package.remove.
 func validPackageName(name string) error {
 	if name == "" {
 		return fmt.Errorf("invalid package name")

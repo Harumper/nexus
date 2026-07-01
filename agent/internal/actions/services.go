@@ -16,10 +16,10 @@ func init() {
 	Register(&ServiceRestartAction{})
 }
 
-// Nom de service valide : lettres, chiffres, @, _, ., - avec suffixe .service optionnel
+// Valid service name: letters, digits, @, _, ., - with optional .service suffix
 var serviceNameRegex = regexp.MustCompile(`^[a-zA-Z0-9@_.\-]+(\.service)?$`)
 
-// Service qu'on refuse absolument de stop/restart (l'agent lui-même)
+// Service we absolutely refuse to stop/restart (the agent itself)
 const protectedService = "nexus-agent"
 
 func validateServiceName(params map[string]interface{}) (string, error) {
@@ -50,7 +50,7 @@ func (a *ServicesListAction) Validate(params map[string]interface{}) error {
 	return nil
 }
 func (a *ServicesListAction) Execute(params map[string]interface{}) (interface{}, error) {
-	// Lecture seule, pas de sudo. JSON output via -o json.
+	// Read-only, no sudo. JSON output via -o json.
 	cmd := exec.Command("/usr/bin/systemctl", "list-units", "--type=service", "--all", "--no-pager", "-o", "json")
 	output, err := cmd.Output()
 	if err != nil {
@@ -80,10 +80,10 @@ func (a *ServiceStatusAction) Validate(params map[string]interface{}) error {
 }
 func (a *ServiceStatusAction) Execute(params map[string]interface{}) (interface{}, error) {
 	name, _ := validateServiceName(params)
-	// Pas de sudo pour status (lecture)
+	// No sudo for status (read)
 	cmd := exec.Command("/usr/bin/systemctl", "status", name, "--no-pager")
 	output, _ := cmd.CombinedOutput()
-	// systemctl status retourne exit 3 quand le service est inactif, mais on veut le texte quand même
+	// systemctl status returns exit 3 when the service is inactive, but we want the text anyway
 	return map[string]interface{}{
 		"service": name,
 		"output":  string(output),

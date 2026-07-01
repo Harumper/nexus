@@ -1,12 +1,13 @@
 package transport
 
-// ProtocolVersion est la version du protocole de canal (enveloppe + handshake).
-// Liée DANS la signature de chaque message (cf. SendSigned / BuildSignaturePayload)
-// pour empêcher tout downgrade. Doit rester en phase avec security.ProtocolVersion
-// (côté vérification) et PROTOCOL_VERSION (backend). v1 (sans ce champ) est rejeté.
+// ProtocolVersion is the channel protocol version (envelope + handshake).
+// Bound INTO the signature of every message (cf. SendSigned /
+// BuildSignaturePayload) to prevent any downgrade. Must stay in sync with
+// security.ProtocolVersion (verification side) and PROTOCOL_VERSION (backend).
+// v1 (without this field) is rejected.
 const ProtocolVersion = 2
 
-// Message représente un message WebSocket
+// Message represents a WebSocket message
 type Message struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
@@ -16,18 +17,18 @@ type Message struct {
 	Nonce     string `json:"nonce"`
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
-	// Error est present dans les messages de type "error" envoyes par le backend
+	// Error is present in "error" type messages sent by the backend
 	Error string `json:"error,omitempty"`
 }
 
-// SimpleMessage pour les messages non signés (erreurs, etc.)
+// SimpleMessage for unsigned messages (errors, etc.)
 type SimpleMessage struct {
-	Type    string `json:"type"`
-	Error   string `json:"error,omitempty"`
-	Data    any    `json:"data,omitempty"`
+	Type  string `json:"type"`
+	Error string `json:"error,omitempty"`
+	Data  any    `json:"data,omitempty"`
 }
 
-// ActionRequestPayload est le payload déchiffré d'une demande d'action
+// ActionRequestPayload is the decrypted payload of an action request
 type ActionRequestPayload struct {
 	RequestID string                 `json:"request_id"`
 	ActionID  string                 `json:"action_id"`
@@ -35,20 +36,20 @@ type ActionRequestPayload struct {
 }
 
 const (
-	TypeEnrollmentRequest  = "enrollment.request"
-	TypeEnrollmentComplete = "enrollment.complete"
-	TypeEnrollmentRejected = "enrollment.rejected"
-	TypeSessionHello       = "session.hello"
-	TypeSessionHelloAck    = "session.hello.ack"
-	TypeHeartbeat          = "heartbeat"
-	TypeMetricsReport      = "metrics.report"
-	TypeActionRequest      = "action.request"
-	TypeActionConfirm      = "action.confirm"
-	TypeActionResponse     = "action.response"
-	TypeUpdateProgress     = "update.progress"
+	TypeEnrollmentRequest    = "enrollment.request"
+	TypeEnrollmentComplete   = "enrollment.complete"
+	TypeEnrollmentRejected   = "enrollment.rejected"
+	TypeSessionHello         = "session.hello"
+	TypeSessionHelloAck      = "session.hello.ack"
+	TypeHeartbeat            = "heartbeat"
+	TypeMetricsReport        = "metrics.report"
+	TypeActionRequest        = "action.request"
+	TypeActionConfirm        = "action.confirm"
+	TypeActionResponse       = "action.response"
+	TypeUpdateProgress       = "update.progress"
 	TypeAgentUpgradeProgress = "agent.upgrade.progress"
-	TypeSecurityProgress   = "security.audit.progress"
-	TypePing               = "ping"
-	TypePong               = "pong"
-	TypeError              = "error"
+	TypeSecurityProgress     = "security.audit.progress"
+	TypePing                 = "ping"
+	TypePong                 = "pong"
+	TypeError                = "error"
 )

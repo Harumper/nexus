@@ -21,35 +21,35 @@ func init() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Constantes & politique de sécurité
+// Constants & security policy
 // ═══════════════════════════════════════════════════════════════
 
 const (
-	// Cap de taille (lecture et upload). Au-delà, l'UI propose une
-	// commande scp/rsync à la place. Voir docs phase 1.
+	// Size cap (read and upload). Beyond it, the UI proposes a
+	// scp/rsync command instead. See phase 1 docs.
 	fsMaxSize int64 = 50 * 1024 * 1024 // 50 MB
 
-	// Inbox où aboutissent les uploads. Owner nexus-agent, mode 0750.
-	// L'utilisateur final se connecte en SSH et fait sudo mv pour déplacer.
+	// Inbox where uploads land. Owner nexus-agent, mode 0750.
+	// The end user connects via SSH and does sudo mv to move the file.
 	fsInboxDir = "/var/lib/nexus-agent/inbox"
 
-	// Cap du nombre d'entrées renvoyées par fs.list. Au-delà on tronque
-	// pour éviter de saturer le WS sur /usr/share par exemple.
+	// Cap on the number of entries returned by fs.list. Beyond it we truncate
+	// to avoid saturating the WS on /usr/share for example.
 	fsListMaxEntries = 2000
 )
 
-// Préfixes de chemin strictement refusés en lecture. Le but n'est pas
-// d'empêcher un admin malicieux (l'agent tourne en privilégié), mais
-// d'éviter qu'un click malheureux n'exfiltre des secrets via Nexus.
+// Path prefixes strictly refused for reading. The goal is not to
+// stop a malicious admin (the agent runs privileged), but
+// to prevent an unfortunate click from exfiltrating secrets via Nexus.
 var fsDenyPathPrefixes = []string{
 	"/etc/shadow",
 	"/etc/gshadow",
-	"/etc/sudoers", // y compris /etc/sudoers.d/* (sauf cas dédié géré par agent.sudoers_check)
+	"/etc/sudoers", // including /etc/sudoers.d/* (except the dedicated case handled by agent.sudoers_check)
 	"/root/.ssh/",
-	// Répertoires de clés/secrets de l'agent Nexus. ATTENTION : le répertoire
-	// réel des clés est /var/lib/nexus/keys (KEY_DIR dans install-agent.sh),
-	// PAS /var/lib/nexus-agent/keys. shared.secret (clé AES du canal) y vit ;
-	// sans ces préfixes un fs.read (action en lecture seule) l'exfiltrerait.
+	// Key/secret directories of the Nexus agent. WARNING: the
+	// actual keys directory is /var/lib/nexus/keys (KEY_DIR in install-agent.sh),
+	// NOT /var/lib/nexus-agent/keys. shared.secret (channel AES key) lives there;
+	// without these prefixes an fs.read (read-only action) would exfiltrate it.
 	"/var/lib/nexus/keys/",
 	"/var/lib/nexus/",
 	"/opt/nexus/keys/",
@@ -60,8 +60,8 @@ var fsDenyPathPrefixes = []string{
 	"/sys/firmware/efi/efivars",
 }
 
-// Pattern de chemin refusé (regex). Couvre /home/*/.ssh/id_* (clés
-// privées utilisateur) sans avoir à lister chaque home.
+// Refused path pattern (regex). Covers /home/*/.ssh/id_* (user
+// private keys) without having to list each home.
 var fsDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^/home/[^/]+/\.ssh/id_`),
 	regexp.MustCompile(`^/home/[^/]+/\.ssh/.*_rsa$`),
@@ -69,8 +69,8 @@ var fsDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^/home/[^/]+/\.ssh/.*_ecdsa$`),
 }
 
-// Extensions de fichiers refusées en lecture. Couvre les fichiers de
-// clés et secrets qu'on ne veut pas voir transiter par Nexus.
+// File extensions refused for reading. Covers key and secret
+// files that we do not want transiting through Nexus.
 var fsDenyExtensions = map[string]bool{
 	".key":    true,
 	".pem":    true,
@@ -80,21 +80,21 @@ var fsDenyExtensions = map[string]bool{
 	".gpg":    true,
 	".asc":    true,
 	".kdbx":   true,
-	".secret": true, // shared.secret (clé AES du canal agent↔backend)
+	".secret": true, // shared.secret (AES key of the agent↔backend channel)
 }
 
-// Charset autorisé pour un nom de fichier uploadé. POSIX-safe, pas
-// d'espaces (évite les pièges de quoting si l'utilisateur copie/colle).
+// Allowed charset for an uploaded filename. POSIX-safe, no
+// spaces (avoids quoting pitfalls if the user copies/pastes).
 var fsUploadFilenameRegex = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 
 // ═══════════════════════════════════════════════════════════════
-// Helpers de validation de chemin
+// Path validation helpers
 // ═══════════════════════════════════════════════════════════════
 
-// resolvePath nettoie le chemin, refuse les chemins relatifs et les
-// tentatives évidentes de traversal. Ne suit volontairement pas les
-// symlinks (lstat) pour éviter qu'un /etc/foo -> /etc/shadow contourne
-// la denylist.
+// resolvePath cleans the path, refuses relative paths and
+// obvious traversal attempts. Deliberately does not follow
+// symlinks (lstat) to prevent a /etc/foo -> /etc/shadow from bypassing
+// the denylist.
 func resolvePath(raw string) (string, os.FileInfo, error) {
 	if raw == "" {
 		return "", nil, errors.New("path required")
@@ -120,20 +120,20 @@ func resolvePath(raw string) (string, os.FileInfo, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("stat: %w", err)
 	}
-	// Défense en profondeur : Lstat ne résout que le dernier composant, donc un
-	// symlink de répertoire PARENT (/tmp/x/shared.secret -> /var/lib/nexus/keys)
-	// contournerait la denylist basée sur `clean`. On résout tous les symlinks
-	// et on re-teste la cible réelle (préfixes + patterns + extension).
+	// Defense in depth: Lstat only resolves the last component, so a
+	// PARENT directory symlink (/tmp/x/shared.secret -> /var/lib/nexus/keys)
+	// would bypass the denylist based on `clean`. We resolve all symlinks
+	// and re-test the actual target (prefixes + patterns + extension).
 	if resolved, rerr := filepath.EvalSymlinks(clean); rerr == nil && resolved != clean {
 		if isDenied(resolved) {
-			return "", nil, fmt.Errorf("path denied by security policy (cible du lien): %s", resolved)
+			return "", nil, fmt.Errorf("path denied by security policy (link target): %s", resolved)
 		}
 	}
 	return clean, info, nil
 }
 
-// modeString rend un mode à la "ls -l" (rwxrwxrwx). Plus lisible que
-// l'octal sur la table frontend.
+// modeString renders a mode "ls -l" style (rwxrwxrwx). More readable than
+// octal in the frontend table.
 func modeString(m os.FileMode) string {
 	const rwx = "rwxrwxrwx"
 	out := []byte("---------")
@@ -146,7 +146,7 @@ func modeString(m os.FileMode) string {
 	return string(out)
 }
 
-// kindOf classifie une FileInfo pour le frontend.
+// kindOf classifies a FileInfo for the frontend.
 func kindOf(info os.FileInfo) string {
 	mode := info.Mode()
 	switch {
@@ -168,7 +168,7 @@ func kindOf(info os.FileInfo) string {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// fs.list — liste les entrées d'un répertoire
+// fs.list — lists the entries of a directory
 // ═══════════════════════════════════════════════════════════════
 
 type FsListAction struct{}
@@ -188,8 +188,8 @@ type fsEntry struct {
 	Size    int64  `json:"size"`
 	Mode    string `json:"mode"`
 	Mtime   string `json:"mtime"`
-	Denied  bool   `json:"denied,omitempty"`  // refusé par la politique de sécurité
-	Symlink string `json:"symlink,omitempty"` // cible du symlink, pour info
+	Denied  bool   `json:"denied,omitempty"`  // refused by the security policy
+	Symlink string `json:"symlink,omitempty"` // symlink target, for info
 }
 
 func (a *FsListAction) Execute(params map[string]interface{}) (interface{}, error) {
@@ -217,8 +217,8 @@ func (a *FsListAction) Execute(params map[string]interface{}) (interface{}, erro
 		full := filepath.Join(path, e.Name())
 		info, err := os.Lstat(full)
 		if err != nil {
-			// Une entrée inaccessible : on la liste avec denied=true plutôt
-			// que d'échouer toute la requête.
+			// An inaccessible entry: we list it with denied=true rather
+			// than failing the whole request.
 			result = append(result, fsEntry{Name: e.Name(), Denied: true})
 			continue
 		}
@@ -229,8 +229,8 @@ func (a *FsListAction) Execute(params map[string]interface{}) (interface{}, erro
 			Mode:  modeString(info.Mode()),
 			Mtime: info.ModTime().UTC().Format(time.RFC3339),
 		}
-		// Marquer les entrées denied par la politique (ne pas exposer le contenu,
-		// mais l'utilisateur voit qu'elles existent — moins surprenant).
+		// Mark entries denied by the policy (do not expose the content,
+		// but the user sees that they exist — less surprising).
 		if isDenied(full) {
 			entry.Denied = true
 		}
@@ -247,12 +247,12 @@ func (a *FsListAction) Execute(params map[string]interface{}) (interface{}, erro
 		"entries":   result,
 		"count":     len(result),
 		"truncated": truncated,
-		"inbox":     fsInboxDir, // pour que l'UI sache où autoriser l'upload
+		"inbox":     fsInboxDir, // so the UI knows where to allow upload
 	}, nil
 }
 
-// isDenied réplique la logique de denylist sans renvoyer d'erreur.
-// Utilisé pour marquer dans le listing.
+// isDenied replicates the denylist logic without returning an error.
+// Used to mark entries in the listing.
 func isDenied(path string) bool {
 	for _, prefix := range fsDenyPathPrefixes {
 		if path == prefix || strings.HasPrefix(path, prefix) {
@@ -271,7 +271,7 @@ func isDenied(path string) bool {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// fs.read — lit un fichier en base64 (cap 50 MB)
+// fs.read — reads a file as base64 (cap 50 MB)
 // ═══════════════════════════════════════════════════════════════
 
 type FsReadAction struct{}
@@ -310,8 +310,8 @@ func (a *FsReadAction) Execute(params map[string]interface{}) (interface{}, erro
 	}
 	defer f.Close()
 
-	// Stream vers buffer + sha256 en simultané. Pour 50 MB ça reste OK
-	// en RAM (~50 MB) et donne un hash que le client peut vérifier.
+	// Stream to buffer + sha256 simultaneously. For 50 MB it stays OK
+	// in RAM (~50 MB) and gives a hash the client can verify.
 	hasher := sha256.New()
 	content, err := io.ReadAll(io.TeeReader(f, hasher))
 	if err != nil {
@@ -328,7 +328,7 @@ func (a *FsReadAction) Execute(params map[string]interface{}) (interface{}, erro
 }
 
 // ═══════════════════════════════════════════════════════════════
-// fs.upload — écrit un fichier dans l'inbox (NON exécutable, mode 0640)
+// fs.upload — writes a file into the inbox (NON-executable, mode 0640)
 // ═══════════════════════════════════════════════════════════════
 
 type FsUploadAction struct{}
@@ -344,8 +344,8 @@ func (a *FsUploadAction) Validate(params map[string]interface{}) error {
 	if !ok || content == "" {
 		return errors.New("required parameter 'content_base64' missing")
 	}
-	// Estimation rapide de la taille (base64 = ~4/3 du binaire) avant
-	// de décoder pour rejeter tôt les payloads abusifs.
+	// Quick size estimate (base64 = ~4/3 of the binary) before
+	// decoding, to reject abusive payloads early.
 	if int64(len(content))*3/4 > fsMaxSize+1024 {
 		return fmt.Errorf("payload too large (max %d bytes). Use scp/rsync instead.", fsMaxSize)
 	}
@@ -368,8 +368,8 @@ func (a *FsUploadAction) Execute(params map[string]interface{}) (interface{}, er
 		return nil, fmt.Errorf("ensure inbox: %w", err)
 	}
 
-	// Auto-suffixe en cas de collision : rapport.txt, rapport-1.txt, rapport-2.txt
-	// Le user a explicitement choisi ce comportement plutôt que l'écrasement.
+	// Auto-suffix on collision: rapport.txt, rapport-1.txt, rapport-2.txt
+	// The user explicitly chose this behavior over overwriting.
 	target := filepath.Join(fsInboxDir, name)
 	finalPath := target
 	if _, err := os.Stat(target); err == nil {
@@ -387,8 +387,8 @@ func (a *FsUploadAction) Execute(params map[string]interface{}) (interface{}, er
 		}
 	}
 
-	// O_CREATE|O_EXCL pour fermer la fenêtre TOCTOU entre Stat() ci-dessus
-	// et l'écriture. Mode 0640 explicite : NON exécutable.
+	// O_CREATE|O_EXCL to close the TOCTOU window between Stat() above
+	// and the write. Explicit mode 0640: NON-executable.
 	f, err := os.OpenFile(finalPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o640)
 	if err != nil {
 		return nil, fmt.Errorf("create: %w", err)
@@ -404,7 +404,7 @@ func (a *FsUploadAction) Execute(params map[string]interface{}) (interface{}, er
 		return nil, fmt.Errorf("close: %w", cerr)
 	}
 
-	// Hash pour audit
+	// Hash for audit
 	hasher := sha256.New()
 	hasher.Write(content)
 
@@ -418,8 +418,8 @@ func (a *FsUploadAction) Execute(params map[string]interface{}) (interface{}, er
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CleanupInbox — supprime les fichiers de l'inbox > 7 jours
-// Appelé périodiquement par le main loop.
+// CleanupInbox — removes inbox files older than 7 days
+// Called periodically by the main loop.
 // ═══════════════════════════════════════════════════════════════
 
 const fsInboxTTL = 7 * 24 * time.Hour

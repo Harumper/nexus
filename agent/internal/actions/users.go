@@ -22,38 +22,38 @@ func init() {
 	Register(&SshKeyRemoveAction{})
 }
 
-// Regex de validation UNIX login name (POSIX) : 1-32 chars, pas de -, ., @ en debut
+// UNIX login name (POSIX) validation regex: 1-32 chars, no leading -, ., @
 var userNameRegex = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 
-// Minimum UID pour les users humains (non systeme)
+// Minimum UID for human (non-system) users
 const minHumanUID = 1000
 
-// Users proteges (jamais toucher)
+// Protected users (never touch)
 var protectedUsers = map[string]bool{
 	"root":        true,
 	"nexus-agent": true,
 }
 
 // ═══════════════════════════════════════════════════════════════
-// user.list : parse /etc/passwd en filtrant UID >= 1000
+// user.list: parse /etc/passwd filtering UID >= 1000
 // ═══════════════════════════════════════════════════════════════
 
 type LinuxUser struct {
-	Username string `json:"username"`
-	UID      int    `json:"uid"`
-	GID      int    `json:"gid"`
-	Gecos    string `json:"gecos"`
-	Home     string `json:"home"`
-	Shell    string `json:"shell"`
-	Sudo     bool   `json:"sudo"`
+	Username string   `json:"username"`
+	UID      int      `json:"uid"`
+	GID      int      `json:"gid"`
+	Gecos    string   `json:"gecos"`
+	Home     string   `json:"home"`
+	Shell    string   `json:"shell"`
+	Sudo     bool     `json:"sudo"`
 	Groups   []string `json:"groups"`
 }
 
 type UserListAction struct{}
 
-func (a *UserListAction) ID() string                                 { return "user.list" }
-func (a *UserListAction) Capability() string                         { return "monitoring" }
-func (a *UserListAction) Validate(_ map[string]interface{}) error    { return nil }
+func (a *UserListAction) ID() string                              { return "user.list" }
+func (a *UserListAction) Capability() string                      { return "monitoring" }
+func (a *UserListAction) Validate(_ map[string]interface{}) error { return nil }
 
 func (a *UserListAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	f, err := os.Open("/etc/passwd")
@@ -62,7 +62,7 @@ func (a *UserListAction) Execute(_ map[string]interface{}) (interface{}, error) 
 	}
 	defer f.Close()
 
-	// Lire les membres du groupe sudo une fois
+	// Read the sudo group members once
 	sudoMembers := sudoGroupMembers()
 
 	users := []LinuxUser{}
@@ -75,7 +75,7 @@ func (a *UserListAction) Execute(_ map[string]interface{}) (interface{}, error) 
 		}
 		uid, _ := strconv.Atoi(parts[2])
 		gid, _ := strconv.Atoi(parts[3])
-		// On filtre : uid>=1000 OU root (utile de l'afficher en lecture seule)
+		// We filter: uid>=1000 OR root (useful to display it read-only)
 		if uid < minHumanUID && uid != 0 {
 			continue
 		}
@@ -106,7 +106,7 @@ func sudoGroupMembers() map[string]bool {
 		if err != nil {
 			continue
 		}
-		// Parser /etc/group directement
+		// Parse /etc/group directly
 		f, err := os.Open("/etc/group")
 		if err != nil {
 			continue
@@ -137,7 +137,7 @@ func userGroups(username string) []string {
 	if err != nil {
 		return nil
 	}
-	names := []string{} // non-nil → JSON [] et pas null
+	names := []string{} // non-nil → JSON [] and not null
 	for _, gid := range gids {
 		g, err := user.LookupGroupId(gid)
 		if err == nil {
@@ -148,7 +148,7 @@ func userGroups(username string) []string {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// user.create : useradd -m -s /bin/bash <name>
+// user.create: useradd -m -s /bin/bash <name>
 // ═══════════════════════════════════════════════════════════════
 
 type UserCreateAction struct{}
@@ -162,8 +162,8 @@ func (a *UserCreateAction) Validate(params map[string]interface{}) error {
 
 func (a *UserCreateAction) Execute(params map[string]interface{}) (interface{}, error) {
 	username := params["username"].(string)
-	// NEXUS-AGENT-003 : via le privhelper compilé (login validé + `--`), plus de
-	// ligne sudoers `useradd *` à wildcard d'options (UID-0 backdoor fermé).
+	// NEXUS-AGENT-003: via the compiled privhelper (validated login + `--`), no more
+	// sudoers `useradd *` line with an options wildcard (UID-0 backdoor closed).
 	helperArgs := []string{"privhelper", "useradd", username}
 	if g, ok := params["gecos"].(string); ok && g != "" {
 		if len(g) > 128 || strings.ContainsAny(g, ":\n") {
@@ -176,7 +176,7 @@ func (a *UserCreateAction) Execute(params map[string]interface{}) (interface{}, 
 		return nil, fmt.Errorf("useradd failed: %w", err)
 	}
 
-	// Ajouter au groupe sudo si demande
+	// Add to the sudo group if requested
 	if sudo, _ := params["sudo"].(bool); sudo {
 		if err := setSudoMembership(username, true); err != nil {
 			return nil, fmt.Errorf("user created but failed to add to sudo: %w", err)
@@ -190,7 +190,7 @@ func (a *UserCreateAction) Execute(params map[string]interface{}) (interface{}, 
 }
 
 // ═══════════════════════════════════════════════════════════════
-// user.delete : userdel -r <name>
+// user.delete: userdel -r <name>
 // ═══════════════════════════════════════════════════════════════
 
 type UserDeleteAction struct{}
@@ -206,7 +206,7 @@ func (a *UserDeleteAction) Validate(params map[string]interface{}) error {
 	if protectedUsers[username] {
 		return fmt.Errorf("refusing to delete protected user %s", username)
 	}
-	// Verifier UID >= 1000
+	// Verify UID >= 1000
 	u, err := user.Lookup(username)
 	if err != nil {
 		return fmt.Errorf("user %s not found", username)
@@ -232,7 +232,7 @@ func (a *UserDeleteAction) Execute(params map[string]interface{}) (interface{}, 
 }
 
 // ═══════════════════════════════════════════════════════════════
-// user.update_sudo : gpasswd -a/-d sudo <name>
+// user.update_sudo: gpasswd -a/-d sudo <name>
 // ═══════════════════════════════════════════════════════════════
 
 type UserUpdateSudoAction struct{}
@@ -280,7 +280,7 @@ func setSudoMembership(username string, sudo bool) error {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// sshkey.list / add / remove : ~/.ssh/authorized_keys de l'user
+// sshkey.list / add / remove: the user's ~/.ssh/authorized_keys
 // ═══════════════════════════════════════════════════════════════
 
 type SshKeyListAction struct{}
@@ -332,21 +332,21 @@ func (a *SshKeyAddAction) Execute(params map[string]interface{}) (interface{}, e
 	username := params["username"].(string)
 	key := strings.TrimSpace(params["key"].(string))
 
-	// Le home / .ssh / authorized_keys sont résolus et écrits par le privhelper
-	// (getent + install). Ici on ne fait que lire l'état courant et reconstruire.
-	// Lire l'etat actuel
+	// The home / .ssh / authorized_keys are resolved and written by the privhelper
+	// (getent + install). Here we only read the current state and rebuild.
+	// Read the current state
 	existing, err := readAuthorizedKeys(username)
 	if err != nil {
 		return nil, err
 	}
-	// Dedup : si la cle exacte est deja presente, ne rien faire
+	// Dedup: if the exact key is already present, do nothing
 	for _, k := range existing {
 		if k.Line == key {
 			return map[string]interface{}{"username": username, "already_present": true}, nil
 		}
 	}
 
-	// Construire le nouveau contenu
+	// Build the new content
 	lines := make([]string, 0, len(existing)+1)
 	for _, k := range existing {
 		lines = append(lines, k.Line)
@@ -354,7 +354,7 @@ func (a *SshKeyAddAction) Execute(params map[string]interface{}) (interface{}, e
 	lines = append(lines, key)
 	newContent := strings.Join(lines, "\n") + "\n"
 
-	// Ecrire dans un tempfile du cote agent, puis sudo install dans le fichier cible
+	// Write to a tempfile on the agent side, then sudo install into the target file
 	tmp, err := os.CreateTemp("/var/lib/nexus-agent", "sshkey-*.tmp")
 	if err != nil {
 		return nil, fmt.Errorf("create temp: %w", err)
@@ -366,9 +366,9 @@ func (a *SshKeyAddAction) Execute(params map[string]interface{}) (interface{}, e
 	}
 	tmp.Close()
 
-	// NEXUS-AGENT-008 : via le privhelper compilé (login validé + home résolu par
-	// getent + .ssh créé + authorized_keys posé). Plus de ligne sudoers
-	// `install … /home/*/.ssh/authorized_keys` à destination wildcard (traversal).
+	// NEXUS-AGENT-008: via the compiled privhelper (validated login + home resolved
+	// by getent + .ssh created + authorized_keys deployed). No more sudoers
+	// `install … /home/*/.ssh/authorized_keys` line with a wildcard destination (traversal).
 	if err := sudoRun(nexusAgentBin, "privhelper", "install-authkeys", username, tmp.Name()); err != nil {
 		return nil, fmt.Errorf("install authorized_keys: %w", err)
 	}
@@ -419,7 +419,7 @@ func (a *SshKeyRemoveAction) Execute(params map[string]interface{}) (interface{}
 		return nil, fmt.Errorf("key with fingerprint %s not found", targetFp)
 	}
 
-	// Reecrire via tempfile + privhelper (home résolu + dest fixe, AGENT-008)
+	// Rewrite via tempfile + privhelper (home resolved + fixed dest, AGENT-008)
 	var newContent string
 	if len(filtered) > 0 {
 		newContent = strings.Join(filtered, "\n") + "\n"
@@ -443,12 +443,12 @@ func (a *SshKeyRemoveAction) Execute(params map[string]interface{}) (interface{}
 	}, nil
 }
 
-// nexusAgentBin : chemin déployé du binaire agent, qui sert AUSSI de privhelper
-// root compilé (sous-commande `privhelper`). Doit matcher la ligne sudoers
+// nexusAgentBin: deployed path of the agent binary, which ALSO serves as the
+// compiled root privhelper (`privhelper` subcommand). Must match the sudoers line
 // `/usr/local/bin/nexus-agent privhelper *`.
 const nexusAgentBin = "/usr/local/bin/nexus-agent"
 
-// sudoRun execute une commande via sudo -n et retourne une erreur lisible
+// sudoRun executes a command via sudo -n and returns a readable error
 func sudoRun(cmd string, args ...string) error {
 	full := append([]string{"-n", cmd}, args...)
 	c := exec.Command("sudo", full...)
@@ -477,11 +477,11 @@ func readAuthorizedKeys(username string) ([]SshKey, error) {
 	}
 	authFile := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
 
-	// Lire via sudo (le fichier est owned par l'user cible)
+	// Read via sudo (the file is owned by the target user)
 	cmd := exec.Command("sudo", "-n", "/bin/cat", authFile)
 	out, err := cmd.Output()
 	if err != nil {
-		// Fichier inexistant = liste vide
+		// Nonexistent file = empty list
 		return []SshKey{}, nil
 	}
 
@@ -511,9 +511,9 @@ func readAuthorizedKeys(username string) ([]SshKey, error) {
 	return keys, nil
 }
 
-// sshKeyFingerprint calcule le SHA256 via ssh-keygen -lf
+// sshKeyFingerprint computes the SHA256 via ssh-keygen -lf
 func sshKeyFingerprint(line string) string {
-	// Ecrire dans un tempfile
+	// Write to a tempfile
 	f, err := os.CreateTemp("", "sshkey-*.pub")
 	if err != nil {
 		return ""
@@ -546,26 +546,26 @@ func validateUserName(params map[string]interface{}) error {
 }
 
 func isValidSshKeyLine(line string) bool {
-	// Types standards : ssh-rsa, ssh-ed25519, ecdsa-sha2-*, ssh-dss (deprecated mais OK)
-	// Format : <type> <base64> [comment]
+	// Standard types: ssh-rsa, ssh-ed25519, ecdsa-sha2-*, ssh-dss (deprecated but OK)
+	// Format: <type> <base64> [comment]
 	parts := strings.SplitN(line, " ", 3)
 	if len(parts) < 2 {
 		return false
 	}
 	validTypes := map[string]bool{
-		"ssh-rsa":                true,
-		"ssh-ed25519":            true,
-		"ssh-dss":                true,
-		"ecdsa-sha2-nistp256":    true,
-		"ecdsa-sha2-nistp384":    true,
-		"ecdsa-sha2-nistp521":    true,
-		"sk-ssh-ed25519@openssh.com":       true,
+		"ssh-rsa":                            true,
+		"ssh-ed25519":                        true,
+		"ssh-dss":                            true,
+		"ecdsa-sha2-nistp256":                true,
+		"ecdsa-sha2-nistp384":                true,
+		"ecdsa-sha2-nistp521":                true,
+		"sk-ssh-ed25519@openssh.com":         true,
 		"sk-ecdsa-sha2-nistp256@openssh.com": true,
 	}
 	if !validTypes[parts[0]] {
 		return false
 	}
-	// Le base64 ne doit contenir que des chars alphanum + - _ = + /
+	// The base64 must contain only alphanum chars + - _ = + /
 	if !regexp.MustCompile(`^[A-Za-z0-9+/=]+$`).MatchString(parts[1]) {
 		return false
 	}
@@ -574,4 +574,3 @@ func isValidSshKeyLine(line string) bool {
 	}
 	return true
 }
-

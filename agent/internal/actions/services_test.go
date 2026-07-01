@@ -108,8 +108,8 @@ func TestServiceStopAcceptsOthers(t *testing.T) {
 }
 
 func TestServiceStartAllowsAnyValidName(t *testing.T) {
-	// start n'est pas dangereux : pas de protection nexus-agent (deja running)
-	// mais la validation regex doit quand meme bloquer les injections.
+	// start is not dangerous: no nexus-agent protection (already running)
+	// but the regex validation must still block injections.
 	a := &ServiceStartAction{}
 	if err := a.Validate(map[string]interface{}{"service": "nexus-agent"}); err != nil {
 		t.Errorf("start should allow nexus-agent (already running): %v", err)

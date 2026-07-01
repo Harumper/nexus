@@ -11,7 +11,7 @@ func init() { Register(&PackageRemoveAction{}) }
 
 type PackageRemoveAction struct{}
 
-func (a *PackageRemoveAction) ID() string        { return "package.remove" }
+func (a *PackageRemoveAction) ID() string         { return "package.remove" }
 func (a *PackageRemoveAction) Capability() string { return "packages" }
 
 func (a *PackageRemoveAction) Validate(params map[string]interface{}) error {
@@ -19,8 +19,8 @@ func (a *PackageRemoveAction) Validate(params map[string]interface{}) error {
 	if !ok {
 		return fmt.Errorf("required parameter 'packages' missing")
 	}
-	// Accept both string and []interface{}. Validation partagée avec
-	// package.install (validPackageName) : charset + refus du '-' en tête.
+	// Accept both string and []interface{}. Validation shared with
+	// package.install (validPackageName): charset + refusal of a leading '-'.
 	switch v := packages.(type) {
 	case string:
 		if err := validPackageName(v); err != nil {

@@ -16,15 +16,15 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// Asymétrie de courbes (volontaire, deux rôles distincts) :
-//   - X25519  → clés de SESSION du canal (handshake ECDHE, forward secrecy).
-//   - P-256   → SEAL du bootstrap + IDENTITÉ. Contraint par la clé serveur PINNÉE
-//               (server-public-key.pem, ECDSA P-256) déjà déployée à l'install :
-//               on ne peut sceller que vers la courbe de cette clé.
+// Curve asymmetry (intentional, two distinct roles):
+//   - X25519  → channel SESSION keys (ECDHE handshake, forward secrecy).
+//   - P-256   → bootstrap SEAL + IDENTITY. Constrained by the PINNED server key
+//               (server-public-key.pem, ECDSA P-256) already deployed at install:
+//               we can only seal to that key's curve.
 
-// sealHKDF dérive la clé AES-256 du seal depuis un secret ECDH P-256, avec
-// domain-separation par machine_id (info="nexus-enroll:<id>", distinct du canal
-// "nexus-session:<id>"). Salt vide pour correspondre au backend crypto.hkdfSync.
+// sealHKDF derives the seal's AES-256 key from a P-256 ECDH secret, with
+// domain-separation by machine_id (info="nexus-enroll:<id>", distinct from the
+// channel "nexus-session:<id>"). Empty salt to match the backend crypto.hkdfSync.
 func sealHKDF(ecdhSecret []byte, machineID string) ([]byte, error) {
 	r := hkdf.New(sha256.New, ecdhSecret, nil, []byte("nexus-enroll:"+machineID))
 	key := make([]byte, 32)
@@ -34,8 +34,8 @@ func sealHKDF(ecdhSecret []byte, machineID string) ([]byte, error) {
 	return key, nil
 }
 
-// sealEncryptAESGCM chiffre en AES-256-GCM au format "nonce:ciphertext" (base64),
-// identique au canal → le backend réutilise decryptAES pour ouvrir.
+// sealEncryptAESGCM encrypts in AES-256-GCM in the "nonce:ciphertext" format
+// (base64), identical to the channel → the backend reuses decryptAES to open it.
 func sealEncryptAESGCM(plaintext, key []byte) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -53,15 +53,15 @@ func sealEncryptAESGCM(plaintext, key []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(nonce) + ":" + base64.StdEncoding.EncodeToString(ct), nil
 }
 
-// SealToServer scelle `plaintext` vers la clé serveur PINNÉE (ECIES P-256) :
-// ECDH éphémère → clé pinnée via crypto/ecdh (et non l'API bas-niveau dépréciée de
-// crypto/elliptic, retirée du projet), HKDF "nexus-enroll:<id>", AES-256-GCM.
-// Retourne la clé publique éphémère (PEM
-// SPKI) et le blob scellé. Confidentialité du token + intégrité de la pubkey agent
-// : un attaquant on-path sans la clé privée serveur ne peut ni lire ni modifier.
+// SealToServer seals `plaintext` to the PINNED server key (ECIES P-256):
+// ephemeral ECDH → pinned key via crypto/ecdh (not the deprecated low-level API of
+// crypto/elliptic, removed from the project), HKDF "nexus-enroll:<id>", AES-256-GCM.
+// Returns the ephemeral public key (PEM
+// SPKI) and the sealed blob. Token confidentiality + agent pubkey integrity:
+// an on-path attacker without the server private key can neither read nor modify.
 //
-// La clé privée éphémère (eph) vit UNIQUEMENT dans cette fonction : jamais stockée
-// dans une struct, jamais loggée, jamais retournée. Elle sort de portée au retour.
+// The ephemeral private key (eph) lives ONLY in this function: never stored in a
+// struct, never logged, never returned. It goes out of scope on return.
 func SealToServer(plaintext []byte, pinnedServerKey *ecdsa.PublicKey, machineID string) (ephPubPEM string, sealed string, err error) {
 	serverECDH, err := pinnedServerKey.ECDH() // *ecdsa.PublicKey → *ecdh.PublicKey (P-256)
 	if err != nil {
@@ -89,5 +89,5 @@ func SealToServer(plaintext []byte, pinnedServerKey *ecdsa.PublicKey, machineID 
 	}
 	ephPubPEM = string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 	return ephPubPEM, sealedBlob, nil
-	// eph (clé privée éphémère du seal) sort de portée → jetée.
+	// eph (the seal's ephemeral private key) goes out of scope → discarded.
 }
