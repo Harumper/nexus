@@ -200,6 +200,33 @@ Nexus administers servers as root; its trust model is documented explicitly:
 
 See also the "Authorization model" and "Agent key at rest" notes above.
 
+## Supply chain & agent integrity
+
+Nexus upgrades its own agents in place, so the integrity of the agent binary is
+part of the trust model. The trust root for upgrades is an **offline signing key
+held by the operator — not the backend**.
+
+1. **Reproducible build** — the agent is a static Go binary (`CGO_ENABLED=0`,
+   `-trimpath`, Go toolchain pinned by digest), so it rebuilds **byte-for-byte**:
+   anyone can recompile from source and get the same `sha256` that was signed.
+2. **Offline signing (human approval)** — each release is signed with a
+   [minisign](https://jedisct1.github.io/minisign/) (Ed25519) key that never
+   leaves an offline machine; a human reviews the version and `sha256` before
+   signing. The signature is a detached `.minisig` published next to the binary.
+3. **Backend only relays** — the backend serves the binary and its signature but
+   never holds the private key, so **a compromised backend cannot push a trojaned
+   binary**.
+4. **Agent verifies, fail-closed** — before replacing itself the agent verifies the
+   minisign signature against a local accept-list (`/etc/nexus/release.pub`), and
+   enforces the sha256, an anti-rollback version floor, download-origin pinning and
+   anti-TOCTOU re-checks. No local release key ⇒ every upgrade is refused.
+
+Two trust models are supported: **trust the project's signed release** (like a
+signed apt package — verifiable via the reproducible build) or **bring your own
+release key** so the upgrade trust root is yours alone (recommended for isolated
+deployments). Key management — and how to reproduce and verify a release build —
+is documented in [OPERATOR-KEYS.md](OPERATOR-KEYS.md).
+
 ## License
 
 Nexus is distributed under the **GNU Affero General Public License v3.0

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight } from "lucide-react";
+import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight, PackageCheck } from "lucide-react";
 
-type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security";
+type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security" | "supplychain";
 
 const sections: { id: Section; icon: typeof Book }[] = [
   { id: "start", icon: Book },
@@ -14,6 +14,7 @@ const sections: { id: Section; icon: typeof Book }[] = [
   { id: "updates", icon: Download },
   { id: "ssh", icon: Terminal },
   { id: "security", icon: Shield },
+  { id: "supplychain", icon: PackageCheck },
   { id: "api", icon: Settings },
 ];
 
@@ -22,7 +23,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "api"];
+    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "supplychain", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -76,6 +77,7 @@ function DocContent({ section }: { section: Section }) {
     case "updates": return <UpdatesDoc />;
     case "ssh": return <SshDoc />;
     case "security": return <SecurityDoc />;
+    case "supplychain": return <SupplyChainDoc />;
     case "api": return <ApiDoc />;
   }
 }
@@ -515,6 +517,41 @@ function SecurityDoc() {
       <li><Trans t={t} i18nKey="security.roleOperator" components={{ b: <strong className="text-foreground" /> }} /></li>
       <li><Trans t={t} i18nKey="security.roleReadonly" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
+  </>);
+}
+
+function SupplyChainDoc() {
+  const { t } = useTranslation("docs");
+  const bc = { b: <strong className="text-foreground" />, c: <IC /> };
+  return (<>
+    <H1>{t("supplychain.title")}</H1>
+    <P>{t("supplychain.intro")}</P>
+
+    <Warn><Trans t={t} i18nKey="supplychain.property" components={{ b: <strong /> }} /></Warn>
+
+    <H2>{t("supplychain.buildTitle")}</H2>
+    <P><Trans t={t} i18nKey="supplychain.buildText" components={bc} /></P>
+    <Code>{t("supplychain.buildCode")}</Code>
+    <P><Trans t={t} i18nKey="supplychain.buildCompare" components={bc} /></P>
+
+    <H2>{t("supplychain.signTitle")}</H2>
+    <P><Trans t={t} i18nKey="supplychain.signText" components={bc} /></P>
+
+    <H2>{t("supplychain.verifyTitle")}</H2>
+    <P>{t("supplychain.verifyText")}</P>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="supplychain.verify1" components={bc} /></li>
+      <li><Trans t={t} i18nKey="supplychain.verify2" components={bc} /></li>
+      <li><Trans t={t} i18nKey="supplychain.verify3" components={bc} /></li>
+      <li><Trans t={t} i18nKey="supplychain.verify4" components={bc} /></li>
+    </ul>
+
+    <H2>{t("supplychain.trustTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="supplychain.trustConvenience" components={bc} /></li>
+      <li><Trans t={t} i18nKey="supplychain.trustAssurance" components={bc} /></li>
+    </ul>
+    <Tip><Trans t={t} i18nKey="supplychain.keysTip" components={bc} /></Tip>
   </>);
 }
 

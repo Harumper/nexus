@@ -11,6 +11,7 @@
     "updates": "Mises à jour",
     "ssh": "Configuration SSH",
     "security": "Sécurité",
+    "supplychain": "Build & signature",
     "api": "API Reference"
   },
   "callout": {
@@ -237,6 +238,27 @@
     "roleAdmin": "<b>ADMIN</b> — Accès total (créer/supprimer machines, profils, tags, etc.)",
     "roleOperator": "<b>OPERATOR</b> — Lecture + actions sur les machines",
     "roleReadonly": "<b>READONLY</b> — Lecture seule"
+  },
+  "supplychain": {
+    "title": "Build, signature et vérification de l'agent",
+    "intro": "Nexus met à jour ses agents sur place. La racine de confiance de cette mise à jour est une clé de signature hors-ligne détenue par l'opérateur — pas le backend. Cette page explique comment le binaire de l'agent est compilé, signé et vérifié avant de remplacer un agent en cours d'exécution.",
+    "property": "<b>Un backend compromis ne peut pas pousser de binaire trojané.</b> Il sert le binaire et relaie sa signature, mais ne détient jamais la clé privée hors-ligne — un agent n'installe donc une mise à jour que si sa signature est vérifiée contre une clé publique que vous avez déposée localement.",
+    "buildTitle": "1. Build reproductible",
+    "buildText": "L'agent est un binaire Go statique compilé avec <c>CGO_ENABLED=0</c>, <c>-trimpath</c> et un toolchain Go épinglé par digest. Le build est ainsi <b>reproductible bit à bit</b> : recompiler les mêmes sources donne le même <c>sha256</c>, quel que soit l'endroit où vous compilez.",
+    "buildCode": "# Recompiler l'agent depuis les sources avec le toolchain épinglé\ndocker run --rm -v \"$PWD/agent:/src:ro\" \\\n  golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f \\\n  sh -c 'cp -r /src /b && cd /b && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \\\n    go build -trimpath -mod=readonly \\\n    -ldflags \"-w -s -X main.Version=<VERSION_RELEASE>\" \\\n    -o /tmp/nexus-agent ./cmd/nexus-agent && sha256sum /tmp/nexus-agent'",
+    "buildCompare": "Utilisez le <c>VERSION_RELEASE</c> exact livré avec la release (la version est intégrée au binaire). Le <c>sha256</c> obtenu doit correspondre à celui publié à côté du binaire signé.",
+    "signTitle": "2. Signature hors-ligne (approbation humaine)",
+    "signText": "Chaque release est signée avec une clé <b>minisign</b> (Ed25519) qui ne quitte jamais une machine hors-ligne. Un humain vérifie la version et le <c>sha256</c>, puis signe — produisant une signature détachée <c>.minisig</c> publiée à côté du binaire. Le backend ne fait que relayer cette signature.",
+    "verifyTitle": "3. Vérification par l'agent (fail-closed)",
+    "verifyText": "Avant de se remplacer, l'agent exécute une chaîne de contrôles stricte et fail-closed :",
+    "verify1": "<b>Signature</b> — la signature minisign détachée doit être vérifiée contre l'accept-list locale <c>/etc/nexus/release.pub</c> (c'est l'autorité ; absente ou vide ⇒ refus).",
+    "verify2": "<b>Intégrité</b> — le sha256 doit correspondre (pré-contrôle de transit).",
+    "verify3": "<b>Anti-rollback</b> — la version cible ne doit pas être plus ancienne que celle en cours (sauf autorisation explicite).",
+    "verify4": "<b>Épinglage d'origine + anti-TOCTOU</b> — le téléchargement ne vient que du backend épinglé en https, et le binaire est re-vérifié juste avant l'installation et le redémarrage.",
+    "trustTitle": "Deux modèles de confiance",
+    "trustConvenience": "<b>Confort</b> — faire confiance à la release signée du projet (comme un paquet apt signé). Vérifiable vous-même via le build reproductible ci-dessus.",
+    "trustAssurance": "<b>Haute assurance</b> — générer votre propre clé de release pour que la racine de confiance de la mise à jour n'appartienne qu'à vous. Recommandé pour les déploiements isolés.",
+    "keysTip": "La génération, le déploiement et la rotation des clés sont documentés dans <c>OPERATOR-KEYS.md</c> (clé de release, clé de signature de script, clé d'identité serveur)."
   },
   "api": {
     "title": "API Reference",

@@ -180,6 +180,39 @@ revocable.
 
 ---
 
+## Reproducible build verification
+
+The signed agent binary is built reproducibly, so you don't have to trust the
+release key blindly — you can rebuild the binary from source and confirm it
+matches the `sha256` that was signed.
+
+The CI `release-build` job builds with a Go toolchain **pinned by digest**,
+`CGO_ENABLED=0`, `-trimpath`, and `-mod=readonly` (dependencies pinned by
+`go.sum`). These remove the usual sources of non-determinism, so the same source
+plus the same version string produce the same bytes on any machine.
+
+To verify a release:
+
+```sh
+# 1. Check out the exact commit/tag the release was built from.
+git checkout <release-tag>
+
+# 2. Rebuild with the pinned toolchain (any path — -trimpath makes it path-independent).
+docker run --rm -v "$PWD/agent:/src:ro" \
+  golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f \
+  sh -c 'cp -r /src /b && cd /b && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -mod=readonly \
+    -ldflags "-w -s -X main.Version=<RELEASE_VERSION>" \
+    -o /tmp/nexus-agent ./cmd/nexus-agent && sha256sum /tmp/nexus-agent'
+
+# 3. Compare the sha256 with nexus-agent.sha256 published next to the signed
+#    binary, and verify the signature: minisign -Vm nexus-agent -p release.pub
+```
+
+`RELEASE_VERSION` must be the exact version string of the release — it is embedded
+in the binary via `-ldflags -X main.Version`, so a different string changes the
+bytes. It is published in the release's `VERSION` file.
+
 ## Private key storage
 
 The private halves of keys 2 and 3, and the `ECDSA_MASTER_SECRET` for key 1, are

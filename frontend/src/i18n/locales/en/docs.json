@@ -11,6 +11,7 @@
     "updates": "Updates",
     "ssh": "SSH configuration",
     "security": "Security",
+    "supplychain": "Build & signing",
     "api": "API Reference"
   },
   "callout": {
@@ -237,6 +238,27 @@
     "roleAdmin": "<b>ADMIN</b> — Full access (create/delete machines, profiles, tags, etc.)",
     "roleOperator": "<b>OPERATOR</b> — Read + actions on machines",
     "roleReadonly": "<b>READONLY</b> — Read-only"
+  },
+  "supplychain": {
+    "title": "Agent build, signing & verification",
+    "intro": "Nexus upgrades its own agents in place. The trust root for that upgrade is an offline signing key held by the operator — not the backend. This page explains how the agent binary is built, signed, and verified before it ever replaces a running agent.",
+    "property": "<b>A compromised backend cannot push a trojaned binary.</b> It serves the binary and relays its signature, but never holds the offline private key — so an agent only installs an upgrade whose signature verifies against a public key you deployed locally.",
+    "buildTitle": "1. Reproducible build",
+    "buildText": "The agent is a static Go binary built with <c>CGO_ENABLED=0</c>, <c>-trimpath</c> and a Go toolchain pinned by digest. This makes the build <b>byte-for-byte reproducible</b>: rebuilding the same source yields the same <c>sha256</c>, wherever you build it.",
+    "buildCode": "# Rebuild the agent from source with the pinned toolchain\ndocker run --rm -v \"$PWD/agent:/src:ro\" \\\n  golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f \\\n  sh -c 'cp -r /src /b && cd /b && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \\\n    go build -trimpath -mod=readonly \\\n    -ldflags \"-w -s -X main.Version=<RELEASE_VERSION>\" \\\n    -o /tmp/nexus-agent ./cmd/nexus-agent && sha256sum /tmp/nexus-agent'",
+    "buildCompare": "Use the exact <c>RELEASE_VERSION</c> shipped with the release (the version string is baked into the binary). The resulting <c>sha256</c> must match the one published next to the signed binary.",
+    "signTitle": "2. Offline signing (human approval)",
+    "signText": "Each release is signed with a <b>minisign</b> (Ed25519) key that never leaves an offline machine. A human reviews the version and <c>sha256</c>, then signs — producing a detached <c>.minisig</c> published next to the binary. The backend only relays this signature.",
+    "verifyTitle": "3. Agent verification (fail-closed)",
+    "verifyText": "Before replacing itself, the agent runs a strict, fail-closed check chain:",
+    "verify1": "<b>Signature</b> — the detached minisign signature must verify against the local accept-list at <c>/etc/nexus/release.pub</c> (this is the authority; missing or empty ⇒ refused).",
+    "verify2": "<b>Integrity</b> — the sha256 must match (transit pre-check).",
+    "verify3": "<b>Anti-rollback</b> — the target version must not be older than the running one (unless explicitly allowed).",
+    "verify4": "<b>Origin pinning + anti-TOCTOU</b> — the download only comes from the pinned backend over https, and the binary is re-checked right before install and restart.",
+    "trustTitle": "Two trust models",
+    "trustConvenience": "<b>Convenience</b> — trust the project's signed release (like a signed apt package). Verify it yourself via the reproducible build above.",
+    "trustAssurance": "<b>High assurance</b> — generate your own release key so the upgrade trust root is yours alone. Recommended for isolated deployments.",
+    "keysTip": "Key generation, deployment and rotation are documented in <c>OPERATOR-KEYS.md</c> (release key, script-signing key, server identity key)."
   },
   "api": {
     "title": "API Reference",
