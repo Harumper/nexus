@@ -8,7 +8,7 @@ Context for AI assistants working on this codebase. Human contributors should re
 - **The PROBE/AGENT machine type was REMOVED** (AGENT-007). There is now **ONE agent type**, fully capable; its root capabilities are defined by the sudoers generated at install. Do NOT re-introduce a `Machine.type`/`MachineType` enum, a `probeAllowedActions` map, an `IsProbeMode`, a `--type` installer flag, or a `NEXUS_AGENT_TYPE` env. The read-only/write distinction is enforced by **central RBAC** (role-based), not by machine type.
 - **Actions Go have a `Capability() string` method** — this is a metadata label for logging, NOT a runtime check. Don't wire it to any access control.
 - **`READ_ONLY_ACTIONS`** (`backend/src/services/machine-manager.ts`) is the single source of truth for which actions are reads (vs mutations). It gates `READONLY` users in `privileged-actions.ts` (WEB-AUTHZ). When adding a read-only action, add it here. It lives **backend-only** now (no agent-side mirror).
-- **Server key pinning is MANDATORY** (isolation entre projets). The agent `log.Fatal`s at boot if no server public key is configured (`main.go`), and `Enroll()` refuses to enroll without it (`enrollment.go`). The pinned key anchors the trust at enrollment in **two** ways: the enrollment request is **sealed (ECIES/ECDH P-256) against the pinned key** (`seal.go`), and the server's enrollment **response signature is verified against the pinned key** — the key echoed in the response is only used for an equality check, never as a derivation base (`enrollment.go`). (NB: in protocol v2 enrollment establishes **identity only** — it derives no channel secret; the session secret comes later from the runtime ECDHE X25519 handshake. The older "ECDH shared secret derived against the pinned key at enrollment" wording was v1 and no longer applies.) `install-agent.sh` requires `--server-public-key-file` for any (re-)enrollment. Don't reintroduce an optional/warning fallback.
+- **Server key pinning is MANDATORY** (isolation between projects). The agent `log.Fatal`s at boot if no server public key is configured (`main.go`), and `Enroll()` refuses to enroll without it (`enrollment.go`). The pinned key anchors the trust at enrollment in **two** ways: the enrollment request is **sealed (ECIES/ECDH P-256) against the pinned key** (`seal.go`), and the server's enrollment **response signature is verified against the pinned key** — the key echoed in the response is only used for an equality check, never as a derivation base (`enrollment.go`). (NB: in protocol v2 enrollment establishes **identity only** — it derives no channel secret; the session secret comes later from the runtime ECDHE X25519 handshake. The older "ECDH shared secret derived against the pinned key at enrollment" wording was v1 and no longer applies.) `install-agent.sh` requires `--server-public-key-file` for any (re-)enrollment. Don't reintroduce an optional/warning fallback.
 - **One Nexus agent per machine.** Agent paths/identity are NOT namespaced (`nexus-agent` user, `/var/lib/nexus`, `/etc/nexus`, `/etc/sudoers.d/nexus-agent`, service `nexus-agent`). A second deployment installing an agent on the same host would collide. If multi-instance is ever needed, namespace these by deployment id.
 - **Action idempotency**: the agent dedups by `request_id` (`idemCache` in `main.go`, 10-min TTL) and re-sends the memorized response instead of re-executing. Never re-execute a mutating action on redelivery. The frontend dispatch retry (`b898f9f`) must only retry on pre-send errors (`not connected`), never after the message is sent.
 
@@ -17,7 +17,7 @@ Context for AI assistants working on this codebase. Human contributors should re
 - `install-agent.sh --uninstall` (alias `--purge`): full removal (service, binary, keys, shared secret, config, snapshots, sudoers, user, group).
 - `install-agent.sh --reenroll`: purges residual identity/state (keys, `shared.secret`, old server key, unconfirmed watchdog snapshots, inbox, old config) BEFORE reinstalling — fixes the "agent skips enrollment because `shared.secret` exists" deadlock.
 - Enrollment token is optional on re-run when a local `shared.secret` exists (sudoers/binary refresh path).
-- Backend `POST /api/machines/:id/re-enroll` regenerates token+ECDSA, **disconnects the agent**, invalidates old install tokens, and returns a bootstrap command flagged `--reenroll`. The UI "Ré-enrôler" button (MachineDetail) routes through `/machines/:id/enroll` which calls `reEnrollMachine` for already-enrolled machines.
+- Backend `POST /api/machines/:id/re-enroll` regenerates token+ECDSA, **disconnects the agent**, invalidates old install tokens, and returns a bootstrap command flagged `--reenroll`. The UI "Re-enroll" button (MachineDetail) routes through `/machines/:id/enroll` which calls `reEnrollMachine` for already-enrolled machines.
 
 ## Watchdog-revert pattern
 
@@ -32,14 +32,14 @@ Firewall (`60s`), netplan (`120s`) and **sshd hardening (`120s`)** use the same 
 
 When adding a new watchdog action, follow this exact pattern. Don't invent variants. **`sshd.harden` and `firewall.apply_policy` both follow it** — sshd has its own confirm route; `firewall.apply_policy` reuses the firewall watchdog/route (one snapshot for the whole policy).
 
-## Security hardening module (Posture de sécurité)
+## Security hardening module (Security posture)
 
-Onglet `SecurityTab` sur MachineDetail. Audit **Lynis** (FOSS) en lecture seule (`security.audit`, parse `lynis-report.dat` côté agent → indice/warnings/suggestions + état remédiations) puis remédiations « 1 clic » (avec confirmation) mappées aux actions agent :
-- `security.harden_fail2ban`, `security.enable_auto_updates` (installent un utilitaire — AGENT-only).
-- `sshd.harden` : drop-in `/etc/ssh/sshd_config.d/99-nexus-hardening.conf`, **`sshd -t` avant reload**, reload par **SIGHUP** (`systemctl reload ssh` reste bloqué en sudoers), watchdog 120s.
-- `firewall.apply_policy` : `network.listening_services` (`ss`, lecture seule) propose les ports → ufw allow + enable, watchdog 60s. SSH toujours autorisé (anti-lockout).
+`SecurityTab` tab on MachineDetail. Read-only **Lynis** (FOSS) audit (`security.audit`, parses `lynis-report.dat` on the agent side → score/warnings/suggestions + remediation state) then "1-click" remediations (with confirmation) mapped to agent actions:
+- `security.harden_fail2ban`, `security.enable_auto_updates` (install a utility — AGENT-only).
+- `sshd.harden`: drop-in `/etc/ssh/sshd_config.d/99-nexus-hardening.conf`, **`sshd -t` before reload**, reload via **SIGHUP** (`systemctl reload ssh` remains blocked in sudoers), 120s watchdog.
+- `firewall.apply_policy`: `network.listening_services` (`ss`, read-only) proposes the ports → ufw allow + enable, 60s watchdog. SSH always allowed (anti-lockout).
 
-Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, toujours watchdog + `sshd -t`. Quand tu ajoutes une remédiation : action Go (`security`/`firewall` capability), **sudoers aux 2 endroits**, lecture seule → ajouter à `READ_ONLY_ACTIONS` (backend), mutation → NE PAS l'ajouter.
+Anti-lock-out = golden rule: never disable password/root SSH by default, always watchdog + `sshd -t`. When you add a remediation: Go action (`security`/`firewall` capability), **sudoers in both places**, read-only → add to `READ_ONLY_ACTIONS` (backend), mutation → do NOT add it.
 
 ## Security rules
 

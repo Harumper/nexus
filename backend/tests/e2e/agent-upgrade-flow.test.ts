@@ -91,7 +91,6 @@ describe("Agent self-upgrade — version-aware flow with tracking", () => {
     const content = readFileSync(resolve(frontendSrc, "pages/MachineDetail.tsx"), "utf8");
     expect(content).toContain("AgentUpgradeDialog");
     expect(content).toContain("agentUpdateAvailable");
-    expect(content).toContain("MAJ dispo");
   });
 
   it("the agent SHA is persisted (schema + heartbeat) for the fleet-wide badge", () => {

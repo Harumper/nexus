@@ -8,7 +8,7 @@ KEY_FILE="$CERT_DIR/nexus.key"
 if [ "${TLS_ENABLED:-false}" = "true" ]; then
   echo "[Nexus] TLS enabled"
 
-  # Générer un certificat auto-signé si aucun n'existe
+  # Generate a self-signed certificate if none exists
   if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
     echo "[Nexus] No certificates found, generating self-signed certificate..."
     mkdir -p "$CERT_DIR"
@@ -23,8 +23,8 @@ if [ "${TLS_ENABLED:-false}" = "true" ]; then
     echo "[Nexus] Using existing certificates"
   fi
 
-  # Utiliser la config HTTPS (envsubst : uniquement ${CSP_AUTH_ORIGIN}, pour ne PAS
-  # écraser les variables runtime de nginx comme $host / $uri / $remote_addr).
+  # Use the HTTPS config (envsubst: only ${CSP_AUTH_ORIGIN}, so as NOT to
+  # overwrite nginx runtime variables like $host / $uri / $remote_addr).
   envsubst '${CSP_AUTH_ORIGIN}' < /etc/nginx/templates/nginx-https.conf > /etc/nginx/conf.d/default.conf
 else
   echo "[Nexus] TLS disabled, using HTTP"

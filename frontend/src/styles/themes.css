@@ -1,12 +1,12 @@
 /*
- * Nexus Design System — Inspiré de Grafana + Datadog + Netdata
+ * Nexus Design System — Inspired by Grafana + Datadog + Netdata
  *
- * Palette Grafana Dark:
+ * Grafana Dark palette:
  *   body-bg: #111217, panel-bg: #181b1f, card-bg: #22252b
  *   text: rgb(204,204,220), text-weak: rgba(204,204,220,0.65)
  *   blue-base: #3d71d9, green-base: #1a7f4b, red-base: #d10e5c
  *
- * On adapte ces couleurs au contexte Nexus.
+ * We adapt these colors to the Nexus context.
  */
 
 /* ═══════════════════════════════════════════════════════

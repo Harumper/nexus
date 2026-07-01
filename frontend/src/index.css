@@ -3,9 +3,9 @@
 
 /*
  * Bridge Nexus theme variables → Tailwind CSS 4 @theme
- * Les classes Tailwind (bg-card, text-foreground, border-border)
- * lisent les variables --color-* définies ici, qui pointent vers
- * les variables --nx-* de themes.css (changées par le thème actif).
+ * The Tailwind classes (bg-card, text-foreground, border-border)
+ * read the --color-* variables defined here, which point to
+ * the --nx-* variables of themes.css (changed by the active theme).
  */
 @theme {
   --color-background: var(--nx-bg-base);

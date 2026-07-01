@@ -495,7 +495,7 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
     expect(apiFile).toMatch(/listeningServices[\s\S]*network\.listening_services/);
     expect(apiFile).toMatch(/firewallApplyPolicy[\s\S]*firewall\.apply_policy/);
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
-    expect(tab).toContain("Assistant pare-feu");
+    expect(tab).toContain("firewallApplyPolicy");
     expect(tab).toContain("firewallConfirm"); // reused confirm
   });
 });

@@ -1,572 +1,574 @@
-# Nexus — Modèle de menace
+# Nexus — Threat Model
 
-> **Statut.** Premier artefact d'ouverture open source. Décrit le modèle de menace de
-> Nexus tel qu'il est *réellement implémenté* (vérifié contre le code, branche `master`),
-> pas une intention.
+> **Status.** First open-source disclosure artifact. Describes the threat model of
+> Nexus as it is *actually implemented* (verified against the code, `master` branch),
+> not as an intention.
 >
-> **Comment lire ce document.** Le corps principal est pragmatique : ce qu'un opérateur
-> doit comprendre et faire pour déployer Nexus en sécurité. Les encarts **« Pour
-> l'auditeur »** descendent au niveau du fichier et de la fonction pour quiconque veut
-> vérifier les affirmations. Lisez le corps ; ouvrez les encarts si vous évaluez.
+> **How to read this document.** The main body is pragmatic: what an operator
+> must understand and do to deploy Nexus securely. The **"For the auditor"** callouts
+> descend to the file and function level for anyone who wants to
+> verify the claims. Read the body; open the callouts if you are evaluating.
 >
-> **Ce document est honnête par construction.** La section la plus importante n'est pas
-> « ce qui est protégé » (§5) mais **« ce qui n'est PAS protégé » (§6)**. Un modèle de
-> menace qui ne décrit que ses forces est une plaquette commerciale.
+> **This document is honest by construction.** The most important section is not
+> "what is protected" (§5) but **"what is NOT protected" (§6)**. A threat
+> model that only describes its strengths is a marketing brochure.
 
 ---
 
-## 1. Vue d'ensemble & périmètre
+## 1. Overview & scope
 
-Nexus est un plan de contrôle pour parc de serveurs Linux. Il a deux moitiés :
+Nexus is a control plane for a fleet of Linux servers. It has two halves:
 
-- **Le backend** (control plane) : une application web + API. Un opérateur s'y connecte
-  via un navigateur, voit l'état des machines, et déclenche des actions (redémarrer un
-  service, appliquer une règle pare-feu, installer un paquet, ajouter un utilisateur…).
-- **L'agent** (`nexus-agent`) : un binaire Go installé sur chaque machine gérée. Il
-  reçoit les actions du backend par WebSocket, les exécute, et renvoie l'état/les
-  métriques.
+- **The backend** (control plane): a web application + API. An operator connects to it
+  via a browser, sees the state of the machines, and triggers actions (restart a
+  service, apply a firewall rule, install a package, add a user…).
+- **The agent** (`nexus-agent`): a Go binary installed on each managed machine. It
+  receives actions from the backend over WebSocket, executes them, and reports back
+  state/metrics.
 
-Une action n'est pas un simple « lire un fichier » : ce sont des opérations **root**
-(pare-feu, services systemd, paquets, utilisateurs, SSH, netplan). C'est tout l'objet du
-produit, et c'est ce qui définit son modèle de menace.
+An action is not a mere "read a file": these are **root** operations
+(firewall, systemd services, packages, users, SSH, netplan). That is the whole point of the
+product, and it is what defines its threat model.
 
-**Dans le périmètre de ce document :**
-- Le canal de confiance agent ↔ backend (enrôlement, runtime, mises à jour).
-- Le confinement de ce que l'agent peut faire sur son hôte.
-- La frontière web du backend (authz, entrées/sorties HTTP, WebSocket).
+**In scope for this document:**
+- The agent ↔ backend trust channel (enrollment, runtime, updates).
+- The confinement of what the agent can do on its host.
+- The backend's web boundary (authz, HTTP inputs/outputs, WebSocket).
 
-**Hors périmètre (traités ailleurs ou non gérés par Nexus) :**
-- La sécurité de l'OS hôte sous l'agent (durcissement du noyau, sécurité physique).
-- La sécurité du navigateur de l'opérateur et de son poste.
-- La sécurité de l'infrastructure de déploiement (Docker, Traefik, PostgreSQL) au-delà
-  des variables de configuration que Nexus impose.
-- Le fournisseur d'identité externe (Keycloak), traité comme une dépendance de confiance.
-
----
-
-## 2. Actifs protégés
-
-Par ordre décroissant de gravité en cas de compromission :
-
-1. **La capacité d'exécuter des actions root sur le parc.** C'est l'actif suprême. Qui
-   peut émettre une `action.request` valide vers un agent contrôle la machine en root.
-2. **L'identité de l'agent** (`agent.key`) : la clé ECDSA qui prouve « je suis l'agent
-   de la machine X ». La voler permet d'usurper un agent.
-3. **Les secrets de signature du backend** (`JWT_SECRET`, `ECDSA_MASTER_SECRET`) : ils
-   forgent les jetons de session opérateur et signent les messages serveur→agent. Les
-   casser permet de forger un rôle ADMIN ou des ordres d'agent.
-4. **Les clés de confiance racine** : la clé serveur ECDSA (pinning à l'enrôlement —
-   privée côté backend, chiffrée au repos par `ECDSA_MASTER_SECRET`), la clé minisign de
-   release (auto-upgrade) et la clé de signature de script (ces deux dernières générées
-   hors-ligne par l'opérateur). Ce sont les racines : les compromettre contourne
-   respectivement le pinning, l'auto-upgrade signé, et `script.execute`.
-5. **La confidentialité du canal** : les métriques, l'inventaire, et le contenu des
-   actions en transit.
-6. **L'intégrité de l'audit** : le journal des actions exécutées par l'agent.
+**Out of scope (handled elsewhere or not managed by Nexus):**
+- The security of the host OS under the agent (kernel hardening, physical security).
+- The security of the operator's browser and workstation.
+- The security of the deployment infrastructure (Docker, Traefik, PostgreSQL) beyond
+  the configuration variables that Nexus mandates.
+- The external identity provider (Keycloak), treated as a trusted dependency.
 
 ---
 
-## 3. Modèle d'attaquant
+## 2. Protected assets
 
-Nexus est conçu contre les attaquants suivants :
+In decreasing order of severity if compromised:
 
-| Attaquant | Position | Ce qu'il veut |
+1. **The ability to execute root actions on the fleet.** This is the supreme asset. Whoever
+   can issue a valid `action.request` to an agent controls that machine as root.
+2. **The agent's identity** (`agent.key`): the ECDSA key that proves "I am the agent
+   for machine X". Stealing it allows impersonating an agent.
+3. **The backend's signing secrets** (`JWT_SECRET`, `ECDSA_MASTER_SECRET`): they
+   forge operator session tokens and sign server→agent messages. Breaking them
+   allows forging an ADMIN role or agent orders.
+4. **The root trust keys**: the ECDSA server key (pinning at enrollment —
+   private on the backend side, encrypted at rest by `ECDSA_MASTER_SECRET`), the minisign
+   release key (auto-upgrade), and the script signing key (the latter two generated
+   offline by the operator). These are the roots: compromising them respectively bypasses
+   the pinning, the signed auto-upgrade, and `script.execute`.
+5. **Channel confidentiality**: the metrics, the inventory, and the content of
+   actions in transit.
+6. **Audit integrity**: the log of actions executed by the agent.
+
+---
+
+## 3. Attacker model
+
+Nexus is designed against the following attackers:
+
+| Attacker | Position | What they want |
 |---|---|---|
-| **Réseau on-path** | Entre l'agent et le backend (LAN, FAI, MITM TLS) | Voler le token d'enrôlement, injecter/rejouer des ordres, déclasser le protocole, intercepter le trafic |
-| **Web non authentifié** | Atteint l'API/le dashboard depuis Internet | Contourner l'auth, CSWSH, SSRF, scraping `/metrics` |
-| **Opérateur sous-privilégié** | Compte READONLY ou OPERATOR valide | Élever ses droits au-delà de son rôle (mutations, actions privilégiées, script) |
-| **Voleur de fichier de clé** | A exfiltré `agent.key` *seul* (sans le reste du disque) | Réutiliser la clé sur une autre machine / hors contexte |
-| **Backend poussant un binaire** | Le backend (ou un attaquant qui le pilote) déclenche un auto-upgrade | Pousser un binaire agent root non signé |
+| **On-path network** | Between the agent and the backend (LAN, ISP, TLS MITM) | Steal the enrollment token, inject/replay orders, downgrade the protocol, intercept traffic |
+| **Unauthenticated web** | Reaches the API/dashboard from the Internet | Bypass auth, CSWSH, SSRF, scraping `/metrics` |
+| **Under-privileged operator** | Valid READONLY or OPERATOR account | Escalate rights beyond their role (mutations, privileged actions, script) |
+| **Key file thief** | Has exfiltrated `agent.key` *alone* (without the rest of the disk) | Reuse the key on another machine / out of context |
+| **Backend pushing a binary** | The backend (or an attacker driving it) triggers an auto-upgrade | Push an unsigned root agent binary |
 
-### Explicitement HORS du modèle d'attaquant
+### Explicitly OUTSIDE the attacker model
 
-Ces attaquants existent ; Nexus **ne prétend pas** s'en défendre. Le dire est aussi
-important que lister les défenses :
+These attackers exist; Nexus **does not claim** to defend against them. Saying so is as
+important as listing the defenses:
 
-- **Un attaquant déjà root (ou utilisateur `nexus-agent`) sur l'hôte d'un agent.** Il est
-  déjà au sommet de cette machine. Il peut re-dériver la clé, lire la mémoire de l'agent,
-  etc. Il n'y a rien à protéger contre lui *sur cette machine* — il l'a déjà.
-- **Un attaquant détenant un snapshot/backup disque complet** d'un hôte d'agent. Voir §6 :
-  le chiffrement at-rest ne le couvre pas.
-- **Un backend pleinement compromis vis-à-vis du parc.** Voir §4-A : un backend de
-  confiance *peut* commander les agents — c'est le modèle, pas une faille. Ce qu'on
-  protège, c'est l'auto-upgrade (signature hors-ligne) et l'intégrité de l'identité
-  agent ; pas la capacité du backend à émettre des actions légitimes.
-- **Des locataires mutuellement méfiants sur une même instance.** Voir §4-B : il n'y a
-  pas d'isolation tenant. Ce n'est pas un attaquant qu'on repousse, c'est une
-  configuration à ne pas faire.
-- **Compromission de la chaîne d'approvisionnement** (le dépôt source, le CI, la toolchain
-  Go) — hors périmètre de ce document.
-
----
-
-## 4. Modèle de confiance — les deux affirmations centrales
-
-Tout le reste découle de ces deux affirmations. Si vous ne retenez que deux choses de ce
-document, ce sont celles-ci.
-
-### A. Un agent enrollé = root sur son hôte
-
-Un agent Nexus exécute des actions root (pare-feu, services, paquets, utilisateurs, SSH)
-via un *privhelper* compilé et `sudo`. **Enrôler un agent sur une machine, c'est confier
-cette machine à l'opérateur du backend.** Quiconque contrôle le backend peut, par
-construction, agir en root sur toutes les machines enrollées.
-
-**Ce n'est pas une faille — c'est la fonction du produit.** Un plan de contrôle qui
-administre des serveurs *doit* pouvoir les administrer. Les conséquences pratiques :
-
-- Le backend est un actif de la plus haute valeur. Traitez-le comme vous traiteriez un
-  serveur de gestion de configuration (Ansible Tower, etc.) : accès restreint, durci,
-  surveillé.
-- N'enrôlez un agent que sur une machine que vous acceptez de confier à l'opérateur du
-  backend.
-- Le confinement de l'agent (§5) ne *réduit pas* ce pouvoir — il **borne la surface** :
-  l'agent ne peut faire que les actions définies, par des chemins vérifiés, sans wildcard
-  exploitable. Mais l'ensemble de ces actions reste, par nature, du contrôle root.
-
-### B. Une instance Nexus = un seul domaine de confiance
-
-Nexus n'a **aucune isolation par utilisateur ni par locataire.** L'autorisation est une
-échelle RBAC globale unique (`ADMIN` > `OPERATOR` > `READONLY`). Il n'y a pas d'`ownerId`
-ni de `projectId` sur les machines : **tout compte authentifié voit et — selon son rôle —
-agit sur le parc entier.**
-
-> ⚠️ **Ne déployez PAS une seule instance Nexus pour des équipes/clients qui ne se font
-> pas mutuellement confiance.** N'importe quel OPERATOR peut agir sur n'importe quel hôte ;
-> n'importe quel READONLY peut lire tous les hôtes. Pour des domaines de confiance
-> distincts, faites tourner **des instances Nexus séparées.**
-
-Conséquence (positive) de ce choix : il n'y a *pas* de frontière d'objet par utilisateur à
-franchir, donc **pas d'« IDOR sur les machines »** — *par conception*. Le risque n'est pas
-une élévation horizontale entre tenants ; c'est de croire à une isolation qui n'existe pas.
-
-*(Référence : finding WEB-AUTHZ-006, déjà documenté dans le README.)*
+- **An attacker already root (or the `nexus-agent` user) on an agent's host.** They are
+  already at the top of that machine. They can re-derive the key, read the agent's memory,
+  etc. There is nothing to protect against them *on that machine* — they already have it.
+- **An attacker holding a full disk snapshot/backup** of an agent's host. See §6:
+  encryption at rest does not cover them.
+- **A backend fully compromised with respect to the fleet.** See §4-A: a trusted
+  backend *can* command the agents — that is the model, not a flaw. What is
+  protected is the auto-upgrade (offline signing) and the integrity of the agent
+  identity; not the backend's ability to issue legitimate actions.
+- **Mutually distrusting tenants on the same instance.** See §4-B: there is
+  no tenant isolation. This is not an attacker being repelled, it is a
+  configuration not to be used.
+- **Supply-chain compromise** (the source repository, the CI, the Go toolchain)
+  — out of scope for this document.
 
 ---
 
-## 5. Ce qui est protégé, et comment
+## 4. Trust model — the two central claims
 
-Deux fondations : **(1) la racine de confiance du canal** agent↔backend, et **(2) le
-confinement de l'agent** sur son hôte. Plus la **frontière web** du backend.
+Everything else follows from these two claims. If you retain only two things from this
+document, let it be these.
 
-### 5.1 La racine de confiance — « authenticité garantie à chaque âge de la clé »
+### A. An enrolled agent = root on its host
 
-C'était l'axe central de l'audit interne : reconstruire la confiance aux quatre moments de
-la vie de la clé d'identité — bootstrap, runtime, repos, et mise à jour.
+A Nexus agent executes root actions (firewall, services, packages, users, SSH)
+via a compiled *privhelper* and `sudo`. **Enrolling an agent on a machine means entrusting
+that machine to the backend operator.** Whoever controls the backend can, by
+construction, act as root on all enrolled machines.
 
-#### Bootstrap (enrôlement) — pas de swap de clé on-path, pas de rejeu
+**This is not a flaw — it is the product's function.** A control plane that
+administers servers *must* be able to administer them. The practical consequences:
 
-Quand un agent s'enrôle, sa requête est **scellée** (chiffrement ECIES/ECDH P-256) vers la
-**clé serveur pinnée** que l'opérateur a déployée avec l'agent et épinglée localement. Un attaquant
-on-path ne peut donc ni lire le token d'enrôlement, ni substituer sa propre clé : le
-chiffrement est fait *contre la clé pinnée locale*, jamais contre une clé reçue du réseau.
-La requête embarque un horodatage + un nonce liés à la preuve signée → un enrôlement
-rejoué est rejeté.
+- The backend is the highest-value asset. Treat it as you would treat a
+  configuration-management server (Ansible Tower, etc.): restricted access, hardened,
+  monitored.
+- Only enroll an agent on a machine you are willing to entrust to the backend
+  operator.
+- Agent confinement (§5) does not *reduce* this power — it **bounds the surface**:
+  the agent can only perform the defined actions, through verified paths, without an
+  exploitable wildcard. But the whole set of these actions remains, by nature, root
+  control.
 
-> **Pour l'auditeur.** Seal : `agent/internal/security/seal.go:65-93` (ECDH éphémère P-256
-> contre la clé pinnée, HKDF `nexus-enroll:<id>`, AES-256-GCM ; privée éphémère jamais
-> persistée). Ouverture : `backend/src/services/enrollment-seal.ts:13-30`. La clé renvoyée
-> par le serveur n'est utilisée que pour un *contrôle d'égalité* avec la pinnée, jamais
-> comme base de dérivation : `agent/internal/security/enrollment.go:181-211`. Anti-replay :
-> nonce+timestamp dans le payload scellé (`enrollment.go:64-99`), proof composite
-> domain-separated `nexus-enroll-proof:v2:…` (`crypto.go:198-200`), nonce mémorisé seulement
-> *après* preuve d'authenticité (`backend/src/services/enrollment.ts:131-159`).
+### B. A Nexus instance = a single trust domain
+
+Nexus has **no per-user or per-tenant isolation.** Authorization is a single
+global RBAC ladder (`ADMIN` > `OPERATOR` > `READONLY`). There is no `ownerId`
+or `projectId` on machines: **any authenticated account sees and — depending on its role —
+acts on the entire fleet.**
+
+> ⚠️ **Do NOT deploy a single Nexus instance for teams/customers that do not mutually
+> trust each other.** Any OPERATOR can act on any host;
+> any READONLY can read all hosts. For distinct trust
+> domains, run **separate Nexus instances.**
+
+A (positive) consequence of this choice: there is *no* per-user object boundary to
+cross, so **no "IDOR on machines"** — *by design*. The risk is not
+horizontal escalation between tenants; it is believing in an isolation that does not exist.
+
+*(Reference: finding WEB-AUTHZ-006, already documented in the README.)*
+
+---
+
+## 5. What is protected, and how
+
+Two foundations: **(1) the channel trust root** agent↔backend, and **(2) the
+agent's confinement** on its host. Plus the backend's **web boundary**.
+
+### 5.1 The trust root — "authenticity guaranteed at every age of the key"
+
+This was the central axis of the internal audit: rebuilding trust at the four moments of
+the identity key's life — bootstrap, runtime, rest, and update.
+
+#### Bootstrap (enrollment) — no on-path key swap, no replay
+
+When an agent enrolls, its request is **sealed** (ECIES/ECDH P-256 encryption) toward the
+**pinned server key** that the operator deployed with the agent and pinned locally. An on-path
+attacker therefore can neither read the enrollment token, nor substitute their own key: the
+encryption is done *against the locally pinned key*, never against a key received from the network.
+The request carries a timestamp + a nonce bound to the signed proof → a replayed
+enrollment is rejected.
+
+> **For the auditor.** Seal: `agent/internal/security/seal.go:65-93` (ephemeral ECDH P-256
+> against the pinned key, HKDF `nexus-enroll:<id>`, AES-256-GCM; ephemeral private key never
+> persisted). Opening: `backend/src/services/enrollment-seal.ts:13-30`. The key returned
+> by the server is used only for an *equality check* against the pinned one, never
+> as a derivation base: `agent/internal/security/enrollment.go:181-211`. Anti-replay:
+> nonce+timestamp in the sealed payload (`enrollment.go:64-99`), domain-separated composite
+> proof `nexus-enroll-proof:v2:…` (`crypto.go:198-200`), nonce memorized only
+> *after* proof of authenticity (`backend/src/services/enrollment.ts:131-159`).
 > *Findings ENROLLMENT-001/002.*
 
-Le **pinning est obligatoire**, sans repli silencieux : l'agent `log.Fatal` au boot si
-aucune clé serveur n'est configurée ; `Enroll()` refuse sans elle ; `install-agent.sh`
-exige `--server-public-key-file`.
+**Pinning is mandatory**, with no silent fallback: the agent `log.Fatal`s at boot if
+no server key is configured; `Enroll()` refuses without it; `install-agent.sh`
+requires `--server-public-key-file`.
 
-> **Pour l'auditeur.** `agent/cmd/nexus-agent/main.go:211-215` (log.Fatal),
-> `enrollment.go:108-110` (refus), `scripts/install-agent.sh:265-269` (flag requis).
+> **For the auditor.** `agent/cmd/nexus-agent/main.go:211-215` (log.Fatal),
+> `enrollment.go:108-110` (refusal), `scripts/install-agent.sh:265-269` (flag required).
 > *Finding ENROLLMENT-003 (GUARD).*
 
-#### Canal runtime — protocole v2 versionné, signé message par message
+#### Runtime channel — versioned protocol v2, signed message by message
 
-À chaque connexion, agent et backend exécutent un **handshake ECDHE X25519** (forward
-secrecy : compromettre une clé long-terme ne déchiffre pas les sessions passées). Ensuite,
-**chaque message authentifié est vérifié par signature**, avec un nonce anti-rejeu, et la
-**version du protocole est liée dans la signature** (un attaquant ne peut pas déclasser
-vers un protocole v1 plus faible).
+On every connection, agent and backend perform an **ECDHE X25519 handshake** (forward
+secrecy: compromising a long-term key does not decrypt past sessions). Then,
+**each authenticated message is verified by signature**, with an anti-replay nonce, and the
+**protocol version is bound into the signature** (an attacker cannot downgrade
+to a weaker v1 protocol).
 
-> **Pour l'auditeur.** Handshake : `agent/internal/security/handshake.go:40-111`,
-> `backend/src/services/session-handshake.ts:57-62` (clés éphémères X25519, jamais
-> persistées). Vérif par-message : le backend revérifie *littéralement chaque* message
-> authentifié contre la pubkey relue en DB (`backend/src/websocket/handler.ts:89-95`, pas
-> de cache — finding CRYPTO-003). Côté agent, la signature serveur est vérifiée sur les
-> messages déclenchant une action sensible (`action.request` `main.go:409-421`,
-> `action.confirm` `main.go:433-445`) et sur l'ack du handshake ; `ping`/`error` ne sont pas
-> signés mais ne déclenchent aucune action. Anti-rejeu : `server_verify.go:39-58` (nonce
-> mémorisé après vérif, CRYPTO-005). Version en tête du payload signé :
-> `crypto.go:184-191`, vérifiée d'abord (`server_verify.go:70-72`). *Findings
+> **For the auditor.** Handshake: `agent/internal/security/handshake.go:40-111`,
+> `backend/src/services/session-handshake.ts:57-62` (ephemeral X25519 keys, never
+> persisted). Per-message verification: the backend re-verifies *literally every* authenticated
+> message against the pubkey re-read from the DB (`backend/src/websocket/handler.ts:89-95`, no
+> cache — finding CRYPTO-003). On the agent side, the server signature is verified on
+> messages triggering a sensitive action (`action.request` `main.go:409-421`,
+> `action.confirm` `main.go:433-445`) and on the handshake ack; `ping`/`error` are not
+> signed but trigger no action. Anti-replay: `server_verify.go:39-58` (nonce
+> memorized after verification, CRYPTO-005). Version at the head of the signed payload:
+> `crypto.go:184-191`, verified first (`server_verify.go:70-72`). *Findings
 > CRYPTO-003/004/005.*
 
-#### Repos — `agent.key` chiffré, lié à la machine
+#### Rest — `agent.key` encrypted, bound to the machine
 
-La clé d'identité est **chiffrée au repos** (AES-256-GCM) avec une clé dérivée du
-`machine-id` de l'hôte + un sel d'installation. Une copie *isolée* du fichier de clé, sans
-le contexte de la machine, est inutilisable ; recopiée sur une autre machine, elle ne
-déchiffre pas.
+The identity key is **encrypted at rest** (AES-256-GCM) with a key derived from the
+host's `machine-id` + an install salt. An *isolated* copy of the key file, without
+the machine context, is unusable; copied onto another machine, it does not
+decrypt.
 
-> **Pour l'auditeur.** `agent/internal/security/keystore.go:53-102` (`wrappingKey()` =
-> HKDF sur `/etc/machine-id` + sel `/etc/nexus/agent-keysalt`, fail-closed si machine-id
-> vide ou sel < 16 octets ; format `nonce:ciphertext`, PEM clair jamais sur disque ;
-> auto-migration legacy sans résidu clair `:187-231`). Sel généré à
-> `install-agent.sh:668-672` (`root:nexus-agent 0640`). **Limite cruciale en §6.**
+> **For the auditor.** `agent/internal/security/keystore.go:53-102` (`wrappingKey()` =
+> HKDF over `/etc/machine-id` + salt `/etc/nexus/agent-keysalt`, fail-closed if machine-id
+> is empty or salt < 16 bytes; format `nonce:ciphertext`, cleartext PEM never on disk;
+> legacy auto-migration with no cleartext residue `:187-231`). Salt generated at
+> `install-agent.sh:668-672` (`root:nexus-agent 0640`). **Crucial limitation in §6.**
 > *Finding CRYPTO-001.*
 
-#### Sommet — auto-upgrade signé minisign, fail-closed
+#### Summit — minisign-signed auto-upgrade, fail-closed
 
-Une mise à jour de l'agent n'est installée que si le binaire est accompagné d'une
-**signature minisign détachée**, vérifiée contre une clé de release **déployée hors-ligne
-par l'opérateur** (jamais fournie par le backend). Signature manquante, invalide, ou clé
-release absente ⇒ **refus** (fail-closed), avant toute installation. L'URL de
-téléchargement est épinglée sur le backend enrôlé (anti-SSRF / anti-exfiltration du token).
+An agent update is installed only if the binary is accompanied by a
+**detached minisign signature**, verified against a release key **deployed offline
+by the operator** (never provided by the backend). Missing signature, invalid signature, or
+absent release key ⇒ **refusal** (fail-closed), before any installation. The download
+URL is pinned on the enrolled backend (anti-SSRF / anti-token-exfiltration).
 
-> **Pour l'auditeur.** `agent/internal/actions/agent_upgrade.go` : clé locale
-> `/etc/nexus/release.pub` (`:116,198-201`), refus si signature/clé absentes (`:198-213`),
-> vérif AVANT install + suppression du staging si invalide (`:296-299`), pin du
-> `download_url` sur l'hôte pinné avant envoi du bearer (`validateDownloadURL :33-49`,
-> `:231-236`). Anti-rollback (`:215-229`), anti-TOCTOU re-hash avant install (`:317-324`).
-> `LoadMinisignAcceptList` renvoie toujours une erreur plutôt qu'une liste vide
-> (`minisign_verify.go:23-44`). *Findings SELF-UPGRADE-001 à 005.*
+> **For the auditor.** `agent/internal/actions/agent_upgrade.go`: local key
+> `/etc/nexus/release.pub` (`:116,198-201`), refusal if signature/key absent (`:198-213`),
+> verification BEFORE install + deletion of the staging area if invalid (`:296-299`), pinning of the
+> `download_url` on the pinned host before sending the bearer (`validateDownloadURL :33-49`,
+> `:231-236`). Anti-rollback (`:215-229`), anti-TOCTOU re-hash before install (`:317-324`).
+> `LoadMinisignAcceptList` always returns an error rather than an empty list
+> (`minisign_verify.go:23-44`). *Findings SELF-UPGRADE-001 to 005.*
 
-### 5.2 Le confinement de l'agent — borner la surface root
+### 5.2 Agent confinement — bounding the root surface
 
-Le pouvoir de l'agent est root (affirmation A), mais sa *surface* est étroite et vérifiée.
+The agent's power is root (claim A), but its *surface* is narrow and verified.
 
-- **Le process agent tourne dépouillé.** Utilisateur non-root `nexus-agent`, aucune
-  *capability* ambiante, et `CAP_DAC_READ_SEARCH` + `CAP_SYS_PTRACE` retirées du bounding
-  set de toute l'unité (on ne peut pas contourner les permissions de fichiers ni inspecter
-  d'autres process). Durcissement systemd complémentaire : `ProtectHome`, `PrivateTmp`,
+- **The agent process runs stripped down.** Non-root user `nexus-agent`, no
+  ambient *capability*, and `CAP_DAC_READ_SEARCH` + `CAP_SYS_PTRACE` removed from the bounding
+  set of the whole unit (one cannot bypass file permissions nor inspect
+  other processes). Complementary systemd hardening: `ProtectHome`, `PrivateTmp`,
   `ProtectKernel*`, `RestrictRealtime`, `LockPersonality`, `RestrictAddressFamilies`…
 
-> **Pour l'auditeur.** `scripts/install-agent.sh:707-784` (heredoc du `.service`) :
-> `AmbientCapabilities=` vide (`:753`), `CapabilityBoundingSet=~CAP_DAC_READ_SEARCH
-> CAP_SYS_PTRACE` (`:764`). *Nuance honnête : `~` est une **négation**, pas une allow-list*
-> — le bounding set par défaut moins ces deux caps. Une allow-list plafonnerait aussi les
-> enfants `sudo` (apt/netplan/useradd) et casserait les actions. `SystemCallFilter` est
-> volontairement absent (sudo SUID nécessaire). Le confinement repose donc sur sudoers +
-> `Protect*` ciblés, **pas** sur un sandbox seccomp. *Finding AGENT-002.*
+> **For the auditor.** `scripts/install-agent.sh:707-784` (heredoc of the `.service`):
+> `AmbientCapabilities=` empty (`:753`), `CapabilityBoundingSet=~CAP_DAC_READ_SEARCH
+> CAP_SYS_PTRACE` (`:764`). *Honest nuance: `~` is a **negation**, not an allow-list*
+> — the default bounding set minus those two caps. An allow-list would also cap the
+> `sudo` children (apt/netplan/useradd) and break the actions. `SystemCallFilter` is
+> deliberately absent (SUID sudo required). Confinement therefore rests on sudoers +
+> targeted `Protect*`, **not** on a seccomp sandbox. *Finding AGENT-002.*
 
-- **Les mutations privilégiées passent par un privhelper compilé**, pas par des wildcards
-  sudoers. Le drop-in `/etc/sudoers.d/nexus-agent` n'autorise pas `useradd *` ni
-  `install …*/…` à destination arbitraire ; il appelle un binaire Go root-owned (pas
-  d'interpréteur shell invocable) qui **valide ses entrées** : login POSIX strict, `--`
-  qui termine le parsing d'options (`-o`/`-u 0` impossibles), sources résolues par
-  `realpath` confinées au répertoire d'état agent, destinations fixes ou validées.
+- **Privileged mutations go through a compiled privhelper**, not through sudoers
+  wildcards. The drop-in `/etc/sudoers.d/nexus-agent` does not allow `useradd *` nor
+  `install …*/…` to an arbitrary destination; it calls a root-owned Go binary (no
+  invocable shell interpreter) that **validates its inputs**: strict POSIX
+  login, `--` that terminates option parsing (`-o`/`-u 0` impossible), sources resolved by
+  `realpath` confined to the agent state directory, fixed or validated destinations.
 
-> **Pour l'auditeur.** Privhelper : `agent/internal/privhelper/privhelper.go` (useradd
+> **For the auditor.** Privhelper: `agent/internal/privhelper/privhelper.go` (useradd
 > `:114-131`, install-* `:133-183` via `resolveUnderStaging :78-92` + `EvalSymlinks`, svc
-> `:221-240`). Sudoers : `install-agent.sh:344-531` (`env_reset`+`secure_path` scopés
-> `:356-357`, ligne privhelper `:408`, `NOEXEC:` sur apt/dnf `:379-392`, validé `visudo -cf`
-> avant install atomique `:545-550`). *Nuance honnête : des wildcards d'**arguments**
-> légitimes subsistent (`ufw allow *`, `apt-mark hold *`, `userdel -r *`, `cat
-> /home/*/.ssh/authorized_keys`, `pvs -o *`) — aucun n'invoque d'interpréteur, mais ils ne
-> sont pas argument-exacts ; et les `install` à **destination littérale** écrivent un
-> contenu contrôlé par l'agent vers des chemins fixes (`/etc/fail2ban/jail.local`, etc.).*
+> `:221-240`). Sudoers: `install-agent.sh:344-531` (`env_reset`+`secure_path` scoped
+> `:356-357`, privhelper line `:408`, `NOEXEC:` on apt/dnf `:379-392`, validated `visudo -cf`
+> before atomic install `:545-550`). *Honest nuance: some legitimate **argument** wildcards
+> remain (`ufw allow *`, `apt-mark hold *`, `userdel -r *`, `cat
+> /home/*/.ssh/authorized_keys`, `pvs -o *`) — none invoke an interpreter, but they are
+> not argument-exact; and the `install`s to a **literal destination** write
+> agent-controlled content to fixed paths (`/etc/fail2ban/jail.local`, etc.).*
 > *Findings AGENT-001/003/006/008/009.*
 
-- **`find` épinglé.** L'action `ssl.scan` énumère les certificats via un `find` à prédicat
-  fixe (racines figées, `-maxdepth 4 -type f -name *.pem -o … *.crt`), byte-identique à la
-  ligne sudoers — aucun `-exec` injectable.
+- **`find` pinned.** The `ssl.scan` action enumerates certificates via a `find` with a fixed
+  predicate (frozen roots, `-maxdepth 4 -type f -name *.pem -o … *.crt`), byte-identical to the
+  sudoers line — no injectable `-exec`.
 
-> **Pour l'auditeur.** `agent/internal/actions/ssl_scan.go:111-124`, identique à
+> **For the auditor.** `agent/internal/actions/ssl_scan.go:111-124`, identical to
 > `install-agent.sh:487`. *Finding AGENT-001.*
 
-- **`script.execute` est opt-in, désactivé par défaut, derrière trois verrous
-  indépendants** (chacun bloque seul) : (a) la ligne sudoers `nexus-script` n'est écrite
-  qu'avec `--allow-remote-script` à l'install ; (b) le backend refuse au dispatch sans
-  `ALLOW_REMOTE_SCRIPT=true` ; (c) l'agent vérifie une signature minisign détachée du
-  script (`script_sig`) avant toute écriture/exécution. Et `script.execute` est
+- **`script.execute` is opt-in, disabled by default, behind three independent
+  locks** (each blocks on its own): (a) the `nexus-script` sudoers line is only written
+  with `--allow-remote-script` at install time; (b) the backend refuses at dispatch without
+  `ALLOW_REMOTE_SCRIPT=true`; (c) the agent verifies a detached minisign signature of the
+  script (`script_sig`) before any write/execution. And `script.execute` is
   **ADMIN-only**.
 
-> **Pour l'auditeur.** (a) `install-agent.sh:534-540` ; (b)
-> `backend/src/services/privileged-actions.ts:39-61` + dispatch central
-> `action-dispatcher.ts:67-70` ; (c) `agent/internal/actions/script_execute.go:44-61` +
-> `minisign_verify.go:23-44` (fail-closed). ADMIN-only : `ADMIN_ONLY_ACTIONS =
-> {"script.execute", "process.kill"}` (`privileged-actions.ts:29`). **`process.kill` est
-> lui aussi ADMIN-only** : c'est une primitive *destructrice à impact arbitraire* (tuer
-> n'importe quel PID = DoS/perte de données du workload, sans reprise supervisée), et sa
-> seule protection runtime est une **denylist de services critiques (incomplète par
-> nature** : un workload non listé — DB custom, broker, app métier, autre reverse-proxy —
-> est tuable sans garde). Le gate ADMIN couvre ce résiduel. C'est cohérent avec
-> `script.execute`, l'autre membre du bucket `ALLOW_REMOTE_SCRIPT` : les deux primitives
-> root à impact arbitraire exigent le même rôle. Rappel : `process.kill` refuse en plus son
-> propre PID et celui des services critiques résolus en live (§ auto-protection).
+> **For the auditor.** (a) `install-agent.sh:534-540`; (b)
+> `backend/src/services/privileged-actions.ts:39-61` + central dispatch
+> `action-dispatcher.ts:67-70`; (c) `agent/internal/actions/script_execute.go:44-61` +
+> `minisign_verify.go:23-44` (fail-closed). ADMIN-only: `ADMIN_ONLY_ACTIONS =
+> {"script.execute", "process.kill"}` (`privileged-actions.ts:29`). **`process.kill` is
+> also ADMIN-only**: it is an *arbitrary-impact destructive* primitive (killing
+> any PID = DoS/data loss of the workload, with no supervised recovery), and its
+> only runtime protection is a **denylist of critical services (incomplete by
+> nature**: an unlisted workload — custom DB, broker, business app, another reverse-proxy —
+> is killable without a guard). The ADMIN gate covers this residual. It is consistent with
+> `script.execute`, the other member of the `ALLOW_REMOTE_SCRIPT` bucket: both arbitrary-impact
+> root primitives require the same role. Reminder: `process.kill` additionally refuses its
+> own PID and that of the critical services resolved live (§ self-protection).
 > *Findings AGENT-004/005.*
 
-- **L'agent ne peut pas se saboter lui-même.** Stop/restart du service `nexus-agent`
-  refusés ; `process.kill` refuse son propre PID et le MainPID (résolu en live) des
-  services critiques (ssh, docker, postgres, nginx, containerd…). Défense en profondeur
-  sur 3 couches (action Go, privhelper, garde kill).
+- **The agent cannot sabotage itself.** Stop/restart of the `nexus-agent` service
+  refused; `process.kill` refuses its own PID and the MainPID (resolved live) of the
+  critical services (ssh, docker, postgres, nginx, containerd…). Defense in depth
+  over 3 layers (Go action, privhelper, kill guard).
 
-> **Pour l'auditeur.** `agent/internal/actions/services.go:23-154`,
-> `privhelper.go:45-49,234-238`, `process_kill.go:33-43,74-76,109-111`. *Nuance : la garde
-> kill protège une **liste** de services critiques résolus en live ; un service critique
-> hors liste (autre reverse-proxy que nginx, p. ex.) n'est pas couvert.*
+> **For the auditor.** `agent/internal/actions/services.go:23-154`,
+> `privhelper.go:45-49,234-238`, `process_kill.go:33-43,74-76,109-111`. *Nuance: the kill
+> guard protects a **list** of critical services resolved live; a critical service
+> off the list (a reverse-proxy other than nginx, e.g.) is not covered.*
 
-### 5.3 La frontière web du backend
+### 5.3 The backend's web boundary
 
-- **L'autorisation est autoritaire côté serveur**, sur *tous* les chemins de dispatch
-  (sync, async, bulk, batch). Le frontend (et les *feature flags* exposés par
-  `/api/auth/config`) est **purement indicatif** — jamais l'autorité.
+- **Authorization is server-side authoritative**, on *all* dispatch paths
+  (sync, async, bulk, batch). The frontend (and the *feature flags* exposed by
+  `/api/auth/config`) is **purely indicative** — never the authority.
 
-  > **Invariant pour les contributeurs.** Le RBAC distingue deux mondes au point de
-  > dispatch : un appel portant un `userRole` (requête d'un opérateur authentifié, soumis à
-  > l'échelle ADMIN/OPERATOR/READONLY) et un appel **sans rôle** (`userRole === undefined`),
-  > traité comme un appel **système interne de confiance** qui contourne le RBAC (utilisé
-  > par l'alert-engine, l'auto-upgrade…). **Toute la sûreté du RBAC repose sur cet
-  > invariant : aucun chemin atteignable par un utilisateur ne doit appeler `dispatchAction`
-  > sans rôle.** Il tient aujourd'hui parce que tout JWT émis porte un rôle et que chaque
-  > route HTTP propage `user.role`. *Si vous ajoutez un point d'entrée vers `dispatchAction`,
-  > il DOIT passer le rôle de l'appelant — sinon vous ouvrez un contournement complet du
-  > RBAC.* Les actions privilégiées (§ ci-dessous) sont volontairement fail-closed même pour
-  > `undefined`, mais le reste des mutations ne l'est pas.
+  > **Invariant for contributors.** The RBAC distinguishes two worlds at the
+  > dispatch point: a call carrying a `userRole` (request from an authenticated operator, subject to
+  > the ADMIN/OPERATOR/READONLY ladder) and a call **without a role** (`userRole === undefined`),
+  > treated as a **trusted internal system call** that bypasses the RBAC (used
+  > by the alert-engine, the auto-upgrade…). **The entire safety of the RBAC rests on this
+  > invariant: no user-reachable path must call `dispatchAction`
+  > without a role.** It holds today because every issued JWT carries a role and because each
+  > HTTP route propagates `user.role`. *If you add an entry point to `dispatchAction`,
+  > it MUST pass the caller's role — otherwise you open a complete bypass of the
+  > RBAC.* The privileged actions (§ below) are deliberately fail-closed even for
+  > `undefined`, but the rest of the mutations are not.
 
-> **Pour l'auditeur.** `dispatchAction()` applique en tête, avant toute I/O :
-> `checkRoleForAction` (READONLY borné à `READ_ONLY_ACTIONS`, OPERATOR mutations, ADMIN
+> **For the auditor.** `dispatchAction()` applies at the head, before any I/O:
+> `checkRoleForAction` (READONLY bounded to `READ_ONLY_ACTIONS`, OPERATOR mutations, ADMIN
 > `script.execute`/`process.kill`), `checkPrivilegedAction`, `checkRemoteScriptAction`,
-> `checkCriticalProtection` — `backend/src/services/action-dispatcher.ts:39-90`. Tous les
-> appelants passent le rôle (`routes/actions.ts`, `routes/bulk.ts`, `routes/security.ts`).
-> Le bypass `userRole === undefined` est en `privileged-actions.ts:78-79`. Flags indicatifs
-> documentés `routes/auth.ts:31-38`. *Findings WEB-AUTHZ-004/007.*
+> `checkCriticalProtection` — `backend/src/services/action-dispatcher.ts:39-90`. All the
+> callers pass the role (`routes/actions.ts`, `routes/bulk.ts`, `routes/security.ts`).
+> The `userRole === undefined` bypass is at `privileged-actions.ts:78-79`. Indicative flags
+> documented at `routes/auth.ts:31-38`. *Findings WEB-AUTHZ-004/007.*
 
-- **Anti-CSWSH sur le WebSocket dashboard.** L'Origin est validée en exact-match contre
-  `FRONTEND_URL` ; origine inconnue ⇒ rejet (fail-closed).
+- **Anti-CSWSH on the dashboard WebSocket.** The Origin is validated in exact-match against
+  `FRONTEND_URL`; unknown origin ⇒ rejection (fail-closed).
 
-> **Pour l'auditeur.** `backend/src/websocket/server.ts:230-235`. *Nuance honnête : le
-> WebSocket **agent** (`/ws/agent`) n'a, lui, **pas** de contrôle d'Origin — c'est
-> intentionnel : un agent est un client non-navigateur sans Origin, authentifié par
-> handshake/signature, pas par Origin (`server.ts:111-115,202-214`). CSWSH est une menace
-> navigateur ; elle ne s'applique qu'au dashboard.* *Finding CONTROL-PLANE-001.*
+> **For the auditor.** `backend/src/websocket/server.ts:230-235`. *Honest nuance: the
+> **agent** WebSocket (`/ws/agent`) has, for its part, **no** Origin check — this is
+> intentional: an agent is a non-browser client with no Origin, authenticated by
+> handshake/signature, not by Origin (`server.ts:111-115,202-214`). CSWSH is a browser
+> threat; it applies only to the dashboard.* *Finding CONTROL-PLANE-001.*
 
-- **Garde SSRF sur tout le trafic HTTP sortant.** Toute URL sortante passe par
-  `assertSafeOutboundUrl` + `safeFetch` : schéma http/https uniquement, refus des
-  credentials embarqués, **blocage des cibles en réseau privé** (10/8, 172.16/12,
-  192.168/16, 169.254/16, loopback, CGNAT…), refus des redirections, et **blocage
-  synchrone des IP littérales** (le correctif qui ferme le contournement undici, lequel
-  saute le hook DNS pour un littéral). Anti-rebinding par épinglage de l'adresse résolue.
+- **SSRF guard on all outbound HTTP traffic.** Every outbound URL goes through
+  `assertSafeOutboundUrl` + `safeFetch`: http/https scheme only, refusal of
+  embedded credentials, **blocking of private-network targets** (10/8, 172.16/12,
+  192.168/16, 169.254/16, loopback, CGNAT…), refusal of redirects, and **synchronous
+  blocking of literal IPs** (the fix that closes the undici bypass, which
+  skips the DNS hook for a literal). Anti-rebinding via pinning of the resolved
+  address.
 
-> **Pour l'auditeur.** `backend/src/services/net-guard.ts:28-166`. Call-sites tous gardés :
+> **For the auditor.** `backend/src/services/net-guard.ts:28-166`. Call-sites all guarded:
 > webhook (`webhook.ts:30,47,71`), notifications (`notifications.ts:353,357`), nautilus
-> (`nautilus-integration.ts:148,159`), apt-catalog (`apt-catalog.ts:89,90`). **Hors
-> périmètre du guard (cf. §6) : `keycloak.ts` (JWKS, URL issue de l'env admin
-> `KEYCLOAK_URL`) et `email.ts` (SMTP, non-HTTP, host issu d'un setting admin-only).**
+> (`nautilus-integration.ts:148,159`), apt-catalog (`apt-catalog.ts:89,90`). **Outside
+> the guard's scope (cf. §6): `keycloak.ts` (JWKS, URL from the admin env
+> `KEYCLOAK_URL`) and `email.ts` (SMTP, non-HTTP, host from an admin-only setting).**
 > *Finding WEB-AUTHZ-001.*
 
-- **`/metrics` fermé.** Si `METRICS_TOKEN` est défini, l'accès exige un `Bearer` (comparé
-  en temps constant) ; token absent/faux ⇒ 401. *Additif* au scoping réseau.
+- **`/metrics` closed.** If `METRICS_TOKEN` is defined, access requires a `Bearer` (compared
+  in constant time); absent/wrong token ⇒ 401. *Additive* to the network scoping.
 
-> **Pour l'auditeur.** `backend/src/services/prometheus.ts:204-220`. *Nuance : sans
-> `METRICS_TOKEN`, l'endpoint repose entièrement sur le scoping réseau — voir §7.* *Finding
+> **For the auditor.** `backend/src/services/prometheus.ts:204-220`. *Nuance: without
+> `METRICS_TOKEN`, the endpoint rests entirely on network scoping — see §7.* *Finding
 > WEB-AUTHZ-005.*
 
-- **Anti-mass-assignment.** Le `PUT` d'une règle d'alerte n'accepte que des champs
-  explicitement listés (schéma `additionalProperties:false` + allow-list, jamais de spread
-  du body), et est ADMIN-only.
+- **Anti-mass-assignment.** The `PUT` of an alert rule accepts only fields
+  explicitly listed (schema `additionalProperties:false` + allow-list, never a spread
+  of the body), and is ADMIN-only.
 
-> **Pour l'auditeur.** `backend/src/routes/alerts.ts:145-203`. *Finding WEB-AUTHZ-003.*
+> **For the auditor.** `backend/src/routes/alerts.ts:145-203`. *Finding WEB-AUTHZ-003.*
 
-- **Actions de privilège utilisateur verrouillées.** `sshkey.add/remove`,
-  `user.update_sudo`, et `user.create` avec `sudo:true` créent un accès qui *survit à la
-  désinstallation de l'agent* (non révocable par Nexus). Elles sont **désactivées par
-  défaut** (`ALLOW_USER_PRIVILEGE_MGMT=true` pour activer) **et ADMIN-only**, gatées
-  centralement dans le dispatch (couvre sync/async/bulk/batch). Les lectures
-  (`user.list`/`sshkey.list`) restent ouvertes.
+- **User-privilege actions locked.** `sshkey.add/remove`,
+  `user.update_sudo`, and `user.create` with `sudo:true` create access that *survives the
+  uninstallation of the agent* (non-revocable by Nexus). They are **disabled by
+  default** (`ALLOW_USER_PRIVILEGE_MGMT=true` to enable) **and ADMIN-only**, gated
+  centrally in the dispatch (covers sync/async/bulk/batch). The reads
+  (`user.list`/`sshkey.list`) remain open.
 
-> **Pour l'auditeur.** `backend/src/services/privileged-actions.ts:16-159` (double verrou
-> flag + ADMIN), gate `action-dispatcher.ts:55-62`. La variante `user.create{sudo:true}`
-> est bien traitée comme privilégiée (`:123-130`).
+> **For the auditor.** `backend/src/services/privileged-actions.ts:16-159` (double lock
+> flag + ADMIN), gate `action-dispatcher.ts:55-62`. The `user.create{sudo:true}` variant
+> is indeed treated as privileged (`:123-130`).
 
 ---
 
-## 6. Ce qui n'est PAS protégé — limites assumées
+## 6. What is NOT protected — assumed limitations
 
-**C'est la section la plus importante de ce document.** Chaque limite ci-dessous est réelle
-et assumée. Les lire, c'est savoir ce que Nexus *ne* fait *pas* pour vous.
+**This is the most important section of this document.** Each limitation below is real
+and assumed. Reading them means knowing what Nexus *does not* do for you.
 
-### 6.1 Vol d'un disque / snapshot / backup complet
+### 6.1 Theft of a full disk / snapshot / backup
 
-Le chiffrement at-rest d'`agent.key` (§5.1) protège une copie *isolée* du fichier de clé.
-Il **ne protège PAS un snapshot ou un backup disque complet** de l'hôte d'un agent. Le
-`machine-id` et le sel voyagent *avec le disque* : un attaquant détenant une image complète
-re-dérive la clé d'habillage et déchiffre `agent.key`.
+The at-rest encryption of `agent.key` (§5.1) protects an *isolated* copy of the key file.
+It **does NOT protect a full disk snapshot or backup** of an agent's host. The
+`machine-id` and the salt travel *with the disk*: an attacker holding a complete image
+re-derives the wrapping key and decrypts `agent.key`.
 
-**Concrètement** : un snapshot Proxmox, un backup PBS, ou tout backup pleine-image d'un
-hôte d'agent **contient l'identité de cet agent**. Traitez ces backups comme des secrets.
+**Concretely**: a Proxmox snapshot, a PBS backup, or any full-image backup of an
+agent's host **contains that agent's identity**. Treat these backups as secrets.
 
-Seul un scellement matériel **TPM 2.0** (clé non-exportable) fermerait ce cas — **non
-implémenté** (roadmap, opt-in matériel : DEF-1). *(Finding RB-4 / CRYPTO-001.)*
+Only a hardware **TPM 2.0** seal (non-exportable key) would close this case — **not
+implemented** (roadmap, hardware opt-in: DEF-1). *(Finding RB-4 / CRYPTO-001.)*
 
-### 6.2 Pas d'isolation entre locataires
+### 6.2 No isolation between tenants
 
-Rappel de l'affirmation B (§4) : une instance = un domaine de confiance unique. Tout
-OPERATOR agit sur tout l'hôte, tout READONLY lit tout l'hôte. **Ce n'est pas une faille
-réparable par configuration** — c'est le modèle. Pour des locataires méfiants : instances
-séparées.
+Reminder of claim B (§4): one instance = a single trust domain. Every
+OPERATOR acts on the whole host, every READONLY reads the whole host. **This is not a flaw
+fixable by configuration** — it is the model. For distrusting tenants: separate
+instances.
 
-### 6.3 La garde anti-SSRF bloque le réseau privé par défaut
+### 6.3 The anti-SSRF guard blocks the private network by default
 
-C'est une protection, mais elle a une **conséquence opérationnelle à connaître** pour ne
-pas la prendre pour un bug : par défaut, le guard bloque toute notification/sortie HTTP
-vers une cible en réseau privé (10.x / 172.16.x / 192.168.x / 169.254.x / loopback).
+This is a protection, but it has an **operational consequence to know** so as not
+to mistake it for a bug: by default, the guard blocks any notification/HTTP output
+toward a private-network target (10.x / 172.16.x / 192.168.x / 169.254.x / loopback).
 
-- Notifier un service **externe** (Discord, Slack, un webhook public) fonctionne sans
+- Notifying an **external** service (Discord, Slack, a public webhook) works without
   configuration.
-- Notifier un service **interne auto-hébergé** (ntfy / Gotify / un webhook sur le LAN,
-  un miroir APT en 10.x) **échouera** tant qu'une **allow-list opérateur** n'existe pas.
-  Cette allow-list **n'est pas encore implémentée** (tête de roadmap post-v1). Les
-  métadonnées cloud (169.254.169.254) ne seront jamais allow-listables.
+- Notifying an **internal self-hosted** service (ntfy / Gotify / a webhook on the LAN,
+  an APT mirror on 10.x) **will fail** until an **operator allow-list** exists.
+  This allow-list is **not yet implemented** (top of the post-v1 roadmap). Cloud
+  metadata (169.254.169.254) will never be allow-listable.
 
-À dire explicitement : si votre notification interne « ne part pas », ce n'est pas une
-panne — c'est le guard SSRF qui fait son travail.
+To state explicitly: if your internal notification "does not go out", it is not a
+failure — it is the SSRF guard doing its job.
 
-### 6.4 Sorties non couvertes par la garde SSRF : Keycloak (JWKS) et SMTP
+### 6.4 Outputs not covered by the SSRF guard: Keycloak (JWKS) and SMTP
 
-Deux canaux sortants ne passent **pas** par la garde anti-SSRF, parce qu'ils ne sont pas du
-trafic HTTP-vers-URL-contrôlable-par-un-attaquant :
+Two outbound channels do **not** go through the anti-SSRF guard, because they are not
+HTTP-to-attacker-controllable-URL traffic:
 
-- **`KEYCLOAK_URL`** (récupération JWKS) : URL fixée par l'opérateur dans l'environnement,
-  même classe de confiance que `DATABASE_URL`. Pas d'entrée runtime attaquant-contrôlable.
-- **Relais SMTP** (`email.ts`) : egress SMTP (non-HTTP, donc hors du guard HTTP), host issu
-  d'un setting **ADMIN-only**. Un relais interne est souvent légitime.
+- **`KEYCLOAK_URL`** (JWKS retrieval): URL fixed by the operator in the environment,
+  same trust class as `DATABASE_URL`. No attacker-controllable runtime input.
+- **SMTP relay** (`email.ts`): SMTP egress (non-HTTP, therefore outside the HTTP guard), host from
+  an **admin-only** setting. An internal relay is often legitimate.
 
-Ce ne sont **pas** des trous SSRF exploitables au runtime par un attaquant non privilégié.
-Ils sont signalés par honnêteté : un *administrateur* qui écrit ces réglages peut pointer
-vers un host interne (mais un admin a déjà bien d'autres pouvoirs). Un guard JWKS/SMTP est
-une décision ultérieure, pas un correctif urgent.
+These are **not** SSRF holes exploitable at runtime by an unprivileged attacker.
+They are flagged out of honesty: an *administrator* who writes these settings can point
+to an internal host (but an admin already has plenty of other powers). A JWKS/SMTP guard is
+a later decision, not an urgent fix.
 
-### 6.5 Backend compromis : peut commander, l'audit n'est pas WORM
+### 6.5 Compromised backend: can command, the audit is not WORM
 
-Un backend de confiance *peut* émettre des actions root (affirmation A). Si le backend est
-compromis, l'attaquant hérite de ce pouvoir. Deux nuances :
+A trusted backend *can* issue root actions (claim A). If the backend is
+compromised, the attacker inherits this power. Two nuances:
 
-- L'auto-upgrade reste protégé (le backend ne peut pas pousser un binaire non signé — §5.1).
-- L'audit côté agent (journald, append-only) est *tamper-evident* vis-à-vis de l'agent,
-  mais **un puits WORM externe (write-once) n'est pas en place.** Un attaquant avec un
-  pouvoir suffisant sur l'hôte de log pourrait, à terme, altérer l'historique. Exporter
-  les logs vers un sink immuable externe relève de l'opérateur.
+- The auto-upgrade remains protected (the backend cannot push an unsigned binary — §5.1).
+- The agent-side audit (journald, append-only) is *tamper-evident* with respect to the agent,
+  but **an external WORM (write-once) sink is not in place.** An attacker with
+  sufficient power over the log host could, eventually, alter the history. Exporting
+  the logs to an external immutable sink is the operator's responsibility.
 
-### 6.6 Attaquant déjà root sur l'hôte d'un agent
+### 6.6 Attacker already root on an agent's host
 
-Hors périmètre (rappel §3) : il est déjà au sommet de cette machine. Le confinement de
-l'agent borne ce que *Nexus* fait faire à l'agent ; il ne défend pas une machine déjà
-tombée.
+Out of scope (reminder §3): they are already at the top of that machine. Agent
+confinement bounds what *Nexus* makes the agent do; it does not defend a machine already
+fallen.
 
 ---
 
-## 7. Responsabilités de l'opérateur
+## 7. Operator responsibilities
 
-Le modèle ci-dessus **ne tient que si** les conditions suivantes sont vraies au
-déploiement. Ce sont *vos* responsabilités ; Nexus ne peut pas les garantir à votre place.
+The model above **holds only if** the following conditions are true at
+deployment. These are *your* responsibilities; Nexus cannot guarantee them in your stead.
 
-### 7.1 Générer des secrets FORTS — jamais les valeurs par défaut
+### 7.1 Generate STRONG secrets — never the default values
 
-`JWT_SECRET`, `ECDSA_MASTER_SECRET` (et `METRICS_TOKEN` si vous l'activez) doivent être
-forts et uniques. Les casser permet de forger un rôle ADMIN ou des ordres d'agent (§2).
+`JWT_SECRET`, `ECDSA_MASTER_SECRET` (and `METRICS_TOKEN` if you enable it) must be
+strong and unique. Breaking them allows forging an ADMIN role or agent orders (§2).
 
-- `openssl rand -hex 32` (≈ 256 bits) au minimum, par secret, distincts entre eux.
-- Nexus **refuse de démarrer** (échec bruyant au boot, finding CONTROL-PLANE-005) si
-  `JWT_SECRET`/`ECDSA_MASTER_SECRET` sont : absents, de moins de 32 caractères, une valeur
-  *placeholder* connue (`changeme`, `secret`, `password`, `default`, `example`… — y compris
-  répétée/paddée pour atteindre 32 car., type `changeme_changeme_changeme_changeme`), ou à
-  entropie nulle (un seul caractère répété). `METRICS_TOKEN` est optionnel, mais **s'il est
-  défini** il est soumis aux mêmes contrôles (fatal si faible).
+- `openssl rand -hex 32` (≈ 256 bits) at minimum, per secret, distinct from each other.
+- Nexus **refuses to start** (noisy failure at boot, finding CONTROL-PLANE-005) if
+  `JWT_SECRET`/`ECDSA_MASTER_SECRET` are: absent, less than 32 characters, a known
+  *placeholder* value (`changeme`, `secret`, `password`, `default`, `example`… — including
+  repeated/padded to reach 32 chars, e.g. `changeme_changeme_changeme_changeme`), or of
+  zero entropy (a single repeated character). `METRICS_TOKEN` is optional, but **if it is
+  defined** it is subject to the same checks (fatal if weak).
 
-> **Pourquoi cette garde.** La longueur seule ne suffit pas : un placeholder copié de la
-> doc franchit 32 caractères tout en restant deviné d'avance. Même principe que la garde
-> `wss://` obligatoire — un défaut qui casse la sécurité en silence est pire qu'un échec
-> bruyant. Détail : un secret fort qui *contient* par hasard un mot-placeholder (avec de
-> l'entropie autour) reste accepté ; seuls les secrets *composés uniquement* de placeholders
-> sont rejetés.
+> **Why this guard.** Length alone is not enough: a placeholder copied from the
+> docs clears 32 characters while remaining guessable in advance. Same principle as the
+> mandatory `wss://` guard — a default that silently breaks security is worse than a noisy
+> failure. Detail: a strong secret that happens to *contain* a placeholder word (with
+> entropy around it) is still accepted; only secrets *composed solely* of placeholders
+> are rejected.
 
-### 7.2 Provisionner les clés de confiance
+### 7.2 Provision the trust keys
 
-Trois racines de confiance — mais elles ne se provisionnent **pas** de la même façon, et
-la distinction est importante.
+Three roots of trust — but they are **not** provisioned in the same way, and
+the distinction matters.
 
-**Générées hors-ligne par vous, jamais via l'UI** (la clé privée ne doit jamais atteindre
-un backend qui pourrait se l'attribuer) :
+**Generated offline by you, never via the UI** (the private key must never reach
+a backend that could appropriate it):
 
-- **Clé minisign de release** (auto-upgrade) — publique déployée sur chaque agent
-  (`/etc/nexus/release.pub`) ; privée hors-ligne, au coffre.
-- **Clé de signature de script** (`script.execute`, optionnelle) — publique
-  (`/etc/nexus/script-signing.pub`) ; privée hors-ligne.
+- **Minisign release key** (auto-upgrade) — public deployed on each agent
+  (`/etc/nexus/release.pub`); private offline, in the vault.
+- **Script signing key** (`script.execute`, optional) — public
+  (`/etc/nexus/script-signing.pub`); private offline.
 
-**Gérée par le backend, protégée par vous :**
+**Managed by the backend, protected by you:**
 
-- **Clé serveur ECDSA** (pinning à l'enrôlement) — **vous ne la générez pas** : le backend
-  génère une paire P-256 *par machine*, expose la publique (épinglée sur l'agent à
-  `/etc/nexus/server-public-key.pem`, livrée dans la commande de bootstrap) et garde la
-  privée côté serveur, **chiffrée au repos par `ECDSA_MASTER_SECRET`**. Votre rôle :
-  provisionner un **`ECDSA_MASTER_SECRET` fort** (§7.1) — qui protège toutes les clés
-  privées serveur — et vérifier que la pubkey épinglée correspond bien à celle de la
+- **ECDSA server key** (pinning at enrollment) — **you do not generate it**: the backend
+  generates a P-256 pair *per machine*, exposes the public one (pinned on the agent at
+  `/etc/nexus/server-public-key.pem`, delivered in the bootstrap command) and keeps the
+  private one on the server side, **encrypted at rest by `ECDSA_MASTER_SECRET`**. Your role:
+  provision a **strong `ECDSA_MASTER_SECRET`** (§7.1) — which protects all the server
+  private keys — and verify that the pinned pubkey indeed matches that of the
   machine.
 
-*(Commandes exactes, chemins, permissions, rotation : voir [OPERATOR-KEYS.md](OPERATOR-KEYS.md).)*
+*(Exact commands, paths, permissions, rotation: see [OPERATOR-KEYS.md](OPERATOR-KEYS.md).)*
 
-### 7.3 Déployer en `wss://` (transport chiffré)
+### 7.3 Deploy over `wss://` (encrypted transport)
 
-L'agent **refuse** un transport en clair (`ws://`/`http://`) sans override dev explicite —
-garde déjà en place (échec bruyant à l'install et au runtime). Ne contournez pas cette
-garde en production : `ws://` rouvrirait précisément le vol de token + swap de clé que le
-seal d'enrôlement ferme.
+The agent **refuses** a cleartext transport (`ws://`/`http://`) without an explicit dev override —
+a guard already in place (noisy failure at install and at runtime). Do not bypass this
+guard in production: `ws://` would reopen precisely the token theft + key swap that the
+enrollment seal closes.
 
-### 7.4 Configurer les variables REQUISES (checklist)
+### 7.4 Configure the REQUIRED variables (checklist)
 
-Un défaut « sûr pour le dev local » casse souvent en **silence** en production. Checklist
-minimale (défaut absent/local ⇒ doit produire un échec ou un warning visible) :
+A default "safe for local dev" often breaks **silently** in production. Minimal
+checklist (absent/local default ⇒ must produce a visible failure or warning):
 
-- [ ] `JWT_SECRET` — ≥ 32 car., unique (échec fatal au boot si faible).
-- [ ] `ECDSA_MASTER_SECRET` — ≥ 32 car., distinct de `JWT_SECRET` (échec fatal au boot).
-- [ ] `DATABASE_URL` — échec fatal si absent.
-- [ ] `AGENT_BACKEND_URL` — `https://<domaine>` ; en `http://`, l'agent refuse (bruyant).
-- [ ] `FRONTEND_URL` — `https://<domaine>` exact (sans `/` final, sans `:443`) ; warning au
-      boot si local. Gouverne CORS + l'allow-list d'Origin CSWSH (§5.3) : un mauvais réglage
-      fait rejeter le vrai domaine en boucle.
-- [ ] `TRUSTED_PROXY_HOPS` — cohérent avec votre chaîne de proxies (sinon l'IP réelle des
-      agents est mal résolue).
-- [ ] `METRICS_TOKEN` — défini si `/metrics` est atteignable au-delà du scraper de
-      confiance (sinon l'endpoint repose sur le seul scoping réseau).
-- [ ] `TLS_ENABLED=false` si un reverse-proxy (Traefik) termine le TLS (sinon double-TLS /
-      cert auto-signé que l'agent refuse).
+- [ ] `JWT_SECRET` — ≥ 32 chars, unique (fatal failure at boot if weak).
+- [ ] `ECDSA_MASTER_SECRET` — ≥ 32 chars, distinct from `JWT_SECRET` (fatal failure at boot).
+- [ ] `DATABASE_URL` — fatal failure if absent.
+- [ ] `AGENT_BACKEND_URL` — `https://<domain>`; over `http://`, the agent refuses (noisy).
+- [ ] `FRONTEND_URL` — exact `https://<domain>` (no trailing `/`, no `:443`); warning at
+      boot if local. Governs CORS + the CSWSH Origin allow-list (§5.3): a bad setting
+      makes it reject the real domain in a loop.
+- [ ] `TRUSTED_PROXY_HOPS` — consistent with your proxy chain (otherwise the real IP of the
+      agents is mis-resolved).
+- [ ] `METRICS_TOKEN` — defined if `/metrics` is reachable beyond the trusted
+      scraper (otherwise the endpoint rests on network scoping alone).
+- [ ] `TLS_ENABLED=false` if a reverse-proxy (Traefik) terminates the TLS (otherwise double-TLS /
+      self-signed cert that the agent refuses).
 
-### 7.5 Comprendre ce que vous acceptez
+### 7.5 Understand what you are accepting
 
-- Chaque agent enrollé = une machine confiée à l'opérateur du backend (§4-A).
-- Une instance = un domaine de confiance ; pas pour des locataires méfiants (§4-B).
-- Les backups/snapshots complets d'un hôte d'agent contiennent son identité (§6.1).
-- Traitez le backend comme l'actif le plus sensible de votre parc.
+- Each enrolled agent = a machine entrusted to the backend operator (§4-A).
+- One instance = one trust domain; not for distrusting tenants (§4-B).
+- Full backups/snapshots of an agent's host contain its identity (§6.1).
+- Treat the backend as the most sensitive asset of your fleet.
 
 ---
 
-## Annexe A — Pour les évaluateurs : correspondance findings ↔ code
+## Appendix A — For evaluators: findings ↔ code mapping
 
-| Domaine | Findings | Verdict (vérifié sur `master`) |
+| Domain | Findings | Verdict (verified on `master`) |
 |---|---|---|
-| Bootstrap scellé + anti-replay | ENROLLMENT-001/002/003 | Confirmé |
-| Canal v2 (ECDHE, par-message, anti-downgrade) | CRYPTO-003/004/005 | Confirmé (agent : signature sur messages sensibles + ack ; `ping`/`error` inertes non signés) |
-| `agent.key` at-rest | CRYPTO-001 | Confirmé — **ne couvre pas le snapshot complet (§6.1)** |
-| Auto-upgrade minisign fail-closed | SELF-UPGRADE-001→005 | Confirmé |
-| Bounding set / Ambient | AGENT-002 | Confirmé (négation, pas allow-list ; pas de seccomp) |
-| Sudoers + privhelper + find épinglé | AGENT-001/003/006/008/009 | Confirmé (wildcards d'args bénins subsistants documentés) |
-| `script.execute` 3 verrous + ADMIN-only | AGENT-004/005 | Confirmé (`process.kill` désormais ADMIN-only lui aussi — primitive destructrice à denylist incomplète) |
-| RBAC autoritaire serveur | WEB-AUTHZ-004/007 | Confirmé |
-| CSWSH Origin | CONTROL-PLANE-001 | Confirmé **pour le dashboard** ; agent WS exempt par design |
-| SSRF egress guard (+ IP littérale) | WEB-AUTHZ-001 | Confirmé ; **Keycloak/SMTP hors-périmètre (§6.4)** |
-| `/metrics` authentifié | WEB-AUTHZ-005 | Confirmé (sans token → scoping réseau seul) |
-| Anti-mass-assignment | WEB-AUTHZ-003 | Confirmé |
-| Privilèges utilisateur off-by-default + ADMIN | (privileged-actions) | Confirmé |
-| No tenant isolation | WEB-AUTHZ-006 | Confirmé — limite assumée (§6.2) |
+| Sealed bootstrap + anti-replay | ENROLLMENT-001/002/003 | Confirmed |
+| Channel v2 (ECDHE, per-message, anti-downgrade) | CRYPTO-003/004/005 | Confirmed (agent: signature on sensitive messages + ack; `ping`/`error` inert, unsigned) |
+| `agent.key` at-rest | CRYPTO-001 | Confirmed — **does not cover the full snapshot (§6.1)** |
+| Minisign auto-upgrade fail-closed | SELF-UPGRADE-001→005 | Confirmed |
+| Bounding set / Ambient | AGENT-002 | Confirmed (negation, not allow-list; no seccomp) |
+| Sudoers + privhelper + pinned find | AGENT-001/003/006/008/009 | Confirmed (benign residual arg wildcards documented) |
+| `script.execute` 3 locks + ADMIN-only | AGENT-004/005 | Confirmed (`process.kill` now ADMIN-only as well — destructive primitive with an incomplete denylist) |
+| Server-authoritative RBAC | WEB-AUTHZ-004/007 | Confirmed |
+| CSWSH Origin | CONTROL-PLANE-001 | Confirmed **for the dashboard**; agent WS exempt by design |
+| SSRF egress guard (+ literal IP) | WEB-AUTHZ-001 | Confirmed; **Keycloak/SMTP out of scope (§6.4)** |
+| Authenticated `/metrics` | WEB-AUTHZ-005 | Confirmed (without token → network scoping alone) |
+| Anti-mass-assignment | WEB-AUTHZ-003 | Confirmed |
+| User privileges off-by-default + ADMIN | (privileged-actions) | Confirmed |
+| No tenant isolation | WEB-AUTHZ-006 | Confirmed — assumed limitation (§6.2) |
 
-Limites/différés connus : at-rest snapshot (DEF-1 / TPM), allow-list SSRF interne (post-v1),
-rotation de clé automatique (CRYPTO-002, couverte aujourd'hui par le re-enroll manuel),
-signatures DER bout-en-bout (CRYPTO-007, hygiène, déploiement v2), audit WORM externe (§6.5).
+Known limitations/deferrals: at-rest snapshot (DEF-1 / TPM), internal SSRF allow-list (post-v1),
+automatic key rotation (CRYPTO-002, covered today by the manual re-enroll),
+end-to-end DER signatures (CRYPTO-007, hygiene, v2 deployment), external WORM audit (§6.5).
 
-Au-delà des tests automatisés (suite e2e + unitaires Go + vecteurs d'interop Go↔Node), les
-propriétés qui exigent un host/réseau/parc réels (bounding set sous systemd, flux v2 complet
-enroll→handshake→heartbeat, sudoers durci, scoping `/metrics`, garde SSRF en réseau réel…)
-ont été vérifiées en conditions réelles sur un environnement de staging — 12 points de
-contrôle couverts. Le présent document se suffit à lui-même ; ces vérifications de
-déploiement sont conservées hors de ce dépôt.
+Beyond the automated tests (e2e suite + Go unit tests + Go↔Node interop vectors), the
+properties that require a real host/network/fleet (bounding set under systemd, full v2 flow
+enroll→handshake→heartbeat, hardened sudoers, `/metrics` scoping, SSRF guard on a real network…)
+were verified under real conditions on a staging environment — 12 checkpoints
+covered. The present document is self-sufficient; these deployment
+verifications are kept outside this repository.

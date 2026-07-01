@@ -1,122 +1,118 @@
 # Security Policy
 
-Merci de contribuer à la sécurité de Nexus. Ce document explique **comment signaler une
-vulnérabilité**, **ce qui entre dans le périmètre**, et **comment nous traitons les
-signalements**.
+Thank you for contributing to the security of Nexus. This document explains **how to report a
+vulnerability**, **what falls within scope**, and **how we handle reports**.
 
-Nexus est un plan de contrôle qui administre des serveurs en root : sa sécurité est prise au
-sérieux. Le présent document est le pendant du [modèle de menace](THREAT-MODEL.md) —
-celui-là décrit *ce qui est protégé et ce qui ne l'est pas* ; celui-ci décrit *comment
-signaler quand quelque chose ne tient pas*.
+Nexus is a control plane that administers servers as root: its security is taken seriously. This
+document is the counterpart to the [threat model](THREAT-MODEL.md) — that one describes *what is
+protected and what is not*; this one describes *how to report when something does not hold up*.
 
-## 1. Signaler une vulnérabilité
+## 1. Reporting a vulnerability
 
-**Ne créez jamais d'issue publique pour une vulnérabilité de sécurité.** Une issue publique
-expose le problème avant qu'un correctif n'existe.
+**Never open a public issue for a security vulnerability.** A public issue exposes the problem
+before a fix exists.
 
-Utilisez le canal **privé** de GitHub : le signalement privé de vulnérabilité (*Private
-Vulnerability Reporting* / *Security advisories*), via l'onglet **Security → Report a
-vulnerability** du dépôt. Il garde l'échange privé et tracé, et chiffre la communication.
+Use GitHub's **private** channel: private vulnerability reporting (*Private Vulnerability
+Reporting* / *Security advisories*), via the repository's **Security → Report a vulnerability**
+tab. It keeps the exchange private and tracked, and encrypts the communication.
 
-> *Note au mainteneur : ce canal doit être **activé** dans les réglages du dépôt
-> (**Settings → Security → Private vulnerability reporting**). Tant qu'il ne l'est pas, le
-> bouton « Report a vulnerability » n'apparaît pas pour les rapporteurs.*
+> *Note to the maintainer: this channel must be **enabled** in the repository settings
+> (**Settings → Security → Private vulnerability reporting**). Until it is, the
+> "Report a vulnerability" button does not appear for reporters.*
 
-### Ce qu'un bon rapport contient
+### What a good report contains
 
-Pour que nous puissions reproduire et corriger vite :
+So that we can reproduce and fix quickly:
 
-- **Version / commit** concerné (sortie de `git rev-parse HEAD`, ou le tag de release).
-- **Étapes de reproduction** précises.
-- **Impact** : ce qu'un attaquant obtient — quel actif du [modèle de menace](THREAT-MODEL.md)
-  (§2) est touché, quelle hypothèse de confiance est brisée.
-- **Preuve de concept** minimale si possible.
-- L'environnement utile (OS de l'agent, mode d'auth, reverse-proxy…).
+- **Version / commit** concerned (output of `git rev-parse HEAD`, or the release tag).
+- Precise **reproduction steps**.
+- **Impact**: what an attacker gains — which asset from the [threat model](THREAT-MODEL.md)
+  (§2) is affected, which trust assumption is broken.
+- A minimal **proof of concept** if possible.
+- The relevant environment (agent OS, auth mode, reverse proxy…).
 
-**N'incluez pas** de données réelles d'exploitation : pas d'identifiants ou de secrets de
-production, pas de données personnelles, pas de dumps. Limitez tout PoC au strict nécessaire
-pour démontrer la faille — n'exploitez pas au-delà, et ne touchez pas à des systèmes qui ne
-vous appartiennent pas.
+**Do not include** real exploitation data: no production credentials or secrets, no personal
+data, no dumps. Keep any PoC strictly limited to what is necessary to demonstrate the flaw — do
+not exploit beyond that, and do not touch systems that do not belong to you.
 
-## 2. Périmètre — quoi rapporter, quoi ne pas rapporter
+## 2. Scope — what to report, what not to report
 
-### Dans le périmètre
+### In scope
 
-Tout ce que le [modèle de menace](THREAT-MODEL.md) **§5 (« Ce qui est protégé »)** affirme
-protéger et qui ne tiendrait pas. Notamment :
+Anything that the [threat model](THREAT-MODEL.md) **§5 ("What is protected")** claims to
+protect and which would not hold up. In particular:
 
-- **Contournement de la racine de confiance** (§5.1) : casser le seal/pinning à l'enrôlement,
-  rejouer un enrôlement, contourner la vérification de signature par-message ou l'anti-downgrade
-  du canal v2, contourner la vérification minisign de l'auto-upgrade, ou déchiffrer `agent.key`
-  à partir d'une **copie isolée** du fichier de clé.
-- **Évasion du confinement de l'agent** (§5.2) : obtenir une exécution root au-delà des actions
-  définies — échappement du privhelper, injection via sudoers, `find -exec`, contournement des
-  trois verrous de `script.execute` ou du gate ADMIN de `script.execute` / `process.kill`.
-- **Contournement de la frontière web** (§5.3) : élévation de rôle RBAC (atteindre
-  `dispatchAction` sans rôle, faire passer un READONLY/OPERATOR pour ADMIN), CSWSH sur le
-  WebSocket dashboard, SSRF atteignant une cible interne malgré la garde, accès non authentifié
-  à `/metrics` quand un token est configuré, mass-assignment, etc.
-- Toute faille web classique non couverte ci-dessus (injection, désérialisation, fuite de
-  secret, authentification cassée…).
+- **Bypassing the root of trust** (§5.1): breaking the seal/pinning at enrollment,
+  replaying an enrollment, bypassing per-message signature verification or the anti-downgrade
+  of the v2 channel, bypassing the minisign verification of the auto-upgrade, or decrypting
+  `agent.key` from an **isolated copy** of the key file.
+- **Escaping the agent's confinement** (§5.2): obtaining root execution beyond the defined
+  actions — escaping the privhelper, injection via sudoers, `find -exec`, bypassing the three
+  locks of `script.execute` or the ADMIN gate of `script.execute` / `process.kill`.
+- **Bypassing the web boundary** (§5.3): RBAC role elevation (reaching `dispatchAction`
+  without a role, passing a READONLY/OPERATOR off as ADMIN), CSWSH on the dashboard WebSocket,
+  SSRF reaching an internal target despite the guard, unauthenticated access to `/metrics` when
+  a token is configured, mass assignment, etc.
+- Any classic web flaw not covered above (injection, deserialization, secret leak,
+  broken authentication…).
 
-### Hors périmètre
+### Out of scope
 
-Plusieurs choses **ressemblent** à des vulnérabilités mais sont des **limites assumées et
-documentées** — les signaler ajoute du bruit sans rien apprendre. Avant de rapporter,
-vérifiez le [modèle de menace](THREAT-MODEL.md) **§6 (« Ce qui n'est PAS protégé »)** et
-**§3 (« hors du modèle d'attaquant »)**.
+Several things **look like** vulnerabilities but are **assumed and documented limits** —
+reporting them adds noise without teaching anything. Before reporting, check the
+[threat model](THREAT-MODEL.md) **§6 ("What is NOT protected")** and
+**§3 ("outside the attacker model")**.
 
-Non-vulnérabilités connues (voir le threat model pour le détail, non recopié ici) :
+Known non-vulnerabilities (see the threat model for details, not copied here):
 
-- **Vol d'un snapshot/backup disque complet** d'un hôte d'agent → re-dérivation de `agent.key`
-  (§6.1). Le chiffrement at-rest ne protège qu'une copie *isolée* du fichier.
-- **Absence d'isolation entre locataires** : tout OPERATOR agit sur tout le parc, tout READONLY
-  lit tout (§6.2). Une instance = un domaine de confiance unique, *par conception*.
-- **La garde anti-SSRF bloque les réseaux privés par défaut** : ne pas pouvoir notifier un
-  service interne (ntfy/Gotify/webhook LAN) n'est pas un bug (§6.3).
-- **Un backend de confiance commande les agents en root** : c'est la fonction du produit, pas
-  une faille (§4-A). De même, un attaquant **déjà root** sur l'hôte d'un agent est explicitement
-  hors modèle (§3).
-- Les sorties Keycloak (JWKS) / SMTP non couvertes par la garde SSRF, et autres points listés
-  en §6.4–§6.6.
+- **Theft of a full disk snapshot/backup** of an agent host → re-derivation of `agent.key`
+  (§6.1). At-rest encryption only protects an *isolated* copy of the file.
+- **No isolation between tenants**: any OPERATOR acts on the entire fleet, any READONLY reads
+  everything (§6.2). One instance = a single trust domain, *by design*.
+- **The anti-SSRF guard blocks private networks by default**: being unable to notify an
+  internal service (ntfy/Gotify/LAN webhook) is not a bug (§6.3).
+- **A trusted backend commands the agents as root**: this is the product's function, not a
+  flaw (§4-A). Likewise, an attacker **already root** on an agent's host is explicitly
+  outside the model (§3).
+- Keycloak (JWKS) / SMTP egress not covered by the SSRF guard, and other points listed
+  in §6.4–§6.6.
 
-Si vous pensez qu'une « limite assumée » est en réalité exploitable **au-delà** de ce que le
-threat model décrit (p. ex. un contournement SSRF atteignant le réseau privé *sans* allow-list,
-ou une re-dérivation de clé *sans* accès disque complet), **c'est dans le périmètre** —
-signalez-le.
+If you believe an "assumed limit" is in fact exploitable **beyond** what the threat model
+describes (e.g. an SSRF bypass reaching the private network *without* an allow-list, or a key
+re-derivation *without* full disk access), **it is in scope** — report it.
 
-## 3. Versions supportées
+## 3. Supported versions
 
-Nexus est en cours d'ouverture, **pré-1.0**. Le support est volontairement minimal et honnête :
+Nexus is in the process of being opened up, **pre-1.0**. Support is deliberately minimal and
+honest:
 
-| Version | Supportée |
+| Version | Supported |
 |---|---|
-| Dernière `master` / dernière release publiée | ✅ |
-| Versions antérieures, pré-releases (`v0.0.1-staging`, etc.) | ❌ |
+| Latest `master` / latest published release | ✅ |
+| Earlier versions, pre-releases (`v0.0.1-staging`, etc.) | ❌ |
 
-- Seul l'état le plus récent (`master` à jour, ou la dernière release) reçoit des correctifs de
-  sécurité.
-- **Pas de backport** de correctifs sur d'anciennes versions tant que le projet est pré-1.0.
-- Mettez à jour vers la dernière version avant de signaler — la faille peut déjà être corrigée.
+- Only the most recent state (up-to-date `master`, or the latest release) receives security
+  fixes.
+- **No backporting** of fixes to older versions while the project is pre-1.0.
+- Update to the latest version before reporting — the flaw may already be fixed.
 
-Cette politique sera revue à la première version stable (1.0).
+This policy will be revisited at the first stable version (1.0).
 
-## 4. Divulgation coordonnée
+## 4. Coordinated disclosure
 
-Nous suivons une divulgation **coordonnée**, en **meilleur effort** (le projet est porté par une
-petite équipe — pas de SLA contractuel) :
+We follow a **coordinated** disclosure, on a **best-effort** basis (the project is run by a
+small team — no contractual SLA):
 
-1. **Accusé de réception** de votre rapport dans un délai raisonnable.
-2. **Évaluation** : nous confirmons (ou non) la faille et son périmètre, et échangeons avec vous
-   si besoin.
-3. **Correctif** : nous travaillons à une correction et, le cas échéant, à une mesure
-   d'atténuation provisoire.
-4. **Divulgation** une fois le correctif disponible, de façon coordonnée avec vous — idéalement
-   publication simultanée du correctif et d'un avis (advisory).
-5. **Crédit** : nous créditons volontiers le rapporteur dans l'avis, si vous le souhaitez (sinon,
-   signalement anonyme respecté).
+1. **Acknowledgment** of your report within a reasonable time.
+2. **Assessment**: we confirm (or not) the flaw and its scope, and follow up with you
+   if needed.
+3. **Fix**: we work on a fix and, where applicable, on an interim mitigation.
+4. **Disclosure** once the fix is available, coordinated with you — ideally simultaneous
+   publication of the fix and an advisory.
+5. **Credit**: we are happy to credit the reporter in the advisory, if you wish (otherwise,
+   anonymous reporting is respected).
 
-Nous vous demandons, en retour, de **ne pas divulguer publiquement** la faille tant qu'un
-correctif n'est pas disponible, et de nous laisser un délai raisonnable pour le produire.
+In return, we ask you to **not publicly disclose** the flaw until a fix is available, and to
+allow us a reasonable time to produce it.
 
-Merci d'aider à garder Nexus sûr.
+Thank you for helping keep Nexus safe.

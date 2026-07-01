@@ -42,11 +42,11 @@ logs/
 coverage/
 .nyc_output/
 
-# Go — binaire compilé uniquement (pas le dossier source cmd/nexus-agent/)
+# Go — compiled binary only (not the source folder cmd/nexus-agent/)
 /nexus-agent
 agent/nexus-agent
 agent/tmp/
 frontend/tsconfig.tsbuildinfo
 
-# Pentest tracking (findings/PoC) — suivi dans un dépôt SÉPARÉ, jamais dans ce repo
+# Pentest tracking (findings/PoC) — tracked in a SEPARATE repo, never in this repo
 /pentest/
