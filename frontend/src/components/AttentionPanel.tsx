@@ -13,23 +13,23 @@ interface Props {
 }
 
 /**
- * Panneau "Attention requise" : agrège les signaux critiques pour une
- * machine en un seul endroit. Reçoit les données déjà chargées via
- * useMachineAttention (factorisé avec le header pour un seul fetch).
+ * "Attention required" panel: aggregates critical signals for a
+ * machine in a single place. Receives data already loaded via
+ * useMachineAttention (factored with the header for a single fetch).
  *
  * - Alerts firing / acknowledged
- * - Services systemd failed
- * - Updates pending (security en évidence)
- * - Certs SSL expirant < 30j
+ * - Failed systemd services
+ * - Updates pending (security highlighted)
+ * - SSL certs expiring < 30d
  *
- * Quand tout va bien : message rassurant, pas de bruit.
+ * When all is well: a reassuring message, no noise.
  */
 export default function AttentionPanel({ data, onTabChange, onShowFailedServices }: Props) {
   const { t } = useTranslation(["attention", "common"]);
   const { updatesCount, securityUpdates, minCertDays, loading, error, reload } = data;
-  // Garde-fou null : si l'agent est injoignable, certaines sources peuvent
-  // remonter null au lieu d'un tableau vide — on normalise pour éviter un
-  // crash `.filter/.length of null` au render.
+  // Null guard: if the agent is unreachable, some sources may return
+  // null instead of an empty array — we normalize to avoid a
+  // `.filter/.length of null` crash at render.
   const alerts = data.alerts ?? [];
   const failedServices = data.failedServices ?? [];
   const certs = data.certs ?? [];

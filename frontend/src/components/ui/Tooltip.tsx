@@ -8,9 +8,9 @@ interface TooltipProps {
 }
 
 /**
- * Tooltip accessible basé sur Radix (déjà dans les deps).
- * Usage : <Tooltip content="Supprimer"><button>…</button></Tooltip>
- * Le child est le trigger (asChild) → garde un <button> natif accessible.
+ * Accessible tooltip based on Radix (already in deps).
+ * Usage: <Tooltip content="Delete"><button>…</button></Tooltip>
+ * The child is the trigger (asChild) → keeps a native accessible <button>.
  */
 export function Tooltip({ content, children, side = "bottom" }: TooltipProps) {
   if (content == null || content === "") return <>{children}</>;

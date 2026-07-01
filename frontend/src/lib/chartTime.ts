@@ -1,21 +1,21 @@
-// Formats temporels des axes de graphes — CENTRALISÉS ici.
+// Chart axis time formats — CENTRALIZED here.
 //
-// COORDINATION i18n (Lot 9a, formats date/nombre locale-aware) : tout format de
-// date d'axe/tooltip passe par CE module. La locale active vient de
-// lib/format (localeTag → fr-FR / en-GB) ; on ne rechasse pas des
-// `toLocaleString("fr-FR")` éparpillés dans les composants de graphes.
+// i18n COORDINATION (Lot 9a, locale-aware date/number formats): every axis/tooltip
+// date format goes through THIS module. The active locale comes from
+// lib/format (localeTag → fr-FR / en-GB); we don't chase scattered
+// `toLocaleString("fr-FR")` calls across the chart components.
 import { localeTag } from "./format";
 
-// Parse un timestamp d'axe : accepte un epoch ms (number, MetricsChart/Compare) OU
-// une date ISO (string, ex. buckets /fleet/trends du Dashboard). Retourne null si
-// invalide → les formateurs rendent "" plutôt que "Invalid Date" à l'écran.
+// Parse an axis timestamp: accepts an epoch ms (number, MetricsChart/Compare) OR
+// an ISO date (string, e.g. Dashboard /fleet/trends buckets). Returns null if
+// invalid → the formatters render "" rather than "Invalid Date" on screen.
 function toAxisDate(ts: number | string): Date | null {
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Tick de l'axe X : heure (HH:mm) pour les fenêtres <= 24h ; date (JJ/MM) au-delà
-// (7j/30j), où l'heure n'a plus de sens et où les jours se confondraient sinon.
+// X axis tick: time (HH:mm) for windows <= 24h; date (DD/MM) beyond that
+// (7d/30d), where the time no longer matters and days would otherwise blur together.
 export function formatAxisTick(ts: number | string, range: string): string {
   const d = toAxisDate(ts);
   if (!d) return "";
@@ -25,8 +25,8 @@ export function formatAxisTick(ts: number | string, range: string): string {
   return d.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" });
 }
 
-// Libellé du tooltip : TOUJOURS date + heure complètes — lève l'ambiguïté de
-// minuit (24h) et des jours identiques (7j).
+// Tooltip label: ALWAYS full date + time — resolves the ambiguity of
+// midnight (24h) and identical days (7d).
 export function formatAxisLabel(ts: number | string): string {
   const d = toAxisDate(ts);
   if (!d) return "";
@@ -38,18 +38,18 @@ export function formatAxisLabel(ts: number | string): string {
   });
 }
 
-// Aligne un timestamp (ms) sur la frontière de bucket basse — MÊMES frontières
-// que le downsampling SQL (`floor(epoch/bucket)*bucket`), pour que les points
-// front et les buckets backend coïncident exactement.
+// Align a timestamp (ms) to the lower bucket boundary — SAME boundaries
+// as the SQL downsampling (`floor(epoch/bucket)*bucket`), so the frontend
+// points and the backend buckets coincide exactly.
 export function alignToBucket(tsMs: number, bucketMs: number): number {
   return Math.floor(tsMs / bucketMs) * bucketMs;
 }
 
-// Grille temporelle régulière alignée sur le bucket, de `sinceMs` à `untilMs`.
-// Sert au GAP-FILL : tout bucket sans donnée devient un point `null` → un TROU
-// visible dans le graphe, jamais une ligne droite qui masquerait un agent
-// offline. Garde-fou de taille pour ne jamais exploser (les buckets bornent
-// déjà ~170 points, mais on protège contre un bucketMs aberrant).
+// Regular bucket-aligned time grid, from `sinceMs` to `untilMs`.
+// Used for GAP-FILL: any bucket with no data becomes a `null` point → a visible
+// HOLE in the chart, never a straight line that would mask an offline
+// agent. Size guard to never blow up (buckets already cap
+// ~170 points, but we protect against an aberrant bucketMs).
 export function buildTimeGrid(sinceMs: number, untilMs: number, bucketMs: number): number[] {
   if (!(bucketMs > 0) || untilMs < sinceMs) return [];
   const start = alignToBucket(sinceMs, bucketMs);

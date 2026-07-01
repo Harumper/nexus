@@ -84,7 +84,7 @@ export function Dialog({
 }
 
 /**
- * Variante side-drawer (slide depuis la droite). Utile pour LogsDrawer / SshKeysDrawer.
+ * Side-drawer variant (slides in from the right). Useful for LogsDrawer / SshKeysDrawer.
  */
 export function Drawer({
   open,

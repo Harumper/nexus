@@ -32,7 +32,7 @@ interface FilesystemUsage {
   percent: string | number;
 }
 
-// Affiche « — » pour vide/0 (donnée absente), sinon délègue au format central locale-aware.
+// Shows "—" for empty/0 (missing data), otherwise delegates to the central locale-aware format.
 function formatBytes(n: number | string): string {
   const b = typeof n === "string" ? parseInt(n, 10) : n;
   if (!b || b <= 0) return "—";

@@ -28,8 +28,8 @@ interface AuditEntry {
   machine: { id: string; name: string } | null;
 }
 
-// Métadonnées visuelles par type d'action (icône/couleur). Le libellé est
-// résolu via i18n : t(`actions.${ACTION}`) avec fallback sur le code brut.
+// Visual metadata per action type (icon/color). The label is
+// resolved via i18n: t(`actions.${ACTION}`) with a fallback to the raw code.
 const ACTION_META: Record<string, { icon: typeof Activity; color: string }> = {
   LOGIN: { icon: UserIcon, color: "text-blue-400" },
   LOGOUT: { icon: UserIcon, color: "text-zinc-400" },

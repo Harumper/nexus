@@ -36,7 +36,7 @@ interface NautilusContainer {
   pids: number;
 }
 
-// Affiche « — » pour vide/0, sinon délègue au format central locale-aware.
+// Shows "—" for empty/0, otherwise delegates to the central locale-aware format.
 function formatBytes(n: number): string {
   if (!n || n <= 0) return "—";
   return fmtBytes(n);
@@ -74,7 +74,7 @@ export default function Containers() {
 
   useEffect(() => {
     load();
-    // Auto-refresh toutes les 15s
+    // Auto-refresh every 15s
     const interval = setInterval(load, 15_000);
     return () => clearInterval(interval);
   }, [load]);
@@ -268,5 +268,5 @@ function cpuColor(pct: number): string {
 // Re-export for tests if needed
 export { formatBytes, formatRate };
 
-// Re-utilise les imports pour evite les unused warnings
+// Reuses the imports to avoid unused warnings
 export const _icons = { ExternalLink };

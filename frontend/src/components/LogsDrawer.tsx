@@ -13,9 +13,9 @@ interface LogsDrawerProps {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Parsing journal — format syslog/journald :
+   Journal parsing — syslog/journald format:
    "2026-04-01T00:51:42+02:00 hostname proc[pid]: message"
-   et marqueurs "-- Boot <uuid> --".
+   and "-- Boot <uuid> --" markers.
    ───────────────────────────────────────────────────────────── */
 
 type Severity = "danger" | "warning" | "info" | "default";
@@ -73,8 +73,8 @@ function parseLine(line: string): ParsedLine {
   };
 }
 
-/* Palette stable par process — pour distinguer "systemd" de "configure-instance.sh"
-   etc. d'un coup d'œil. systemd[1] est très commun → on le passe en muted. */
+/* Stable palette per process — to distinguish "systemd" from "configure-instance.sh"
+   etc. at a glance. systemd[1] is very common → we render it muted. */
 const PROC_PALETTE = [
   "var(--nx-info)",
   "var(--nx-success)",
@@ -100,8 +100,8 @@ function severityColor(sev: Severity): string {
   }
 }
 
-/* Mise en évidence du mot-clé déclencheur dans le message — utile pour scanner
-   visuellement la cause d'un échec sans relire ligne par ligne. */
+/* Highlights the triggering keyword in the message — useful to visually scan
+   the cause of a failure without re-reading line by line. */
 function highlightKeyword(msg: string, sev: Severity): React.ReactNode {
   const re = sev === "danger" ? DANGER_RE : sev === "warning" ? WARN_RE : null;
   if (!re) return msg;
@@ -150,8 +150,8 @@ export default function LogsDrawer({ machineId, service, onClose }: LogsDrawerPr
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-scroll en bas après chargement — comportement attendu pour des logs :
-  // on veut voir le plus récent, pas le plus ancien.
+  // Auto-scroll to the bottom after loading — expected behavior for logs:
+  // we want to see the most recent, not the oldest.
   useEffect(() => {
     if (!loading && bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [loading, lines]);
@@ -341,15 +341,15 @@ function LogRow({ line, prev, wrap }: { line: ParsedLine; prev?: ParsedLine; wra
     );
   }
 
-  // Indicateur visuel : barre de couleur en marge gauche (uniquement si non default).
-  // Plus discret qu'un fond complet, mais permet de scanner la colonne d'un œil.
+  // Visual indicator: color bar in the left margin (only if not default).
+  // More subtle than a full background, but lets you scan the column at a glance.
   const accentColor =
     line.severity === "danger" ? "var(--nx-danger)" :
     line.severity === "warning" ? "var(--nx-warning)" :
     "transparent";
 
-  // Séparateur de date — affiché quand on passe à un nouveau jour, sinon le HH:mm:ss
-  // suffit. Évite de répéter la date sur 1000 lignes du même jour.
+  // Date separator — shown when we move to a new day, otherwise the HH:mm:ss
+  // is enough. Avoids repeating the date on 1000 lines of the same day.
   const newDay = line.dateStr && (!prev || prev.dateStr !== line.dateStr);
 
   return (

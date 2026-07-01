@@ -24,8 +24,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = "nexus_token";
 const PROVIDER_KEY = "nexus_provider";
 
-// Module-level guard — survit au remount React StrictMode
-// (useRef se reset au unmount/remount, pas une variable module)
+// Module-level guard — survives React StrictMode remount
+// (useRef resets on unmount/remount, unlike a module variable)
 let authInitStarted = false;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const keycloakRef = useRef<Keycloak | null>(null);
 
-  // 1. Charger la config auth du backend au démarrage
+  // 1. Load the backend auth config at startup
   useEffect(() => {
     if (authInitStarted) return;
     authInitStarted = true;
@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const savedProvider = sessionStorage.getItem(PROVIDER_KEY);
 
-        // Toujours preparer l'instance Keycloak si configuree
-        // (pour que loginKeycloak() fonctionne meme en mode "both")
+        // Always prepare the Keycloak instance if configured
+        // (so loginKeycloak() works even in "both" mode)
         if (config.keycloak) {
           const kc = new Keycloak({
             url: config.keycloak.url,
@@ -62,13 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           keycloakRef.current = kc;
         }
 
-        // Detecter un code OIDC dans l'URL (retour de Keycloak)
+        // Detect an OIDC code in the URL (return from Keycloak)
         const hasOidcCode = window.location.hash.includes("code=") ||
           window.location.search.includes("code=");
 
-        // Authentifier selon le mode
+        // Authenticate according to the mode
         if (hasOidcCode && config.keycloak) {
-          // Retour de Keycloak avec un code — forcer le traitement
+          // Return from Keycloak with a code — force processing
           await initKeycloak(config, true);
         } else if (
           config.keycloak &&
@@ -84,12 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       })
       .catch(() => {
-        // Si le backend n'est pas dispo, tenter local
+        // If the backend is unavailable, try local
         restoreLocalSession().finally(() => setLoading(false));
       });
   }, []);
 
-  // Init Keycloak (reutilise l'instance deja creee dans keycloakRef)
+  // Init Keycloak (reuses the instance already created in keycloakRef)
   const initKeycloak = async (config: AuthConfig, forceLogin = false) => {
     if (!config.keycloak) return;
 
@@ -112,10 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(TOKEN_KEY, kc.token);
         sessionStorage.setItem(PROVIDER_KEY, "keycloak");
 
-        // Refresh token automatique
+        // Automatic token refresh
         setupTokenRefresh(kc);
 
-        // Récupérer les infos user
+        // Fetch user info
         try {
           const user = await api.me();
           setState({
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             provider: "keycloak",
           });
         } catch {
-          // Token Keycloak valide mais /me échoue ?
+          // Keycloak token valid but /me fails?
           setState({
             user: {
               id: kc.subject || "",
@@ -146,47 +146,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Refresh token Keycloak avant expiration
+  // Refresh the Keycloak token before expiration
   const setupTokenRefresh = (kc: Keycloak) => {
     setInterval(async () => {
       try {
-        const refreshed = await kc.updateToken(30); // refresh si expire dans <30s
+        const refreshed = await kc.updateToken(30); // refresh if expiring in <30s
         if (refreshed && kc.token) {
           api.setToken(kc.token);
           sessionStorage.setItem(TOKEN_KEY, kc.token);
           setState((prev) => ({ ...prev, token: kc.token! }));
         }
       } catch {
-        // Session expirée
+        // Session expired
         kc.login();
       }
-    }, 10_000); // vérifier toutes les 10s
+    }, 10_000); // check every 10s
   };
 
-  // Restaurer session locale via cookie httpOnly : on appelle simplement
-  // /me, le cookie est envoyé automatiquement par le navigateur (credentials).
-  // Si 200 → session active. Si 401 → pas connecté, retour à login.
+  // Restore local session via httpOnly cookie: we simply call
+  // /me, the cookie is sent automatically by the browser (credentials).
+  // If 200 → active session. If 401 → not logged in, back to login.
   const restoreLocalSession = async () => {
     const provider = sessionStorage.getItem(PROVIDER_KEY);
-    if (provider === "keycloak") return; // géré par initKeycloak
+    if (provider === "keycloak") return; // handled by initKeycloak
 
     try {
       const user = await api.me();
       setState({
         user,
-        token: null, // plus jamais stocké côté JS pour l'auth locale
+        token: null, // never stored on the JS side for local auth anymore
         isAuthenticated: true,
         provider: "local",
       });
     } catch {
-      // Pas de session active : OK, l'utilisateur ira vers /login
+      // No active session: OK, the user will go to /login
       sessionStorage.removeItem(PROVIDER_KEY);
     }
   };
 
-  // Login local : le backend pose un cookie httpOnly, on n'a rien à
-  // stocker côté JS. On marque juste le provider pour que le boot suivant
-  // sache quoi tenter.
+  // Local login: the backend sets an httpOnly cookie, we have nothing to
+  // store on the JS side. We just mark the provider so the next boot
+  // knows what to try.
   const login = useCallback(async (username: string, password: string) => {
     const response = await api.login(username, password);
     sessionStorage.setItem(PROVIDER_KEY, "local");
@@ -198,30 +198,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Login Keycloak (redirect vers Keycloak — meme instance que l'AuthProvider)
+  // Keycloak login (redirect to Keycloak — same instance as the AuthProvider)
   const loginKeycloak = useCallback(() => {
     const kc = keycloakRef.current;
     if (!kc) {
       console.error("[Auth] Keycloak instance not available");
       return;
     }
-    // kc.login() construit l'URL et redirige, pas besoin d'init prealable
-    // Le retour sur /login avec le code sera traite par l'AuthProvider au remount
+    // kc.login() builds the URL and redirects, no prior init needed
+    // The return to /login with the code will be handled by the AuthProvider on remount
     kc.login({ redirectUri: window.location.origin + "/login" });
   }, []);
 
-  // Logout : pour l'auth locale, appelle /api/auth/logout qui clear le
-  // cookie httpOnly côté serveur AVANT de vider le state. Sinon un re-mount
-  // (StrictMode dev, F5, ou re-render) voyait le cookie encore valide,
-  // restoreLocalSession appelait /me avec succès et l'utilisateur revenait
-  // sur le dashboard "tout seul".
-  // Pour Keycloak, redirige vers le logout OIDC qui invalide la session côté IdP.
+  // Logout: for local auth, call /api/auth/logout which clears the
+  // httpOnly cookie on the server side BEFORE clearing the state. Otherwise a re-mount
+  // (StrictMode dev, F5, or re-render) would see the cookie still valid,
+  // restoreLocalSession would call /me successfully and the user would come back
+  // to the dashboard "on their own".
+  // For Keycloak, redirect to the OIDC logout which invalidates the session on the IdP side.
   const logout = useCallback(async () => {
     const provider = sessionStorage.getItem(PROVIDER_KEY);
 
     if (provider === "keycloak" && keycloakRef.current) {
-      // Keycloak gère son propre flow de logout via redirect — pas de cookie
-      // local à clear, on vide le state puis on lance la redirection.
+      // Keycloak handles its own logout flow via redirect — no local cookie
+      // to clear, we clear the state then trigger the redirect.
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(PROVIDER_KEY);
       api.setToken(null);
@@ -237,8 +237,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Auth locale : await impérativement le clear cookie backend, sinon le
-    // navigateur garde le cookie et /me re-authentifie au prochain render.
+    // Local auth: must await the backend cookie clear, otherwise the
+    // browser keeps the cookie and /me re-authenticates on the next render.
     try {
       await api.logout();
     } catch (err) {
@@ -256,8 +256,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Enregistrer le callback 401 sur l'API client
-  // Quand l'API reçoit un 401, on force la déconnexion
+  // Register the 401 callback on the API client
+  // When the API receives a 401, we force logout
   useEffect(() => {
     api.setOnUnauthorized(() => {
       console.warn("[Auth] Session expired — forcing logout");

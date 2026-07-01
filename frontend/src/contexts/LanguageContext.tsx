@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import i18n, { DEFAULT_LANGUAGE, LANG_STORAGE_KEY, type Language } from "../i18n";
 
-// Calque exact de ThemeContext : état local + persistance localStorage.
-// La seule différence est l'effet de bord i18n.changeLanguage() au setter.
+// Exact mirror of ThemeContext: local state + localStorage persistence.
+// The only difference is the i18n.changeLanguage() side effect in the setter.
 interface LanguageContextValue {
   language: Language;
   setLanguage: (language: Language) => void;

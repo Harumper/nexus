@@ -28,10 +28,10 @@ export interface Machine {
   createdAt: string;
   tags?: { tag: Tag }[];
   rebootRequired?: boolean;
-  /** Présence WebSocket live. Peut être false alors que status=ONLINE
-   * pendant la grâce de 90s anti-flapping côté backend. */
+  /** Live WebSocket presence. Can be false while status=ONLINE
+   * during the backend's 90s anti-flapping grace period. */
   isConnected?: boolean;
-  /** Le binaire agent en cours diffère de celui servi par le serveur. */
+  /** The running agent binary differs from the one served by the server. */
   agentUpdateAvailable?: boolean;
 }
 
@@ -125,7 +125,7 @@ export interface ListeningService {
 }
 
 export interface SecurityAuditResult {
-  hardening_index: number; // -1 si non disponible
+  hardening_index: number; // -1 if not available
   lynis_version: string;
   warnings: LynisItem[];
   suggestions: LynisItem[];
@@ -136,7 +136,7 @@ export interface SecurityAuditResult {
   scan_date: string;
   lynis_installed_now: boolean;
   lynis_path: string;
-  // État des remédiations « 1 clic » (Phase 2)
+  // State of the "1-click" remediations (Phase 2)
   fail2ban_installed: boolean;
   fail2ban_active: boolean;
   auto_updates_active: boolean;
@@ -149,9 +149,9 @@ export interface SecurityAuditResult {
 export interface MetricsResponse {
   machineId: string;
   range: string;
-  // Présents depuis le downsampling SQL : taille de bucket (s) et borne basse de
-  // la fenêtre (ISO). Servent au gap-fill front (grille régulière → trous visibles)
-  // et au domaine temporel de l'axe X.
+  // Present since the SQL downsampling: bucket size (s) and lower bound of
+  // the window (ISO). Used for the frontend gap-fill (regular grid → visible holes)
+  // and for the X axis time domain.
   bucketSeconds?: number;
   since?: string;
   count: number;
@@ -174,7 +174,7 @@ export interface AuthConfig {
     clientId: string;
   } | null;
   features?: {
-    // Gestion des clés SSH / sudo via l'UI (désactivé par défaut côté backend).
+    // SSH key / sudo management via the UI (disabled by default on the backend).
     userPrivilegeMgmt?: boolean;
   };
 }

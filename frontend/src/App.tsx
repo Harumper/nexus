@@ -11,8 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Machines from "./pages/Machines";
 import MachineEnroll from "./pages/MachineEnroll";
 
-// Lazy : pages lourdes (>500 LOC ou Recharts/diagrammes) — bénéficient le plus
-// du code-split et ne sont pas sur le chemin critique du premier rendu.
+// Lazy: heavy pages (>500 LOC or Recharts/diagrams) — benefit the most
+// from code-splitting and aren't on the critical path of the first render.
 const MachineDetail = lazy(() => import("./pages/MachineDetail"));
 const Docs = lazy(() => import("./pages/Docs"));
 const AlertCreate = lazy(() => import("./pages/AlertCreate"));
@@ -67,13 +67,13 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        {/* Routes eager : critiques au premier rendu */}
+        {/* Eager routes: critical on first render */}
         <Route path="/" element={<Dashboard />} />
         <Route path="/machines" element={<Machines />} />
         <Route path="/machines/new" element={<MachineEnroll />} />
         <Route path="/machines/:id/enroll" element={<MachineEnroll />} />
 
-        {/* Routes lazy : un seul <Suspense> via Outlet pour partager le fallback */}
+        {/* Lazy routes: a single <Suspense> via Outlet to share the fallback */}
         <Route element={<Suspense fallback={<PageLoader />}><Outlet /></Suspense>}>
           <Route path="/machines/:id" element={<MachineDetail />} />
           <Route path="/alerts" element={<Alerts />} />

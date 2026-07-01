@@ -12,8 +12,8 @@ interface ConfirmDialogProps {
   title: string;
   description?: ReactNode;
   /**
-   * Mot a taper pour confirmer une action critique (ex: "REBOOT", "DELETE").
-   * Si fourni, l'utilisateur doit taper exactement ce mot pour activer le bouton.
+   * Word to type to confirm a critical action (e.g. "REBOOT", "DELETE").
+   * If provided, the user must type this exact word to enable the button.
    */
   confirmWord?: string;
   confirmLabel?: string;

@@ -64,18 +64,18 @@ export default function UpdatePanel({
   const [showAllPackages, setShowAllPackages] = useState(false);
   const [holds, setHolds] = useState<Set<string>>(new Set());
   const [togglingHold, setTogglingHold] = useState<string | null>(null);
-  // Journal complet des événements reçus pour la MAJ en cours / la dernière.
-  // Conservé après la fin pour permettre la relecture via la modal.
+  // Full log of events received for the current / last update.
+  // Kept after completion to allow replay via the modal.
   const [log, setLog] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll du journal en bas quand la modal est ouverte
+  // Auto-scroll the log to the bottom when the modal is open
   useEffect(() => {
     if (showLog) logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log, showLog]);
 
-  // WebSocket pour la progression des MAJ
+  // WebSocket for update progress
   const handleWsMessage = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.type === "update.progress" && msg.machine_id === machineId) {
@@ -92,7 +92,7 @@ export default function UpdatePanel({
               message: t("toastDone"),
             });
             setProgress(null);
-            setPackageData(null); // Refresh la liste après MAJ
+            setPackageData(null); // Refresh the list after update
           }, 1000);
         }
       }
@@ -102,7 +102,7 @@ export default function UpdatePanel({
 
   useWebSocket({ onMessage: handleWsMessage, enabled: updating });
 
-  // Charger la liste des packages + les holds en parallele
+  // Load the package list + holds in parallel
   const checkUpdates = async () => {
     setLoadingList(true);
     setResult(null);
@@ -117,9 +117,9 @@ export default function UpdatePanel({
         ),
         api.packageHoldsList(machineId).catch(() => null),
       ]);
-      // Normalise packages : l'agent (Go) sérialise une slice vide en `null`
-      // (pas `[]`) quand le système est à jour → sans ça, les .filter/.map au
-      // render planteraient (page blanche après application des MAJ).
+      // Normalize packages: the agent (Go) serializes an empty slice as `null`
+      // (not `[]`) when the system is up to date → without this, the .filter/.map
+      // at render would crash (blank page after applying updates).
       const data = resp.data;
       setPackageData(
         data ? { ...data, packages: data.packages ?? [] } : null
@@ -153,7 +153,7 @@ export default function UpdatePanel({
     }
   };
 
-  // Lancer une mise à jour
+  // Launch an update
   const startUpdate = async (securityOnly: boolean) => {
     setUpdating(true);
     setProgress({ line: t("starting"), percent: 0 });
@@ -176,8 +176,8 @@ export default function UpdatePanel({
   const deferredCount =
     packageData?.deferred_updates ??
     (packageData?.packages ?? []).filter((p) => p.deferred).length;
-  // Nombre réellement installable maintenant par apt (= total - différés),
-  // ce qui correspond au "X peuvent être appliquées immédiatement" du terminal.
+  // Number actually installable now by apt (= total - deferred),
+  // which matches the terminal's "X can be applied immediately".
   const applicableCount = (packageData?.total_updates ?? 0) - deferredCount;
   const displayedPackages = showAllPackages
     ? packageData?.packages ?? []
@@ -207,7 +207,7 @@ export default function UpdatePanel({
         </button>
       </div>
 
-      {/* Résultat / Erreur */}
+      {/* Result / Error */}
       {result && (
         <div
           className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${
@@ -225,7 +225,7 @@ export default function UpdatePanel({
         </div>
       )}
 
-      {/* Résumé des packages */}
+      {/* Package summary */}
       {packageData && (
         <div className="space-y-3">
           {/* Stats */}
@@ -276,7 +276,7 @@ export default function UpdatePanel({
             </p>
           )}
 
-          {/* Liste des packages */}
+          {/* Package list */}
           {packageData.total_updates > 0 && (
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full">
@@ -382,7 +382,7 @@ export default function UpdatePanel({
         </div>
       )}
 
-      {/* Barre de progression */}
+      {/* Progress bar */}
       {updating && progress && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
@@ -402,7 +402,7 @@ export default function UpdatePanel({
         </div>
       )}
 
-      {/* Accès au journal complet des événements de la MAJ */}
+      {/* Access to the full log of update events */}
       {log.length > 0 && (
         <button
           onClick={() => setShowLog(true)}
@@ -413,7 +413,7 @@ export default function UpdatePanel({
         </button>
       )}
 
-      {/* Modal : journal terminal complet */}
+      {/* Modal: full terminal log */}
       <Dialog
         open={showLog}
         onClose={() => setShowLog(false)}
@@ -434,7 +434,7 @@ export default function UpdatePanel({
         </pre>
       </Dialog>
 
-      {/* Boutons d'action */}
+      {/* Action buttons */}
       {!updating && packageData && packageData.total_updates > 0 && (
         <div className="flex gap-3">
           <button

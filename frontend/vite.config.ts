@@ -13,17 +13,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Split les vendors lourds dans des chunks séparés : meilleur cache
-        // navigateur (Recharts/Radix changent rarement) et chunk principal allégé.
+        // Split heavy vendors into separate chunks: better browser
+        // caching (Recharts/Radix rarely change) and a lighter main chunk.
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            // Recharts + d3 = ~290 KB, séparé pour ne pas peser sur les pages
-            // qui n'affichent pas de graph (Containers, Settings, Audit…)
+            // Recharts + d3 = ~290 KB, separated so it doesn't weigh on pages
+            // that don't show a chart (Containers, Settings, Audit…)
             if (id.includes("recharts") || id.includes("d3-")) return "recharts";
             if (id.includes("@radix-ui")) return "radix";
             if (id.includes("lucide-react")) return "icons";
-            // React + react-router + autres libs vont ensemble dans vendor pour
-            // éviter les imports circulaires. Reste cacheable séparément.
+            // React + react-router + other libs go together in vendor to
+            // avoid circular imports. Still cacheable separately.
             return "vendor";
           }
         },

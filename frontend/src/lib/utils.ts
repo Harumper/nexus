@@ -5,8 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// formatBytes / formatUptime / timeAgo ont migré vers lib/format.ts (Lot 9a,
-// formatage sensible à la langue). Importe-les depuis "../lib/format".
+// formatBytes / formatUptime / timeAgo have migrated to lib/format.ts (Lot 9a,
+// language-sensitive formatting). Import them from "../lib/format".
 
 export function statusColor(
   status: string
@@ -51,8 +51,8 @@ export function statusColor(
   }
 }
 
-// Suffixe de clé i18n pour un statut machine (résolu via t(`common:status.${key}`)).
-// Sépare le mapping statut→clé de la traduction, pour les composants i18n-isés.
+// i18n key suffix for a machine status (resolved via t(`common:status.${key}`)).
+// Separates the status→key mapping from the translation, for i18n-ized components.
 export function statusKey(status: string): string {
   const keys: Record<string, string> = {
     ONLINE: "online",
@@ -65,16 +65,16 @@ export function statusKey(status: string): string {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Échelle Y adaptative pour les graphs : on évite de zoomer sur du bruit
-// quand toutes les valeurs sont basses, mais on étend si un pic apparaît.
-// L'hystérèse se fait naturellement via la fenêtre temporelle des données :
-// le pic reste affiché tant qu'il est dans la range, puis l'échelle redescend
-// quand il sort.
+// Adaptive Y scale for charts: we avoid zooming into noise
+// when all values are low, but expand if a spike appears.
+// The hysteresis happens naturally via the data's time window:
+// the spike stays displayed while it's within range, then the scale drops back
+// when it exits.
 //
-// floor : minimum garanti (ex: 10 pour CPU% — évite de voir 0-1.5 quand
-//   la machine est calme).
-// cap : plafond absolu (ex: 100 pour %, undefined pour load/network).
-// headroom : marge au-dessus du max réel (15 % par défaut).
+// floor: guaranteed minimum (e.g. 10 for CPU% — avoids seeing 0-1.5 when
+//   the machine is idle).
+// cap: absolute ceiling (e.g. 100 for %, undefined for load/network).
+// headroom: margin above the real max (15% by default).
 // ───────────────────────────────────────────────────────────────────────
 export function niceYDomain(
   values: number[],
@@ -87,7 +87,7 @@ export function niceYDomain(
   const peak = Math.max(...finite);
   const target = peak * (1 + headroom);
 
-  // Paliers visuellement agréables (lecture humaine + ticks Recharts propres)
+  // Visually pleasant steps (human reading + clean Recharts ticks)
   const niceSteps = [10, 20, 25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
   let top = niceSteps.find((s) => s >= target) ?? Math.ceil(target / 100) * 100;
 

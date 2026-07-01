@@ -6,10 +6,10 @@ import App from "./App";
 import "./i18n";
 import "./index.css";
 
-// Après un déploiement, un onglet déjà ouvert peut tenter de charger un chunk
-// hashé qui n'existe plus (404) → "Failed to fetch dynamically imported module".
-// On recharge alors la page pour récupérer le nouvel index.html et ses chunks.
-// Garde anti-boucle : pas plus d'un reload toutes les 10 s.
+// After a deployment, an already-open tab may try to load a hashed chunk
+// that no longer exists (404) → "Failed to fetch dynamically imported module".
+// We then reload the page to fetch the new index.html and its chunks.
+// Anti-loop guard: no more than one reload every 10s.
 window.addEventListener("vite:preloadError", () => {
   const KEY = "nexus_last_chunk_reload";
   const last = Number(sessionStorage.getItem(KEY) || 0);

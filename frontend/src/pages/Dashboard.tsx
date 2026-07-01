@@ -62,16 +62,16 @@ export default function Dashboard() {
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"cpu" | "memory" | "disk">("cpu");
 
-  // Chargement INITIAL des dernières métriques (les updates live arrivent
-  // ensuite via WebSocket — cf. handleWsMessage "machine.metrics"). On ne fait
-  // plus de polling 15s séquentiel (50 req HTTP/15s qui doublaient le WS) :
-  // requêtes en parallèle + un seul setState groupé, rejoué quand la liste des
-  // machines change (nouvelle machine en ligne).
-  // Clé stable = ensemble des IDs en ligne. useMachines rafraîchit `machines`
-  // toutes les 30s (nouvelle référence de tableau) ; sans cette clé, loadMetrics
-  // se relançait à chaque fois → N requêtes HTTP/30s EN DOUBLON du flux WS qui
-  // pousse déjà ces métriques. Avec la clé, on ne refait le snapshot initial que
-  // quand l'ensemble des machines en ligne change réellement.
+  // INITIAL load of the latest metrics (live updates then arrive via WebSocket
+  // — cf. handleWsMessage "machine.metrics"). We no longer do sequential 15s
+  // polling (50 HTTP req/15s that duplicated the WS): parallel requests + a
+  // single grouped setState, replayed when the machine list changes (new
+  // machine coming online).
+  // Stable key = set of online IDs. useMachines refreshes `machines` every 30s
+  // (new array reference); without this key, loadMetrics re-ran every time → N
+  // HTTP req/30s DUPLICATING the WS stream that already pushes these metrics.
+  // With the key, we only redo the initial snapshot when the set of online
+  // machines actually changes.
   const onlineIdsKey = machines
     .filter((m) => m.status === "ONLINE")
     .map((m) => m.id)
@@ -109,7 +109,7 @@ export default function Dashboard() {
         .getFleetTrends("1h")
         .then((r) => setFleetTrends(r.buckets))
         .catch((err) => console.warn("[Dashboard] fleet trends failed:", err));
-      // Compte des alertes actives par machine — affiché en badge sur MachineCard
+      // Count of active alerts per machine — shown as a badge on MachineCard
       api
         .getActiveAlerts()
         .then((alerts) => {
@@ -124,7 +124,7 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // WebSocket pour les updates temps réel
+  // WebSocket for real-time updates
   const handleWsMessage = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.type === "machine.status" && msg.machine_id) {
@@ -375,8 +375,8 @@ function AvgBar({ label, value, color }: { label: string; value: number; color: 
 function TrendChart({ data, dataKey, label, seriesName, color, gradientId }: {
   data: any[]; dataKey: string; label: string; seriesName: string; color: string; gradientId: string;
 }) {
-  // Floor 10 % évite de zoomer sur du bruit quand la fleet est calme.
-  // Cap 100 % car ces graphs trace toujours des pourcentages.
+  // Floor 10 % avoids zooming into noise when the fleet is quiet.
+  // Cap 100 % because these charts always plot percentages.
   const yValues = data.map((d) => d?.[dataKey]).filter((v): v is number => typeof v === "number");
   const yDomain = niceYDomain(yValues, { floor: 10, cap: 100 });
   return (

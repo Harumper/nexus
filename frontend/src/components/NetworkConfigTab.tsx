@@ -30,7 +30,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
   const { confirm, ConfirmDialogElement } = useConfirm();
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Le fichier en cours d'affichage est-il celui géré par Nexus (=> éditable) ?
+  // Is the currently displayed file the one managed by Nexus (=> editable)?
   const isEditable = selectedFile === targetFile;
 
   const load = async () => {
@@ -43,7 +43,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
       setFiles(allFiles);
       const tgt = data?.target_file || "99-nexus.yaml";
       setTargetFile(tgt);
-      // Garder la sélection courante si elle existe encore, sinon target
+      // Keep the current selection if it still exists, otherwise fall back to target
       setSelectedFile((cur) => allFiles.some((f) => f.filename === cur) ? cur : tgt);
       const current = allFiles.find((f) => f.filename === (allFiles.some((f) => f.filename === selectedFile) ? selectedFile : tgt));
       const content = current?.content || defaultNetplan();
@@ -58,7 +58,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [machineId]);
 
-  // Quand on change de fichier sélectionné, recharger le contenu depuis files cache
+  // When the selected file changes, reload the content from the files cache
   useEffect(() => {
     const f = files.find((x) => x.filename === selectedFile);
     if (!f) return;
@@ -66,9 +66,9 @@ export default function NetworkConfigTab({ machineId }: Props) {
     setOriginalContent(f.content);
   }, [selectedFile, files]);
 
-  // Poll status for pending watchdogs (au cas où un autre admin aurait lancé un apply)
+  // Poll status for pending watchdogs (in case another admin triggered an apply)
   useEffect(() => {
-    if (pending) return; // Ne pas poller si on a nous-même un pending
+    if (pending) return; // Don't poll if we have our own pending
     const t = setInterval(async () => {
       try {
         const st = await api.networkStatus(machineId);
@@ -84,7 +84,7 @@ export default function NetworkConfigTab({ machineId }: Props) {
     return () => clearInterval(t);
   }, [pending, machineId]);
 
-  // Countdown timer quand un pending est actif
+  // Countdown timer when a pending is active
   useEffect(() => {
     if (!pending) {
       setRemaining(0);

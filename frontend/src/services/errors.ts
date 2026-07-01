@@ -1,10 +1,10 @@
-// Helper unique pour extraire un message lisible depuis un catch.
-// Évite les `catch (err: any)` partout : err est typé `unknown` (norme TS)
-// et on extrait le message proprement selon le type réel.
+// Single helper to extract a readable message from a catch.
+// Avoids `catch (err: any)` everywhere: err is typed `unknown` (TS norm)
+// and we extract the message cleanly based on the actual type.
 //
-// Le fallback permet de remplacer le pattern `err?.message || "X"`
-// directement par `getErrorMessage(err, "X")`.
-export function getErrorMessage(err: unknown, fallback = "Erreur inconnue"): string {
+// The fallback lets you replace the `err?.message || "X"` pattern
+// directly with `getErrorMessage(err, "X")`.
+export function getErrorMessage(err: unknown, fallback = "Unknown error"): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === "string" && err) return err;
   if (typeof err === "object" && err !== null && "message" in err) {

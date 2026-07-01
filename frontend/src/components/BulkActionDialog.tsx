@@ -13,9 +13,9 @@ interface Props {
   onCompleted?: () => void;
 }
 
-// `key` = clé i18n stable (label/description via t(`bulkActions.${key}.*`)).
-// `confirmText` est le mot-clé TAPÉ par l'utilisateur et comparé tel quel
-// (handleRun) → NE JAMAIS l'externaliser/traduire.
+// `key` = stable i18n key (label/description via t(`bulkActions.${key}.*`)).
+// `confirmText` is the keyword TYPED by the user and compared as-is
+// (handleRun) → NEVER externalize/translate it.
 const BULK_ACTIONS: {
   id: string;
   key: string;

@@ -12,9 +12,9 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Si mode keycloak only, redirect automatiquement
-  // IMPORTANT : ne pas redirect si un code OIDC est dans l'URL (retour de Keycloak,
-  // l'AuthProvider est en train d'echanger le code) OU si l'auth charge encore.
+  // If keycloak-only mode, redirect automatically
+  // IMPORTANT: do not redirect if an OIDC code is in the URL (return from Keycloak,
+  // the AuthProvider is exchanging the code) OR if auth is still loading.
   useEffect(() => {
     if (authLoading) return;
     const hasOidcCode =
@@ -82,7 +82,7 @@ export default function Login() {
         </div>
 
         <div className="space-y-4">
-          {/* Bouton Keycloak SSO */}
+          {/* Keycloak SSO button */}
           {showKeycloak && (
             <button
               onClick={handleKeycloakLogin}
@@ -93,7 +93,7 @@ export default function Login() {
             </button>
           )}
 
-          {/* Séparateur si les deux modes sont actifs */}
+          {/* Separator if both modes are active */}
           {showKeycloak && showLocal && (
             <div className="flex items-center gap-4">
               <div className="flex-1 h-px bg-border" />
@@ -102,7 +102,7 @@ export default function Login() {
             </div>
           )}
 
-          {/* Formulaire local */}
+          {/* Local form */}
           {showLocal && (
             <form onSubmit={handleLocalLogin}>
               <div className="rounded-xl border border-border bg-card p-6 space-y-4">

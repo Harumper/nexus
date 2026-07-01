@@ -63,29 +63,29 @@ import enSshConnect from "./locales/en/sshConnect.json";
 
 export const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
-// Un namespace par module fonctionnel. "common" = chrome + libellés transverses
-// (référencé partout) → c'est le defaultNS. Les lots suivants ajoutent leur
-// propre namespace (alerts, machineDetail, docs…) sans toucher à common.
+// One namespace per functional module. "common" = chrome + cross-cutting labels
+// (referenced everywhere) → it's the defaultNS. The following lots add their
+// own namespace (alerts, machineDetail, docs…) without touching common.
 export const DEFAULT_NS = "common";
 export type Language = (typeof SUPPORTED_LANGUAGES)[number];
 
 export const DEFAULT_LANGUAGE: Language = "fr";
 export const LANG_STORAGE_KEY = "nexus-lang";
 
-// Ordre de détection STRICT : localStorage("nexus-lang") → fallback fr.
-// On n'utilise PAS navigator.language : un visiteur en locale EN doit voir
-// FR par défaut (FR est la langue native du produit). Lecture directe de
-// localStorage (calquée sur ThemeContext) plutôt qu'un plugin détecteur,
-// pour garder le contrôle exact de l'ordre et une dépendance de moins.
+// STRICT detection order: localStorage("nexus-lang") → fallback fr.
+// We do NOT use navigator.language: a visitor in an EN locale must see
+// FR by default (FR is the product's native language). Direct read of
+// localStorage (modeled on ThemeContext) rather than a detector plugin,
+// to keep exact control of the order and one fewer dependency.
 export function getInitialLanguage(): Language {
   const stored = localStorage.getItem(LANG_STORAGE_KEY);
   if (stored === "fr" || stored === "en") return stored;
   return DEFAULT_LANGUAGE;
 }
 
-// Init synchrone : les ressources sont des bundles statiques importés (pas de
-// lazy), donc i18n est prêt dès l'import de ce module — aucun flash d'écran
-// vide à attendre. `useSuspense: false` par sécurité (pas de Suspense i18n).
+// Synchronous init: the resources are statically imported bundles (no
+// lazy), so i18n is ready as soon as this module is imported — no flash of an
+// empty screen to wait through. `useSuspense: false` for safety (no i18n Suspense).
 i18n.use(initReactI18next).init({
   resources: {
     fr: {

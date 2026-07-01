@@ -21,7 +21,7 @@ interface AptPackage {
   component: string;
 }
 
-// Entrée en Ko (apt) → octets, puis format central locale-aware. « — » si vide.
+// Input in KB (apt) → bytes, then central locale-aware format. "—" if empty.
 function formatSize(kb: number | null): string {
   if (!kb || kb <= 0) return "—";
   return fmtBytes(kb * 1024);
@@ -96,7 +96,7 @@ export default function PackagesTab({ machineId }: PackagesTabProps) {
     }
   };
 
-  // Dedup par nom (garder la version la plus recente par suite/component)
+  // Dedup by name (keep the most recent version per suite/component)
   const dedupedResults = useMemo(() => {
     const seen = new Map<string, AptPackage>();
     for (const r of results) {

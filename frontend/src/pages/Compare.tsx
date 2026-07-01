@@ -34,9 +34,9 @@ export default function Compare() {
     api.getMachines().then(setMachines).catch((err) => console.warn("[Compare] getMachines failed:", err));
   }, []);
 
-  // Fetch DÉCOUPLÉ du choix de métrique : on ne re-télécharge que si la sélection
-  // de machines ou le range change (avant : dépendait aussi de `machines` → re-fetch
-  // inutile à chaque render parent). Le changement de métrique est un simple recalcul.
+  // Fetch DECOUPLED from the metric choice: we only re-download when the machine
+  // selection or the range changes (before: it also depended on `machines` → a useless
+  // re-fetch on every parent render). Changing the metric is just a recompute.
   useEffect(() => {
     if (selectedIds.length === 0) { setSeries([]); setSinceMs(null); return; }
     let cancelled = false;
@@ -57,11 +57,11 @@ export default function Compare() {
   const nameOf = (id: string) => machines.find((m) => m.id === id)?.name || id;
   const selectedNames = selectedIds.map(nameOf);
 
-  // Fusion multi-machines par BUCKET ALIGNÉ : le downsampling SQL aligne tous les
-  // timestamps sur les mêmes frontières → la fusion est EXACTE (avant : fusion par
-  // chaîne "HH:mm" → des points à 10:30:15 et 10:30:45 se confondaient, et aucun
-  // tri). GAP-FILL : une machine sans point à un bucket → null (trou visible, pas
-  // de ligne droite). Recalcul léger au changement de métrique, sans re-fetch.
+  // Multi-machine merge by ALIGNED BUCKET: the SQL downsampling aligns all
+  // timestamps to the same boundaries → the merge is EXACT (before: merge by
+  // "HH:mm" string → points at 10:30:15 and 10:30:45 collided, and no
+  // sorting). GAP-FILL: a machine with no point at a bucket → null (visible gap, no
+  // straight line). Light recompute when the metric changes, without re-fetch.
   const chartData = useMemo(() => {
     if (series.length === 0 || sinceMs == null) return [];
     const perMachine = new Map<string, Map<number, number>>();
@@ -82,7 +82,7 @@ export default function Compare() {
       }
       return point;
     });
-    // nameOf dépend de `machines` (déjà en deps) ; pas de re-fetch, simple remap.
+    // nameOf depends on `machines` (already in deps); no re-fetch, just a remap.
   }, [series, metric, bucketMs, sinceMs, selectedIds, machines]);
 
   const xDomain: [number, number] | undefined =

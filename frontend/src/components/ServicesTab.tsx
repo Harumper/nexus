@@ -19,10 +19,10 @@ type StateFilter = "all" | "active" | "inactive" | "failed";
 interface ServicesTabProps {
   machineId: string;
   onViewLogs?: (service: string) => void;
-  /** Filtre demandé depuis l'extérieur (ex. clic sur "services en échec" dans
-   * AttentionPanel). One-shot : on l'applique à la réception et on appelle
-   * onPendingFilterConsumed pour le rendre nul, afin que l'utilisateur puisse
-   * ensuite changer le filtre librement. */
+  /** Filter requested from outside (e.g. click on "failed services" in
+   * AttentionPanel). One-shot: applied on receipt and then
+   * onPendingFilterConsumed is called to nullify it, so the user can
+   * subsequently change the filter freely. */
   pendingFilter?: StateFilter | null;
   onPendingFilterConsumed?: () => void;
 }
@@ -53,7 +53,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
     try {
       const res = await api.listServices(machineId);
       const list = (res?.data?.services || []) as SystemdUnit[];
-      // Ne garder que les .service
+      // Keep only .service units
       const filtered = list.filter(u => (u.unit || "").endsWith(".service"));
       setServices(filtered);
     } catch (err) {
@@ -104,7 +104,7 @@ export default function ServicesTab({ machineId, onViewLogs, pendingFilter, onPe
 
   return (
     <div className="space-y-4">
-      {/* Header + filtres */}
+      {/* Header + filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--nx-text-weak)" }} />

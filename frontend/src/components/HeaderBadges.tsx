@@ -9,16 +9,16 @@ interface Props {
 }
 
 /**
- * Petits badges affichés sous le nom de la machine dans le header.
- * Visible en permanence — montre l'état critique au glance avant que
- * l'utilisateur n'ait besoin de scroller vers AttentionPanel.
+ * Small badges shown under the machine name in the header.
+ * Always visible — shows the critical state at a glance before the
+ * user needs to scroll to AttentionPanel.
  *
- * "The bad news at the top" — pattern Datadog/Cockpit.
+ * "The bad news at the top" — Datadog/Cockpit pattern.
  */
 export default function HeaderBadges({ data, onTabChange, onShowFailedServices }: Props) {
   const { t } = useTranslation();
   const { updatesCount, securityUpdates } = data;
-  // Garde-fou null : un agent injoignable peut remonter null au lieu de [].
+  // Null guard: an unreachable agent may return null instead of [].
   const alerts = data.alerts ?? [];
   const failedServices = data.failedServices ?? [];
   const certs = data.certs ?? [];
@@ -27,7 +27,7 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
     ? Math.min(...expiringCerts.map((c) => c.days_remaining))
     : null;
 
-  // Si rien de critique, on ne rend rien (le header reste propre)
+  // If nothing is critical, we render nothing (the header stays clean)
   if (alerts.length === 0 && failedServices.length === 0 && updatesCount === 0 && expiringCerts.length === 0) {
     return null;
   }

@@ -56,7 +56,7 @@ const SEVERITY_STYLES = {
   CRITICAL: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
 };
 
-// Clé i18n de l'unité du threshold selon conditionType (résolue via t(`units.${key}`)).
+// i18n key for the threshold unit based on conditionType (resolved via t(`units.${key}`)).
 function thresholdUnitKey(conditionType: string): string {
   switch (conditionType) {
     case "MACHINE_OFFLINE": return "seconds";
@@ -66,7 +66,7 @@ function thresholdUnitKey(conditionType: string): string {
     case "SERVICE_FAILED":
     case "TIMER_FAILED":
     case "CRON_FAILED":
-      return "none"; // Pas de threshold, juste filtre optionnel
+      return "none"; // No threshold, just an optional filter
     default:
       return "percent";
   }
@@ -121,7 +121,7 @@ export default function Alerts() {
     if (tab === "history") fetchHistory();
   }, [tab, fetchHistory]);
 
-  // WS temps réel
+  // Real-time WS
   const handleWsMessage = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.type === "alert.fired") {

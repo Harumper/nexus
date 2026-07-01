@@ -1,6 +1,6 @@
-// Composants UI primitifs Nexus.
-// Tous utilisent les Tailwind tokens (bg-card, text-foreground, etc.)
-// qui pointent vers les CSS vars --nx-* via index.css @theme.
+// Nexus primitive UI components.
+// All use Tailwind tokens (bg-card, text-foreground, etc.)
+// that point to the --nx-* CSS vars via index.css @theme.
 
 export { Button } from "./Button";
 export { Card, CardHeader, CardTitle } from "./Card";

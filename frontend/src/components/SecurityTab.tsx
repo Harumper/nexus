@@ -16,11 +16,11 @@ interface SecurityTabProps {
 
 type Pending = { kind: "sshd" | "firewall"; requestId: string; expiresAt: number };
 
-// Reconstitue un SecurityAuditResult à partir du dernier scan persisté
-// (tendance). Seuls les TEXTES des warnings/suggestions ne sont pas conservés
-// en base → listes vides ; le reste (indice, compteurs, remédiations) est exact.
-// Permet d'afficher la dernière posture connue au montage, au lieu d'un faux
-// « Aucun audit pour l'instant » alors que la tendance montre des scans.
+// Reconstructs a SecurityAuditResult from the last persisted scan (trend).
+// Only the TEXTS of warnings/suggestions are not kept in the database →
+// empty lists; everything else (index, counters, remediations) is exact.
+// Lets us display the last known posture on mount, instead of a bogus
+// "No audit yet" while the trend shows scans.
 function scanPointToResult(p: SecurityScanPoint): SecurityAuditResult {
   return {
     hardening_index: p.hardeningIndex,
@@ -41,21 +41,21 @@ function scanPointToResult(p: SecurityScanPoint): SecurityAuditResult {
   };
 }
 
-// Onglet « Durcissement » : audit Lynis (lecture seule) + remédiations 1-clic
-// (fail2ban, MAJ auto, SSH avec watchdog) + assistant pare-feu (watchdog 60s).
+// "Hardening" tab: Lynis audit (read-only) + 1-click remediations
+// (fail2ban, auto-updates, SSH with watchdog) + firewall wizard (60s watchdog).
 export default function SecurityTab({ machineId }: SecurityTabProps) {
   const { t } = useTranslation(["security", "common"]);
   const [result, setResult] = useState<SecurityAuditResult | null>(null);
-  // result reconstitué depuis l'historique (détail warnings/suggestions absent).
+  // result reconstructed from history (warnings/suggestions detail absent).
   const [resultStale, setResultStale] = useState(false);
-  const [auditOpen, setAuditOpen] = useState(false); // modal de progression de l'audit
+  const [auditOpen, setAuditOpen] = useState(false); // audit progress modal
   const [applying, setApplying] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [remaining, setRemaining] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm, ConfirmDialogElement } = useConfirm();
 
-  // Assistant pare-feu : services détectés + sélection des ports à autoriser.
+  // Firewall wizard: detected services + selection of ports to allow.
   const [fwServices, setFwServices] = useState<ListeningService[] | null>(null);
   const [fwDockerServices, setFwDockerServices] = useState<ListeningService[]>([]);
   const [fwSelected, setFwSelected] = useState<Set<string>>(new Set());
@@ -66,14 +66,14 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
   const [f2bBantime, setF2bBantime] = useState("1h");
   const [f2bFindtime, setF2bFindtime] = useState("10m");
   const [f2bMaxretry, setF2bMaxretry] = useState("5");
-  // Posture modifiée par une remédiation mais audit pas encore relancé
-  // (indice/findings non recalculés) → bandeau "relancer un audit".
+  // Posture modified by a remediation but audit not re-run yet
+  // (index/findings not recomputed) → "re-run an audit" banner.
   const [postureDirty, setPostureDirty] = useState(false);
-  // Vue d'ensemble (graph de tendance + stats) repliée par défaut : la page
-  // s'ouvre directement sur la liste des remédiations (meilleure concentration).
+  // Overview (trend graph + stats) collapsed by default: the page
+  // opens directly on the remediations list (better focus).
   const [overviewOpen, setOverviewOpen] = useState(false);
-  // Aperçu inline (dry-run) déplié sous une remédiation. `previewLoading` = clé
-  // en cours de chargement de l'aperçu.
+  // Inline preview (dry-run) expanded under a remediation. `previewLoading` = key
+  // currently loading its preview.
   const [preview, setPreview] = useState<{
     key: string;
     title: string;
@@ -84,27 +84,27 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
 
-  // Historique des scans (tendance de l'indice). Chargé au montage.
+  // Scan history (index trend). Loaded on mount.
   const [history, setHistory] = useState<SecurityScanPoint[]>([]);
 
   const loadHistory = async (): Promise<SecurityScanPoint[]> => {
     try {
       const res = await api.securityScans(machineId, 50);
-      const scans = res.scans ?? []; // jamais null → pas de crash .filter/.length
+      const scans = res.scans ?? []; // never null → no .filter/.length crash
       setHistory(scans);
       return scans;
     } catch {
-      // historique non bloquant
+      // history is non-blocking
       return [];
     }
   };
 
   useEffect(() => {
-    // Au montage : charger la tendance ET, faute d'audit live, afficher la
-    // dernière posture connue (reconstituée depuis le dernier scan persisté).
+    // On mount: load the trend AND, absent a live audit, display the
+    // last known posture (reconstructed from the last persisted scan).
     (async () => {
       const scans = await loadHistory();
-      // result === null au montage ; on n'écrase jamais un résultat live.
+      // result === null on mount; we never overwrite a live result.
       if (scans.length > 0 && !result) {
         setResult(scanPointToResult(scans[0]));
         setResultStale(true);
@@ -113,7 +113,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [machineId]);
 
-  // Décompte du watchdog (SSH ou pare-feu) — revert auto si non confirmé.
+  // Watchdog countdown (SSH or firewall) — auto-revert if not confirmed.
   useEffect(() => {
     if (!pending) {
       setRemaining(0);
@@ -136,14 +136,14 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending]);
 
-  // Ouvre la modal de progression — elle dispatche l'audit, affiche la sortie
-  // streamée en direct, et renvoie le résultat (onResult) pour rafraîchir l'onglet.
+  // Opens the progress modal — it dispatches the audit, shows the live-streamed
+  // output, and returns the result (onResult) to refresh the tab.
   const runAudit = () => setAuditOpen(true);
 
-  // Applique une remédiation après confirmation, puis relance l'audit pour
-  // rafraîchir l'état affiché.
-  // Applique une mesure SANS re-scanner : la carte passe à "actif" en optimiste,
-  // et on marque la posture "à rafraîchir" (un seul audit à relancer à la fin).
+  // Applies a remediation after confirmation, then re-runs the audit to
+  // refresh the displayed state.
+  // Applies a measure WITHOUT re-scanning: the card optimistically flips to
+  // "active", and we mark the posture "to refresh" (a single audit to re-run at the end).
   const markApplied = (patch: Partial<SecurityAuditResult>) => {
     setResult((r) => (r ? { ...r, ...patch } : r));
     setPostureDirty(true);
@@ -181,8 +181,8 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     }
   };
 
-  // Ouvre/replie l'aperçu inline d'une remédiation (dry-run côté agent → contenu
-  // exact, sans rien appliquer). Re-cliquer sur la même clé referme.
+  // Opens/collapses the inline preview of a remediation (agent-side dry-run →
+  // exact content, without applying anything). Re-clicking the same key closes it.
   const togglePreview = async (
     key: string,
     actionId: string,
@@ -205,8 +205,8 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     }
   };
 
-  // Application "instantanée" depuis l'aperçu (core-dumps, login.defs, auto-updates) :
-  // patch optimiste + posture marquée à rafraîchir (pas de re-scan immédiat).
+  // "Instant" apply from the preview (core-dumps, login.defs, auto-updates):
+  // optimistic patch + posture marked to refresh (no immediate re-scan).
   const applyFromPreview = async (
     key: string,
     fn: () => Promise<unknown>,
@@ -225,7 +225,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     }
   };
 
-  // SSH : application réelle (watchdog-revert) depuis l'aperçu.
+  // SSH: real apply (watchdog-revert) from the preview.
   const doSshHarden = async () => {
     setApplying("sshd");
     try {
@@ -240,7 +240,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     }
   };
 
-  // Confirme le watchdog en cours (SSH ou pare-feu), selon le kind.
+  // Confirms the current watchdog (SSH or firewall), depending on the kind.
   const handleConfirm = async () => {
     if (!pending) return;
     try {
@@ -257,20 +257,20 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
     }
   };
 
-  // ── Assistant pare-feu ──────────────────────────────────────
+  // ── Firewall wizard ─────────────────────────────────────────
   const analyzeFirewall = async () => {
     setFwLoading(true);
     try {
       const res = await api.listeningServices(machineId);
-      const exposed = res.data.services.filter((s) => s.exposed); // loopback non concerné
-      // Ports publiés par Docker : gérés par les règles iptables de Docker, ufw
-      // ne les filtre pas → on les sépare (affichés mais NON sélectionnables/
-      // appliqués) pour éviter d'ajouter des règles ufw inopérantes.
+      const exposed = res.data.services.filter((s) => s.exposed); // loopback not concerned
+      // Ports published by Docker: handled by Docker's iptables rules, ufw
+      // doesn't filter them → we separate them (shown but NOT selectable/
+      // applied) to avoid adding inoperative ufw rules.
       const docker = exposed.filter((s) => s.docker_managed);
       const actionable = exposed.filter((s) => !s.docker_managed);
       setFwServices(actionable);
       setFwDockerServices(docker);
-      // Présélection : services non-Docker exposés ; SSH toujours coché.
+      // Preselection: exposed non-Docker services; SSH always checked.
       setFwSelected(new Set(actionable.map((s) => s.port)));
     } catch (err) {
       toast.error(getErrorMessage(err, t("toasts.analyzeError")));
@@ -280,7 +280,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
   };
 
   const toggleFwPort = (svc: ListeningService) => {
-    if (svc.is_ssh) return; // SSH verrouillé (anti-lockout)
+    if (svc.is_ssh) return; // SSH locked (anti-lockout)
     setFwSelected((prev) => {
       const next = new Set(prev);
       if (next.has(svc.port)) next.delete(svc.port);
@@ -319,8 +319,8 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
 
   return (
     <div className="space-y-5 relative">
-      {/* Aperçu d'une remédiation : overlay couvrant la zone de contenu de
-          l'onglet (Retour / Appliquer), au lieu de décaler la liste. */}
+      {/* Remediation preview: overlay covering the tab's content area
+          (Back / Apply), instead of shifting the list. */}
       {preview && (
         <PreviewOverlay
           title={preview.title}
@@ -334,7 +334,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         />
       )}
 
-      {/* Bandeau watchdog (SSH ou pare-feu) : à confirmer avant revert auto */}
+      {/* Watchdog banner (SSH or firewall): confirm before auto-revert */}
       {pending && remaining > 0 && (
         <div
           className="rounded-xl border p-4 flex items-center justify-between gap-3"
@@ -366,7 +366,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         </div>
       )}
 
-      {/* En-tête + action */}
+      {/* Header + action */}
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -397,7 +397,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         </div>
       </div>
 
-      {/* Modal de progression (sortie Lynis streamée en direct, comme la MAJ agent) */}
+      {/* Progress modal (Lynis output streamed live, like the agent update) */}
       {auditOpen && (
         <SecurityAuditDialog
           machineId={machineId}
@@ -411,14 +411,14 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
         />
       )}
 
-      {/* État initial */}
+      {/* Initial state */}
       {!result && !auditOpen && (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           {t("header.empty")}
         </div>
       )}
 
-      {/* Résultats */}
+      {/* Results */}
       {result && (
         <>
           {resultStale && (
@@ -433,8 +433,8 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
               </span>
             </div>
           )}
-          {/* Vue d'ensemble (repliée par défaut) : indice + stats + tendance.
-              On garde le focus sur la liste des remédiations en dessous. */}
+          {/* Overview (collapsed by default): index + stats + trend.
+              We keep focus on the remediations list below. */}
           <div className="rounded-xl border border-border bg-card">
             <button
               onClick={() => setOverviewOpen((o) => !o)}
@@ -476,7 +476,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             )}
           </div>
 
-          {/* Parefeu (résumé rapide) */}
+          {/* Firewall (quick summary) */}
           <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-2 text-sm">
             <Flame className="w-4 h-4" style={{ color: result.firewall_active ? "var(--nx-success)" : "var(--nx-danger)" }} />
             {result.firewall_active
@@ -487,7 +487,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             )}
           </div>
 
-          {/* Remédiations recommandées (1 clic) */}
+          {/* Recommended remediations (1 click) */}
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <Wrench className="w-4 h-4" style={{ color: "var(--nx-accent)" }} />
@@ -583,7 +583,7 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
             )}
           </div>
 
-          {/* Assistant pare-feu */}
+          {/* Firewall wizard */}
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -804,8 +804,8 @@ function RemediationRow({
   busy: boolean;
   disabled?: boolean;
   onApply?: () => void;
-  // Si fourni : bouton « Voir » qui déplie un aperçu inline (l'application se
-  // fait depuis le panneau, jamais à l'aveugle).
+  // If provided: a "View" button that expands an inline preview (applying
+  // happens from the panel, never blindly).
   onPreview?: () => void;
   previewing?: boolean;
   previewLoading?: boolean;
@@ -859,10 +859,10 @@ function RemediationRow({
   );
 }
 
-// Aperçu d'une remédiation : side sheet (drawer) qui glisse de la droite, façon
-// Stripe/Linear. Montre le contenu EXACT qui sera écrit (lu depuis l'agent) avant
-// d'appliquer. Fixe au viewport → toujours pleinement visible, la liste reste
-// visible derrière (contexte préservé). Voile léger, fermeture clic/Échap.
+// Remediation preview: a side sheet (drawer) sliding in from the right, Stripe/
+// Linear style. Shows the EXACT content that will be written (read from the agent)
+// before applying. Fixed to the viewport → always fully visible, the list stays
+// visible behind (context preserved). Light scrim, close on click/Esc.
 function PreviewOverlay({
   title,
   changes,
@@ -883,7 +883,7 @@ function PreviewOverlay({
   onClose: () => void;
 }) {
   const { t } = useTranslation(["security", "common"]);
-  // Animation d'entrée (slide depuis la droite) + fermeture à la touche Échap.
+  // Entry animation (slide from the right) + close on Esc key.
   const [shown, setShown] = useState(false);
   useEffect(() => {
     setShown(true);
@@ -896,19 +896,19 @@ function PreviewOverlay({
 
   return (
     <>
-      {/* Voile léger (pas un fond opaque de modal) : clic = fermer */}
+      {/* Light scrim (not an opaque modal backdrop): click = close */}
       <div
         className={`fixed inset-0 z-40 bg-black/20 transition-opacity duration-200 ${shown ? "opacity-100" : "opacity-0"}`}
         onClick={() => !applying && onClose()}
         aria-hidden="true"
       />
-      {/* Drawer à droite */}
+      {/* Drawer on the right */}
       <div
         role="dialog"
         aria-modal="true"
         className={`fixed inset-y-0 right-0 z-50 w-full max-w-xl flex flex-col bg-card border-l border-border shadow-2xl transform transition-transform duration-200 ${shown ? "translate-x-0" : "translate-x-full"}`}
       >
-        {/* En-tête */}
+        {/* Header */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0 bg-elevated">
           <h3 className="text-sm font-semibold text-foreground truncate">{t("preview.titleSuffix", { title })}</h3>
           <button
@@ -919,7 +919,7 @@ function PreviewOverlay({
             <X className="w-4 h-4" />
           </button>
         </div>
-        {/* Corps : le contenu exact qui sera écrit */}
+        {/* Body: the exact content that will be written */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <p className="text-xs text-muted-foreground">
             {t("preview.exactContent")}
@@ -938,7 +938,7 @@ function PreviewOverlay({
             </div>
           )}
         </div>
-        {/* Pied : Retour / Appliquer */}
+        {/* Footer: Back / Apply */}
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-border shrink-0 bg-elevated">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={applying} icon={<ArrowLeft />}>
             {t("preview.back")}
@@ -952,7 +952,7 @@ function PreviewOverlay({
   );
 }
 
-// Courbe d'évolution de l'indice de durcissement (du plus ancien au plus récent).
+// Evolution curve of the hardening index (from oldest to most recent).
 function HardeningTrend({ history }: { history: SecurityScanPoint[] }) {
   const { t } = useTranslation("security");
   const points = history
@@ -1067,8 +1067,8 @@ function FindingList({
       </h3>
       <ul className="space-y-2">
         {items.map((it, i) => {
-          // Les IDs de contrôle Lynis (AUTH-9230, BANN-7126, DEB-0280…) ont une
-          // page de doc officielle → lien direct depuis la ligne du rapport.
+          // Lynis control IDs (AUTH-9230, BANN-7126, DEB-0280…) have an
+          // official doc page → direct link from the report line.
           const docUrl = /^[A-Z]+-\d+$/.test(it.id || "")
             ? `https://cisofy.com/lynis/controls/${it.id}/`
             : null;

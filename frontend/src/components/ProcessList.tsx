@@ -31,7 +31,7 @@ export default function ProcessList({ machineId }: ProcessListProps) {
   const [error, setError] = useState<string | null>(null);
   const { confirm, ConfirmDialogElement } = useConfirm();
 
-  // Auto-pull au montage du composant
+  // Auto-pull on component mount
   useEffect(() => {
     fetchProcesses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

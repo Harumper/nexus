@@ -27,7 +27,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
 
   const onlineMachines = machines.filter((m) => m.status === "ONLINE");
 
-  // WebSocket pour le streaming
+  // WebSocket for streaming
   const handleWsMessage = useCallback((msg: WSDashboardMessage) => {
     if (msg.type === "update.progress" && msg.machine_id) {
       setProgress((prev) => ({
@@ -47,7 +47,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
     setRunning(true);
     setResult(null);
 
-    // Initialiser la progression
+    // Initialize progress
     const initial: Record<string, MachineProgress> = {};
     for (const m of onlineMachines) {
       initial[m.id] = { status: "pending", percent: 0, line: t("pending") };
@@ -73,7 +73,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
         failed: data.failed || 0,
       });
 
-      // Marquer les échecs
+      // Mark the failures
       if (data.results?.failed) {
         for (const f of data.results.failed) {
           setProgress((prev) => ({
@@ -160,7 +160,7 @@ export default function BatchUpdateDialog({ machines, onClose }: Props) {
             </>
           ) : (
             <>
-              {/* Progression par machine */}
+              {/* Per-machine progress */}
               <div className="space-y-3">
                 {onlineMachines.map((m) => {
                   const p = progress[m.id];

@@ -24,13 +24,13 @@ export interface MachineAttentionData {
 }
 
 /**
- * Charge en parallèle les signaux critiques d'une machine :
- * alerts FIRING, services failed, updates pending, certs expiring.
+ * Loads a machine's critical signals in parallel:
+ * FIRING alerts, failed services, pending updates, expiring certs.
  *
- * Refresh manuel via reload(). Pas de polling auto pour ne pas spammer
- * l'agent (system.health_summary + ssl.scan = O(secondes)) — l'utilisateur
- * peut recharger à la demande, et l'AlertEngine côté backend détecte les
- * changements toutes les 5 min de toute façon.
+ * Manual refresh via reload(). No auto-polling to avoid spamming
+ * the agent (system.health_summary + ssl.scan = O(seconds)) — the user
+ * can reload on demand, and the AlertEngine on the backend side detects
+ * changes every 5 min anyway.
  */
 export function useMachineAttention(machineId: string, enabled = true): MachineAttentionData {
   const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
@@ -76,10 +76,10 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
   useEffect(() => {
     if (!enabled) return;
     reload();
-    // Polling auto toutes les 60s — la fenêtre de détection backend est de
-    // 5 min (evaluateHealthAlerts), donc 60s côté UI capte les changements
-    // dans les 60s qui suivent un nouvel état détecté serveur. Plus court
-    // serait du sur-polling.
+    // Auto-polling every 60s — the backend detection window is
+    // 5 min (evaluateHealthAlerts), so 60s on the UI side catches changes
+    // within the 60s following a new state detected by the server. Shorter
+    // would be over-polling.
     const interval = setInterval(reload, 60_000);
     return () => clearInterval(interval);
   }, [reload, enabled]);

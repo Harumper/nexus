@@ -21,15 +21,15 @@ class ApiClient {
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    // Ne pas envoyer Content-Type si pas de body (ex: DELETE, GET)
-    // Fastify rejette les requetes avec Content-Type: application/json + body vide
+    // Don't send Content-Type if there's no body (e.g. DELETE, GET)
+    // Fastify rejects requests with Content-Type: application/json + empty body
     if (options.body != null) {
       headers["Content-Type"] = "application/json";
     }
 
-    // Token explicite (Keycloak SDK fournit le token via setToken). Pour
-    // l'auth locale, le cookie httpOnly est envoyé automatiquement via
-    // credentials: "include" et ce header reste vide.
+    // Explicit token (Keycloak SDK provides the token via setToken). For
+    // local auth, the httpOnly cookie is sent automatically via
+    // credentials: "include" and this header stays empty.
     if (this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
@@ -37,15 +37,15 @@ class ApiClient {
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
-      // Inclut les cookies (notamment nexus_token httpOnly post-login local).
+      // Includes cookies (notably nexus_token httpOnly after local login).
       credentials: "include",
     });
 
     if (!response.ok) {
-      // 401 sur un endpoint protégé = session expirée → forcer déconnexion.
-      // On exempte /auth/* (login, me, logout) pour éviter une boucle :
-      // au boot, /me peut renvoyer 401 si pas connecté, c'est légitime
-      // (le hook useAuth gère ce cas en restant simplement non-authentifié).
+      // 401 on a protected endpoint = expired session → force logout.
+      // We exempt /auth/* (login, me, logout) to avoid a loop:
+      // at boot, /me can return 401 if not logged in, which is legitimate
+      // (the useAuth hook handles this by simply staying unauthenticated).
       if (response.status === 401 && !path.startsWith("/auth/")) {
         this.onUnauthorized?.();
       }
@@ -333,7 +333,7 @@ class ApiClient {
     );
   }
 
-  // Users Linux
+  // Linux users
   async listUsers(id: string) {
     return this.request<{ success: boolean; data: { users: any[]; count: number } }>(
       `/machines/${id}/actions/sync`,
@@ -584,7 +584,7 @@ class ApiClient {
     );
   }
 
-  // Action synchrone (attend la réponse de l'agent)
+  // Synchronous action (waits for the agent's response)
   async dispatchActionSync<T = any>(
     machineId: string,
     actionId: string,
@@ -623,7 +623,7 @@ class ApiClient {
     return this.request<void>(`/tags/${id}`, { method: "DELETE" });
   }
 
-  // Alerts actives (FIRING/ACKNOWLEDGED) — pour badges machine/fleet
+  // Active alerts (FIRING/ACKNOWLEDGED) — for machine/fleet badges
   async getActiveAlerts() {
     return this.request<Array<{
       id: string;
@@ -702,11 +702,11 @@ class ApiClient {
     });
   }
 
-  // ── Posture de sécurité (audit de durcissement Lynis) ────
-  // Dispatch ASYNCHRONE de l'audit Lynis : renvoie aussitôt le request_id (pas
-  // d'attente HTTP — évite les 504 derrière le proxy). La progression et le
-  // résultat arrivent via WebSocket (security.audit.progress / .result), et le
-  // résumé est persisté côté backend pour l'historique.
+  // ── Security posture (Lynis hardening audit) ────
+  // ASYNCHRONOUS dispatch of the Lynis audit: returns the request_id immediately (no
+  // HTTP wait — avoids 504s behind the proxy). Progress and the
+  // result arrive via WebSocket (security.audit.progress / .result), and the
+  // summary is persisted on the backend for history.
   async securityAudit(id: string) {
     return this.request<{ success: boolean; request_id: string }>(
       `/machines/${id}/security/audit`,
@@ -720,7 +720,7 @@ class ApiClient {
     );
   }
 
-  // Remédiations de durcissement « 1 clic » (Phase 2)
+  // "1-click" hardening remediations (Phase 2)
   async hardenFail2ban(
     id: string,
     opts: { bantime?: string; findtime?: string; maxretry?: string } = {}
@@ -778,12 +778,12 @@ class ApiClient {
     );
   }
 
-  // Aperçu générique (dry-run) d'une remédiation : renvoie les fichiers/directives
-  // qui seraient écrits, sans rien appliquer.
+  // Generic preview (dry-run) of a remediation: returns the files/directives
+  // that would be written, without applying anything.
   async remediationPreview(id: string, actionId: string) {
     const res = await this.request<{
       success: boolean;
-      // Deux formes possibles côté agent :
+      // Two possible shapes on the agent side:
       //  - dryRunChanges (auto-updates/core-dumps/login.defs) → { changes, note }
       //  - sshd.harden dry-run → { dropin, content, watchdog_expires_in }
       data: {
@@ -804,7 +804,7 @@ class ApiClient {
     return { ...res, data: { changes, note: d.note } };
   }
 
-  // Durcissement SSH avec watchdog-revert (confirmer avant 120s sinon revert auto).
+  // SSH hardening with watchdog-revert (confirm within 120s or auto-revert).
   async sshdHarden(id: string) {
     return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string } }>(
       `/machines/${id}/actions/sync`,
@@ -825,7 +825,7 @@ class ApiClient {
     );
   }
 
-  // Assistant pare-feu : liste les sockets en écoute (lecture seule).
+  // Firewall assistant: lists listening sockets (read-only).
   async listeningServices(id: string) {
     return this.request<{ success: boolean; data: { services: import("../types").ListeningService[] } }>(
       `/machines/${id}/actions/sync`,
@@ -836,8 +836,8 @@ class ApiClient {
     );
   }
 
-  // Applique une politique pare-feu (allow détectés + enable) avec watchdog 60s.
-  // La confirmation réutilise firewallConfirm (request_id prefixé "firewall-").
+  // Applies a firewall policy (detected allows + enable) with a 60s watchdog.
+  // Confirmation reuses firewallConfirm (request_id prefixed "firewall-").
   async firewallApplyPolicy(id: string, allow: string[]) {
     return this.request<{ success: boolean; data: { request_id: string; watchdog_expires_at: string; allowed: string[] } }>(
       `/machines/${id}/actions/sync`,
@@ -877,7 +877,7 @@ class ApiClient {
       };
     }>(`/machines/${id}/actions/sync`, {
       method: "POST",
-      // Timeout généreux : 50 MB en base64 ≈ 67 MB JSON sur le wire
+      // Generous timeout: 50 MB in base64 ≈ 67 MB JSON on the wire
       body: JSON.stringify({ action_id: "fs.read", params: { path }, timeout: 60000 }),
     });
   }

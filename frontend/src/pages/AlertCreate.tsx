@@ -14,9 +14,9 @@ const SEVERITY_OPTS = [
   { value: "CRITICAL", className: "bg-danger-subtle text-danger border-danger" },
 ] as const;
 
-// Groupes du sélecteur de condition : clé de groupe i18n + valeurs.
-// Le libellé de chaque option vient de t(`conditionsForm.${v}`) avec fallback
-// sur t(`conditions.${v}`) (override seulement là où le form diffère, ex. UPDATES_AVAILABLE).
+// Condition selector groups: i18n group key + values.
+// Each option's label comes from t(`conditionsForm.${v}`) with a fallback
+// to t(`conditions.${v}`) (override only where the form differs, e.g. UPDATES_AVAILABLE).
 const CONDITION_GROUPS = [
   { key: "metrics", options: ["CPU_ABOVE", "MEMORY_ABOVE", "DISK_ABOVE", "LOAD_ABOVE"] },
   { key: "connection", options: ["MACHINE_OFFLINE"] },
@@ -67,7 +67,7 @@ export default function AlertCreate() {
   const [machineIds, setMachineIds] = useState<string[]>([]);
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
 
-  // Charger la règle existante en mode edit
+  // Load the existing rule in edit mode
   useEffect(() => {
     if (!isEdit || !id) return;
     fetch(`/api/alerts/rules/${id}`, {
@@ -162,7 +162,7 @@ export default function AlertCreate() {
       />
 
       <form onSubmit={submit} className="space-y-6">
-        {/* Identité */}
+        {/* Identity */}
         <Card>
           <CardHeader>
             <CardTitle>{t("form.sectionIdentity")}</CardTitle>
@@ -277,7 +277,7 @@ export default function AlertCreate() {
           </div>
         </Card>
 
-        {/* Cibles */}
+        {/* Targets */}
         <Card>
           <CardHeader>
             <CardTitle>{t("form.sectionTargets")}</CardTitle>
@@ -320,7 +320,7 @@ export default function AlertCreate() {
           </div>
         </Card>
 
-        {/* Comportement */}
+        {/* Behavior */}
         <Card>
           <CardHeader>
             <CardTitle>{t("form.sectionBehavior")}</CardTitle>

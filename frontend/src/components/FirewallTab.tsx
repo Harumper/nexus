@@ -64,7 +64,7 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       const data = res?.data;
       setEnabled(data?.enabled || false);
       setRules(parseRules(data?.raw || ""));
-      // Si un pending existe cote agent, le reprendre cote UI
+      // If a pending exists on the agent side, resume it on the UI side
       if (data?.pending && data.pending.length > 0) {
         const p = data.pending[0];
         setPending({
@@ -75,9 +75,9 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
       }
     } catch (err) {
       const msg = getErrorMessage(err);
-      // Quand le WS est coupé mais que la machine reste ONLINE pendant la grâce
-      // anti-flapping (~90s), le dispatcher renvoie ce message brut. On le
-      // traduit en quelque chose d'actionnable pour l'utilisateur.
+      // When the WS is cut but the machine stays ONLINE during the
+      // anti-flapping grace (~90s), the dispatcher returns this raw message. We
+      // translate it into something actionable for the user.
       setError(
         /agent is not connected/i.test(msg)
           ? t("agentReconnecting")
@@ -90,14 +90,14 @@ export default function FirewallTab({ machineId }: FirewallTabProps) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Countdown timer pour le pending
+  // Countdown timer for the pending
   useEffect(() => {
     if (!pending) { setCountdown(0); return; }
     const update = () => {
       const remain = Math.max(0, Math.floor((pending.expiresAt.getTime() - Date.now()) / 1000));
       setCountdown(remain);
       if (remain === 0) {
-        // Timer expire — re-fetch l'etat (la revert est deja faite cote agent)
+        // Timer expired — re-fetch the state (the revert is already done on the agent side)
         setTimeout(load, 1000);
         setPending(null);
       }

@@ -26,9 +26,9 @@ import {
 
 interface Props {
   machineId: string;
-  // Gestion des accès persistants (clés SSH / sudo). Désactivé par défaut côté
-  // backend et réservé ADMIN. Le backend reste l'autorité — ceci masque juste
-  // les contrôles qui échoueraient.
+  // Management of persistent access (SSH keys / sudo). Disabled by default on the
+  // backend and restricted to ADMIN. The backend remains the authority — this just
+  // hides the controls that would fail.
   canManagePrivileges: boolean;
 }
 

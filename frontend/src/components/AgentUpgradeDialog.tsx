@@ -26,7 +26,7 @@ interface Props {
   ipAddress?: string | null;
   sshUser?: string | null;
   onClose: () => void;
-  /** Appelé quand l'agent est confirmé reconnecté en nouvelle version. */
+  /** Called when the agent is confirmed reconnected on the new version. */
   onSuccess?: () => void;
 }
 
@@ -44,7 +44,7 @@ interface ResultMsg {
   durationMs?: number;
 }
 
-// Filet de sécurité côté client : un peu au-delà du timeout backend (180s).
+// Client-side safety net: slightly beyond the backend timeout (180s).
 const CLIENT_TIMEOUT_MS = 195_000;
 
 export default function AgentUpgradeDialog({
@@ -67,25 +67,25 @@ export default function AgentUpgradeDialog({
   const startedAtRef = useRef<number>(0);
   const lastProgressAtRef = useRef<number>(0);
   const logEndRef = useRef<HTMLDivElement | null>(null);
-  // Statut courant accessible dans le handler WS (closure stable) : on n'agit
-  // que pendant "working" pour ignorer tout message tardif après un état terminal.
+  // Current status accessible in the WS handler (stable closure): we only act
+  // during "working" to ignore any late message after a terminal state.
   const statusRef = useRef<Status>("confirm");
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
-  // "Agent reconnecté…" ne doit s'afficher qu'une fois (sinon flood à chaque heartbeat).
+  // "Agent reconnected…" must only display once (otherwise it floods on every heartbeat).
   const reconnectNotedRef = useRef(false);
 
   const append = useCallback((line: string) => {
     setLog((prev) => [...prev, line]);
   }, []);
 
-  // Auto-scroll du journal
+  // Auto-scroll the log
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
 
-  // Timer d'écoulement + filet de sécurité timeout pendant le travail
+  // Elapsed-time timer + timeout safety net during the work
   useEffect(() => {
     if (status !== "working") return;
     const iv = setInterval(() => {
@@ -102,8 +102,8 @@ export default function AgentUpgradeDialog({
   const handleWs = useCallback(
     (msg: WSDashboardMessage) => {
       if (msg.machine_id !== machineId) return;
-      // N'agir que pendant l'opération : ignore tout message tardif (machine.status
-      // périodique, etc.) une fois en état terminal (success/failed).
+      // Only act during the operation: ignore any late message (periodic
+      // machine.status, etc.) once in a terminal state (success/failed).
       if (statusRef.current !== "working") return;
       if (msg.type === "agent.upgrade.progress") {
         const d = msg.data as ProgressMsg;
@@ -111,8 +111,8 @@ export default function AgentUpgradeDialog({
         if (typeof d?.percent === "number") setPercent(d.percent);
         lastProgressAtRef.current = Date.now();
       } else if (msg.type === "machine.status" && msg.data?.status === "ONLINE") {
-        // Reconnexion détectée — affichée une seule fois ; on attend la
-        // confirmation de version (agent.upgrade.result) avant le succès.
+        // Reconnection detected — displayed only once; we wait for the
+        // version confirmation (agent.upgrade.result) before success.
         if (!reconnectNotedRef.current) {
           reconnectNotedRef.current = true;
           append(t("log.reconnected"));
@@ -151,8 +151,8 @@ export default function AgentUpgradeDialog({
     startedAtRef.current = Date.now();
     lastProgressAtRef.current = Date.now();
     try {
-      // Tolère une déconnexion transitoire (l'agent peut être dans une courte
-      // fenêtre de reconnexion WS) : on réessaie avant d'échouer.
+      // Tolerate a transient disconnect (the agent may be in a short WS
+      // reconnection window): we retry before failing.
       const maxAttempts = 4;
       for (let attempt = 1; ; attempt++) {
         try {
@@ -178,11 +178,11 @@ export default function AgentUpgradeDialog({
     }
   };
 
-  // Pendant le travail, on bloque la fermeture (modal persistant jusqu'à un
-  // état terminal). Hors travail, fermeture normale.
+  // During the work, we block closing (modal persists until a terminal
+  // state). Outside of work, normal close.
   const guardedClose = status === "working" ? () => {} : onClose;
 
-  // Libellé de phase pendant le travail
+  // Phase label during the work
   const sinceProgress = Date.now() - lastProgressAtRef.current;
   const workingPhase =
     percent >= 90 || sinceProgress > 3000
@@ -214,7 +214,7 @@ export default function AgentUpgradeDialog({
           </>
         )}
 
-        {/* ─── En cours ─── */}
+        {/* ─── In progress ─── */}
         {status === "working" && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-foreground">
@@ -233,7 +233,7 @@ export default function AgentUpgradeDialog({
           </div>
         )}
 
-        {/* ─── Succès ─── */}
+        {/* ─── Success ─── */}
         {status === "success" && (
           <div className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -243,7 +243,7 @@ export default function AgentUpgradeDialog({
           </div>
         )}
 
-        {/* ─── Échec ─── */}
+        {/* ─── Failure ─── */}
         {status === "failed" && (
           <div className="flex items-start gap-2 rounded-lg px-4 py-3 text-sm bg-destructive/10 border border-destructive/20 text-destructive">
             <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -251,7 +251,7 @@ export default function AgentUpgradeDialog({
           </div>
         )}
 
-        {/* ─── Journal des événements ─── */}
+        {/* ─── Event log ─── */}
         {log.length > 0 && (
           <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-300 p-3 max-h-48 overflow-y-auto">
             {log.map((line, i) => (
@@ -261,7 +261,7 @@ export default function AgentUpgradeDialog({
           </pre>
         )}
 
-        {/* ─── Panneau debug / SSH repliable ─── */}
+        {/* ─── Collapsible debug / SSH panel ─── */}
         <DebugPanel
           open={showDebug}
           onToggle={() => setShowDebug((v) => !v)}
@@ -319,7 +319,7 @@ export default function AgentUpgradeDialog({
 }
 
 /* ════════════════════════════════════════════
-   Panneau debug repliable : SSH + commandes de diagnostic
+   Collapsible debug panel: SSH + diagnostic commands
    ════════════════════════════════════════════ */
 function DebugPanel({
   open,
@@ -377,7 +377,7 @@ function DebugPanel({
 
       {open && (
         <div className="px-3 pb-3 space-y-3 border-t border-border pt-3">
-          {/* Connexion SSH */}
+          {/* SSH connection */}
           {sshCmd ? (
             <div className="space-y-1.5">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -405,7 +405,7 @@ function DebugPanel({
             </p>
           )}
 
-          {/* Commandes de diagnostic */}
+          {/* Diagnostic commands */}
           <div className="space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {t("debug.diagnostics")}
@@ -434,7 +434,7 @@ function CommandRow({ cmd }: { cmd: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard indisponible */
+      /* clipboard unavailable */
     }
   };
   return (

@@ -14,7 +14,7 @@ interface Props {
   onChange: (channels: NotificationChannel[]) => void;
 }
 
-// Icône/couleur par canal ; le libellé vient de t(`channels.types.${type}`).
+// Icon/color per channel; the label comes from t(`channels.types.${type}`).
 const CHANNEL_META: Record<ChannelType, { icon: typeof MessageSquare; color: string }> = {
   DISCORD: { icon: MessageSquare, color: "#5865F2" },
   SLACK: { icon: Hash, color: "#4A154B" },

@@ -22,7 +22,7 @@ export function useMachines() {
 
   useEffect(() => {
     fetchMachines();
-    // Refresh toutes les 30s
+    // Refresh every 30s
     const interval = setInterval(fetchMachines, 30_000);
     return () => clearInterval(interval);
   }, [fetchMachines]);

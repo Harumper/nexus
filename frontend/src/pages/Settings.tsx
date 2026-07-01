@@ -512,7 +512,7 @@ export default function Settings() {
         {activeSection === "tags" && <TagsManagementCard />}
 
         {activeSection === "nautilus" && (
-          /* Intégration Nautilus */
+          /* Nautilus integration */
           <NautilusIntegrationCard />
         )}
       </div>

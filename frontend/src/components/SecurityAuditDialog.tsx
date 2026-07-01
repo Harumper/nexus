@@ -11,18 +11,18 @@ interface Props {
   machineId: string;
   machineName?: string;
   onClose: () => void;
-  /** Appelé quand l'audit renvoie son résultat (pour rafraîchir l'onglet). */
+  /** Called when the audit returns its result (to refresh the tab). */
   onResult: (data: SecurityAuditResult) => void;
 }
 
 type Status = "working" | "success" | "failed";
 
-// Filet de sécurité : un peu au-delà du timeout backend.
+// Safety net: a bit beyond the backend timeout.
 const CLIENT_TIMEOUT_MS = 195_000;
 
-// Retire les séquences ANSI (couleurs ET déplacements de curseur). lynis
-// --no-colors enlève les couleurs mais pas les `\x1b[<n>C` d'alignement des
-// `[ FOUND ]`, qui apparaissaient comme "[38C" dans la console.
+// Strips ANSI sequences (colors AND cursor movements). lynis
+// --no-colors removes colors but not the `\x1b[<n>C` alignment of
+// `[ FOUND ]`, which showed up as "[38C" in the console.
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /[\x1b\u009b]\[[0-9;?]*[ -\/]*[@-~]/g;
 function stripAnsi(s: string): string {
@@ -30,8 +30,8 @@ function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "").replace(/[\r]/g, "");
 }
 
-// Modal de progression de l'audit Lynis (comme la MAJ de l'agent) : barre de
-// progression + sortie shell streamée en direct (WebSocket), jusqu'au résultat.
+// Lynis audit progress modal (like the agent update): progress bar + shell
+// output streamed live (WebSocket), until the result arrives.
 export default function SecurityAuditDialog({ machineId, machineName, onClose, onResult }: Props) {
   const { t } = useTranslation(["security", "common"]);
   const [status, setStatus] = useState<Status>("working");
@@ -54,7 +54,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
 
-  // Timer + filet de sécurité timeout pendant le travail.
+  // Timer + timeout safety net during the work.
   useEffect(() => {
     if (status !== "working") return;
     const iv = setInterval(() => {
@@ -95,7 +95,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
 
   useWebSocket({ onMessage: handleWs, enabled: status === "working" });
 
-  // Démarre l'audit au montage (le dispatch est asynchrone : la suite arrive par WS).
+  // Start the audit on mount (the dispatch is async: the rest arrives via WS).
   useEffect(() => {
     startedAtRef.current = Date.now();
     setLog([t("auditDialog.starting")]);
@@ -107,7 +107,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Modal persistant pendant le travail (pas de fermeture accidentelle).
+  // Modal persists during the work (no accidental close).
   const guardedClose = status === "working" ? () => {} : onClose;
 
   const scoreColor =
@@ -163,7 +163,7 @@ export default function SecurityAuditDialog({ machineId, machineName, onClose, o
           </div>
         )}
 
-        {/* Sortie shell streamée */}
+        {/* Streamed shell output */}
         {log.length > 0 && (
           <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-black/90 text-emerald-300 p-3 max-h-72 overflow-y-auto">
             {log.map((line, i) => (

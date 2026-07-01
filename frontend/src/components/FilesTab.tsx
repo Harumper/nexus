@@ -15,13 +15,13 @@ interface FilesTabProps {
   machine: Machine;
 }
 
-// Cap aligné avec l'agent (files.go: fsMaxSize). Au-delà → on propose scp/rsync.
+// Cap aligned with the agent (files.go: fsMaxSize). Beyond it → we offer scp/rsync.
 const FS_MAX_SIZE = 50 * 1024 * 1024;
 
-// Caps de preview — plus bas que le cap de download pour éviter de faire
-// ramer le browser sur 50 MB d'image. Au-delà → download direct.
-const PREVIEW_IMAGE_MAX = 8 * 1024 * 1024;   // 8 MB : couvre la majorité des PNG/JPG
-const PREVIEW_TEXT_MAX = 512 * 1024;          // 512 KB : large pour un fichier de conf/log
+// Preview caps — lower than the download cap to avoid bogging down the
+// browser on a 50 MB image. Beyond it → direct download.
+const PREVIEW_IMAGE_MAX = 8 * 1024 * 1024;   // 8 MB: covers most PNG/JPG
+const PREVIEW_TEXT_MAX = 512 * 1024;          // 512 KB: generous for a config/log file
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "avif"]);
 const TEXT_EXTS = new Set([
@@ -38,13 +38,13 @@ function previewKindFor(entry: FsEntry): PreviewKind {
   const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
   if (IMAGE_EXTS.has(ext)) return entry.size <= PREVIEW_IMAGE_MAX ? "image" : null;
   if (TEXT_EXTS.has(ext)) return entry.size <= PREVIEW_TEXT_MAX ? "text" : null;
-  // Heuristique fichiers sans extension : si petit (<= 256 KB), on tente texte
+  // Heuristic for extensionless files: if small (<= 256 KB), we try text
   if (!entry.name.includes(".") && entry.size > 0 && entry.size <= 256 * 1024) return "text";
   return null;
 }
 
-// MIME basique par extension pour le data: URL. Servir une image SVG en
-// "image/svg+xml" évite un fallback en text/plain.
+// Basic MIME by extension for the data: URL. Serving an SVG image as
+// "image/svg+xml" avoids falling back to text/plain.
 function mimeFor(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   switch (ext) {
@@ -61,8 +61,8 @@ function mimeFor(name: string): string {
   }
 }
 
-// Chemins de raccourci proposés dans une barre latérale. Pure UX, pas
-// d'allow-list backend : la denylist côté agent reste l'autorité.
+// Shortcut paths offered in a sidebar. Pure UX, no backend
+// allow-list: the agent-side denylist remains the authority.
 const QUICK_PATHS = [
   { label: "/", path: "/" },
   { label: "/etc", path: "/etc" },
@@ -72,7 +72,7 @@ const QUICK_PATHS = [
   { label: "/tmp", path: "/tmp" },
 ];
 
-// formatBytes : helper central locale-aware (lib/format).
+// formatBytes: central locale-aware helper (lib/format).
 
 function iconFor(entry: FsEntry): React.ReactNode {
   const cls = "w-4 h-4 shrink-0";
@@ -89,13 +89,13 @@ function iconFor(entry: FsEntry): React.ReactNode {
   return <FileIcon className={cls} style={{ color: "var(--nx-text-weak)" }} />;
 }
 
-// Concatène un chemin Linux proprement (gère les // et le cas root).
+// Joins a Linux path cleanly (handles // and the root case).
 function joinPath(dir: string, name: string): string {
   if (dir.endsWith("/")) return dir + name;
   return dir + "/" + name;
 }
 
-// Renvoie le parent d'un chemin. "/" reste "/".
+// Returns the parent of a path. "/" stays "/".
 function parentOf(path: string): string {
   if (path === "/" || path === "") return "/";
   const trimmed = path.replace(/\/+$/, "");
@@ -104,9 +104,9 @@ function parentOf(path: string): string {
   return trimmed.slice(0, idx);
 }
 
-// Génère la commande scp pour download depuis cette machine vers le
-// poste de l'utilisateur. ipAddress peut être multi-IPs séparés par virgule
-// (cf. la string vue dans le header machine) → on prend la première.
+// Generates the scp command to download from this machine to the
+// user's workstation. ipAddress may be multiple comma-separated IPs
+// (cf. the string seen in the machine header) → we take the first.
 function scpDownloadCmd(machine: Machine, remotePath: string): string {
   const host = (machine.ipAddress?.split(",")[0].trim() || machine.hostname || machine.name).trim();
   const user = machine.sshUser || "root";
@@ -125,8 +125,8 @@ function scpUploadCmd(machine: Machine, localExample: string, inboxPath: string)
   return `scp ${shellQuote(localExample)} ${user}@${host}:${shellQuote(inboxPath)}`;
 }
 
-// Quoting shell minimal : entoure de ' et échappe les ' internes.
-// Suffisant pour des chemins non hostiles.
+// Minimal shell quoting: wraps in ' and escapes internal '.
+// Sufficient for non-hostile paths.
 function shellQuote(s: string): string {
   if (/^[A-Za-z0-9_./@:+\-,]+$/.test(s)) return s;
   return "'" + s.replace(/'/g, "'\\''") + "'";
@@ -161,7 +161,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
       setPathInput(res.data.path);
       if (res.data.inbox) setInbox(res.data.inbox);
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur de chargement"));
+      setError(getErrorMessage(err, "Loading error"));
       setEntries([]);
     } finally {
       setLoading(false);
@@ -173,7 +173,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
   const isInbox = cwd === inbox || cwd === inbox.replace(/\/$/, "");
   const showUpload = isInbox;
 
-  // Filtrage local + tri : dossiers d'abord, puis alphabétique.
+  // Local filtering + sort: directories first, then alphabetical.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return [...entries]
@@ -192,8 +192,8 @@ export default function FilesTab({ machine }: FilesTabProps) {
     if (e.kind === "dir") {
       load(joinPath(cwd, e.name));
     } else if (e.kind === "file") {
-      // Comportement par défaut : preview si le type s'y prête, sinon download.
-      // Le bouton "DL" reste disponible pour forcer le téléchargement direct.
+      // Default behavior: preview if the type allows it, otherwise download.
+      // The "DL" button remains available to force a direct download.
       if (previewKindFor(e)) {
         handlePreview(e);
       } else {
@@ -215,7 +215,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
       if (kind === "image") {
         data = `data:${mimeFor(e.name)};base64,${res.data.content_base64}`;
       } else {
-        // Décodage UTF-8 du base64. Pour ~500 KB ça reste instantané.
+        // UTF-8 decoding of the base64. For ~500 KB it stays instant.
         const bin = atob(res.data.content_base64);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -282,7 +282,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
     }
   };
 
-  // Construit les segments du breadcrumb pour rendre les sauts au milieu d'un chemin.
+  // Builds the breadcrumb segments to render jumps into the middle of a path.
   const breadcrumbs = useMemo(() => {
     if (cwd === "/") return [{ label: "/", path: "/" }];
     const parts = cwd.split("/").filter(Boolean);
@@ -395,7 +395,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
 
         {/* Table */}
         <div className="rounded-xl border border-border overflow-hidden" style={{ background: "var(--nx-bg-surface)" }}>
-          {/* Upload zone — uniquement dans l'inbox */}
+          {/* Upload zone — only in the inbox */}
           {showUpload && (
             <div className="p-3 border-b border-border" style={{ background: "var(--nx-warning-subtle)" }}>
               <div className="flex items-center gap-3 flex-wrap">
@@ -532,7 +532,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
         </div>
       </div>
 
-      {/* Modal "fichier trop gros" */}
+      {/* "file too large" modal */}
       {tooLargeFile && (
         <TooLargeModal
           file={tooLargeFile}
@@ -542,7 +542,7 @@ export default function FilesTab({ machine }: FilesTabProps) {
         />
       )}
 
-      {/* Modal preview image / texte */}
+      {/* image / text preview modal */}
       {preview && (
         <PreviewModal
           entry={preview.entry}
@@ -690,8 +690,8 @@ function PreviewModal({
   );
 }
 
-// Affiche les commandes scp/rsync prêtes à copier quand un fichier
-// dépasse le cap. Inboxpath sert quand c'est un upload qui rate.
+// Displays ready-to-copy scp/rsync commands when a file
+// exceeds the cap. inbox path is used when it's a failing upload.
 function TooLargeModal({
   file,
   machine,
@@ -783,7 +783,7 @@ function TooLargeModal({
   );
 }
 
-// ── Helpers binaires ────────────────────────────────────────
+// ── Binary helpers ──────────────────────────────────────────
 
 function base64ToBlob(b64: string): Blob {
   const binary = atob(b64);
@@ -805,11 +805,11 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
 }
 
 function arrayBufferToBase64(buf: ArrayBuffer): string {
-  // btoa() ne supporte pas l'unicode/binaire directement, on convertit en
-  // string ASCII char-par-char. Pour 50 MB ça reste raisonnable.
+  // btoa() doesn't support unicode/binary directly, so we convert to an
+  // ASCII string char-by-char. For 50 MB it stays reasonable.
   const bytes = new Uint8Array(buf);
   let binary = "";
-  const chunk = 0x8000; // 32 KB à la fois pour éviter "Maximum call stack size"
+  const chunk = 0x8000; // 32 KB at a time to avoid "Maximum call stack size"
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as unknown as number[]);
   }

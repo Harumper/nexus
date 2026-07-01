@@ -23,14 +23,15 @@ import type {
 
 type Step = 1 | 2 | 3;
 
-// Ajoute --reenroll à une commande d'install (idempotent). Utilisé par la case
-// « réinstallation sur hôte déjà enrôlé » : le flag fait faire à l'agent une table
-// rase de l'identité résiduelle AVANT d'enrôler (sinon il garde l'ancienne identité
-// → "Session handshake failed: error"). On ajoute en fin de commande (l'ordre des
-// flags est libre) ; la purge reste un geste DÉLIBÉRÉ (case décochée par défaut).
+// Appends --reenroll to an install command (idempotent). Used by the
+// "reinstall on already-enrolled host" checkbox: the flag makes the agent wipe
+// residual identity clean BEFORE enrolling (otherwise it keeps the old identity
+// → "Session handshake failed: error"). We append at the end of the command (the
+// order of flags is free); the purge stays a DELIBERATE gesture (checkbox
+// unchecked by default).
 function withReenroll(command: string): string {
   if (/(^|\s)--reenroll(\s|$)/.test(command)) return command;
-  // trim de fin : sinon un \n final casserait la continuation de ligne "\".
+  // trailing trim: otherwise a final \n would break the "\" line continuation.
   return `${command.replace(/\s+$/, "")} \\\n  --reenroll`;
 }
 
@@ -51,14 +52,14 @@ export default function MachineEnroll() {
   const [enrollmentToken, setEnrollmentToken] = useState<string>("");
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  // Case « réinstallation sur hôte déjà enrôlé » → injecte --reenroll dans la
-  // commande copiée. Pertinente seulement à la création (en régénération, la
-  // commande de reEnrollMachine contient déjà --reenroll).
+  // "reinstall on already-enrolled host" checkbox → injects --reenroll into the
+  // copied command. Only relevant at creation (in regeneration, the
+  // reEnrollMachine command already contains --reenroll).
   const [reenroll, setReenroll] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ===== Regenerate mode : charger la machine + nouveaux tokens au mount =====
+  // ===== Regenerate mode: load the machine + new tokens on mount =====
   useEffect(() => {
     if (!isRegenerateMode || !paramId) return;
     let cancelled = false;
@@ -69,15 +70,15 @@ export default function MachineEnroll() {
         if (cancelled) return;
         setMachine(m);
         setName(m.name);
-        // Re-provision d'une machine existante → TOUJOURS une commande --reenroll
-        // (api.reEnrollMachine → POST /re-enroll, sans guard de statut). Elle régénère
-        // token + paire ECDSA backend, déconnecte l'agent, et PURGE l'identité
-        // résiduelle côté hôte (clés, shared.secret, ancienne clé serveur, snapshots).
-        // On ne distingue PLUS ENROLLMENT_PENDING : une machine PENDING peut avoir une
-        // identité résiduelle d'un cycle précédent (re-enroll antérieur), et l'ancienne
-        // branche `regenerateBootstrap` (install SANS --reenroll) gardait cette clé
-        // périmée → deadlock "Session handshake failed: error". La purge est inoffensive
-        // s'il n'y a rien à purger (hôte neuf), donc --reenroll est toujours sûr ici.
+        // Re-provisioning an existing machine → ALWAYS a --reenroll command
+        // (api.reEnrollMachine → POST /re-enroll, with no status guard). It regenerates
+        // token + backend ECDSA pair, disconnects the agent, and PURGES the residual
+        // identity on the host side (keys, shared.secret, old server key, snapshots).
+        // We NO LONGER distinguish ENROLLMENT_PENDING: a PENDING machine may have a
+        // residual identity from a previous cycle (earlier re-enroll), and the old
+        // `regenerateBootstrap` branch (install WITHOUT --reenroll) kept that stale
+        // key → deadlock "Session handshake failed: error". The purge is harmless
+        // if there is nothing to purge (fresh host), so --reenroll is always safe here.
         const res = await api.reEnrollMachine(paramId);
         if (cancelled) return;
         setBootstrap(res.bootstrap);
@@ -109,9 +110,9 @@ export default function MachineEnroll() {
     try {
       const m = await api.getMachine(machineId);
       setMachine(m);
-      // On arrête le polling seulement quand l'agent est ONLINE ET que sa
-      // version est remontée (elle arrive au 1er heartbeat, juste après le
-      // passage ONLINE). Sinon l'écran restait figé sur "version —".
+      // We stop polling only when the agent is ONLINE AND its version has come
+      // up (it arrives at the 1st heartbeat, right after going ONLINE).
+      // Otherwise the screen stayed stuck on "version —".
       if (m.status === "ONLINE" && m.agentVersion) {
         stopPolling();
       }
@@ -120,8 +121,8 @@ export default function MachineEnroll() {
     }
   }, [machineId, stopPolling]);
 
-  // (Re)démarre le polling : fetch immédiat + interval 2s, avec un plafond de
-  // 2 min. Réutilisé par le bouton "Rafraîchir" pour relancer après un arrêt.
+  // (Re)starts polling: immediate fetch + 2s interval, with a 2 min cap.
+  // Reused by the "Refresh" button to restart after a stop.
   const startPolling = useCallback(() => {
     stopPolling();
     refreshMachine();
@@ -182,8 +183,8 @@ export default function MachineEnroll() {
     machine?.lastHeartbeat &&
     Date.now() - new Date(machine.lastHeartbeat).getTime() < 90_000;
 
-  // Commande affichée/copiée : --reenroll injecté seulement dans l'étape "run"
-  // (pas dans les téléchargements) quand la case est cochée.
+  // Displayed/copied command: --reenroll injected only in the "run" step
+  // (not in the downloads) when the checkbox is ticked.
   const installCommand =
     bootstrap && reenroll ? withReenroll(bootstrap.installCommand) : bootstrap?.installCommand ?? "";
   const displaySteps =
@@ -406,8 +407,8 @@ export default function MachineEnroll() {
                   {t("monitoring")}
                 </div>
               )}
-              {/* Bouton toujours disponible : relance le polling (utile si le
-                  polling s'est arrêté ou si l'agent s'est connecté après coup). */}
+              {/* Button always available: restarts polling (useful if polling
+                  has stopped or if the agent connected afterwards). */}
               <button
                 onClick={startPolling}
                 className="shrink-0 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

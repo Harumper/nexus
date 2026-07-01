@@ -47,11 +47,11 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
     return () => { cancelled = true; clearInterval(interval); };
   }, [machineId, range]);
 
-  // Transforme la série downsamplée pour Recharts. Axe X = timestamp NUMÉRIQUE
-  // (plus de chaîne "HH:mm" qui collait deux points d'une même minute et
-  // confondait les jours sur 7j). GAP-FILL : on reconstruit une grille régulière
-  // alignée sur le bucket et tout bucket manquant devient un point `null` → un
-  // TROU visible dans le graphe, jamais une ligne droite masquant un agent offline.
+  // Transforms the downsampled series for Recharts. X axis = NUMERIC timestamp
+  // (no more "HH:mm" string that glued two points of the same minute together and
+  // confused days over 7d). GAP-FILL: we rebuild a regular grid
+  // aligned on the bucket and any missing bucket becomes a `null` point → a
+  // visible GAP in the graph, never a straight line masking an offline agent.
   const chartData = useMemo<ChartPoint[]>(() => {
     const metrics = data?.metrics ?? [];
     if (metrics.length === 0) return [];
@@ -79,13 +79,13 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
     });
   }, [data]);
 
-  // Domaine X = fenêtre complète demandée (premier→dernier bucket de la grille).
+  // X domain = full requested window (first→last bucket of the grid).
   const xDomain: [number, number] | undefined =
     chartData.length > 0
       ? [chartData[0].timestamp, chartData[chartData.length - 1].timestamp]
       : undefined;
 
-  // Valeur « courante » = dernier point RÉEL (ignore les trous de fin de fenêtre).
+  // "Current" value = last REAL point (ignores end-of-window gaps).
   const currentValues = useMemo(
     () => [...chartData].reverse().find((d) => d.cpu != null) ?? null,
     [chartData]
@@ -210,10 +210,10 @@ function RechartCard({
   range: string;
   domain?: [number, number];
 }) {
-  // Échelle Y adaptative : floor 10 pour les % (CPU/mem/disk), pas de cap
-  // pour load/network. Le pic reste à l'échelle tant qu'il est dans la
-  // fenêtre temporelle, puis l'axe redescend automatiquement. (les null des
-  // trous de gap-fill sont ignorés par le filtre typeof === "number".)
+  // Adaptive Y scale: floor 10 for % (CPU/mem/disk), no cap
+  // for load/network. The peak stays in scale as long as it's within the
+  // time window, then the axis drops back automatically. (the nulls from
+  // gap-fill holes are ignored by the typeof === "number" filter.)
   const yValues = data
     .map((d) => (d as Record<string, number | null>)[dataKey])
     .filter((v): v is number => typeof v === "number");

@@ -88,7 +88,7 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
         boxShadow: isOnline ? "var(--nx-shadow-glow-success)" : "var(--nx-shadow-sm)",
       }}
     >
-      {/* Context menu (hors Link pour eviter que les clicks soient captures par la navigation) */}
+      {/* Context menu (outside Link to avoid clicks being captured by the navigation) */}
       {isAdmin && (
         <div className="absolute top-3 right-3 z-20">
           <button
@@ -132,7 +132,7 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
         </div>
       )}
 
-      {/* Zone cliquable (Link) — englobe tout sauf le menu */}
+      {/* Clickable zone (Link) — covers everything except the menu */}
       <Link to={`/machines/${machine.id}`} className="absolute inset-0 rounded-xl z-0" aria-label={machine.name} />
 
       <div className="relative pointer-events-none">
@@ -244,9 +244,9 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
   );
 }
 
-// Memo : sur le Dashboard, une métrique WS reçue ne re-render que la carte
-// concernée (machine/latestMetric/alertCount/onDeleted comparés en shallow),
-// pas toute la grille.
+// Memo: on the Dashboard, an incoming WS metric only re-renders the affected
+// card (machine/latestMetric/alertCount/onDeleted compared shallowly),
+// not the whole grid.
 export default memo(MachineCard);
 
 /** Mini circular gauge for machine cards */

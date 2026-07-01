@@ -39,7 +39,7 @@ import { getErrorMessage } from "../services/errors";
 
 type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security";
 
-// Bouton d'action du header : icône seule (le libellé est dans le Tooltip).
+// Header action button: icon only (the label lives in the Tooltip).
 const ICON_BTN =
   "inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -57,11 +57,11 @@ export default function MachineDetail() {
   const [showSshDialog, setShowSshDialog] = useState(false);
   const [showAgentUpgrade, setShowAgentUpgrade] = useState(false);
   const [agentUpdateAvailable, setAgentUpdateAvailable] = useState(false);
-  // null = indéterminé (SHA cible ou courant inconnu) → on n'empêche pas la MAJ.
+  // null = undetermined (target or current SHA unknown) → we don't block the update.
   const [agentUpToDate, setAgentUpToDate] = useState<boolean | null>(null);
-  // Demande "one-shot" de filtrer Services sur l'état "failed" — émise par
-  // HeaderBadges / AttentionPanel quand l'utilisateur clique sur le badge
-  // "services en échec". Consommée par ServicesTab à la réception.
+  // "One-shot" request to filter Services on the "failed" state — emitted by
+  // HeaderBadges / AttentionPanel when the user clicks the "failed services"
+  // badge. Consumed by ServicesTab on receipt.
   const [pendingServiceFilter, setPendingServiceFilter] = useState<"failed" | null>(null);
   const showFailedServices = useCallback(() => {
     setPendingServiceFilter("failed");
@@ -69,9 +69,9 @@ export default function MachineDetail() {
   }, []);
   const consumePendingServiceFilter = useCallback(() => setPendingServiceFilter(null), []);
   const { confirm, ConfirmDialogElement } = useConfirm();
-  // Charge les signaux critiques (alerts/services/updates/certs) une seule
-  // fois ici, partagé entre HeaderBadges (sous le nom) et AttentionPanel
-  // (dans la Vue d'ensemble) via prop drilling — évite le double fetch.
+  // Load the critical signals (alerts/services/updates/certs) once here,
+  // shared between HeaderBadges (under the name) and AttentionPanel
+  // (in the Overview) via prop drilling — avoids the double fetch.
   const attention = useMachineAttention(
     id ?? "",
     Boolean(id && machine?.status === "ONLINE")
@@ -98,9 +98,9 @@ export default function MachineDetail() {
     return () => clearInterval(interval);
   }, [id, machine]);
 
-  // Statut de version de l'agent → badge "MAJ dispo". Rafraîchi à l'ouverture
-  // de la modal d'upgrade (onSuccess) et au montage quand la machine est un
-  // agent en ligne.
+  // Agent version status → "update available" badge. Refreshed when the
+  // upgrade modal opens (onSuccess) and on mount when the machine is an
+  // online agent.
   const refreshAgentStatus = useCallback(() => {
     if (!id || machine?.status !== "ONLINE") {
       setAgentUpdateAvailable(false);
@@ -188,8 +188,8 @@ export default function MachineDetail() {
     }
   };
 
-  // La MAJ de l'agent passe désormais par une modal de suivi (AgentUpgradeDialog)
-  // qui reste ouverte jusqu'à la reconnexion en nouvelle version.
+  // The agent update now goes through a tracking modal (AgentUpgradeDialog)
+  // that stays open until reconnection on the new version.
 
   const handleReboot = async () => {
     if (!id) return;
@@ -219,14 +219,14 @@ export default function MachineDetail() {
   const status = statusColor(machine.status);
   const isAdmin = user?.role === "ADMIN";
   const isOnline = machine.status === "ONLINE";
-  // Gestion des clés SSH / sudo : activée par flag backend ET réservée ADMIN.
-  // Cosmétique — le vrai contrôle est appliqué dans dispatchAction() côté backend.
+  // SSH key / sudo management: enabled by backend flag AND ADMIN-only.
+  // Cosmetic — the real check is applied in dispatchAction() on the backend.
   const canManagePrivileges =
     isAdmin && authConfig?.features?.userPrivilegeMgmt === true;
 
-  // `key` = identifiant stable du groupe (mémoire de sous-onglet, indépendant de
-  // la langue) ; le libellé affiché vient de t(`groups.${key}`). Les labels/tooltips
-  // d'onglet viennent de t(`tabs.${id}.label|tooltip`).
+  // `key` = stable group identifier (subtab memory, language-independent);
+  // the displayed label comes from t(`groups.${key}`). The tab labels/tooltips
+  // come from t(`tabs.${id}.label|tooltip`).
   const tabGroups: {
     key: string;
     tabs: { id: Tab; icon: typeof Activity; show: boolean }[];
@@ -298,9 +298,9 @@ export default function MachineDetail() {
                   <span className={`w-2 h-2 rounded-full ${status.dot} ${isOnline ? "animate-pulse" : ""}`} />
                   {t(`common:status.${statusKey(machine.status)}`)}
                 </span>
-                {/* Agent en reconnexion : status BDD encore ONLINE (grâce 90s) mais
-                    WS coupé. Distingue clairement de "vraiment en ligne" pour éviter
-                    que l'utilisateur déclenche une action qui va échouer en "Agent
+                {/* Agent reconnecting: DB status still ONLINE (90s grace) but
+                    WS down. Clearly distinguished from "truly online" to prevent
+                    the user from triggering an action that would fail with "Agent
                     is not connected". */}
                 {isOnline && machine.isConnected === false && (
                   <span
@@ -337,7 +337,7 @@ export default function MachineDetail() {
                 {machine.os && <span>· {machine.os} {machine.osVersion}</span>}
                 {machine.arch && <span>· {machine.arch}</span>}
               </div>
-              {/* Badges critiques — visibles dès le header, cliquables vers l'onglet concerné */}
+              {/* Critical badges — visible right in the header, clickable to the relevant tab */}
               <HeaderBadges
                 data={attention}
                 onTabChange={(t) => setActiveTab(t as Tab)}
@@ -475,7 +475,7 @@ export default function MachineDetail() {
         )}
       </div>
 
-      {/* ── Two-row tabs : categories + sous-onglets ────────────────── */}
+      {/* ── Two-row tabs : categories + subtabs ────────────────── */}
       {(() => {
         const activeGroupIdx = tabGroups.findIndex(g => g.tabs.some(t => t.id === activeTab && t.show));
         const activeGroup = activeGroupIdx >= 0 ? tabGroups[activeGroupIdx] : null;
@@ -485,15 +485,15 @@ export default function MachineDetail() {
         const handleGroupClick = (group: typeof tabGroups[number]) => {
           const visible = group.tabs.filter(tb => tb.show);
           if (visible.length === 0) return;
-          // Si le groupe contient deja activeTab, on ne change rien
+          // If the group already contains activeTab, don't change anything
           if (visible.some(tb => tb.id === activeTab)) return;
-          // Sinon : restaurer le dernier sous-onglet visite si toujours visible, ou premier
+          // Otherwise: restore the last visited subtab if still visible, or the first
           const remembered = group.key ? lastSubtab[group.key] : undefined;
           const restore = remembered && visible.some(tb => tb.id === remembered) ? remembered : visible[0].id;
           setActiveTab(restore);
         };
 
-        // Mettre a jour la memoire quand on change d'onglet
+        // Update the memory when switching tabs
         const selectSubtab = (group: typeof tabGroups[number], tabId: Tab) => {
           setActiveTab(tabId);
           if (group.key) {
@@ -510,7 +510,7 @@ export default function MachineDetail() {
                 if (visibleTabs.length === 0) return null;
                 const isActive = gi === activeGroupIdx;
 
-                // Groupe sans clé (Vue d'ensemble) = bouton direct du seul sous-onglet
+                // Group without a key (Overview) = direct button for the single subtab
                 if (!group.key && visibleTabs.length === 1) {
                   const onlyTab = visibleTabs[0];
                   return (
@@ -546,7 +546,7 @@ export default function MachineDetail() {
               })}
             </div>
 
-            {/* Row 2 : sous-onglets du groupe actif */}
+            {/* Row 2 : subtabs of the active group */}
             {showSecondRow && (
               <div
                 className="flex flex-wrap items-center gap-1 px-3 py-2"
@@ -689,10 +689,10 @@ export default function MachineDetail() {
 }
 
 /* ══════════════════════════════════════════════
-   Overview Tab — refonte hiérarchisée :
-   1. Attention requise (alerts/services/updates/certs) — top priority
-   2. Stockage live (visuel utile)
-   3. Inventaire compact (statique, en bas)
+   Overview Tab — hierarchical redesign:
+   1. Attention required (alerts/services/updates/certs) — top priority
+   2. Live storage (useful visual)
+   3. Compact inventory (static, at the bottom)
    ══════════════════════════════════════════════ */
 function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, onShowFailedServices, attention }: {
   machine: Machine;
@@ -708,12 +708,12 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
 
   return (
     <div className="space-y-4">
-      {/* 1. Attention requise — données chargées une seule fois au niveau parent */}
+      {/* 1. Attention required — data loaded once at the parent level */}
       {isOnlineAgent && (
         <AttentionPanel data={attention} onTabChange={onTabChange} onShowFailedServices={onShowFailedServices} />
       )}
 
-      {/* 2. Stockage live — info visuelle utile pour repérer un disque qui sature */}
+      {/* 2. Live storage — useful visual to spot a disk filling up */}
       {latestMetric && latestMetric.disks && latestMetric.disks.length > 0 && (
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.storage")}</h3>
@@ -741,7 +741,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
         </div>
       )}
 
-      {/* 3. Inventaire compact — info statique en bas */}
+      {/* 3. Compact inventory — static info at the bottom */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.system")}</h3>
@@ -769,7 +769,7 @@ function OverviewTab({ machine, latestMetric, isAdmin, onUpdated, onTabChange, o
         )}
       </div>
 
-      {/* Tags si présents */}
+      {/* Tags if present */}
       {machine.tags && machine.tags.length > 0 && (
         <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
           <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--nx-text-weak)" }}>{t("overview.tags")}</h3>

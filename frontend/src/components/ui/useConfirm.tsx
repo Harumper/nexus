@@ -7,7 +7,7 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "danger" | "warning" | "primary";
-  /** Mot a taper pour confirmer (ex: REBOOT). Force la friction. */
+  /** Word to type to confirm (e.g. REBOOT). Adds friction. */
   confirmWord?: string;
 }
 
@@ -17,12 +17,12 @@ interface ConfirmState extends ConfirmOptions {
 }
 
 /**
- * Hook pour remplacer window.confirm() natif par une UI Nexus coherente.
+ * Hook to replace the native window.confirm() with a coherent Nexus UI.
  *
- * Usage :
+ * Usage:
  *   const { confirm, ConfirmDialogElement } = useConfirm();
  *   const handleDelete = async () => {
- *     if (!(await confirm({ title: "Supprimer ?", variant: "danger" }))) return;
+ *     if (!(await confirm({ title: "Delete?", variant: "danger" }))) return;
  *     // ... action ...
  *   };
  *   return <>...<ConfirmDialogElement /></>;
