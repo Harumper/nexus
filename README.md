@@ -47,7 +47,7 @@ Self-hosted infrastructure management platform. Agent-based, multi-machine, with
 Notifications: HMAC-signed webhooks + SMTP email + WebSocket real-time broadcast.
 
 ### Safety
-- **Machine types**: PROBE (read-only monitoring) / AGENT (full access)
+- **Role-based access** (`ADMIN`/`OPERATOR`/`READONLY`): one fully-capable agent type — reads vs mutations are gated centrally by role (no separate read-only "probe" machine type)
 - **Critical flag** (`isCritical`): blocks `reboot`, `service_stop/restart` on critical services (docker/nginx/ssh/postgres), `package.remove` on critical packages
 - **Watchdog-revert**: snapshot before mutation + 60s/120s timer + dead-man's switch at agent boot
 - Sudoers whitelist (fixed paths, exact args, compiled privhelper for the risky ops). `NOEXEC` is a **targeted backstop on the package-manager `install`/`remove` wildcard only** (blocks `Pre-Invoke`-style shell-outs) — not a blanket confinement; the other lines rely on fixed paths / exact args / privhelper
@@ -105,7 +105,7 @@ Access at `http://localhost:26032` (or your configured port).
 
 ### Enroll an agent
 
-1. Go to **Machines → Add a machine**, choose type (AGENT or PROBE)
+1. Go to **Machines → Add a machine**
 2. Copy the install command provided
 3. Run on the target host as root
 
@@ -131,18 +131,18 @@ See in-app docs: `/docs?section=self`
 nexus/
 ├── backend/           # Fastify API + WebSocket server
 │   ├── src/
-│   │   ├── routes/    # 17 route files (machines, alerts, bulk, firewall, ...)
+│   │   ├── routes/    # 18 route files (machines, alerts, bulk, firewall, ...)
 │   │   ├── services/  # alert-engine, action-dispatcher, crypto, ...
 │   │   └── websocket/ # agent + dashboard channels
 │   └── prisma/        # Schema + migrations
 ├── agent/             # Go agent
 │   └── internal/
-│       ├── actions/   # 23 action files (services, firewall, netplan, ssl, ...)
+│       ├── actions/   # 30 action files (services, firewall, netplan, ssl, ...)
 │       ├── security/  # keystore, sandbox, crypto
 │       └── transport/ # WebSocket client
 ├── frontend/          # React SPA
 │   └── src/
-│       ├── pages/     # 13 pages (Dashboard, Machines, Alerts, Docs, ...)
+│       ├── pages/     # 12 pages (Dashboard, Machines, Alerts, Docs, ...)
 │       └── components/# 20+ components (per-tab, dialogs, cards)
 ├── scripts/
 │   └── install-agent.sh  # One-shot install script (user + systemd + sudoers)
@@ -162,7 +162,7 @@ cd frontend && npm install && npm run dev
 cd agent && go build ./cmd/nexus-agent && ./nexus-agent --config ./config.yml
 
 # Tests
-cd backend && npm run test   # 197 tests (vitest, file-presence + patterns)
+cd backend && npm run test   # 317 tests (vitest, file-presence + patterns)
 cd agent && go vet ./...
 cd frontend && npx tsc --noEmit
 ```
@@ -172,7 +172,6 @@ cd frontend && npx tsc --noEmit
 In-app documentation at `/docs` covers:
 - Getting started
 - Agent installation
-- Probe mode
 - Self-monitoring (agent on Nexus server)
 - Machines management
 - Tags & groups
@@ -185,7 +184,7 @@ In-app documentation at `/docs` covers:
 
 ## Validation
 
-See `VALIDATION_CHECKLIST.md` for manual validation on real VMs (Ubuntu 22.04/24.04, Debian 12).
+Manually validated on real VMs (Ubuntu 22.04/24.04, Debian 12).
 
 ## Security
 

@@ -56,7 +56,7 @@ Anti-lock-out = règle d'or : jamais désactiver password/root SSH par défaut, 
 - **Prisma migrations**: never use `prisma db push --accept-data-loss` in production CI — it breaks `GENERATED` columns (tsvector). Use `prisma migrate deploy`.
 - **Frontend components**: one file per tab in `frontend/src/components/*Tab.tsx`. CSS variables (`var(--nx-*)`) for colors, not Tailwind color classes directly. Check existing tabs for patterns.
 - **API helpers**: all in `frontend/src/services/api.ts`. Group by feature (firewall, network, etc.).
-- **Tests**: `backend/tests/e2e/*.test.ts` use Vitest with file-presence + content-pattern assertions. They don't actually execute actions — they verify structural cohesion. 197 tests currently. Add tests when adding new features.
+- **Tests**: `backend/tests/e2e/*.test.ts` use Vitest with file-presence + content-pattern assertions. They don't actually execute actions — they verify structural cohesion. 317 tests currently. Add tests when adding new features.
 
 ## Common pitfalls
 
