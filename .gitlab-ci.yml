@@ -85,7 +85,7 @@ test-backend:
 # Agent Go : vet + build statique
 test-agent:
   stage: test
-  image: golang:1.23-alpine
+  image: golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
   before_script:
     - cd agent
   script:
@@ -196,12 +196,15 @@ build-agent:
 # Flux : ./nexus-release.sh propose → tu crées le tag (UI) → ./nexus-release.sh approve vX.Y.Z.
 release-build:
   stage: release
-  image: golang:1.23-alpine
+  image: golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
   needs:
     - version
     - test-agent
   script:
-    - (cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X main.Version=$AGENT_VERSION" -o ../nexus-agent ./cmd/nexus-agent)
+    # Reproducible build: -trimpath drops runner-absolute paths; the Go image is
+    # pinned by digest above. Together they let anyone rebuild the exact same
+    # bytes (same sha256) from source — the basis for third-party verification.
+    - (cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-w -s -X main.Version=$AGENT_VERSION" -o ../nexus-agent ./cmd/nexus-agent)
     - ./nexus-agent --version
     - sha256sum nexus-agent | tee nexus-agent.sha256
     - printf '%s\n' "$AGENT_VERSION" > VERSION

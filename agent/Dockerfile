@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.23-alpine AS builder
+FROM golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f AS builder
 
 RUN apk add --no-cache git ca-certificates
 
@@ -11,8 +11,13 @@ COPY . .
 # Version injectée au build. La CI passe 0.1.0+<short-sha> ; sinon défaut "dev".
 ARG AGENT_VERSION=0.1.0+dev
 
-RUN go mod tidy
+# Deterministic deps: download against the committed go.sum, never mutate go.mod
+# (unlike `go mod tidy`). `-mod=readonly` fails the build if go.mod is stale.
+RUN go mod download
+# Same reproducible flags as the CI release-build so `docker build` yields the
+# same binary bytes: -trimpath (no absolute paths) + -mod=readonly.
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath -mod=readonly \
     -ldflags="-w -s -X main.Version=${AGENT_VERSION}" \
     -o nexus-agent \
     ./cmd/nexus-agent/
