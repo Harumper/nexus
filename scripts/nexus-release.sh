@@ -9,6 +9,11 @@
 # creating the tag. The minisign private key NEVER leaves this machine (offline
 # signing).
 #
+# ⚠ GitLab-specific tool. This script drives Nexus's GitLab CI pipeline: it reads
+# the `release-build` artifact from the GitLab API and rsyncs it to a prod host.
+# If you do NOT run that GitLab CI, do not use this script — follow the
+# CI-agnostic build → sign → publish steps in RELEASING.md instead.
+#
 #   Usage:
 #     ./nexus-release.sh                 → proposes the next number, CREATES it (tag on
 #                                          master), waits for the build, approval, signs, publishes
