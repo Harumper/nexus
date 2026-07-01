@@ -44,11 +44,12 @@ set -Eeuo pipefail
 # =====================================================================
 # CONFIG — à remplir UNE fois. Token : ~/.config/nexus-release.env (NON commité) ou env.
 # =====================================================================
+# Modèle des variables : scripts/nexus-release.env.example (copier vers ~/.config/nexus-release.env).
 [ -f "$HOME/.config/nexus-release.env" ] && . "$HOME/.config/nexus-release.env"
 
-GITLAB_URL="${GITLAB_URL:-https://gitlab.jsloiseau.net}"
-PROJECT_ID="${PROJECT_ID:-loiseau%2Fnexus}"          # API : chemin url-encodé (ou ID, ex. 39)
-GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-loiseau/nexus}"   # lien UI (suppression manuelle de tag)
+GITLAB_URL="${GITLAB_URL:-https://gitlab.example.com}"
+PROJECT_ID="${PROJECT_ID:-your-group%2Fnexus}"       # API : chemin url-encodé (ou ID, ex. 39)
+GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-your-group/nexus}"   # lien UI (suppression manuelle de tag)
 RELEASE_JOB="${RELEASE_JOB:-release-build}"
 # Token : PROJECT ACCESS TOKEN scopé write_api sur le SEUL projet nexus (rôle Developer ;
 # Maintainer requis si les tags 'v*' sont protégés). write_api couvre lecture ET création de
@@ -58,7 +59,7 @@ DEFAULT_REF="${DEFAULT_REF:-master}"                 # ref taguée par défaut (
 
 RELEASE_KEY="${RELEASE_KEY:-$HOME/nexus-signing/nexus-release.key}"
 NEXUS_RELEASE_SSH_KEY="${NEXUS_RELEASE_SSH_KEY:-$HOME/.ssh/nexus-release}"
-PROD_HOST="${PROD_HOST:-10.0.10.102}"
+PROD_HOST="${PROD_HOST:-nexus.example.com}"
 PROD_RELEASE_USER="${PROD_RELEASE_USER:-nexus-release}"
 SSH_STRICT="${SSH_STRICT:-accept-new}"               # 'accept-new' (TOFU 1er contact) ou 'yes' (refuse non épinglé)
 

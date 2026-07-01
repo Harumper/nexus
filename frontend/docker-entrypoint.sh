@@ -23,11 +23,12 @@ if [ "${TLS_ENABLED:-false}" = "true" ]; then
     echo "[Nexus] Using existing certificates"
   fi
 
-  # Utiliser la config HTTPS
-  cp /etc/nginx/templates/nginx-https.conf /etc/nginx/conf.d/default.conf
+  # Utiliser la config HTTPS (envsubst : uniquement ${CSP_AUTH_ORIGIN}, pour ne PAS
+  # écraser les variables runtime de nginx comme $host / $uri / $remote_addr).
+  envsubst '${CSP_AUTH_ORIGIN}' < /etc/nginx/templates/nginx-https.conf > /etc/nginx/conf.d/default.conf
 else
   echo "[Nexus] TLS disabled, using HTTP"
-  cp /etc/nginx/templates/nginx-http.conf /etc/nginx/conf.d/default.conf
+  envsubst '${CSP_AUTH_ORIGIN}' < /etc/nginx/templates/nginx-http.conf > /etc/nginx/conf.d/default.conf
 fi
 
 exec nginx -g "daemon off;"

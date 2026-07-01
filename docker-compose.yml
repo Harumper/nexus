@@ -97,6 +97,9 @@ services:
       - "${FRONTEND_TLS_PORT:-26033}:443"
     environment:
       TLS_ENABLED: ${TLS_ENABLED:-true}
+      # CSP : origine SSO/OIDC externe autorisée (connect-src + frame-src), substituée
+      # par envsubst dans la config nginx au démarrage. Vide = self only. Voir .env.example.
+      CSP_AUTH_ORIGIN: ${CSP_AUTH_ORIGIN:-}
     volumes:
       - ${TLS_CERT_DIR:-./certs}:/etc/nginx/certs
     depends_on:
