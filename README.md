@@ -227,6 +227,17 @@ release key** so the upgrade trust root is yours alone (recommended for isolated
 deployments). Key management — and how to reproduce and verify a release build —
 is documented in [OPERATOR-KEYS.md](OPERATOR-KEYS.md).
 
+## Development & AI assistance
+
+Nexus was built with the assistance of AI tools (Anthropic's Claude). The
+architecture, security model, threat model, code review, testing and
+real-VM validation were directed by — and remain the responsibility of —
+the maintainer, Jean-Sébastien Loiseau. AI accelerated the work; it did
+not replace the engineering judgment, review, and hands-on validation
+behind it.
+
+The full, granular development trail is in the git history.
+
 ## License
 
 Nexus is distributed under the **GNU Affero General Public License v3.0

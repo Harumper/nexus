@@ -1,0 +1,11 @@
+Nexus — fleet control plane for Linux servers
+Copyright (C) 2026  Jean-Sébastien Loiseau
+
+This software was developed with the assistance of AI tools (Anthropic's
+Claude). Its architecture, security design, code review, testing and
+real-VM validation were directed by, and are the responsibility of, the
+maintainer. AI was used as a productivity tool, not as a substitute for
+engineering judgment.
+
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+See the LICENSE file for the full license text.
