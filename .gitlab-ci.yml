@@ -21,31 +21,31 @@ variables:
   SECRET_DETECTION_ENABLED: "true"
 
 # ===========================================
-# Versioning (semver piloté par les tags git)
+# Versioning (semver driven by git tags)
 # ===========================================
-# Calcule la version et la propage (dotenv) aux jobs de build.
-#   - tag git vX.Y.Z         -> "X.Y.Z"
-#   - N commits après un tag -> "X.Y.Z-N-g<sha>"  (build de dev)
-#   - aucun tag dans l'arbre -> "0.0.0-dev+<sha>"
-# Pour publier une version : git tag vX.Y.Z && git push origin vX.Y.Z
+# Computes the version and propagates it (dotenv) to the build jobs.
+#   - git tag vX.Y.Z         -> "X.Y.Z"
+#   - N commits after a tag  -> "X.Y.Z-N-g<sha>"  (dev build)
+#   - no tag in the tree     -> "0.0.0-dev+<sha>"
+# To publish a version: git tag vX.Y.Z && git push origin vX.Y.Z
 version:
   stage: .pre
   image: alpine:latest
   variables:
-    GIT_DEPTH: 0 # clone complet : indispensable pour récupérer les tags
+    GIT_DEPTH: 0 # full clone: required to retrieve the tags
   before_script:
     - apk add --no-cache git
   script:
-    # Version AGENT : DOIT changer uniquement quand le code de l'agent change
-    # (sinon un commit backend/frontend signalerait une "MAJ dispo" sur tous les
-    # agents alors que le binaire est identique). On combine :
-    #   - le dernier tag joignable (vrai versioning de release), ou 0.0.0-dev ;
-    #   - le sha du DERNIER commit touchant agent/ (build metadata +agent.<sha>).
-    # Résultat : la version ne bouge que sur un nouveau tag OU un changement agent.
-    # La comparaison "MAJ dispo" est une simple égalité de cette chaîne.
+    # AGENT version: MUST change only when the agent code changes
+    # (otherwise a backend/frontend commit would signal an "update available" on all
+    # agents even though the binary is identical). We combine:
+    #   - the latest reachable tag (real release versioning), or 0.0.0-dev;
+    #   - the sha of the LATEST commit touching agent/ (build metadata +agent.<sha>).
+    # Result: the version only moves on a new tag OR an agent change.
+    # The "update available" comparison is a simple equality of this string.
     - BASE="$(git describe --tags --abbrev=0 2>/dev/null || true)"
     - '[ -z "$BASE" ] && BASE="0.0.0-dev"'
-    - BASE="${BASE#v}" # retire le 'v' de tête (v0.2.0 -> 0.2.0)
+    - BASE="${BASE#v}" # strips the leading 'v' (v0.2.0 -> 0.2.0)
     - 'AGENT_REV="$(git rev-list -1 HEAD -- agent/ 2>/dev/null | cut -c1-7)"'
     - '[ -z "$AGENT_REV" ] && AGENT_REV="none"'
     - VERSION="${BASE}+agent.${AGENT_REV}"
@@ -63,8 +63,8 @@ version:
 # Test & Build checks
 # ===========================================
 
-# Backend : typecheck + build + tests (vitest)
-# Les tests lisent des fichiers dans agent/ et frontend/, donc on a besoin du repo complet
+# Backend: typecheck + build + tests (vitest)
+# The tests read files in agent/ and frontend/, so we need the full repo
 test-backend:
   stage: test
   image: node:22-alpine
@@ -82,7 +82,7 @@ test-backend:
     - if: '$CI_MERGE_REQUEST_ID'
     - if: '$CI_COMMIT_TAG'
 
-# Agent Go : vet + build statique
+# Go agent: vet + static build
 test-agent:
   stage: test
   image: golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
@@ -90,8 +90,8 @@ test-agent:
     - cd agent
   script:
     - go vet ./...
-    # Les tests Go (validation/injections, parsing ss/lynis, watchdog…) sont la
-    # partie la plus solide de la suite — ils DOIVENT tourner en CI.
+    # The Go tests (validation/injections, ss/lynis parsing, watchdog…) are the
+    # most solid part of the suite — they MUST run in CI.
     - go test ./...
     - CGO_ENABLED=0 go build -o /tmp/nexus-agent ./cmd/nexus-agent
   rules:
@@ -100,7 +100,7 @@ test-agent:
     - if: '$CI_MERGE_REQUEST_ID'
     - if: '$CI_COMMIT_TAG'
 
-# Frontend : typecheck + build
+# Frontend: typecheck + build
 test-frontend:
   stage: test
   image: node:22-alpine
@@ -128,8 +128,8 @@ build-backend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    # Mécanisme A : le binaire agent n'est plus dans l'image backend (servi depuis
-    # le volume /release). Plus de --build-arg AGENT_VERSION.
+    # Mechanism A: the agent binary is no longer in the backend image (served from
+    # the /release volume). No more --build-arg AGENT_VERSION.
     - docker build -f backend/Dockerfile -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/backend:latest .
     - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/backend:latest
@@ -148,7 +148,7 @@ build-frontend:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    # Debug : vérifier que les nouveaux composants sont bien présents dans le checkout
+    # Debug: verify that the new components are present in the checkout
     - echo "=== Commit SHA ===" && echo "$CI_COMMIT_SHA"
     - echo "=== Files in frontend/src/components/ ===" && ls -la frontend/src/components/
     - echo "=== Expecting ServicesTab/FirewallTab/PackagesTab ==="
@@ -164,8 +164,8 @@ build-frontend:
   needs:
     - test-frontend
 
-# L'agent est compilé statiquement en Go — on build l'image Docker
-# mais en prod il est installé via scripts/install-agent.sh sur chaque machine
+# The agent is statically compiled in Go — we build the Docker image
+# but in prod it is installed via scripts/install-agent.sh on each machine
 build-agent:
   stage: build
   image: docker:24.0
@@ -186,14 +186,14 @@ build-agent:
     - version
 
 # ===========================================
-# Release agent — build + sha256 + VERSION (signature & publication = script local)
+# Release agent — build + sha256 + VERSION (signing & publishing = local script)
 # ===========================================
-# release-build (AUTO sur tag vX.Y.Z, ANCRÉ tag) : compile le binaire agent
-# canonique, calcule son sha256, écrit VERSION (= AGENT_VERSION du job `version`,
-# dérivée du tag + du sha agent). ARTEFACTS seulement. La SIGNATURE (clé minisign
-# hors-ligne) et la PUBLICATION dans /release sont faites par scripts/nexus-release.sh
-# sur la machine de signature (READ_API seul) — la clé privée ne touche JAMAIS la CI.
-# Flux : ./nexus-release.sh propose → tu crées le tag (UI) → ./nexus-release.sh approve vX.Y.Z.
+# release-build (AUTO on tag vX.Y.Z, ANCHORED to tag): compiles the canonical
+# agent binary, computes its sha256, writes VERSION (= AGENT_VERSION from the `version`
+# job, derived from the tag + the agent sha). ARTIFACTS only. The SIGNATURE (offline
+# minisign key) and the PUBLICATION into /release are done by scripts/nexus-release.sh
+# on the signing machine (READ_API only) — the private key NEVER touches the CI.
+# Flow: ./nexus-release.sh propose → you create the tag (UI) → ./nexus-release.sh approve vX.Y.Z.
 release-build:
   stage: release
   image: golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
@@ -208,7 +208,7 @@ release-build:
     - ./nexus-agent --version
     - sha256sum nexus-agent | tee nexus-agent.sha256
     - printf '%s\n' "$AGENT_VERSION" > VERSION
-    - echo "Artefacts prets - binaire + sha256 + VERSION=$AGENT_VERSION - en local lance scripts/nexus-release.sh approve $CI_COMMIT_TAG"
+    - echo "Artifacts ready - binary + sha256 + VERSION=$AGENT_VERSION - locally run scripts/nexus-release.sh approve $CI_COMMIT_TAG"
   artifacts:
     paths:
       - nexus-agent
@@ -219,7 +219,7 @@ release-build:
     - if: '$CI_COMMIT_TAG'
 
 # ===========================================
-# Deploy Production (serveur Nexus)
+# Deploy Production (Nexus server)
 # ===========================================
 deploy-prod:
   stage: deploy
@@ -255,8 +255,8 @@ deploy-prod:
     - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose down || true"
     - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "cd /docker_server/nexus && docker compose up -d"
     - sleep 10
-    # Utilise 'migrate deploy' (respecte les migrations SQL) au lieu de 'db push'
-    # qui tente de normaliser les colonnes GENERATED et casse le tsvector
+    # Uses 'migrate deploy' (respects the SQL migrations) instead of 'db push'
+    # which tries to normalize the GENERATED columns and breaks the tsvector
     - ssh $PROD_SERVER_USER@$PROD_SERVER_HOST "docker exec nexus-backend npx prisma migrate deploy || true"
     - echo "Nexus production deployment complete!"
   rules:
@@ -268,14 +268,14 @@ deploy-prod:
   when: manual
 
 # ===========================================
-# Deploy Agent (sur machines cibles)
-# L'agent est installé manuellement via :
+# Deploy Agent (on target machines)
+# The agent is installed manually via:
 #   sudo ./scripts/install-agent.sh --server-url ... --machine-id ... --enrollment-token ...
 #
-# Le binaire peut être extrait de l'image Docker :
+# The binary can be extracted from the Docker image:
 #   docker cp $(docker create $CI_REGISTRY_IMAGE/agent:latest):/usr/local/bin/nexus-agent ./nexus-agent
 #
-# Ou compilé localement :
+# Or compiled locally:
 #   cd agent && CGO_ENABLED=0 go build -o nexus-agent ./cmd/nexus-agent
 # ===========================================
 

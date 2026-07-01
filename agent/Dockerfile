@@ -8,7 +8,7 @@ WORKDIR /build
 COPY go.mod go.sum* ./
 COPY . .
 
-# Version injectée au build. La CI passe 0.1.0+<short-sha> ; sinon défaut "dev".
+# Version injected at build. The CI passes 0.1.0+<short-sha>; otherwise defaults to "dev".
 ARG AGENT_VERSION=0.1.0+dev
 
 # Deterministic deps: download against the committed go.sum, never mutate go.mod

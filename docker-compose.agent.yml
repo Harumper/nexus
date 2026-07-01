@@ -1,4 +1,4 @@
-# Docker Compose pour déployer l'agent sur une machine distante
+# Docker Compose to deploy the agent on a remote machine
 # Usage: MACHINE_ID=xxx ENROLLMENT_TOKEN=yyy SERVER_HOST=nexus.example.com docker compose -f docker-compose.agent.yml up -d
 
 services:

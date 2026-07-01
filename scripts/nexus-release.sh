@@ -1,67 +1,67 @@
 #!/usr/bin/env bash
 #
-# nexus-release — CRÉE le tag de version, attend le build, puis APPROUVE+signe+publie.
+# nexus-release — CREATES the version tag, waits for the build, then APPROVES+signs+publishes.
 #
-# Privilège : cette machine (signature) porte un token GitLab *project access token*
-# scopé write_api SUR LE SEUL projet nexus. write_api = lecture API + ÉCRITURE API
-# (création de tags). La décision de release reste HUMAINE : c'est TOI qui lances le
-# script et confirmes le numéro — ce n'est PAS un automate qui release seul, et ce
-# n'est PAS la CI qui crée le tag. La clé privée minisign ne quitte JAMAIS cette
-# machine (signature hors-ligne).
+# Privilege: this machine (signing) holds a GitLab *project access token*
+# scoped write_api ON THE nexus PROJECT ONLY. write_api = API read + API WRITE
+# (tag creation). The release decision stays HUMAN: YOU run the script and confirm
+# the number — this is NOT an automaton releasing on its own, and it is NOT the CI
+# creating the tag. The minisign private key NEVER leaves this machine (offline
+# signing).
 #
-#   Usage :
-#     ./nexus-release.sh                 → propose le prochain numéro, le CRÉE (tag sur
-#                                          master), attend le build, approbation, signe, publie
-#     ./nexus-release.sh --ref <sha>     → idem mais tague <sha> au lieu de master
-#     ./nexus-release.sh approve vX.Y.Z  → tag DÉJÀ créé : approuve + signe + publie
-#                                          (re-signer, ou tag créé hors script)
-#     (./nexus-release.sh vX.Y.Z marche comme 'approve vX.Y.Z' ; 'approve' est optionnel)
+#   Usage:
+#     ./nexus-release.sh                 → proposes the next number, CREATES it (tag on
+#                                          master), waits for the build, approval, signs, publishes
+#     ./nexus-release.sh --ref <sha>     → same but tags <sha> instead of master
+#     ./nexus-release.sh approve vX.Y.Z  → tag ALREADY created: approves + signs + publishes
+#                                          (re-sign, or tag created outside the script)
+#     (./nexus-release.sh vX.Y.Z works like 'approve vX.Y.Z'; 'approve' is optional)
 #
-# FLUX (une interaction) :
-#   1. lecture des tags (write_api) → propose vX.Y.Z (patch suivant)
-#   2. tu confirmes sur /dev/tty (Entrée = proposé, ou tu tapes un autre vX.Y.Z)
-#   3. anti-downgrade vérifié AVANT création ; le tag est créé via POST /repository/tags
-#      (ref = master par défaut, --ref <sha> sinon) → release-build se déclenche sur le tag
-#   4. attente de l'artefact, écran d'approbation (SHA256) sur /dev/tty, mot de passe,
-#      signature minisign locale, publication atomique dans /release, journalisation
+# FLOW (one interaction):
+#   1. read the tags (write_api) → propose vX.Y.Z (next patch)
+#   2. you confirm on /dev/tty (Enter = proposed, or type another vX.Y.Z)
+#   3. anti-downgrade checked BEFORE creation; the tag is created via POST /repository/tags
+#      (ref = master by default, --ref <sha> otherwise) → release-build triggers on the tag
+#   4. wait for the artifact, approval screen (SHA256) on /dev/tty, password,
+#      local minisign signing, atomic publication into /release, logging
 #
-# Garde-fous : format strict vX.Y.Z ; anti-downgrade (refus si un tag >= existe, vérifié
-# AVANT création) ; tag déjà existant → message clair + bascule sur 'approve' ; préflight
-# des clés AVANT de créer le tag (fail-fast) ; approbation /dev/tty ; OOM 137 distingué du
-# mauvais mot de passe ; chmod 600 contrôlé ; publication atomique (rsync --delay-updates) ;
-# journal append-only. Toute erreur = exit non-zéro + entrée FAIL au journal, jamais de
-# publication partielle.
+# Safeguards: strict vX.Y.Z format; anti-downgrade (refuse if a tag >= exists, checked
+# BEFORE creation); tag already existing → clear message + switch to 'approve'; key
+# preflight BEFORE creating the tag (fail-fast); /dev/tty approval; OOM 137 distinguished
+# from wrong password; chmod 600 enforced; atomic publication (rsync --delay-updates);
+# append-only log. Any error = non-zero exit + FAIL entry in the log, never a partial
+# publication.
 #
-# NB ROLLBACK : si le tag est créé mais que la suite échoue (build KO, refus à
-# l'approbation), le tag RESTE dans GitLab. Ce n'est PAS dangereux — aucun binaire signé
-# n'est publié dans /release, donc rien n'est servi aux agents. Reprends simplement avec
-# « ./nexus-release.sh approve vX.Y.Z ». Pas de suppression automatique du tag (on évite
-# d'effacer un tag légitime sur une erreur transitoire) ; le script affiche après création
-# la commande de reprise et le lien de suppression manuelle si tu le souhaites.
+# ROLLBACK NOTE: if the tag is created but the rest fails (build KO, refusal at
+# approval), the tag STAYS in GitLab. This is NOT dangerous — no signed binary is
+# published into /release, so nothing is served to agents. Just resume with
+# "./nexus-release.sh approve vX.Y.Z". No automatic tag deletion (we avoid erasing a
+# legitimate tag on a transient error); after creation the script prints the resume
+# command and the manual deletion link if you wish.
 
 set -Eeuo pipefail
 
 # =====================================================================
-# CONFIG — à remplir UNE fois. Token : ~/.config/nexus-release.env (NON commité) ou env.
+# CONFIG — fill in ONCE. Token: ~/.config/nexus-release.env (NOT committed) or env.
 # =====================================================================
-# Modèle des variables : scripts/nexus-release.env.example (copier vers ~/.config/nexus-release.env).
+# Variable template: scripts/nexus-release.env.example (copy to ~/.config/nexus-release.env).
 [ -f "$HOME/.config/nexus-release.env" ] && . "$HOME/.config/nexus-release.env"
 
 GITLAB_URL="${GITLAB_URL:-https://gitlab.example.com}"
-PROJECT_ID="${PROJECT_ID:-your-group%2Fnexus}"       # API : chemin url-encodé (ou ID, ex. 39)
-GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-your-group/nexus}"   # lien UI (suppression manuelle de tag)
+PROJECT_ID="${PROJECT_ID:-your-group%2Fnexus}"       # API: url-encoded path (or ID, e.g. 39)
+GITLAB_PROJECT_PATH="${GITLAB_PROJECT_PATH:-your-group/nexus}"   # UI link (manual tag deletion)
 RELEASE_JOB="${RELEASE_JOB:-release-build}"
-# Token : PROJECT ACCESS TOKEN scopé write_api sur le SEUL projet nexus (rôle Developer ;
-# Maintainer requis si les tags 'v*' sont protégés). write_api couvre lecture ET création de
-# tags — il remplace l'ancien read_api ; un seul token suffit. ⚠ droit d'ÉCRITURE (crée des tags).
+# Token: PROJECT ACCESS TOKEN scoped write_api on the nexus PROJECT ONLY (Developer role;
+# Maintainer required if 'v*' tags are protected). write_api covers reading AND creating
+# tags — it replaces the old read_api; a single token is enough. ⚠ WRITE right (creates tags).
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
-DEFAULT_REF="${DEFAULT_REF:-master}"                 # ref taguée par défaut (override : --ref <sha>)
+DEFAULT_REF="${DEFAULT_REF:-master}"                 # default tagged ref (override: --ref <sha>)
 
 RELEASE_KEY="${RELEASE_KEY:-$HOME/nexus-signing/nexus-release.key}"
 NEXUS_RELEASE_SSH_KEY="${NEXUS_RELEASE_SSH_KEY:-$HOME/.ssh/nexus-release}"
 PROD_HOST="${PROD_HOST:-nexus.example.com}"
 PROD_RELEASE_USER="${PROD_RELEASE_USER:-nexus-release}"
-SSH_STRICT="${SSH_STRICT:-accept-new}"               # 'accept-new' (TOFU 1er contact) ou 'yes' (refuse non épinglé)
+SSH_STRICT="${SSH_STRICT:-accept-new}"               # 'accept-new' (TOFU first contact) or 'yes' (refuse if not pinned)
 
 POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
@@ -81,182 +81,182 @@ audit() {
     >> "$LOG_FILE" 2>/dev/null || true
   AUDITED=1
 }
-die() { printf '%s[ÉCHEC]%s %s\n' "$c_red" "$c_rst" "$*" >&2; { [ "$AUDITED" = 0 ] && [ -n "$VER" ]; } && audit FAIL "$*"; exit 1; }
-trap 'die "erreur inattendue (ligne $LINENO, code $?)"' ERR
+die() { printf '%s[FAILED]%s %s\n' "$c_red" "$c_rst" "$*" >&2; { [ "$AUDITED" = 0 ] && [ -n "$VER" ]; } && audit FAIL "$*"; exit 1; }
+trap 'die "unexpected error (line $LINENO, code $?)"' ERR
 WORKDIR=""; cleanup() { [ -n "$WORKDIR" ] && rm -rf "$WORKDIR"; }; trap cleanup EXIT
 
 API="$GITLAB_URL/api/v4/projects/$PROJECT_ID"
 auth=(--header "PRIVATE-TOKEN: $GITLAB_TOKEN")
-[ -n "$GITLAB_TOKEN" ] || die "GITLAB_TOKEN vide. Mets un token write_api (project access token nexus) dans l'env ou ~/.config/nexus-release.env."
-command -v curl >/dev/null || die "curl manquant."
+[ -n "$GITLAB_TOKEN" ] || die "GITLAB_TOKEN empty. Set a write_api token (nexus project access token) in the env or ~/.config/nexus-release.env."
+command -v curl >/dev/null || die "curl missing."
 
-# Liste les tags propres vX.Y.Z (triés -V), erreurs API explicites.
+# Lists clean vX.Y.Z tags (sorted -V), with explicit API errors.
 fetch_tags() {
   local resp code body
-  resp="$(curl -s -w $'\n%{http_code}' "${auth[@]}" "$API/repository/tags?per_page=100")" || die "appel API tags échoué."
+  resp="$(curl -s -w $'\n%{http_code}' "${auth[@]}" "$API/repository/tags?per_page=100")" || die "tags API call failed."
   code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
   case "$code" in
     200) : ;;
-    401|403) die "API refuse l'accès (HTTP $code) — token write_api valide ?" ;;
-    404) die "projet introuvable (HTTP 404) — PROJECT_ID ($PROJECT_ID) ?" ;;
-    *) die "API tags : HTTP $code." ;;
+    401|403) die "API denies access (HTTP $code) — valid write_api token?" ;;
+    404) die "project not found (HTTP 404) — PROJECT_ID ($PROJECT_ID)?" ;;
+    *) die "tags API: HTTP $code." ;;
   esac
-  # || true : zéro tag vX.Y.Z est un état LÉGITIME (1re release) ; sans ça, le grep final
-  # sort en code 1 et, sous pipefail, fait échouer toute la fonction (trap ERR).
+  # || true: zero vX.Y.Z tags is a LEGITIMATE state (1st release); without it, the final grep
+  # exits with code 1 and, under pipefail, makes the whole function fail (trap ERR).
   printf '%s' "$body" | grep -oE '"name":"[^"]*"' | sed -E 's/^"name":"//; s/"$//' \
     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V || true
 }
 bump_patch() { local v="${1#v}" M m p; M="${v%%.*}"; v="${v#*.}"; m="${v%%.*}"; p="${v#*.}"; printf 'v%s.%s.%s' "$M" "$m" "$((p+1))"; }
 
-# Crée le tag via l'API (write_api). 201 = créé ; codes d'erreur explicités.
+# Creates the tag via the API (write_api). 201 = created; explicit error codes.
 create_tag() {
   local tag="$1" ref="$2" resp code body
   resp="$(curl -s -w $'\n%{http_code}' -X POST "${auth[@]}" \
     --data-urlencode "tag_name=$tag" --data-urlencode "ref=$ref" \
-    "$API/repository/tags")" || die "appel API création de tag échoué."
+    "$API/repository/tags")" || die "tag creation API call failed."
   code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
   case "$code" in
     201) : ;;
     400)
       if printf '%s' "$body" | grep -qi 'already exists'; then
-        die "le tag $tag existe déjà (course ?) — (re)signe-le : $0 approve $tag"
+        die "tag $tag already exists (race?) — (re)sign it: $0 approve $tag"
       fi
-      die "création du tag refusée (HTTP 400) — ref '$ref' invalide ? Détail : $body" ;;
-    401|403) die "création refusée (HTTP $code) — le token a-t-il le scope write_api ET un rôle suffisant ? (tags protégés 'v*' → Maintainer requis ; sinon Developer). Détail : $body" ;;
-    404) die "projet ou ref introuvable (HTTP 404) — la ref '$ref' existe-t-elle ? PROJECT_ID ($PROJECT_ID) ? Détail : $body" ;;
-    *) die "création de tag : HTTP $code — $body" ;;
+      die "tag creation refused (HTTP 400) — invalid ref '$ref'? Detail: $body" ;;
+    401|403) die "creation refused (HTTP $code) — does the token have the write_api scope AND a sufficient role? (protected 'v*' tags → Maintainer required; otherwise Developer). Detail: $body" ;;
+    404) die "project or ref not found (HTTP 404) — does the ref '$ref' exist? PROJECT_ID ($PROJECT_ID)? Detail: $body" ;;
+    *) die "tag creation: HTTP $code — $body" ;;
   esac
 }
 
-# ---- args : [--ref <sha>] [approve] [vX.Y.Z] ----
+# ---- args: [--ref <sha>] [approve] [vX.Y.Z] ----
 REF="$DEFAULT_REF"; ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ref)   REF="${2:-}"; [ -n "$REF" ] || die "--ref requiert un argument (sha ou nom de branche)."; shift 2 ;;
-    --ref=*) REF="${1#--ref=}"; [ -n "$REF" ] || die "--ref= vide."; shift ;;
-    approve) shift ;;                                  # mot-clé optionnel
-    -*)      die "option inconnue : $1" ;;
+    --ref)   REF="${2:-}"; [ -n "$REF" ] || die "--ref requires an argument (sha or branch name)."; shift 2 ;;
+    --ref=*) REF="${1#--ref=}"; [ -n "$REF" ] || die "--ref= empty."; shift ;;
+    approve) shift ;;                                  # optional keyword
+    -*)      die "unknown option: $1" ;;
     *)       ARGS+=("$1"); shift ;;
   esac
 done
 MODE="create"; [ "${#ARGS[@]}" -ge 1 ] && { MODE="approve"; VER="${ARGS[0]}"; }
 
-# ---- préflight signature/publication (AVANT toute création de tag : fail-fast) ----
-[ -f "$RELEASE_KEY" ] || die "clé privée minisign introuvable : $RELEASE_KEY (config RELEASE_KEY)."
-[ -f "$NEXUS_RELEASE_SSH_KEY" ] || die "clé SSH nexus-release introuvable : $NEXUS_RELEASE_SSH_KEY."
-for b in minisign rsync ssh sha256sum awk stat; do command -v "$b" >/dev/null || die "outil requis manquant : $b."; done
-# permissions des clés (SSH ignore une clé trop ouverte → fallback password → échec)
+# ---- signing/publication preflight (BEFORE any tag creation: fail-fast) ----
+[ -f "$RELEASE_KEY" ] || die "minisign private key not found: $RELEASE_KEY (config RELEASE_KEY)."
+[ -f "$NEXUS_RELEASE_SSH_KEY" ] || die "nexus-release SSH key not found: $NEXUS_RELEASE_SSH_KEY."
+for b in minisign rsync ssh sha256sum awk stat; do command -v "$b" >/dev/null || die "required tool missing: $b."; done
+# key permissions (SSH ignores an over-open key → password fallback → failure)
 for k in "$RELEASE_KEY" "$NEXUS_RELEASE_SSH_KEY"; do
-  perms="$(stat -c '%a' "$k")" || die "impossible de lire les permissions de $k."
-  [ $((8#$perms & 077)) -eq 0 ] || die "clé $k trop permissive ($perms) — SSH/minisign risquent de l'ignorer (fallback password → échec). Fais : chmod 600 $k"
+  perms="$(stat -c '%a' "$k")" || die "cannot read the permissions of $k."
+  [ $((8#$perms & 077)) -eq 0 ] || die "key $k too permissive ($perms) — SSH/minisign may ignore it (password fallback → failure). Run: chmod 600 $k"
 done
 
-# ============================ MODE CREATE ============================
-# Propose un numéro, le confirme, vérifie l'anti-downgrade AVANT de créer le tag.
+# ============================ CREATE MODE ============================
+# Propose a number, confirm it, check anti-downgrade BEFORE creating the tag.
 if [ "$MODE" = "create" ]; then
-  log "lecture des tags (write_api)…"
+  log "reading the tags (write_api)…"
   tags="$(fetch_tags)"
   last="$(printf '%s\n' "$tags" | grep -E '^v' | tail -1 || true)"
-  if [ -z "$last" ]; then proposed="v0.0.1"; last_disp="(aucune version propre)"; else proposed="$(bump_patch "$last")"; last_disp="$last"; fi
-  printf '\n%s──────── NOUVELLE RELEASE ────────%s\n' "$c_bld" "$c_rst"
-  printf '  Dernière version : %s\n' "$last_disp"
-  printf '  Proposé (patch)  : %s%s%s\n' "$c_bld" "$proposed" "$c_rst"
-  printf '  Tag créé sur ref : %s%s%s\n' "$c_bld" "$REF" "$c_rst"
-  printf '  (mineure → bump du milieu, ex. v0.1.0 ; majeure → v1.0.0)\n'
+  if [ -z "$last" ]; then proposed="v0.0.1"; last_disp="(no clean version)"; else proposed="$(bump_patch "$last")"; last_disp="$last"; fi
+  printf '\n%s──────── NEW RELEASE ────────%s\n' "$c_bld" "$c_rst"
+  printf '  Latest version   : %s\n' "$last_disp"
+  printf '  Proposed (patch) : %s%s%s\n' "$c_bld" "$proposed" "$c_rst"
+  printf '  Tag created on ref: %s%s%s\n' "$c_bld" "$REF" "$c_rst"
+  printf '  (minor → bump the middle, e.g. v0.1.0; major → v1.0.0)\n'
   printf '%s──────────────────────────────────%s\n' "$c_bld" "$c_rst"
-  reply=""; read -r -p "Numéro de version [${proposed}] : " reply < /dev/tty || true
+  reply=""; read -r -p "Version number [${proposed}]: " reply < /dev/tty || true
   VER="${reply:-$proposed}"
-  case "$VER" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "format invalide '$VER' — attendu vX.Y.Z." ;; esac
-  # déjà existant → on NE crée pas, on bascule sur approve
-  printf '%s\n' "$tags" | grep -qx "$VER" && die "le tag $VER existe déjà — pour le (re)signer : $0 approve $VER"
-  # anti-downgrade : VER doit être strictement le plus récent (vérifié AVANT création)
+  case "$VER" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "invalid format '$VER' — expected vX.Y.Z." ;; esac
+  # already existing → we do NOT create, we switch to approve
+  printf '%s\n' "$tags" | grep -qx "$VER" && die "tag $VER already exists — to (re)sign it: $0 approve $VER"
+  # anti-downgrade: VER must be strictly the most recent (checked BEFORE creation)
   if [ -n "$last" ]; then
     max="$(printf '%s\n%s\n' "$tags" "$VER" | sort -V | tail -1)"
-    [ "$max" = "$VER" ] || die "anti-downgrade : un tag plus récent existe ($max) — créer $VER publierait une version antérieure."
+    [ "$max" = "$VER" ] || die "anti-downgrade: a more recent tag exists ($max) — creating $VER would publish an older version."
   fi
-  log "création du tag $VER (ref=$REF)…"
+  log "creating tag $VER (ref=$REF)…"
   create_tag "$VER" "$REF"
-  log "tag $VER créé → release-build déclenché sur le tag."
-  warn "si la suite échoue, le tag $VER reste créé. Reprise : $0 approve $VER"
-  warn "suppression manuelle éventuelle : $GITLAB_URL/$GITLAB_PROJECT_PATH/-/tags (le tag $VER)"
+  log "tag $VER created → release-build triggered on the tag."
+  warn "if the rest fails, tag $VER stays created. Resume: $0 approve $VER"
+  warn "optional manual deletion: $GITLAB_URL/$GITLAB_PROJECT_PATH/-/tags (the tag $VER)"
 fi
 
-# ============================ MODE APPROVE ============================
-# Tag déjà créé (ce script ou hors script) : on valide qu'il existe + anti-downgrade.
+# ============================ APPROVE MODE ============================
+# Tag already created (this script or outside it): validate it exists + anti-downgrade.
 if [ "$MODE" = "approve" ]; then
-  case "$VER" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "format invalide '$VER' — attendu vX.Y.Z." ;; esac
+  case "$VER" in v[0-9]*.[0-9]*.[0-9]*) : ;; *) die "invalid format '$VER' — expected vX.Y.Z." ;; esac
   tags="$(fetch_tags)"
-  printf '%s\n' "$tags" | grep -qx "$VER" || die "le tag $VER n'existe pas — lance « $0 » (sans argument) pour le créer."
+  printf '%s\n' "$tags" | grep -qx "$VER" || die "tag $VER does not exist — run \"$0\" (no argument) to create it."
   max="$(printf '%s\n' "$tags" | sort -V | tail -1)"
-  [ "$max" = "$VER" ] || die "anti-downgrade : un tag plus récent existe ($max) — approuver $VER publierait une version antérieure."
+  [ "$max" = "$VER" ] || die "anti-downgrade: a more recent tag exists ($max) — approving $VER would publish an older version."
 fi
 
-# ============= FLUX COMMUN : artefact → approbation → signature → publication =============
-# 1. récupérer l'artefact DE CE TAG (poll bavard)
+# ============= COMMON FLOW: artifact → approval → signing → publication =============
+# 1. fetch THIS TAG's artifact (chatty poll)
 WORKDIR="$(mktemp -d)"
 art_url() { printf '%s/jobs/artifacts/%s/raw/%s?job=%s' "$API" "$VER" "$1" "$RELEASE_JOB"; }
-log "attente de l'artefact '$RELEASE_JOB' du tag $VER (timeout ${POLL_TIMEOUT}s)…"
+log "waiting for the '$RELEASE_JOB' artifact of tag $VER (timeout ${POLL_TIMEOUT}s)…"
 deadline=$(( $(date +%s) + POLL_TIMEOUT ))
 while :; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$(art_url nexus-agent.sha256)") || code=000
   case "$code" in
-    200) log "artefact disponible." ; break ;;
-    401|403) die "API refuse l'accès (HTTP $code) — token write_api ?" ;;
-    404) warn "pas encore prêt (HTTP 404) — release-build pas (encore) réussi pour $VER. Reste $(( deadline - $(date +%s) ))s." ;;
-    *) warn "réponse inattendue HTTP $code, nouvel essai…" ;;
+    200) log "artifact available." ; break ;;
+    401|403) die "API denies access (HTTP $code) — write_api token?" ;;
+    404) warn "not ready yet (HTTP 404) — release-build not (yet) succeeded for $VER. $(( deadline - $(date +%s) ))s left." ;;
+    *) warn "unexpected response HTTP $code, retrying…" ;;
   esac
-  [ "$(date +%s)" -lt "$deadline" ] || die "timeout : pas d'artefact pour $VER (release-build terminé/réussi ?)."
+  [ "$(date +%s)" -lt "$deadline" ] || die "timeout: no artifact for $VER (release-build finished/succeeded?)."
   sleep "$POLL_INTERVAL"
 done
-dl() { curl -fsSL "${auth[@]}" "$(art_url "$1")" -o "$2" || die "téléchargement de l'artefact '$1' échoué."; }
-log "téléchargement…"
+dl() { curl -fsSL "${auth[@]}" "$(art_url "$1")" -o "$2" || die "download of artifact '$1' failed."; }
+log "downloading…"
 dl nexus-agent "$WORKDIR/nexus-agent"; dl nexus-agent.sha256 "$WORKDIR/nexus-agent.sha256"; dl VERSION "$WORKDIR/VERSION"
 
-# 2. vérifier le sha256
+# 2. verify the sha256
 ( cd "$WORKDIR" && sha256sum -c nexus-agent.sha256 >/dev/null 2>&1 ) \
-  || die "sha256 MISMATCH — l'artefact ne correspond pas au sha de la CI. ABANDON."
+  || die "sha256 MISMATCH — the artifact does not match the CI sha. ABORT."
 ART_SHA="$(sha256sum "$WORKDIR/nexus-agent" | awk '{print $1}')"
-VERSION_STR="$(tr -d '\r\n' < "$WORKDIR/VERSION")"; [ -n "$VERSION_STR" ] || die "VERSION vide dans l'artefact."
+VERSION_STR="$(tr -d '\r\n' < "$WORKDIR/VERSION")"; [ -n "$VERSION_STR" ] || die "VERSION empty in the artifact."
 
-# 3. APPROBATION ÉCLAIRÉE
+# 3. INFORMED APPROVAL
 size=$(wc -c < "$WORKDIR/nexus-agent" | tr -d ' ')
-printf '\n%s──────── APPROBATION DE RELEASE ────────%s\n' "$c_bld" "$c_rst"
+printf '\n%s──────── RELEASE APPROVAL ────────%s\n' "$c_bld" "$c_rst"
 printf '  Tag            : %s\n' "$VER"
 printf '  Version (CI)   : %s\n' "$VERSION_STR"
-printf '  Artefact       : nexus-agent (%s octets)\n' "$size"
+printf '  Artifact       : nexus-agent (%s bytes)\n' "$size"
 printf '  SHA256         : %s%s%s\n' "$c_bld" "$ART_SHA" "$c_rst"
-printf '  Publié vers    : %s@%s:/release/\n' "$PROD_RELEASE_USER" "$PROD_HOST"
+printf '  Published to   : %s@%s:/release/\n' "$PROD_RELEASE_USER" "$PROD_HOST"
 printf '%s────────────────────────────────────────%s\n' "$c_bld" "$c_rst"
-printf 'Vérifie que cette version + ce SHA256 correspondent à la release attendue.\n'
-reply=""; read -r -p "Approuver et signer cette release ? (y/N) " reply < /dev/tty || true
-case "$reply" in y|Y|yes|YES|oui|OUI) : ;; *) audit REFUSED "non approuvé"; die "release NON approuvée — rien signé ni publié." ;; esac
+printf 'Verify that this version + this SHA256 match the expected release.\n'
+reply=""; read -r -p "Approve and sign this release? (y/N) " reply < /dev/tty || true
+case "$reply" in y|Y|yes|YES|oui|OUI) : ;; *) audit REFUSED "not approved"; die "release NOT approved — nothing signed or published." ;; esac
 
-# 4. signature locale (distinguer OOM 137 du mauvais mot de passe)
-log "signature locale (minisign) — saisis le mot de passe de ta clé :"
+# 4. local signing (distinguish OOM 137 from wrong password)
+log "local signing (minisign) — enter your key password:"
 set +e; minisign -S -s "$RELEASE_KEY" -m "$WORKDIR/nexus-agent"; rc=$?; set -e
 case "$rc" in
   0) : ;;
-  137) die "minisign TUÉ (signal 9 / OOM). scrypt a besoin de ~1–2 Go RAM — augmente la RAM de la LXC." ;;
-  *)   die "signature échouée (code $rc) — mauvais mot de passe ?" ;;
+  137) die "minisign KILLED (signal 9 / OOM). scrypt needs ~1–2 GB RAM — increase the LXC RAM." ;;
+  *)   die "signing failed (code $rc) — wrong password?" ;;
 esac
-[ -f "$WORKDIR/nexus-agent.minisig" ] || die "signature absente après minisign -S."
-# auto-vérif locale si la clé publique est à côté de la privée
+[ -f "$WORKDIR/nexus-agent.minisig" ] || die "signature missing after minisign -S."
+# local self-check if the public key sits next to the private one
 if [ -f "${RELEASE_KEY%.key}.pub" ]; then
   if minisign -Vm "$WORKDIR/nexus-agent" -p "${RELEASE_KEY%.key}.pub" >/dev/null 2>&1; then
-    log "auto-vérif de la signature : OK."
+    log "signature self-check: OK."
   else
-    die "auto-vérif de la signature a échoué (clés pub/priv incohérentes ?)."
+    die "signature self-check failed (inconsistent pub/priv keys?)."
   fi
 fi
 
-# 5. publication atomique (rsync --delay-updates ; écrase proprement une republication)
-log "publication dans /release sur $PROD_HOST via $PROD_RELEASE_USER (atomique)…"
+# 5. atomic publication (rsync --delay-updates; cleanly overwrites a republication)
+log "publishing into /release on $PROD_HOST via $PROD_RELEASE_USER (atomic)…"
 rsync -a --delay-updates -e "ssh -i $NEXUS_RELEASE_SSH_KEY -o StrictHostKeyChecking=$SSH_STRICT" \
   "$WORKDIR/nexus-agent" "$WORKDIR/nexus-agent.minisig" "$WORKDIR/VERSION" \
   "$PROD_RELEASE_USER@$PROD_HOST:/" \
-  || die "rsync vers $PROD_RELEASE_USER@$PROD_HOST a échoué — RIEN publié (bascule atomique non effectuée)."
+  || die "rsync to $PROD_RELEASE_USER@$PROD_HOST failed — NOTHING published (atomic switch not performed)."
 
-# 6. journaliser
-audit OK "publiée"
-log "${c_grn}Release $VER publiée (version $VERSION_STR).${c_rst}"
-log "Journal : $LOG_FILE"
+# 6. log
+audit OK "published"
+log "${c_grn}Release $VER published (version $VERSION_STR).${c_rst}"
+log "Log: $LOG_FILE"

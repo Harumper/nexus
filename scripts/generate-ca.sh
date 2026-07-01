@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Génère une CA interne pour Nexus (mTLS)
+# Generates an internal CA for Nexus (mTLS)
 # Usage: ./scripts/generate-ca.sh [output_dir]
 
 CERTS_DIR="${1:-$(dirname "$0")/../certs}"
 mkdir -p "$CERTS_DIR"
 
-echo "=== Nexus - Génération CA interne ==="
+echo "=== Nexus - Internal CA generation ==="
 
 # CA private key
 openssl ecparam -genkey -name prime256v1 -noout -out "$CERTS_DIR/ca.key"
 chmod 600 "$CERTS_DIR/ca.key"
 
-# CA certificate (10 ans)
+# CA certificate (10 years)
 openssl req -new -x509 -sha256 -key "$CERTS_DIR/ca.key" \
     -out "$CERTS_DIR/ca.crt" \
     -days 3650 \
@@ -36,10 +36,10 @@ openssl x509 -req -sha256 -in "$CERTS_DIR/server.csr" \
 rm "$CERTS_DIR/server.csr"
 
 echo ""
-echo "Certificats générés dans $CERTS_DIR :"
-echo "  ca.key      - Clé privée CA (NE PAS DISTRIBUER)"
-echo "  ca.crt      - Certificat CA (à distribuer aux agents)"
-echo "  server.key  - Clé privée serveur"
-echo "  server.crt  - Certificat serveur"
+echo "Certificates generated in $CERTS_DIR:"
+echo "  ca.key      - CA private key (DO NOT DISTRIBUTE)"
+echo "  ca.crt      - CA certificate (distribute to agents)"
+echo "  server.key  - Server private key"
+echo "  server.crt  - Server certificate"
 echo ""
-echo "Pour vérifier : openssl verify -CAfile $CERTS_DIR/ca.crt $CERTS_DIR/server.crt"
+echo "To verify: openssl verify -CAfile $CERTS_DIR/ca.crt $CERTS_DIR/server.crt"

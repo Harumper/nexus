@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Nexus - Setup environnement de développement ==="
+echo "=== Nexus - Development environment setup ==="
 
 cd "$(dirname "$0")/.."
 
-# Créer .env si absent
+# Create .env if missing
 if [ ! -f .env ]; then
     cp .env.example .env
-    # Générer des secrets aléatoires
+    # Generate random secrets
     JWT_SECRET=$(openssl rand -hex 32)
     ECDSA_SECRET=$(openssl rand -hex 32)
     PG_PASSWORD=$(openssl rand -hex 16)
@@ -17,29 +17,29 @@ if [ ! -f .env ]; then
     sed -i "s/change_me_in_production/$PG_PASSWORD/g" .env
     sed -i "0,/change_me_to_random_64_chars_minimum/s//$ECDSA_SECRET/" .env
 
-    echo "  .env créé avec des secrets générés"
+    echo "  .env created with generated secrets"
 else
-    echo "  .env existe déjà"
+    echo "  .env already exists"
 fi
 
-# Installer les dépendances backend
+# Install backend dependencies
 echo ""
-echo "--- Installation des dépendances backend ---"
+echo "--- Installing backend dependencies ---"
 cd backend
 npm install
 npx prisma generate
 cd ..
 
 echo ""
-echo "--- Génération des certificats CA ---"
+echo "--- Generating CA certificates ---"
 chmod +x scripts/generate-ca.sh
 ./scripts/generate-ca.sh
 
 echo ""
-echo "=== Setup terminé ==="
+echo "=== Setup complete ==="
 echo ""
-echo "Prochaines étapes :"
-echo "  1. docker compose up postgres -d     # Démarrer PostgreSQL"
-echo "  2. cd backend && npm run db:migrate  # Appliquer les migrations"
-echo "  3. cd backend && npm run dev         # Démarrer le backend"
+echo "Next steps:"
+echo "  1. docker compose up postgres -d     # Start PostgreSQL"
+echo "  2. cd backend && npm run db:migrate  # Apply migrations"
+echo "  3. cd backend && npm run dev         # Start the backend"
 echo ""

@@ -1,5 +1,5 @@
 # Nexus backend Dockerfile
-# IMPORTANT: build context is the repo root (pas ./backend)
+# IMPORTANT: build context is the repo root (not ./backend)
 # docker-compose.yml: context: . / dockerfile: backend/Dockerfile
 
 # Stage 1: Build backend TypeScript
@@ -26,15 +26,15 @@ RUN apk add --no-cache wget
 
 WORKDIR /app
 
-# NB (mécanisme A) : l'agent n'est PLUS compilé ni embarqué dans cette image.
-# Le binaire servi par /api/agents/download (install ET self-upgrade), sa
-# signature minisign et le fichier VERSION proviennent du VOLUME /release,
-# peuplé UNIQUEMENT par une release signée (job CI release-publish-signed).
-# Invariant "signé == servi" : un seul build (release-build) produit ce binaire ;
-# AGENT_VERSION est un contenu de release (NEXUS_AGENT_VERSION_PATH), pas un ENV gravé.
-# Conséquence assumée (fail-closed) : tant qu'aucune release n'est publiée, le
-# backend ne sert AUCUN binaire (ni install, ni upgrade). Le parc enrôlé n'est
-# pas affecté (chaque agent exécute son propre binaire local).
+# NB (mechanism A): the agent is NO LONGER compiled or embedded in this image.
+# The binary served by /api/agents/download (install AND self-upgrade), its
+# minisign signature and the VERSION file come from the /release VOLUME,
+# populated ONLY by a signed release (CI job release-publish-signed).
+# Invariant "signed == served": a single build (release-build) produces this binary;
+# AGENT_VERSION is release content (NEXUS_AGENT_VERSION_PATH), not a baked-in ENV.
+# Accepted consequence (fail-closed): as long as no release is published, the
+# backend serves NO binary (neither install nor upgrade). The enrolled fleet is
+# not affected (each agent runs its own local binary).
 
 COPY backend/package.json backend/package-lock.json* ./
 RUN apk add --no-cache python3 make g++ && npm ci --omit=dev && apk del python3 make g++
@@ -43,7 +43,7 @@ COPY --from=builder /app/dist ./dist/
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma/
 COPY backend/prisma ./prisma/
 
-# Script d'install servi par /api/agents/install-script (le binaire vient du volume /release)
+# Install script served by /api/agents/install-script (the binary comes from the /release volume)
 COPY scripts/install-agent.sh /app/scripts/install-agent.sh
 RUN chmod +x /app/scripts/install-agent.sh
 

@@ -2,15 +2,15 @@
 set -euo pipefail
 
 # ============================================
-# Nexus Agent - Script d'installation
+# Nexus Agent - Installation script
 # ============================================
-# Usage :
+# Usage:
 #   sudo ./install-agent.sh \
 #     --server-url wss://nexus.example.com/ws/agent \
 #     --machine-id <id> \
 #     --enrollment-token <token>
 #
-# Ou interactif :
+# Or interactive:
 #   sudo ./install-agent.sh
 # ============================================
 
@@ -24,7 +24,7 @@ LOG_DIR="/var/log/nexus"
 SERVICE_NAME="nexus-agent"
 AGENT_SCRIPT_DIR="/var/lib/nexus-agent"
 
-# Couleurs
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -36,25 +36,25 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
-# ===================== Vérifications =====================
+# ===================== Checks =====================
 
 if [ "$EUID" -ne 0 ]; then
     error "This script must be run as root (sudo)."
     exit 1
 fi
 
-# ===================== Fonctions de nettoyage =====================
+# ===================== Cleanup functions =====================
 
-# wipe_agent : suppression COMPLÈTE de l'agent (table rase) — service, binaire,
-# clés, shared secret, clé serveur, config, état/snapshots, SUDOERS, utilisateur.
-# Argument "keep-logs" → conserve $LOG_DIR (cas du ré-enrollement), sinon les
-# logs sont aussi supprimés (cas --uninstall).
-# Réutilisé par do_uninstall ET par --reenroll : un ré-enrôlement repart donc
-# d'une base propre (sudoers/user/binaire inclus), pas seulement de l'identité.
+# wipe_agent: COMPLETE removal of the agent (clean slate) — service, binary,
+# keys, shared secret, server key, config, state/snapshots, SUDOERS, user.
+# Argument "keep-logs" → keeps $LOG_DIR (re-enrollment case), otherwise the
+# logs are removed too (--uninstall case).
+# Reused by do_uninstall AND by --reenroll: a re-enrollment thus starts from
+# a clean base (sudoers/user/binary included), not just the identity.
 wipe_agent() {
     local keep_logs="${1:-}"
 
-    # 1. Service systemd : stop + disable + suppression unit + reload
+    # 1. systemd service: stop + disable + remove unit + reload
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         systemctl stop "$SERVICE_NAME" && ok "Service stopped."
     fi
@@ -64,10 +64,10 @@ wipe_agent() {
     systemctl reset-failed "$SERVICE_NAME" &>/dev/null || true
     ok "systemd unit removed."
 
-    # 1bis. S'assurer qu'AUCUN process agent ne survit. Sinon `userdel` échoue
-    # ET — plus grave — l'ancien agent reste connecté avec l'ancienne identité
-    # et entre en conflit avec le nouveau lors du ré-enrôlement (échec du check
-    # ECDSA / session WS volée). On termine proprement puis on force.
+    # 1b. Ensure NO agent process survives. Otherwise `userdel` fails
+    # AND — worse — the old agent stays connected with the old identity
+    # and conflicts with the new one during re-enrollment (ECDSA check
+    # failure / stolen WS session). We terminate cleanly then force.
     if id "$AGENT_USER" &>/dev/null; then
         pkill -TERM -u "$AGENT_USER" 2>/dev/null || true
         for _ in 1 2 3 4 5; do
@@ -77,11 +77,11 @@ wipe_agent() {
         pkill -KILL -u "$AGENT_USER" 2>/dev/null || true
     fi
 
-    # 2. Binaire
+    # 2. Binary
     rm -f "$BIN_PATH"
     ok "Binary removed: $BIN_PATH"
 
-    # 3. Clés, shared secret, clé serveur, config, état/snapshots (+ logs si non conservés)
+    # 3. Keys, shared secret, server key, config, state/snapshots (+ logs if not kept)
     rm -rf "$KEY_DIR" /opt/nexus/keys /var/lib/nexus /opt/nexus
     rm -rf "$CONFIG_DIR"
     rm -rf "$AGENT_SCRIPT_DIR"        # /var/lib/nexus-agent (snapshots/inbox/scripts/tempfiles)
@@ -92,11 +92,11 @@ wipe_agent() {
         ok "Keys, config, state, snapshots and logs removed."
     fi
 
-    # 4. Sudoers (table rase — réécrit ensuite par l'install)
+    # 4. Sudoers (clean slate — rewritten afterward by the install)
     rm -f /etc/sudoers.d/nexus-agent
     ok "Sudoers removed."
 
-    # 5. Utilisateur système + retrait du groupe
+    # 5. System user + removal from the group
     if id "$AGENT_USER" &>/dev/null; then
         gpasswd -d "$AGENT_USER" systemd-journal &>/dev/null || true
         userdel "$AGENT_USER" &>/dev/null && ok "User '$AGENT_USER' removed." || \
@@ -104,7 +104,7 @@ wipe_agent() {
     fi
 }
 
-# do_uninstall : suppression complète (--purge), logs inclus.
+# do_uninstall: complete removal (--purge), logs included.
 do_uninstall() {
     echo ""
     echo -e "${BLUE}=== Nexus Agent - Full uninstall ===${NC}"
@@ -116,7 +116,7 @@ do_uninstall() {
     echo ""
 }
 
-# ===================== Paramètres =====================
+# ===================== Parameters =====================
 
 SERVER_URL=""
 MACHINE_ID=""
@@ -124,8 +124,8 @@ ENROLLMENT_TOKEN=""
 SERVER_PUBLIC_KEY=""
 RELEASE_PUBKEY=""
 SCRIPT_SIGNING_PUBKEY=""
-ALLOW_REMOTE_SCRIPT="false"   # opt-in : émet la ligne sudoers bash nexus-script
-INSECURE="false"             # opt-in dev : autorise un server-url non-wss:// (NEXUS_ALLOW_INSECURE)
+ALLOW_REMOTE_SCRIPT="false"   # opt-in: emits the bash nexus-script sudoers line
+INSECURE="false"             # dev opt-in: allows a non-wss:// server-url (NEXUS_ALLOW_INSECURE)
 AGENT_BINARY=""
 HEARTBEAT_INTERVAL=30
 METRICS_INTERVAL=60
@@ -145,10 +145,10 @@ while [[ $# -gt 0 ]]; do
             SERVER_PUBLIC_KEY="$(cat "$2")"
             shift 2 ;;
         --release-pubkey-file)
-            # Accept-list minisign des clés publiques de release (auto-upgrade).
-            # Clé(s) générée(s) hors-ligne par l'opérateur ; seule la moitié
-            # publique est déposée ici. Sans ce fichier, l'agent refuse toute
-            # auto-mise-à-jour (fail-closed).
+            # minisign accept-list of release public keys (auto-upgrade).
+            # Key(s) generated offline by the operator; only the public
+            # half is placed here. Without this file, the agent refuses any
+            # auto-update (fail-closed).
             if [ ! -f "$2" ]; then
                 error "Release public key file not found: $2"
                 exit 1
@@ -156,9 +156,9 @@ while [[ $# -gt 0 ]]; do
             RELEASE_PUBKEY="$(cat "$2")"
             shift 2 ;;
         --script-signing-pubkey-file)
-            # Accept-list minisign DÉDIÉE à la signature de script (distincte de
-            # la clé serveur et de la clé de release). Privée hors-ligne côté
-            # opérateur ; seule la moitié publique est déposée ici.
+            # minisign accept-list DEDICATED to script signing (distinct from
+            # the server key and the release key). Private offline on the
+            # operator side; only the public half is placed here.
             if [ ! -f "$2" ]; then
                 error "Script signing public key file not found: $2"
                 exit 1
@@ -166,20 +166,20 @@ while [[ $# -gt 0 ]]; do
             SCRIPT_SIGNING_PUBKEY="$(cat "$2")"
             shift 2 ;;
         --allow-remote-script)
-            # Opt-in EXPLICITE : sans ce flag, la ligne sudoers permettant
-            # `sudo /bin/bash nexus-script-*.sh` n'est PAS écrite → la capacité
-            # root-RCE n'existe pas sur le système (pas seulement un flag refusé).
+            # EXPLICIT opt-in: without this flag, the sudoers line allowing
+            # `sudo /bin/bash nexus-script-*.sh` is NOT written → the root-RCE
+            # capability does not exist on the system (not just a refused flag).
             ALLOW_REMOTE_SCRIPT="true"; shift ;;
         --insecure)
-            # Opt-in DEV uniquement : autorise un --server-url non-wss:// et pose
-            # NEXUS_ALLOW_INSECURE=1 (l'agent loggue alors un WARNING à chaque boot).
+            # DEV opt-in only: allows a non-wss:// --server-url and sets
+            # NEXUS_ALLOW_INSECURE=1 (the agent then logs a WARNING on every boot).
             INSECURE="true"; shift ;;
         --binary)           AGENT_BINARY="$2";      shift 2 ;;
         --heartbeat)        HEARTBEAT_INTERVAL="$2"; shift 2 ;;
         --metrics)          METRICS_INTERVAL="$2";  shift 2 ;;
         --uninstall|--purge) MODE="uninstall";      shift ;;
-        # --reenroll : TABLE RASE (supprime binaire, clés, secret, config,
-        # état, sudoers, utilisateur ; conserve les logs) PUIS réinstall propre.
+        # --reenroll: CLEAN SLATE (removes binary, keys, secret, config,
+        # state, sudoers, user; keeps the logs) THEN a clean reinstall.
         --reenroll)         MODE="reenroll";        shift ;;
         -h|--help)
             echo "Usage:"
@@ -200,13 +200,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Mode désinstallation : pas besoin des params d'enrollment
+# Uninstall mode: enrollment params not needed
 if [ "$MODE" = "uninstall" ]; then
     do_uninstall
     exit 0
 fi
 
-# Mode interactif si les params manquent
+# Interactive mode if the params are missing
 if [ -z "$SERVER_URL" ]; then
     echo ""
     echo -e "${BLUE}=== Nexus Agent - Installation ===${NC}"
@@ -218,28 +218,28 @@ if [ -z "$MACHINE_ID" ]; then
     read -p "Machine ID: " MACHINE_ID
 fi
 
-# Le token n'est requis QUE si l'agent n'a pas déjà une identité locale ENRÔLÉE.
-# Marqueur v2 = fichier "enrolled" (cf agent keystore.go MarkEnrolled/IsEnrolled : c'est
-# LUI qui fait sauter l'enrôlement au boot) ; on teste aussi agent.key par robustesse
-# (identité résiduelle même si le marqueur manque). ⚠ NE PAS tester shared.secret : c'est
-# un vestige v1, PLUS écrit en v2 (la clé de canal est dérivée par handshake ECDHE, jamais
-# persistée) → s'en servir rendait cette détection TOUJOURS fausse. Pour un simple
-# rafraîchissement sudoers/binaire sur une machine déjà enrôlée, l'agent réutilise ses
-# clés existantes et ne ré-enrôle pas.
+# The token is required ONLY if the agent does not already have an ENROLLED local identity.
+# v2 marker = "enrolled" file (cf. agent keystore.go MarkEnrolled/IsEnrolled: it is
+# what makes enrollment be skipped at boot); we also test agent.key for robustness
+# (residual identity even if the marker is missing). ⚠ DO NOT test shared.secret: it is
+# a v1 vestige, NO LONGER written in v2 (the channel key is derived by the ECDHE handshake, never
+# persisted) → using it made this detection ALWAYS false. For a simple
+# sudoers/binary refresh on an already-enrolled machine, the agent reuses its
+# existing keys and does not re-enroll.
 HAS_LOCAL_IDENTITY=false
 if { [ -f "$KEY_DIR/enrolled" ] || [ -f "$KEY_DIR/agent.key" ]; } && [ "$MODE" != "reenroll" ]; then
     HAS_LOCAL_IDENTITY=true
 fi
 
-# Garde-fou anti-deadlock (refus explicite, jamais de purge auto) : un --enrollment-token
-# fourni alors qu'une identité locale existe DÉJÀ est un piège. L'agent saute l'enrollment
-# tant que le marqueur "enrolled" est présent → il IGNORE le token et garde son ancienne
-# identité ; si celle-ci a été invalidée côté serveur (machine supprimée/recréée/ré-enrôlée),
-# le boot part en boucle "Session handshake failed: unexpected handshake response type: error".
-# On refuse plutôt que de démarrer dans le mur. La purge d'identité est DESTRUCTRICE : elle
-# n'est jamais automatique, elle exige le geste délibéré --reenroll (que le bouton
-# « Ré-enrôler » de l'UI ajoute déjà). On NE compare PAS le machine-id : "token + identité"
-# suffit, et un refus est non-destructeur (aucune primitive de purge exploitable).
+# Anti-deadlock safeguard (explicit refusal, never an auto-purge): an --enrollment-token
+# supplied while a local identity ALREADY exists is a trap. The agent skips enrollment
+# as long as the "enrolled" marker is present → it IGNORES the token and keeps its old
+# identity; if that identity was invalidated server-side (machine deleted/recreated/re-enrolled),
+# the boot loops on "Session handshake failed: unexpected handshake response type: error".
+# We refuse rather than boot into a wall. Identity purge is DESTRUCTIVE: it is
+# never automatic, it requires the deliberate --reenroll gesture (which the UI
+# "Re-enroll" button already adds). We do NOT compare the machine-id: "token + identity"
+# is enough, and a refusal is non-destructive (no exploitable purge primitive).
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then
     error "A Nexus identity is already present on this host (marker: $KEY_DIR/enrolled) AND an --enrollment-token was supplied."
     error "The agent would IGNORE this token and keep its existing identity. If that identity was revoked server-side (machine deleted/recreated/re-enrolled), the agent loops on 'Session handshake failed: unexpected handshake response type: error'."
@@ -263,9 +263,9 @@ if [ -z "$SERVER_URL" ] || [ -z "$MACHINE_ID" ]; then
     exit 1
 fi
 
-# NEXUS-ENROLLMENT-001 — garde wss:// au moment de l'install (miroir de la garde
-# agent), pour échouer ici plutôt que silencieusement au runtime. Un --server-url
-# en clair (ws://, http://) n'est accepté qu'avec --insecure (dev local).
+# NEXUS-ENROLLMENT-001 — wss:// guard at install time (mirror of the agent
+# guard), to fail here rather than silently at runtime. A cleartext --server-url
+# (ws://, http://) is only accepted with --insecure (local dev).
 case "$SERVER_URL" in
     wss://*) ;;
     *)
@@ -285,11 +285,11 @@ fi
 
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -z "$ENROLLMENT_TOKEN" ]; then
     info "Local identity detected: refreshing (sudoers/binary) without re-enrollment."
-    ENROLLMENT_TOKEN="__refresh__"   # placeholder, non utilisé (l'agent saute l'enrollement)
+    ENROLLMENT_TOKEN="__refresh__"   # placeholder, unused (the agent skips enrollment)
 fi
 
-# PINNING STRICT : la clé publique du serveur est obligatoire pour un (ré-)enrollement.
-# En refresh (identité locale présente), la clé existante dans $CONFIG_DIR est conservée.
+# STRICT PINNING: the server public key is mandatory for a (re-)enrollment.
+# On refresh (local identity present), the existing key in $CONFIG_DIR is kept.
 if [ "$HAS_LOCAL_IDENTITY" = false ] && [ -z "${SERVER_PUBLIC_KEY:-}" ]; then
     error "--server-public-key-file required: the server key is mandatory (isolation pinning)."
     error "Use the install command generated by the Nexus UI (it includes the key)."
@@ -303,7 +303,7 @@ echo "  Machine ID    : $MACHINE_ID"
 echo "  Token         : ${ENROLLMENT_TOKEN:0:20}..."
 echo ""
 
-# ===================== 0. Arrêter l'agent s'il tourne déjà (re-install) =====================
+# ===================== 0. Stop the agent if it is already running (re-install) =====================
 
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     info "Agent currently running, stopping before reinstall..."
@@ -311,15 +311,15 @@ if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     ok "Agent stopped."
 fi
 
-# Ré-enrollement : TABLE RASE avant de réinstaller (sudoers/user/binaire inclus,
-# logs conservés). Évite à la fois le deadlock shared.secret ET le sudoers
-# obsolète (puisque tout est réécrit ensuite par l'install).
+# Re-enrollment: CLEAN SLATE before reinstalling (sudoers/user/binary included,
+# logs kept). Avoids both the shared.secret deadlock AND the stale
+# sudoers (since everything is rewritten afterward by the install).
 if [ "$MODE" = "reenroll" ]; then
     info "Re-enrollment: full agent purge (clean wipe, logs kept)…"
     wipe_agent keep-logs
 fi
 
-# ===================== 1. Créer l'utilisateur système =====================
+# ===================== 1. Create the system user =====================
 
 info "Creating system user '$AGENT_USER'..."
 
@@ -336,71 +336,71 @@ else
     ok "User '$AGENT_USER' created."
 fi
 
-# Ajouter au groupe systemd-journal pour la lecture des logs via journalctl
-# (evite d'avoir a whitelister journalctl dans sudoers)
+# Add to the systemd-journal group to read logs via journalctl
+# (avoids having to whitelist journalctl in sudoers)
 if getent group systemd-journal > /dev/null; then
     usermod -a -G systemd-journal "$AGENT_USER"
     ok "Added to the systemd-journal group for log reading."
 fi
 
-# ===================== 2. Configurer sudoers (commandes privilégiées) =====================
+# ===================== 2. Configure sudoers (privileged commands) =====================
 
 info "Configuring sudo privileges for '$AGENT_USER'..."
 
 SUDOERS_FILE="/etc/sudoers.d/nexus-agent"
 
-# Note : on ne modifie JAMAIS /etc/sudoers (uniquement le drop-in
-# /etc/sudoers.d/nexus-agent), donc pas de backup de /etc/sudoers — cela évitait
-# l'accumulation de /etc/sudoers.bak.* à chaque réinstall.
+# Note: we NEVER modify /etc/sudoers (only the /etc/sudoers.d/nexus-agent
+# drop-in), so no backup of /etc/sudoers — this avoided
+# the accumulation of /etc/sudoers.bak.* on every reinstall.
 
-# Créer le répertoire dédié pour les scripts agent (pas /tmp world-writable)
+# Create the dedicated directory for agent scripts (not world-writable /tmp)
 mkdir -p "$AGENT_SCRIPT_DIR"
 chown "$AGENT_USER":"$AGENT_GROUP" "$AGENT_SCRIPT_DIR"
 chmod 0700 "$AGENT_SCRIPT_DIR"
 
-# Inbox pour les uploads via fs.upload (file browser). Owner agent, 0750 :
-# l'utilisateur final passera en SSH + sudo pour déplacer ailleurs. Les
-# fichiers sont écrits en 0640 et auto-supprimés après 7 jours par l'agent.
+# Inbox for uploads via fs.upload (file browser). Owner agent, 0750:
+# the end user will use SSH + sudo to move files elsewhere. The
+# files are written 0640 and auto-removed after 7 days by the agent.
 mkdir -p "$AGENT_SCRIPT_DIR/inbox"
 chown "$AGENT_USER":"$AGENT_GROUP" "$AGENT_SCRIPT_DIR/inbox"
 chmod 0750 "$AGENT_SCRIPT_DIR/inbox"
 
-# Créer le fichier sudoers dans un temp sécurisé
+# Create the sudoers file in a secure temp
 SUDOERS_TEMP=$(mktemp -t nexus-agent-sudoers.XXXXXX)
 trap "rm -f '$SUDOERS_TEMP'" EXIT
 
 cat > "$SUDOERS_TEMP" << 'SUDOERS'
 # Nexus Agent - Sudoers
-# Commandes autorisées pour l'agent Nexus (sans mot de passe)
-# Généré par install-agent.sh — NE PAS MODIFIER MANUELLEMENT
+# Commands allowed for the Nexus agent (without a password)
+# Generated by install-agent.sh — DO NOT EDIT MANUALLY
 
-# === NEXUS-AGENT-009 : posture d'environnement épinglée pour ce drop-in ===
-# Le confinement de l'agent ne doit PAS dépendre d'un invariant tenu dans
-# /etc/sudoers (qu'un opérateur peut légitimement personnaliser). On scope donc
-# env_reset + secure_path à nexus-agent ici. Aucun env_keep dangereux
-# (LD_PRELOAD/BASH_ENV/ENV) n'est jamais ajouté — un .so injecté ou un BASH_ENV
-# sourcé en root via `sudo /bin/bash nexus-script-*.sh` resterait bloqué même si
-# le global /etc/sudoers était affaibli.
+# === NEXUS-AGENT-009: environment posture pinned for this drop-in ===
+# The agent's confinement must NOT depend on an invariant held in
+# /etc/sudoers (which an operator may legitimately customize). So we scope
+# env_reset + secure_path to nexus-agent here. No dangerous env_keep
+# (LD_PRELOAD/BASH_ENV/ENV) is ever added — an injected .so or a BASH_ENV
+# sourced as root via `sudo /bin/bash nexus-script-*.sh` would stay blocked even if
+# the global /etc/sudoers were weakened.
 Defaults:nexus-agent env_reset
 Defaults:nexus-agent secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # === Package management (APT) ===
-# === Self-introspection (lecture sudoers pour detecter drift) ===
+# === Self-introspection (read sudoers to detect drift) ===
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
 
 # === APT ===
-# NEXUS-AGENT-010 — PÉRIMÈTRE de NOEXEC (à ne pas surinterpréter) : NOEXEC n'est
-# PAS un pilier de confinement général. Il ne s'applique QU'aux lignes
-# install/remove des gestionnaires de paquets (apt-get/dnf/yum, ~6 lignes), comme
-# BACKSTOP ciblé du wildcard de noms de paquets : il empêche qu'un paquet/hook
-# déclenche l'exécution d'un sous-processus arbitraire (style `-o
-# DPkg::Pre-Invoke=`). Les ~44 autres lignes ne reposent PAS sur NOEXEC mais sur
-# des chemins fixes, des arguments EXACTS, le privhelper compilé, et les regex de
-# validation côté Go. NOEXEC est un filet sur une seule primitive, pas la garantie
-# d'ensemble.
-# upgrade/update : arguments EXACTS (pas de wildcard) — sinon `-o
-# DPkg::Pre-Invoke=...` permettrait l'exécution de commandes root arbitraires.
-# install/remove gardent un wildcard (noms de paquets, validés en Go par
+# NEXUS-AGENT-010 — SCOPE of NOEXEC (do not over-interpret): NOEXEC is
+# NOT a pillar of general confinement. It applies ONLY to the
+# install/remove lines of the package managers (apt-get/dnf/yum, ~6 lines), as
+# a targeted BACKSTOP for the package-name wildcard: it prevents a package/hook
+# from triggering the execution of an arbitrary subprocess (like `-o
+# DPkg::Pre-Invoke=`). The ~44 other lines do NOT rely on NOEXEC but on
+# fixed paths, EXACT arguments, the compiled privhelper, and the Go-side
+# validation regexes. NOEXEC is a net over a single primitive, not the overall
+# guarantee.
+# upgrade/update: EXACT arguments (no wildcard) — otherwise `-o
+# DPkg::Pre-Invoke=...` would allow the execution of arbitrary root commands.
+# install/remove keep a wildcard (package names, validated in Go by
 # packageNameRegex) + NOEXEC.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get update
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade -y -q
@@ -408,7 +408,7 @@ nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get install -y -qq *
 nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get remove -y -qq *
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/unattended-upgrades --minimal_upgrade_steps
 
-# === Package management (DNF/YUM) === (arguments exacts, voir system_update.go)
+# === Package management (DNF/YUM) === (exact arguments, see system_update.go)
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update --security -y -q
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update -y -q
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf upgrade -y -q
@@ -419,7 +419,7 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum update -y -q
 nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum install -y -q *
 nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum remove -y -q *
 
-# === Processus (signaux explicites uniquement) ===
+# === Processes (explicit signals only) ===
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGTERM [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGKILL [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGHUP [0-9]*
@@ -427,62 +427,62 @@ nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGINT [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR1 [0-9]*
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGUSR2 [0-9]*
 
-# === Privhelper compilé (NEXUS-AGENT-003/008 : wrapper root du binaire agent) ===
-# Le binaire agent, invoqué `privhelper <op>`, exécute en root des opérations
-# privilégiées STRICTEMENT validées en Go (création user avec `--`, écritures avec
-# realpath + dest littérale) — remplace les anciennes lignes `useradd *` /
-# `install … */…*` exploitables. Aucun shell/interpréteur invocable (binaire
-# compilé root:root 0755). Le `*` ici porte sur les args, validés par le binaire.
+# === Compiled privhelper (NEXUS-AGENT-003/008: root wrapper of the agent binary) ===
+# The agent binary, invoked as `privhelper <op>`, runs as root privileged
+# operations STRICTLY validated in Go (user creation with `--`, writes with
+# realpath + literal dest) — replaces the old exploitable `useradd *` /
+# `install … */…*` lines. No shell/interpreter invocable (binary
+# compiled root:root 0755). The `*` here applies to the args, validated by the binary.
 nexus-agent ALL=(root) NOPASSWD: /usr/local/bin/nexus-agent privhelper *
 
-# === Exécution de script : règle volontairement ABSENTE de ce heredoc statique ===
-# La règle d'exécution de script n'est émise qu'en opt-in (--allow-remote-script),
-# appendée hors de ce bloc juste avant `visudo`. Quand off, la capacité root-RCE
-# correspondante n'existe nulle part dans ce fichier.
+# === Script execution: rule deliberately ABSENT from this static heredoc ===
+# The script execution rule is only emitted as opt-in (--allow-remote-script),
+# appended outside this block just before `visudo`. When off, the corresponding
+# root-RCE capability exists nowhere in this file.
 
 # === Reboot ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
 
-# === Services systemd (start/stop/restart/reload/enable/disable) ===
-# NEXUS-AGENT-006 — plus de `systemctl <verb> *` brut en sudoers (le blocklist
-# `systemctl stop ssh*` se contournait par insertion d'option :
-# `systemctl stop --no-ask-password ssh` matchait `stop *` mais pas la négation).
-# Tout le contrôle de service passe par le privhelper compilé (déjà autorisé plus
-# haut : `nexus-agent privhelper *`), qui canonicalise verbe+unité et refuse en
-# code les options injectées et les unités protégées (ssh/sshd/nexus-agent). La
-# protection ne dépend donc plus d'un motif sudoers option-sensible.
+# === systemd services (start/stop/restart/reload/enable/disable) ===
+# NEXUS-AGENT-006 — no more raw `systemctl <verb> *` in sudoers (the
+# `systemctl stop ssh*` blocklist was bypassed by inserting an option:
+# `systemctl stop --no-ask-password ssh` matched `stop *` but not the negation).
+# All service control goes through the compiled privhelper (already allowed
+# above: `nexus-agent privhelper *`), which canonicalizes verb+unit and refuses in
+# code the injected options and the protected units (ssh/sshd/nexus-agent). The
+# protection therefore no longer depends on an option-sensitive sudoers pattern.
 
-# === Remédiations de durcissement (Phase 2 — écriture de configs) ===
-# fail2ban (anti-bruteforce) et unattended-upgrades (MAJ auto). Destinations fixes.
+# === Hardening remediations (Phase 2 — writing configs) ===
+# fail2ban (anti-bruteforce) and unattended-upgrades (auto updates). Fixed destinations.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-fail2ban-*.tmp /etc/fail2ban/jail.local
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-autoupd-*.tmp /etc/apt/apt.conf.d/20auto-upgrades
-# Bannière légale (security.set_login_banner) : /etc/issue + /etc/issue.net
+# Legal banner (security.set_login_banner): /etc/issue + /etc/issue.net
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-banner-*.tmp /etc/issue.net
 # Core dumps off (security.disable_core_dumps)
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-nocore-*.tmp /etc/security/limits.d/99-nexus-nocore.conf
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-coredump-*.tmp /etc/sysctl.d/99-nexus-coredump.conf
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sysctl -p /etc/sysctl.d/99-nexus-coredump.conf
-# Durcissement login.defs (security.harden_login_defs)
+# login.defs hardening (security.harden_login_defs)
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-logindefs-*.tmp /etc/login.defs
 
-# === Assistant pare-feu : sockets en écoute (lecture seule) ===
-# ss -p (noms de process) nécessite root. Chemins selon packaging (sbin/bin).
+# === Firewall assistant: listening sockets (read-only) ===
+# ss -p (process names) requires root. Paths depend on packaging (sbin/bin).
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ss -Htlnp
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/ss -Htlnp
 
-# === Durcissement SSH (drop-in + watchdog-revert) ===
-# Drop-in Nexus uniquement (99-nexus-hardening.conf) ; sshd -t valide AVANT reload.
-# Le rechargement se fait par SIGHUP (kill, déjà whitelisté) — `systemctl reload ssh`
-# reste BLOQUÉ pour éviter le lock-out. /bin/cat lecture du drop-in pour snapshot.
+# === SSH hardening (drop-in + watchdog-revert) ===
+# Nexus drop-in only (99-nexus-hardening.conf); sshd -t validates BEFORE reload.
+# The reload is done via SIGHUP (kill, already whitelisted) — `systemctl reload ssh`
+# stays BLOCKED to avoid lock-out. /bin/cat reads the drop-in for the snapshot.
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sshd -t
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/ssh/sshd_config.d/99-nexus-hardening.conf
-# NEXUS-AGENT-008 : l'écriture du drop-in sshd passe par `privhelper install-sshd`
-# (source realpath-validée sous /var/lib/nexus-agent/, dest FIXE) — la ligne
-# `install … /var/lib/nexus-agent/* …` à wildcard source est retirée.
+# NEXUS-AGENT-008: writing the sshd drop-in goes through `privhelper install-sshd`
+# (realpath-validated source under /var/lib/nexus-agent/, FIXED dest) — the
+# `install … /var/lib/nexus-agent/* …` line with a wildcard source is removed.
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/ssh/sshd_config.d/99-nexus-hardening.conf
 
-# === Firewall ufw + iptables (pour snapshot/restore watchdog) ===
+# === Firewall ufw + iptables (for watchdog snapshot/restore) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw status
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw allow *
@@ -493,11 +493,11 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ufw disable
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-save
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/iptables-restore
 
-# === Self-upgrade (remplacement du binaire agent) ===
+# === Self-upgrade (replacing the agent binary) ===
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/nexus-agent.new /usr/local/bin/nexus-agent
-# SELF-UPGRADE-005 (watchdog-revert) : snapshot du binaire courant en .prev avant
-# écrasement, et restauration .prev → binaire si l'upgrade ne confirme pas. Chemins
-# FIXES des deux côtés.
+# SELF-UPGRADE-005 (watchdog-revert): snapshot the current binary to .prev before
+# overwriting, and restore .prev → binary if the upgrade does not confirm. FIXED
+# paths on both sides.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /usr/local/bin/nexus-agent /var/lib/nexus-agent/nexus-agent.prev
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 755 /var/lib/nexus-agent/nexus-agent.prev /usr/local/bin/nexus-agent
 
@@ -506,17 +506,17 @@ nexus-agent ALL=(root) NOPASSWD: /usr/sbin/pvs --reportformat json --units b --n
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/vgs --reportformat json --units b --nosuffix -o *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lvs --reportformat json --units b --nosuffix -o *
 
-# === SSL cert scanning (NEXUS-AGENT-001 : prédicat ÉPINGLÉ, pas de queue ouverte) ===
-# Racines FIGÉES + -maxdepth/-type/-name, SANS ` *` final → -exec/-fprintf/-execdir
-# inappendables (plus de GTFOBins find -exec root-shell). Doit rester byte-identique
-# aux args construits par ssl_scan.go listCandidateCertFiles. /etc/ssl/private RETIRÉ
-# (clés privées). Pas de parens (sudoers ne les parse pas) : précédence find
+# === SSL cert scanning (NEXUS-AGENT-001: PINNED predicate, no open tail) ===
+# FROZEN roots + -maxdepth/-type/-name, WITHOUT a trailing ` *` → -exec/-fprintf/-execdir
+# not appendable (no more GTFOBins find -exec root-shell). Must stay byte-identical
+# to the args built by ssl_scan.go listCandidateCertFiles. /etc/ssl/private REMOVED
+# (private keys). No parens (sudoers does not parse them): find precedence
 # (-type f -name *.pem) OR (-type f -name *.crt), -maxdepth global.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/find /etc/letsencrypt/live /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/nginx/ssl /etc/apache2/ssl /etc/haproxy/certs -maxdepth 4 -type f -name *.pem -o -type f -name *.crt
-# CERTIFICATS uniquement — JAMAIS les clés privées. On exclut privkey.pem
-# (Let's Encrypt), tout /etc/ssl/private (répertoire de clés par définition) et
-# les globs trop larges (/etc/nginx/ssl/* lirait les .key). ssl.scan ne parse
-# que des certificats ; un cat refusé est ignoré proprement.
+# CERTIFICATES only — NEVER the private keys. We exclude privkey.pem
+# (Let's Encrypt), all of /etc/ssl/private (a key directory by definition) and
+# the too-broad globs (/etc/nginx/ssl/* would read the .key files). ssl.scan only
+# parses certificates; a refused cat is ignored cleanly.
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/fullchain.pem
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/cert.pem
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/letsencrypt/live/*/chain.pem
@@ -524,9 +524,9 @@ nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/nginx/ssl/*.crt
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/apache2/ssl/*.crt
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/haproxy/certs/*.crt
 
-# === Audit de sécurité (Lynis — lecture seule) ===
-# audit system --quick --no-colors : audit non interactif, sortie streamée (pas
-# de modif système). --quick évite la pause de fin. Les deux chemins selon le
+# === Security audit (Lynis — read-only) ===
+# audit system --quick --no-colors: non-interactive audit, streamed output (no
+# system modification). --quick avoids the end pause. Both paths depend on the
 # packaging (Debian/Ubuntu = /usr/sbin, EPEL = /usr/bin).
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/lynis audit system --quick --no-colors
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/lynis audit system --quick --no-colors
@@ -541,16 +541,16 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-mark unhold *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/netplan apply
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/netplan/*.yaml
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/netplan/*.yaml
-# NEXUS-AGENT-008 : l'écriture netplan passe par `privhelper install-netplan`
-# (src realpath sous staging + dst *.yaml DIRECTEMENT sous /etc/netplan, sans
-# traversal) — la ligne `install … /etc/netplan/*.yaml` (dest wildcard) est retirée.
+# NEXUS-AGENT-008: writing netplan goes through `privhelper install-netplan`
+# (src realpath under staging + dst *.yaml DIRECTLY under /etc/netplan, without
+# traversal) — the `install … /etc/netplan/*.yaml` line (wildcard dest) is removed.
 
-# === Users Linux + SSH keys ===
-# NEXUS-AGENT-003 : la création d'utilisateur passe par `privhelper useradd`
-# (login validé + `--` → pas de `-o -u 0`) — les lignes `useradd *` sont retirées.
-# NEXUS-AGENT-008 : .ssh + authorized_keys passent par `privhelper install-authkeys`
-# (home résolu par getent, dest dérivée non globée) — les lignes `install … /home/*`
-# / `/root/*` sont retirées.
+# === Linux users + SSH keys ===
+# NEXUS-AGENT-003: user creation goes through `privhelper useradd`
+# (validated login + `--` → no `-o -u 0`) — the `useradd *` lines are removed.
+# NEXUS-AGENT-008: .ssh + authorized_keys go through `privhelper install-authkeys`
+# (home resolved via getent, non-globbed derived dest) — the `install … /home/*`
+# / `/root/*` lines are removed.
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/userdel -r *
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -a * sudo
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/gpasswd -d * sudo
@@ -558,18 +558,18 @@ nexus-agent ALL=(root) NOPASSWD: /bin/cat /home/*/.ssh/authorized_keys
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /root/.ssh/authorized_keys
 SUDOERS
 
-# === Opt-in script.execute : capacité root-RCE émise SEULEMENT si demandée ===
-# Append hors du heredoc statique. Sans --allow-remote-script, le mot
-# "nexus-script" n'apparaît NULLE PART dans le sudoers → `sudo /bin/bash
-# nexus-script-*.sh` est refusé par sudo lui-même (commande hors whitelist).
-# C'est une capacité RETIRÉE du système, pas un flag applicatif contournable.
+# === Opt-in script.execute: root-RCE capability emitted ONLY if requested ===
+# Appended outside the static heredoc. Without --allow-remote-script, the word
+# "nexus-script" appears NOWHERE in the sudoers → `sudo /bin/bash
+# nexus-script-*.sh` is refused by sudo itself (command out of the whitelist).
+# This is a capability REMOVED from the system, not a bypassable application flag.
 if [ "$ALLOW_REMOTE_SCRIPT" = "true" ]; then
-    printf '\n# === Scripts Nexus (opt-in --allow-remote-script ; scripts signés, vérifiés côté agent) ===\nnexus-agent ALL=(root) NOPASSWD: /bin/bash %s/nexus-script-*.sh\n' \
+    printf '\n# === Nexus scripts (opt-in --allow-remote-script; signed scripts, verified agent-side) ===\nnexus-agent ALL=(root) NOPASSWD: /bin/bash %s/nexus-script-*.sh\n' \
         "$AGENT_SCRIPT_DIR" >> "$SUDOERS_TEMP"
     warn "Remote script execution ENABLED (--allow-remote-script): root-RCE capability emitted in the sudoers."
 fi
 
-# Valider la syntaxe AVANT d'appliquer
+# Validate the syntax BEFORE applying
 if visudo -cf "$SUDOERS_TEMP"; then
     install -m 0440 -o root -g root "$SUDOERS_TEMP" "$SUDOERS_FILE"
     ok "Sudoers configured: $SUDOERS_FILE"
@@ -598,22 +598,22 @@ chmod 755 "$LOG_DIR"
 
 ok "Directories created."
 
-# ===================== 3. Installer le binaire =====================
+# ===================== 3. Install the binary =====================
 
 info "Installing the binary..."
 
-# Refresh d'un agent déjà enrôlé, sans binaire fourni : on CONSERVE le binaire
-# en place. C'est volontaire — ce mode sert à rafraîchir sudoers/service (que la
-# self-upgrade ne peut pas mettre à jour) sans écraser/rétrograder le binaire que
-# la self-upgrade a éventuellement installé.
+# Refresh of an already-enrolled agent, with no binary supplied: we KEEP the
+# binary in place. This is intentional — this mode serves to refresh sudoers/service
+# (which self-upgrade cannot update) without overwriting/downgrading the binary that
+# self-upgrade may have installed.
 if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -z "$AGENT_BINARY" ] && [ ! -f "./nexus-agent" ] && [ -f "$BIN_PATH" ]; then
     chown root:root "$BIN_PATH"
     chmod 755 "$BIN_PATH"
     ok "Refresh: existing binary kept ($BIN_PATH, $(du -h "$BIN_PATH" | cut -f1)) — managed by self-upgrade."
 else
     if [ -n "$AGENT_BINARY" ] && [ -f "$AGENT_BINARY" ]; then
-        # Skip cp if source and destination are the same file (cas ou le binaire
-        # a ete telecharge directement dans $BIN_PATH avant l'install)
+        # Skip cp if source and destination are the same file (case where the binary
+        # was downloaded directly into $BIN_PATH before the install)
         if [ "$(readlink -f "$AGENT_BINARY")" != "$(readlink -f "$BIN_PATH")" ]; then
             cp "$AGENT_BINARY" "$BIN_PATH"
         else
@@ -624,7 +624,7 @@ else
     elif [ -f "$(dirname "$0")/../agent/nexus-agent" ]; then
         cp "$(dirname "$0")/../agent/nexus-agent" "$BIN_PATH"
     else
-        # Essayer d'extraire depuis l'image Docker
+        # Try to extract from the Docker image
         if docker image inspect nexus-agent:latest &>/dev/null; then
             info "Extracting the binary from the Docker image..."
             CONTAINER_ID=$(docker create nexus-agent:latest)
@@ -642,15 +642,15 @@ else
     ok "Binary installed: $BIN_PATH ($(du -h "$BIN_PATH" | cut -f1))"
 fi
 
-# ===================== 4. Fichier de configuration =====================
+# ===================== 4. Configuration file =====================
 
 info "Creating the configuration..."
 
 HOSTNAME_DETECTED=$(hostname -f 2>/dev/null || hostname)
 IPS_DETECTED=$(ip -4 addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v 'br-' | grep -v 'veth' | awk '{print $2}' | cut -d/ -f1 | tr '\n' ',' | sed 's/,$//')
 
-# Ecrire la cle publique dans un fichier dedie (systemd EnvironmentFile ne
-# supporte pas les valeurs multi-lignes PEM)
+# Write the public key into a dedicated file (systemd EnvironmentFile does not
+# support multi-line PEM values)
 SERVER_PUBKEY_FILE="$CONFIG_DIR/server-public-key.pem"
 if [ -n "${SERVER_PUBLIC_KEY:-}" ]; then
     printf '%s\n' "$SERVER_PUBLIC_KEY" > "$SERVER_PUBKEY_FILE"
@@ -658,18 +658,18 @@ if [ -n "${SERVER_PUBLIC_KEY:-}" ]; then
     chmod 640 "$SERVER_PUBKEY_FILE"
 fi
 
-# Accept-list des clés publiques de release (vérification de l'auto-upgrade,
-# indépendante du canal). root:root 0644 : seul root écrit, l'agent (non-root)
-# la lit. Absente ⇒ l'agent refuse l'auto-upgrade (fail-closed), mais tourne
-# normalement pour tout le reste.
+# Accept-list of release public keys (auto-upgrade verification,
+# channel-independent). root:root 0644: only root writes, the agent (non-root)
+# reads it. Absent ⇒ the agent refuses the auto-upgrade (fail-closed), but runs
+# normally for everything else.
 #
-# Design A : la clé est en général fournie par la commande de bootstrap (le
-# backend embarque NEXUS_RELEASE_PUBKEY) → posée à l'install ET au reenroll
-# (qui purge $CONFIG_DIR, donc le fichier n'existe pas → on l'écrit).
-# RÈGLE « ne pas écraser un pin existant » : si une release.pub est DÉJÀ présente
-# (ex. déposée hors-bande par un opérateur haute-assurance), on ne l'écrase PAS,
-# même si --release-pubkey-file est fourni. Pour la changer : la supprimer puis
-# réinstaller, ou --reenroll (table rase de $CONFIG_DIR).
+# Design A: the key is generally supplied by the bootstrap command (the
+# backend embeds NEXUS_RELEASE_PUBKEY) → placed at install AND at reenroll
+# (which purges $CONFIG_DIR, so the file does not exist → we write it).
+# "Do not overwrite an existing pin" RULE: if a release.pub is ALREADY present
+# (e.g. placed out-of-band by a high-assurance operator), we do NOT overwrite it,
+# even if --release-pubkey-file is supplied. To change it: remove it then
+# reinstall, or --reenroll (clean slate of $CONFIG_DIR).
 RELEASE_PUBKEY_FILE="$CONFIG_DIR/release.pub"
 if [ -n "${RELEASE_PUBKEY:-}" ]; then
     if [ -f "$RELEASE_PUBKEY_FILE" ]; then
@@ -682,11 +682,11 @@ if [ -n "${RELEASE_PUBKEY:-}" ]; then
     fi
 fi
 
-# Accept-list DÉDIÉE à la signature de script (verrou indépendant du canal pour
-# script.execute). Même modèle que release.pub : root:root 0644 (world-readable →
-# l'agent non-root la lit sans CAP_DAC_READ_SEARCH, donc indépendant d'AGENT-002).
-# Clé distincte de la clé serveur et de la clé de release. Conservée en REFRESH,
-# re-fournir sur reenroll/uninstall.
+# Accept-list DEDICATED to script signing (channel-independent lock for
+# script.execute). Same model as release.pub: root:root 0644 (world-readable →
+# the non-root agent reads it without CAP_DAC_READ_SEARCH, so independent of AGENT-002).
+# Key distinct from the server key and the release key. Kept on REFRESH,
+# re-supply on reenroll/uninstall.
 SCRIPT_SIGNING_PUBKEY_FILE="$CONFIG_DIR/script-signing.pub"
 if [ -n "${SCRIPT_SIGNING_PUBKEY:-}" ]; then
     printf '%s\n' "$SCRIPT_SIGNING_PUBKEY" > "$SCRIPT_SIGNING_PUBKEY_FILE"
@@ -694,15 +694,15 @@ if [ -n "${SCRIPT_SIGNING_PUBKEY:-}" ]; then
     chmod 644 "$SCRIPT_SIGNING_PUBKEY_FILE"
 fi
 
-# NEXUS-CRYPTO-001 — sel par-install pour le chiffrement au repos de agent.key
-# (machine-binding logiciel : HKDF(machine-id, sel)). Scope-split VOLONTAIRE :
-# le sel vit dans $CONFIG_DIR (/etc/nexus), la clé dans $KEY_DIR (/var/lib/nexus/
-# keys) → une exfil scopée d'un seul dir rate une moitié. root:nexus-agent 0640 :
-# l'agent le lit par groupe (pas de sudo, pas de cap). Généré une seule fois et
-# CONSERVÉ en refresh (sinon la clé existante deviendrait indéchiffrable) ;
-# régénéré au --reenroll (table rase de $CONFIG_DIR → nouvelle identité, nouveau sel).
-# LIMITE : un snapshot/backup disque complet contient sel + machine-id → la clé
-# reste re-dérivable. Seul le TPM fermerait ce cas (non couvert ici).
+# NEXUS-CRYPTO-001 — per-install salt for the at-rest encryption of agent.key
+# (software machine-binding: HKDF(machine-id, salt)). INTENTIONAL scope-split:
+# the salt lives in $CONFIG_DIR (/etc/nexus), the key in $KEY_DIR (/var/lib/nexus/
+# keys) → an exfil scoped to a single dir misses one half. root:nexus-agent 0640:
+# the agent reads it by group (no sudo, no cap). Generated once and
+# KEPT on refresh (otherwise the existing key would become undecryptable);
+# regenerated on --reenroll (clean slate of $CONFIG_DIR → new identity, new salt).
+# LIMIT: a full disk snapshot/backup contains salt + machine-id → the key
+# stays re-derivable. Only a TPM would close this case (not covered here).
 KEY_SALT_FILE="$CONFIG_DIR/agent-keysalt"
 if [ ! -f "$KEY_SALT_FILE" ]; then
     head -c 32 /dev/urandom | base64 > "$KEY_SALT_FILE"
@@ -712,7 +712,7 @@ fi
 
 cat > "$CONFIG_DIR/agent.env" << EOF
 # Nexus Agent Configuration
-# Généré par install-agent.sh le $(date -Iseconds)
+# Generated by install-agent.sh on $(date -Iseconds)
 
 NEXUS_SERVER_URL=$SERVER_URL
 NEXUS_MACHINE_ID=$MACHINE_ID
@@ -725,8 +725,8 @@ NEXUS_HEARTBEAT_INTERVAL=$HEARTBEAT_INTERVAL
 NEXUS_METRICS_INTERVAL=$METRICS_INTERVAL
 EOF
 
-# Transport en clair autorisé uniquement si --insecure (dev local). Écrit seulement
-# quand actif → l'agent loggue alors un WARNING à chaque boot (cf. config.go).
+# Cleartext transport allowed only with --insecure (local dev). Written only
+# when active → the agent then logs a WARNING on every boot (cf. config.go).
 if [ "$INSECURE" = "true" ]; then
     printf 'NEXUS_ALLOW_INSECURE=1\n' >> "$CONFIG_DIR/agent.env"
 fi
@@ -738,7 +738,7 @@ ok "Configuration: $CONFIG_DIR/agent.env"
 echo "  Hostname : $HOSTNAME_DETECTED"
 echo "  IPs      : $IPS_DETECTED"
 
-# ===================== 5. Service systemd =====================
+# ===================== 5. systemd service =====================
 
 info "Installing the systemd service..."
 
@@ -753,7 +753,7 @@ Wants=network-online.target
 Type=simple
 User=nexus-agent
 Group=nexus-agent
-# systemd cree /var/lib/nexus-agent automatiquement (owner=nexus-agent, mode=0700)
+# systemd creates /var/lib/nexus-agent automatically (owner=nexus-agent, mode=0700)
 StateDirectory=nexus-agent
 StateDirectoryMode=0700
 ExecStart=/usr/local/bin/nexus-agent
@@ -762,10 +762,10 @@ Restart=always
 RestartSec=10
 WatchdogSec=120
 
-# ===================== Sécurité =====================
+# ===================== Security =====================
 
-# L'agent tourne sous nexus-agent (non-root)
-# Les commandes privilégiées passent par sudo (voir /etc/sudoers.d/nexus-agent)
+# The agent runs as nexus-agent (non-root)
+# Privileged commands go through sudo (see /etc/sudoers.d/nexus-agent)
 ProtectHome=true
 PrivateTmp=true
 ProtectKernelModules=true
@@ -774,46 +774,46 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-# RestrictSUIDSGID retire : sudo est un binaire SUID necessaire pour les actions privilegiees
-# La protection reste via le sudoers ciblé (whitelist + NOEXEC)
+# RestrictSUIDSGID removed: sudo is a SUID binary required for privileged actions
+# The protection remains via the targeted sudoers (whitelist + NOEXEC)
 RestrictRealtime=true
 LockPersonality=true
-# Familles d'adresses : l'agent ne parle qu'en TCP (WS) ; AF_NETLINK requis pour
-# lire les interfaces réseau (ip addr), AF_UNIX pour systemd/journald.
+# Address families: the agent only speaks TCP (WS); AF_NETLINK required to
+# read network interfaces (ip addr), AF_UNIX for systemd/journald.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
-# NEXUS-AGENT-002 — Capabilities Linux au strict minimum.
-# Le process agent (non-root) n'a besoin d'AUCUNE capability ambiante : monitoring
-# via /proc (lecture standard), fichiers via DAC, réseau en TCP sortant. Les
-# opérations privilégiées passent par sudo (enfants root via setuid). Les lectures
-# root légitimes (certs) ont un fallback `sudo cat` ciblé (ssl_scan.go), donc on
-# n'a plus besoin de CAP_DAC_READ_SEARCH (override aveugle de DAC).
+# NEXUS-AGENT-002 — Linux capabilities at the strict minimum.
+# The agent process (non-root) needs NO ambient capability: monitoring
+# via /proc (standard reads), files via DAC, network over outbound TCP. The
+# privileged operations go through sudo (root children via setuid). The legitimate
+# root reads (certs) have a targeted `sudo cat` fallback (ssl_scan.go), so we
+# no longer need CAP_DAC_READ_SEARCH (blind override of DAC).
 AmbientCapabilities=
-# Drift-guard CIBLÉ : on retire du bounding set de TOUTE l'unité (process agent ET
-# enfants sudo) les 2 capabilities d'attaque que l'agent ne doit JAMAIS détenir —
-#  - CAP_DAC_READ_SEARCH : lecture de N'IMPORTE quel fichier en ignorant DAC
-#    (court-circuitait le sudoers et aurait défait le chiffrement au repos de
-#     CRYPTO-001) ;
-#  - CAP_SYS_PTRACE : attache ptrace inter-process (lecture mémoire des daemons root).
-# Syntaxe `~` = « toutes SAUF celles-ci » : les enfants sudo (apt/netplan/useradd…)
-# conservent CHOWN/FOWNER/DAC_OVERRIDE/SETUID/SETGID… dont ils ont besoin. Un
-# bounding set en allow-list (ex. CAP_NET_RAW seul) plafonnerait AUSSI les enfants
-# sudo et casserait les actions privilégiées sur tout le parc.
+# TARGETED drift-guard: from the bounding set of the WHOLE unit (agent process AND
+# sudo children) we remove the 2 attack capabilities the agent must NEVER hold —
+#  - CAP_DAC_READ_SEARCH: reading ANY file while ignoring DAC
+#    (bypassed the sudoers and would have defeated the at-rest encryption of
+#     CRYPTO-001);
+#  - CAP_SYS_PTRACE: inter-process ptrace attach (reading the memory of root daemons).
+# Syntax `~` = "all EXCEPT these": the sudo children (apt/netplan/useradd…)
+# keep CHOWN/FOWNER/DAC_OVERRIDE/SETUID/SETGID… which they need. An
+# allow-list bounding set (e.g. CAP_NET_RAW alone) would ALSO cap the sudo
+# children and break the privileged actions across the whole fleet.
 CapabilityBoundingSet=~CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 
-# SystemCallFilter retire : interfere avec sudo (audit syscalls) et apt-get
-# La protection reste via les autres directives (Protect*, capabilities, sudoers)
+# SystemCallFilter removed: interferes with sudo (audit syscalls) and apt-get
+# The protection remains via the other directives (Protect*, capabilities, sudoers)
 SystemCallArchitectures=native
 
-# NB : ProtectSystem reste en mode non-strict volontairement. Le mode "strict"
-# imposerait un montage RO qui s'appliquerait AUSSI aux processus sudo enfants
-# (apt/netplan/users écrivent dans /usr, /etc, /var, /home) et casserait les
-# actions privilégiées. On se limite donc à ReadOnlyPaths ciblés.
-# Répertoires accessibles
+# NB: ProtectSystem stays in non-strict mode intentionally. The "strict" mode
+# would impose a RO mount that would ALSO apply to the child sudo processes
+# (apt/netplan/users write to /usr, /etc, /var, /home) and break the
+# privileged actions. So we limit ourselves to targeted ReadOnlyPaths.
+# Accessible directories
 ReadOnlyPaths=/proc /sys /etc/os-release
 ReadWritePaths=/var/lib/nexus/keys /var/lib/nexus-agent /var/log/nexus
 
-# Limites de ressources
+# Resource limits
 LimitNOFILE=65536
 LimitNPROC=4096
 
@@ -825,7 +825,7 @@ systemctl daemon-reload
 
 ok "systemd service installed: ${SERVICE_NAME}.service"
 
-# ===================== 6. Démarrer =====================
+# ===================== 6. Start =====================
 
 echo ""
 info "Starting the agent..."
@@ -855,7 +855,7 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "    Logs   : journalctl -u $SERVICE_NAME"
     echo ""
 
-    # Afficher les premières lignes de log
+    # Show the first log lines
     journalctl -u "$SERVICE_NAME" --no-pager -n 10 2>/dev/null || true
 else
     error "The agent did not start."

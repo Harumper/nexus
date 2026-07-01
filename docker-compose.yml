@@ -48,25 +48,25 @@ services:
       KEYCLOAK_ROLE_READONLY: ${KEYCLOAK_ROLE_READONLY:-nexus-readonly}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:26032}
       AGENT_BACKEND_URL: ${AGENT_BACKEND_URL:-http://localhost:26031}
-      # Sécurité / déploiement (voir .env.example) — DOIVENT être déclarées ici,
-      # sinon le .env ne fait que l'interpolation et la variable n'atteint jamais
-      # le conteneur (footgun : feature codée + documentée mais silencieusement morte).
-      METRICS_TOKEN: ${METRICS_TOKEN:-}                              # WEB-AUTHZ-005 : bearer /metrics (vide = network-scoping seul)
-      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}                   # CP-006 : nb de proxies devant le backend
-      ALLOW_REMOTE_SCRIPT: ${ALLOW_REMOTE_SCRIPT:-false}            # AGENT-005 : opt-in script.execute (défaut OFF)
-      ALLOW_USER_PRIVILEGE_MGMT: ${ALLOW_USER_PRIVILEGE_MGMT:-false} # privileged-actions : sshkey/sudo (défaut OFF)
+      # Security / deployment (see .env.example) — MUST be declared here,
+      # otherwise the .env only does interpolation and the variable never reaches
+      # the container (footgun: feature coded + documented but silently dead).
+      METRICS_TOKEN: ${METRICS_TOKEN:-}                              # WEB-AUTHZ-005: bearer /metrics (empty = network-scoping only)
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}                   # CP-006: number of proxies in front of the backend
+      ALLOW_REMOTE_SCRIPT: ${ALLOW_REMOTE_SCRIPT:-false}            # AGENT-005: opt-in script.execute (default OFF)
+      ALLOW_USER_PRIVILEGE_MGMT: ${ALLOW_USER_PRIVILEGE_MGMT:-false} # privileged-actions: sshkey/sudo (default OFF)
       NODE_ENV: production
-      # Auto-upgrade (mécanisme A) — binaire, signature minisign et version servis
-      # depuis le volume /release (peuplé par la release SIGNÉE). Le binaire n'est
-      # plus dans l'image : tant que le volume est vide, /api/agents/download
-      # renvoie 500 (ni install, ni upgrade) — fail-closed assumé. Voir README.
+      # Auto-upgrade (mechanism A) — binary, minisign signature and version served
+      # from the /release volume (populated by the SIGNED release). The binary is
+      # no longer in the image: as long as the volume is empty, /api/agents/download
+      # returns 500 (neither install nor upgrade) — fail-closed by design. See README.
       NEXUS_AGENT_BINARY_PATH: /release/nexus-agent
       NEXUS_AGENT_SIGNATURE_PATH: /release/nexus-agent.minisig
       NEXUS_AGENT_VERSION_PATH: /release/VERSION
-      # Design A : clé PUBLIQUE de release (minisign). Si définie, le backend
-      # l'embarque dans la commande de bootstrap → /etc/nexus/release.pub posée
-      # automatiquement à l'install ET au reenroll (ferme le footgun « reenroll
-      # perd release.pub »). Clé publique = sans risque. Même valeur que la var CI.
+      # Design A: release PUBLIC key (minisign). If defined, the backend
+      # embeds it in the bootstrap command → /etc/nexus/release.pub placed
+      # automatically at install AND at reenroll (closes the footgun "reenroll
+      # loses release.pub"). Public key = no risk. Same value as the CI var.
       NEXUS_RELEASE_PUBKEY: ${NEXUS_RELEASE_PUBKEY:-}
     ports:
       - "${BACKEND_PORT:-26031}:3000"
@@ -76,8 +76,8 @@ services:
     networks:
       - nexus
     volumes:
-      # Dossier de release (binaire+.minisig+VERSION) écrit par la CI via l'user
-      # confiné nexus-release (write-only). Monté en lecture seule pour le backend.
+      # Release folder (binary+.minisig+VERSION) written by the CI via the
+      # confined nexus-release user (write-only). Mounted read-only for the backend.
       - ./release:/release:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
@@ -97,8 +97,8 @@ services:
       - "${FRONTEND_TLS_PORT:-26033}:443"
     environment:
       TLS_ENABLED: ${TLS_ENABLED:-true}
-      # CSP : origine SSO/OIDC externe autorisée (connect-src + frame-src), substituée
-      # par envsubst dans la config nginx au démarrage. Vide = self only. Voir .env.example.
+      # CSP: allowed external SSO/OIDC origin (connect-src + frame-src), substituted
+      # by envsubst in the nginx config at startup. Empty = self only. See .env.example.
       CSP_AUTH_ORIGIN: ${CSP_AUTH_ORIGIN:-}
     volumes:
       - ${TLS_CERT_DIR:-./certs}:/etc/nginx/certs
