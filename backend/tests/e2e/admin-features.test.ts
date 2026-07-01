@@ -33,8 +33,8 @@ describe("Admin Features — Reboot + Services", () => {
   });
 
   it("should NOT classify system.reboot as read-only (it mutates)", () => {
-    // L'accès est borné par le RBAC central (READ_ONLY_ACTIONS = source unique des
-    // actions read-only). system.reboot étant une mutation, il en est absent.
+    // Access is bounded by central RBAC (READ_ONLY_ACTIONS = single source of
+    // read-only actions). Since system.reboot is a mutation, it's absent from it.
     const content = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
     expect(content).toContain("READ_ONLY_ACTIONS");
     expect(content).not.toContain("system.reboot");
@@ -226,9 +226,9 @@ describe("Admin Features — Package search (Postgres FTS)", () => {
 
 describe("Admin Features — Functional assertions", () => {
   it("should parse a valid Debian Packages paragraph", async () => {
-    // Dynamique import pour ne charger que si fichier compile
+    // Dynamic import so it only loads if the file compiles
     const mod = await import("../../src/services/apt-catalog.js");
-    // pas d'export direct de parseParagraph, on s'assure juste que le module charge
+    // no direct export of parseParagraph, we just make sure the module loads
     expect(typeof mod.refreshAptCatalog).toBe("function");
     expect(typeof mod.initAptCatalogIfEmpty).toBe("function");
   });

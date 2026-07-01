@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
-// Test du store de nonces LRU directement
-// On importe le module security et on teste le comportement anti-replay
+// Test the LRU nonce store directly
+// We import the security module and test the anti-replay behavior
 describe("Nonce Replay Detection", () => {
   it("should detect duplicate nonces via LRU cache", async () => {
-    // Simuler le comportement du LRU cache
+    // Simulate the LRU cache behavior
     const { LRUCache } = await import("lru-cache");
 
     const recentNonces = new LRUCache<string, true>({
@@ -15,14 +15,14 @@ describe("Nonce Replay Detection", () => {
     const nonce1 = "test-nonce-abc123";
     const nonce2 = "test-nonce-def456";
 
-    // Premier usage : nonce non trouvé
+    // First use: nonce not found
     expect(recentNonces.has(nonce1)).toBe(false);
     recentNonces.set(nonce1, true);
 
-    // Deuxième usage du même nonce : détecté comme replay
+    // Second use of the same nonce: detected as replay
     expect(recentNonces.has(nonce1)).toBe(true);
 
-    // Nonce différent : pas de replay
+    // Different nonce: no replay
     expect(recentNonces.has(nonce2)).toBe(false);
     recentNonces.set(nonce2, true);
     expect(recentNonces.has(nonce2)).toBe(true);
@@ -39,9 +39,9 @@ describe("Nonce Replay Detection", () => {
     smallCache.set("a", true);
     smallCache.set("b", true);
     smallCache.set("c", true);
-    smallCache.set("d", true); // Devrait évincer "a"
+    smallCache.set("d", true); // Should evict "a"
 
-    expect(smallCache.has("a")).toBe(false); // Évincé
+    expect(smallCache.has("a")).toBe(false); // Evicted
     expect(smallCache.has("b")).toBe(true);
     expect(smallCache.has("c")).toBe(true);
     expect(smallCache.has("d")).toBe(true);
@@ -52,13 +52,13 @@ describe("Nonce Replay Detection", () => {
 
     const shortTtlCache = new LRUCache<string, true>({
       max: 100,
-      ttl: 100, // 100ms TTL pour le test
+      ttl: 100, // 100ms TTL for the test
     });
 
     shortTtlCache.set("ephemeral", true);
     expect(shortTtlCache.has("ephemeral")).toBe(true);
 
-    // Attendre l'expiration
+    // Wait for expiration
     await new Promise((r) => setTimeout(r, 150));
 
     expect(shortTtlCache.has("ephemeral")).toBe(false);

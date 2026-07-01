@@ -2,8 +2,8 @@ import { dispatchAction } from "./action-dispatcher.js";
 import { waitForResponse } from "./action-response.js";
 
 /**
- * Dispatch une action a l'agent et attend la reponse.
- * Utilise en interne par l'alert-engine pour poll l'etat sante.
+ * Dispatches an action to the agent and waits for the response.
+ * Used internally by the alert-engine to poll the health state.
  */
 export async function dispatchActionSync<T = any>(
   machineId: string,

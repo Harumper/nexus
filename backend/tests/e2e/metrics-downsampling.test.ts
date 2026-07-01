@@ -6,29 +6,29 @@ const backendSrc = resolve(__dirname, "../../src");
 const rootDir = resolve(__dirname, "../../..");
 const frontendSrc = resolve(rootDir, "frontend/src");
 
-// Garde-fous structurels pour la revue des graphes de monitoring :
-// #1 fenêtres longues honnêtes (downsampling SQL, plus de take=100 ASC qui ne
-// montrait que les 100 points les plus anciens) ; #2 axe X temporel + gap-fill
-// (trous visibles, jamais une ligne droite à travers une période offline).
-describe("Metrics — downsampling SQL + axe temporel + gap-fill", () => {
-  it("backend /metrics downsample en SQL avec bucket aligné (plus de take=limit)", () => {
+// Structural guardrails for the monitoring charts review:
+// #1 honest long windows (SQL downsampling, no more take=100 ASC that only
+// showed the 100 oldest points); #2 temporal X axis + gap-fill
+// (visible gaps, never a straight line across an offline period).
+describe("Metrics — SQL downsampling + temporal axis + gap-fill", () => {
+  it("backend /metrics downsamples in SQL with an aligned bucket (no more take=limit)", () => {
     const c = readFileSync(resolve(backendSrc, "routes/metrics.ts"), "utf8");
     expect(c).toContain("$queryRaw");
     expect(c).toContain('floor(extract(epoch from "timestamp")');
     expect(c).toContain("GROUP BY bucket");
     expect(c).toContain("bucketSeconds");
-    // le bug est retiré : plus de pagination take(limit) sur la série
+    // the bug is removed: no more take(limit) pagination on the series
     expect(c).not.toContain("take: parseInt(limit");
   });
 
-  it("backend /metrics/latest reste le dernier point BRUT (findFirst desc, intouché)", () => {
+  it("backend /metrics/latest stays the last RAW point (findFirst desc, untouched)", () => {
     const c = readFileSync(resolve(backendSrc, "routes/metrics.ts"), "utf8");
     expect(c).toContain("metrics/latest");
     expect(c).toContain("findFirst");
     expect(c).toContain('orderBy: { timestamp: "desc" }');
   });
 
-  it("chartTime centralise les formats d'axe + la grille de gap-fill (point de reprise i18n Lot 9)", () => {
+  it("chartTime centralizes the axis formats + the gap-fill grid (i18n Lot 9 resume point)", () => {
     const c = readFileSync(resolve(frontendSrc, "lib/chartTime.ts"), "utf8");
     expect(c).toContain("export function formatAxisTick");
     expect(c).toContain("export function formatAxisLabel");
@@ -36,7 +36,7 @@ describe("Metrics — downsampling SQL + axe temporel + gap-fill", () => {
     expect(c).toContain("export function alignToBucket");
   });
 
-  it("MetricsChart : axe X temporel numérique + gap-fill + trous non reliés", () => {
+  it("MetricsChart: numeric temporal X axis + gap-fill + unconnected gaps", () => {
     const c = readFileSync(resolve(frontendSrc, "components/MetricsChart.tsx"), "utf8");
     expect(c).toContain("buildTimeGrid");
     expect(c).toContain('dataKey="timestamp"');
@@ -44,11 +44,11 @@ describe("Metrics — downsampling SQL + axe temporel + gap-fill", () => {
     expect(c).toContain("connectNulls={false}");
     expect(c).toContain("formatAxisTick");
     expect(c).toContain("formatAxisLabel");
-    // plus d'axe en chaîne "HH:mm" en dur
+    // no more hardcoded "HH:mm" string axis
     expect(c).not.toContain('dataKey="time"');
   });
 
-  it("Compare : fusion par bucket aligné + gap-fill (plus de fusion par chaîne HH:mm)", () => {
+  it("Compare: merge by aligned bucket + gap-fill (no more merge by HH:mm string)", () => {
     const c = readFileSync(resolve(frontendSrc, "pages/Compare.tsx"), "utf8");
     expect(c).toContain("alignToBucket");
     expect(c).toContain("buildTimeGrid");

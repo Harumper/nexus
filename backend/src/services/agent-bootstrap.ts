@@ -27,11 +27,11 @@ export function getWsAgentUrl(backendUrl: string): string {
   return `${wsBase}/ws/agent`;
 }
 
-// Design A : clé PUBLIQUE de release (minisign) configurée par l'opérateur sur le
-// backend (env, jamais via l'UI). Si présente, elle est embarquée dans la commande
-// de bootstrap → l'installeur écrit /etc/nexus/release.pub à l'install ET au
-// reenroll (qui purge /etc/nexus). Ferme le footgun « reenroll perd release.pub ».
-// C'est une clé publique : aucun secret ne transite. La clé PRIVÉE reste hors-ligne.
+// Design A: release PUBLIC key (minisign) configured by the operator on the
+// backend (env, never via the UI). If present, it is embedded in the bootstrap
+// command → the installer writes /etc/nexus/release.pub at install AND at
+// reenroll (which purges /etc/nexus). Closes the "reenroll loses release.pub" footgun.
+// It's a public key: no secret transits. The PRIVATE key stays offline.
 export function getReleasePubKey(): string {
   return (process.env.NEXUS_RELEASE_PUBKEY || "").trim();
 }
@@ -44,8 +44,8 @@ interface GenerateStepsParams {
   binaryToken: string;
   scriptToken: string;
   backendUrl: string;
-  // Ré-enrollement : ajoute --reenroll pour que le script purge l'identité
-  // résiduelle (clés, shared secret, snapshots) avant de ré-enrôler proprement.
+  // Re-enrollment: adds --reenroll so the script purges the residual identity
+  // (keys, shared secret, snapshots) before re-enrolling cleanly.
   reenroll?: boolean;
 }
 
@@ -55,9 +55,9 @@ export function generateInstallSteps(params: GenerateStepsParams): InstallStep[]
   const wsUrl = getWsAgentUrl(backendUrl);
   const reenrollFlag = reenroll ? " \\\n  --reenroll" : "";
 
-  // Design A : si l'opérateur a configuré une clé de release sur le backend, on
-  // l'écrit dans un fichier temporaire et on passe --release-pubkey-file → posée
-  // dans /etc/nexus/release.pub (install ET reenroll). Sinon, comportement inchangé.
+  // Design A: if the operator configured a release key on the backend, we
+  // write it to a temp file and pass --release-pubkey-file → placed in
+  // /etc/nexus/release.pub (install AND reenroll). Otherwise, behavior unchanged.
   const releasePubKey = getReleasePubKey();
   const releaseTee = releasePubKey
     ? `\nsudo rm -f /tmp/nexus-release.pub
@@ -72,27 +72,27 @@ NEXUS_RELEASE_PUBKEY_EOF`
   return [
     {
       id: "binary",
-      title: "Télécharger le binaire de l'agent",
-      description: "Récupère le binaire nexus-agent depuis le serveur dans /tmp.",
-      // rm -f d'abord : sur un hôte ayant déjà un /tmp/nexus-agent d'un run
-      // précédent (propriétaire différent), fs.protected_regular refuse l'écriture
-      // même à root. On supprime donc avant de re-télécharger.
+      title: "Download the agent binary",
+      description: "Fetches the nexus-agent binary from the server into /tmp.",
+      // rm -f first: on a host that already has a /tmp/nexus-agent from a
+      // previous run (different owner), fs.protected_regular refuses the write
+      // even as root. So we delete before re-downloading.
       command: `sudo rm -f /tmp/nexus-agent && curl -fSL "${backendUrl}/api/agents/download?token=${binaryToken}" \\
   -o /tmp/nexus-agent && chmod +x /tmp/nexus-agent`,
     },
     {
       id: "script",
-      title: "Télécharger le script d'installation",
-      description: "Récupère le script install-agent.sh qui configure user Linux, sudoers et systemd.",
+      title: "Download the installation script",
+      description: "Fetches the install-agent.sh script that configures the Linux user, sudoers and systemd.",
       command: `sudo rm -f /tmp/install-agent.sh && curl -fSL "${backendUrl}/api/agents/install-script?token=${scriptToken}" \\
   -o /tmp/install-agent.sh && chmod +x /tmp/install-agent.sh`,
     },
     {
       id: "run",
-      title: reenroll ? "Purger, réinstaller et ré-enrôler l'agent" : "Installer et démarrer l'agent",
+      title: reenroll ? "Purge, reinstall and re-enroll the agent" : "Install and start the agent",
       description: reenroll
-        ? "TABLE RASE (binaire, clés, secret, config, sudoers, utilisateur ; logs conservés) puis réinstall + ré-enrôl propre."
-        : "Écrit la clé publique du serveur dans un fichier temporaire puis lance l'installation.",
+        ? "CLEAN SLATE (binary, keys, secret, config, sudoers, user; logs kept) then clean reinstall + re-enroll."
+        : "Writes the server public key to a temp file then launches the installation.",
       command: `sudo rm -f /tmp/nexus-pubkey.pem
 sudo tee /tmp/nexus-pubkey.pem > /dev/null <<'NEXUS_PUBKEY_EOF'
 ${backendPublicKey.trimEnd()}
@@ -109,6 +109,6 @@ sudo /tmp/install-agent.sh \\
 
 export function stepsToSingleCommand(steps: InstallStep[]): string {
   return steps
-    .map((s, i) => `# Étape ${i + 1}/${steps.length} — ${s.title}\n${s.command}`)
+    .map((s, i) => `# Step ${i + 1}/${steps.length} — ${s.title}\n${s.command}`)
     .join("\n\n");
 }

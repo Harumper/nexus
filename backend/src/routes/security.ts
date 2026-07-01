@@ -4,12 +4,12 @@ import { requireAuth, getUserFromRequest } from "../middleware/auth.js";
 import { dispatchAction } from "../services/action-dispatcher.js";
 
 export async function securityRoutes(app: FastifyInstance): Promise<void> {
-  // Lance un audit Lynis en ASYNCHRONE : on dispatche et on renvoie aussitôt le
-  // request_id (pas d'attente HTTP — Lynis dure 60-120s, ce qui provoquait des
-  // 504 derrière le proxy). La progression est streamée via WS
-  // (security.audit.progress) et le résultat final diffusé via WS
-  // (security.audit.result) + persisté dans handleActionResponse. RBAC appliqué
-  // par dispatchAction (security.audit est read-only -> autorisé READONLY+).
+  // Runs a Lynis audit ASYNCHRONOUSLY: we dispatch and immediately return the
+  // request_id (no HTTP wait — Lynis takes 60-120s, which was causing
+  // 504s behind the proxy). Progress is streamed via WS
+  // (security.audit.progress) and the final result broadcast via WS
+  // (security.audit.result) + persisted in handleActionResponse. RBAC enforced
+  // by dispatchAction (security.audit is read-only -> allowed for READONLY+).
   app.post(
     "/api/machines/:id/security/audit",
     { preHandler: [requireAuth] },
@@ -31,7 +31,7 @@ export async function securityRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Historique des scans (pour la courbe de tendance). Du plus récent au plus ancien.
+  // Scan history (for the trend curve). Most recent to oldest.
   app.get(
     "/api/machines/:id/security/scans",
     { preHandler: [requireAuth] },

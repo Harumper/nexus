@@ -16,7 +16,7 @@ interface PackageSearchResult {
 }
 
 export async function packagesRoutes(app: FastifyInstance): Promise<void> {
-  // Recherche FTS dans le catalogue
+  // FTS search in the catalog
   app.get(
     "/api/packages/search",
     {
@@ -33,8 +33,8 @@ export async function packagesRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ results: [], query: q });
       }
 
-      // Query FTS avec ranking. On prefixe pour permettre l'autocomplete partiel.
-      // plainto_tsquery gere les caracteres speciaux. Pour prefix search, on ajoute :* sur le dernier mot.
+      // FTS query with ranking. We prefix to allow partial autocomplete.
+      // plainto_tsquery handles special characters. For prefix search, we append :* on the last word.
       const tsQuery = q
         .split(/\s+/)
         .filter((t: string) => t.length > 0)
@@ -75,7 +75,7 @@ export async function packagesRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Liste des suites disponibles (pour dropdown)
+  // List of available suites (for dropdown)
   app.get(
     "/api/packages/suites",
     { preHandler: [requireAuth] },
@@ -87,7 +87,7 @@ export async function packagesRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Trigger refresh manuel (admin only)
+  // Trigger manual refresh (admin only)
   app.post(
     "/api/packages/refresh",
     { preHandler: [requireAdmin] },

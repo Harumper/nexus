@@ -49,7 +49,7 @@ describe("B1 — Bulk actions", () => {
     const content = readFileSync(resolve(frontendSrc, "pages/Machines.tsx"), "utf8");
     expect(content).toContain("BulkActionDialog");
     expect(content).toContain("selected");
-    // i18n : libellé externalisé en clé machines:bulkAction (label FR dans le JSON).
+    // i18n: label externalized to key machines:bulkAction (FR label in the JSON).
     expect(content).toContain("bulkAction");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/machines.json"), "utf8");
     expect(fr).toContain("Action groupée");
@@ -65,7 +65,7 @@ describe("B2 — SSL cert tracking", () => {
     expect(content).toContain("crypto/x509");
     expect(content).toContain("DaysRemaining");
     expect(content).toContain("/etc/letsencrypt/live");
-    // Filtre CA et snake-oil
+    // Filter out CA and snake-oil
     expect(content).toContain("IsCA");
     expect(content).toContain("snakeoil");
   });
@@ -89,8 +89,8 @@ describe("B2 — SSL cert tracking", () => {
   });
 
   it("should surface SSL cert tracking in the frontend (useMachineAttention)", () => {
-    // Le suivi des certs est affiché via le panneau d'attention (MachineDetail),
-    // pas un composant SslCertsCard dédié (supprimé car jamais rendu).
+    // Cert tracking is displayed via the attention panel (MachineDetail),
+    // not a dedicated SslCertsCard component (removed because never rendered).
     const p = resolve(frontendSrc, "hooks/useMachineAttention.tsx");
     expect(existsSync(p)).toBe(true);
     const content = readFileSync(p, "utf8");
@@ -129,7 +129,7 @@ describe("B4 — Extended alerting (services/timers/updates/certs)", () => {
     expect(content).toContain('"system.timers_failed"');
     expect(content).toContain('"system.updates_available"');
     expect(content).toContain('"system.health_summary"');
-    // Agregation dans health_summary
+    // Aggregation in health_summary
     expect(content).toContain("SystemHealthSummaryAction");
   });
 
@@ -148,9 +148,9 @@ describe("B4 — Extended alerting (services/timers/updates/certs)", () => {
   });
 
   it("should have grouped conditions in AlertCreate.tsx UI", () => {
-    // Le formulaire de creation/edition a ete sorti dans une page dediee
-    // pour donner plus de place aux channels multi-canaux et aux selecteurs
-    // de machines. Alerts.tsx ne fait que lister les regles.
+    // The create/edit form was moved to a dedicated page to give more room
+    // to the multi-channel channels and the machine selectors. Alerts.tsx
+    // only lists the rules.
     const content = readFileSync(resolve(frontendSrc, "pages/AlertCreate.tsx"), "utf8");
     expect(content).toContain("SERVICE_FAILED");
     expect(content).toContain("CERT_EXPIRING");
@@ -173,7 +173,7 @@ describe("F1 — Package pinning (apt-mark)", () => {
     expect(content).toContain('"package.hold"');
     expect(content).toContain('"package.unhold"');
     expect(content).toContain("apt-mark");
-    // Validation nom de paquet
+    // Package name validation
     expect(content).toContain("pkgNameRegex");
   });
 

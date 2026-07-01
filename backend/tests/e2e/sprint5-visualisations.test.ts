@@ -30,7 +30,7 @@ describe("Phase 6.1 — Network Charts in MetricsChart", () => {
     expect(content).toContain("networkIn");
     expect(content).toContain("networkOut");
     expect(content).toContain("KB/s");
-    // i18n : labels réseau externalisés en clés metricsChart:charts.network* (FR dans le JSON).
+    // i18n: network labels externalized to keys metricsChart:charts.network* (FR in the JSON).
     expect(content).toContain("charts.networkIn");
     const frMetrics = readFileSync(resolve(frontendSrc, "i18n/locales/fr/metricsChart.json"), "utf8");
     expect(frMetrics).toContain("seau"); // "Réseau"
@@ -68,8 +68,8 @@ describe("Phase 6.3 — Compare Page", () => {
     expect(content).toContain("selectedIds");
     expect(content).toContain("getMachines");
     expect(content).toContain("getMetrics");
-    // i18n : le titre est externalisé en clé common:nav.compare ; le label FR
-    // "Comparer" vit désormais dans le fichier de langue.
+    // i18n: the title is externalized to key common:nav.compare; the FR label
+    // "Comparer" now lives in the language file.
     expect(content).toContain("common:nav.compare");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/common.json"), "utf8");
     expect(fr).toContain("Comparer");
@@ -89,8 +89,8 @@ describe("Phase 6.3 — Compare Page", () => {
   it("should have Compare nav item in Layout", () => {
     const content = readFileSync(resolve(frontendSrc, "components/Layout.tsx"), "utf8");
     expect(content).toContain("/compare");
-    // i18n : le label du nav est externalisé en clé `nav.compare` (defaultNS "common").
-    // On vérifie la clé câblée côté composant + la traduction FR dans le fichier de langue.
+    // i18n: the nav label is externalized to key `nav.compare` (defaultNS "common").
+    // We check the key wired on the component side + the FR translation in the language file.
     expect(content).toContain("nav.compare");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/common.json"), "utf8");
     expect(fr).toContain("Comparer");

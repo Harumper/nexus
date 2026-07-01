@@ -177,9 +177,9 @@ describe("Phase 7 — Email", () => {
 describe("Phase 7 — Alert Engine Integration", () => {
   it("should dispatch notifications via the dispatcher (multi-channel)", () => {
     const content = readFileSync(resolve(backendSrc, "services/alert-engine.ts"), "utf8");
-    // Le dispatcher gere webhook/email + Discord/Slack/Teams via channels JSON
+    // The dispatcher handles webhook/email + Discord/Slack/Teams via channels JSON
     expect(content).toContain("dispatchNotifications");
-    // Les champs legacy doivent toujours etre passes au dispatcher
+    // The legacy fields must still be passed to the dispatcher
     expect(content).toContain("notifyWebhook");
     expect(content).toContain("notifyEmail");
   });

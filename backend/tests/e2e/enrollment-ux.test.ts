@@ -82,14 +82,14 @@ describe("Enrollment UX v2 — Routes", () => {
 
 describe("Enrollment UX v2 — Docker & Scripts", () => {
   it("should NOT compile the agent in the backend image (mechanism A: binary served from /release volume)", () => {
-    // Invariant "signé == servi" : un SEUL build produit le binaire servi (job CI
-    // release-build), donc l'image backend ne compile/embarque plus l'agent.
+    // "signed == served" invariant: a SINGLE build produces the served binary (CI
+    // release-build job), so the backend image no longer compiles/embeds the agent.
     const dockerfile = readFileSync(resolve(backendRoot, "Dockerfile"), "utf8");
     expect(dockerfile).not.toContain("agent-builder");
     expect(dockerfile).not.toContain("/app/agent/nexus-agent");
     expect(dockerfile).toContain("COPY scripts/install-agent.sh /app/scripts/install-agent.sh");
 
-    // Binaire + signature minisign + version servis depuis le volume /release.
+    // Binary + minisign signature + version served from the /release volume.
     const compose = readFileSync(resolve(rootDir, "docker-compose.yml"), "utf8");
     expect(compose).toContain("/release:ro");
     expect(compose).toContain("NEXUS_AGENT_BINARY_PATH: /release/nexus-agent");
@@ -104,27 +104,27 @@ describe("Enrollment UX v2 — Docker & Scripts", () => {
   });
 
   it("should refuse a token on a host that already has a local identity (anti-deadlock guard, never auto-purges)", () => {
-    // Feature B : un --enrollment-token fourni alors qu'une identité locale existe
-    // (shared.secret) ferait ignorer le token par l'agent → boucle handshake error.
-    // On REFUSE (exit), on ne purge JAMAIS automatiquement : la purge exige --reenroll.
+    // Feature B: a --enrollment-token provided while a local identity exists
+    // (shared.secret) would make the agent ignore the token → handshake-error loop.
+    // We REFUSE (exit), we NEVER auto-purge: purging requires --reenroll.
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     const guard = 'if [ "$HAS_LOCAL_IDENTITY" = true ] && [ -n "$ENROLLMENT_TOKEN" ]; then';
     expect(content).toContain(guard);
-    // Le bloc de garde mène à un refus (exit 1) et oriente vers les deux issues.
+    // The guard block leads to a refusal (exit 1) and points to the two ways out.
     const block = content.slice(content.indexOf(guard));
     const body = block.slice(0, block.indexOf("\nfi\n"));
     expect(body).toContain("exit 1");
     expect(body).toContain("--reenroll");
     expect(body).toMatch(/WITHOUT --enrollment-token/);
-    // Refus pur : le garde-fou ne déclenche aucune purge (pas de table rase ici).
+    // Pure refusal: the guard triggers no purge (no clean slate here).
     expect(body).not.toContain("wipe_agent");
-    // La détection d'identité doit cibler le marqueur d'enrôlement v2 "enrolled" (ce que
-    // l'agent teste via IsEnrolled), PAS shared.secret : vestige v1 jamais écrit en v2 →
-    // la détection serait toujours false et le garde-fou inopérant (régression vécue).
+    // Identity detection must target the v2 enrollment marker "enrolled" (what the
+    // agent tests via IsEnrolled), NOT shared.secret: a v1 vestige never written in v2 →
+    // detection would always be false and the guard inoperative (lived regression).
     const detectLine = content
       .split("\n")
       .find((l) => l.includes('"$KEY_DIR/enrolled"') && l.includes("MODE"));
-    expect(detectLine, "HAS_LOCAL_IDENTITY doit tester $KEY_DIR/enrolled").toBeTruthy();
+    expect(detectLine, "HAS_LOCAL_IDENTITY must test $KEY_DIR/enrolled").toBeTruthy();
     expect(detectLine).not.toContain("shared.secret");
   });
 
@@ -145,7 +145,7 @@ describe("Enrollment UX v2 — Frontend", () => {
     expect(content).toContain("installSteps");
     expect(content).toContain("regenerateBootstrap");
     expect(content).toContain("Polling"); // text mention or timer comment
-    // i18n : libellé externalisé en clé enroll:status.handshake (FR dans le JSON).
+    // i18n: label externalized to key enroll:status.handshake (FR in the JSON).
     expect(content).toContain("status.handshake");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/enroll.json"), "utf8");
     expect(fr).toContain("Handshake ECDSA");
@@ -177,11 +177,11 @@ describe("Enrollment UX v2 — Frontend", () => {
     expect(existsSync(path)).toBe(false);
   });
 
-  it("should have Régénérer action in MachineCard for pending machines", () => {
+  it("should have Regenerate action in MachineCard for pending machines", () => {
     const content = readFileSync(resolve(frontendSrc, "components/MachineCard.tsx"), "utf8");
     expect(content).toContain("isPending");
-    // i18n : l'action est externalisée en clé card.regenerateInstall ; le label
-    // FR "Régénérer l'installation" vit dans le fichier de langue.
+    // i18n: the action is externalized to key card.regenerateInstall; the FR
+    // label "Régénérer l'installation" lives in the language file.
     expect(content).toContain("regenerateInstall");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/machines.json"), "utf8");
     expect(fr).toContain("Régénérer");
@@ -244,8 +244,8 @@ describe("Enrollment UX v2 — Functional assertions", () => {
       { id: "a", title: "First", description: "d", command: "echo 1" },
       { id: "b", title: "Second", description: "d", command: "echo 2" },
     ]);
-    expect(out).toContain("# Étape 1/2 — First");
-    expect(out).toContain("# Étape 2/2 — Second");
+    expect(out).toContain("# Step 1/2 — First");
+    expect(out).toContain("# Step 2/2 — Second");
     expect(out).toContain("echo 1");
     expect(out).toContain("echo 2");
   });

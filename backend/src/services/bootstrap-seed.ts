@@ -1,10 +1,10 @@
 import bcrypt from "bcrypt";
 import { prisma } from "./database.js";
 
-// Ensure l'admin par defaut et les settings builtin existent en DB.
-// Idempotent (upsert) — peut etre appele a chaque demarrage sans risque.
+// Ensure the default admin and the builtin settings exist in the DB.
+// Idempotent (upsert) — can be called safely on every startup.
 export async function ensureBuiltinSeed(): Promise<void> {
-  // Admin par defaut (seulement s'il n'existe pas du tout — ne jamais ecraser un mot de passe)
+  // Default admin (only if it doesn't exist at all — never overwrite a password)
   const adminExists = await prisma.user.findUnique({ where: { username: "admin" } });
   if (!adminExists) {
     const password = await bcrypt.hash("admin", 12);
@@ -19,7 +19,7 @@ export async function ensureBuiltinSeed(): Promise<void> {
     console.log("[Seed] Created default admin user (username=admin, password=admin — CHANGE IT!)");
   }
 
-  // Settings par defaut (rétention, seuils de sante)
+  // Default settings (retention, health thresholds)
   const defaultSettings = [
     { key: "metrics_retention_days", value: 30 },
     { key: "health_threshold_cpu", value: 90 },

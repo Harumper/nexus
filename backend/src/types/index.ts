@@ -1,7 +1,7 @@
 // ===================== WebSocket Protocol =====================
 
 export interface WSMessage {
-  v: number; // version de protocole de canal (liée dans la signature ; v1 rejeté)
+  v: number; // channel protocol version (bound into the signature; v1 rejected)
   type: string;
   request_id?: string;
   machine_id: string;
@@ -34,7 +34,7 @@ export interface HeartbeatData {
   agent_type?: string;
   reboot_required?: boolean;
   sudoers_hash?: string;
-  // SHA256 du binaire agent en cours d'exécution (détection "à jour" / fin d'upgrade)
+  // SHA256 of the running agent binary (detects "up to date" / upgrade completion)
   agent_sha256?: string;
 }
 
@@ -124,11 +124,11 @@ export interface AgentSession {
   connectedAt: Date;
   lastHeartbeat: Date;
   ip: string;
-  // CRYPTO-004 : clé de session AES ÉPHÉMÈRE, dérivée par le handshake ECDHE
-  // X25519 à l'établissement de la connexion. MÉMOIRE SEULE — jamais persistée
-  // (ni DB, ni disque). Détruite au cycle de vie de la session.
+  // CRYPTO-004: EPHEMERAL AES session key, derived by the ECDHE X25519 handshake
+  // when the connection is established. MEMORY ONLY — never persisted (neither
+  // DB nor disk). Destroyed with the session lifecycle.
   sessionKey?: Buffer;
-  // Handshake ECDHE complété sur cette connexion (session.hello reçu+vérifié,
-  // K dérivé). Tant que false, aucun message métier n'est traité.
+  // ECDHE handshake completed on this connection (session.hello received+verified,
+  // K derived). While false, no business message is processed.
   established?: boolean;
 }

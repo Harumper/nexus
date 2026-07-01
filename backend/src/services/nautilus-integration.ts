@@ -2,7 +2,7 @@ import { prisma } from "./database.js";
 import { decryptAES } from "./crypto.js";
 import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
-// Settings keys utilises pour l'integration Nautilus
+// Settings keys used for the Nautilus integration
 export const NAUTILUS_SETTINGS_KEYS = {
   ENABLED: "nautilus_enabled",
   URL: "nautilus_url",
@@ -74,10 +74,10 @@ export async function getNautilusConfig(): Promise<NautilusConfig> {
   const url = map.get(NAUTILUS_SETTINGS_KEYS.URL);
   const rawToken = map.get(NAUTILUS_SETTINGS_KEYS.TOKEN);
 
-  // Le token est chiffré au repos. On déchiffre ; si le déchiffrement échoue
-  // (valeur legacy en clair stockée avant le chiffrement), on retombe sur la
-  // valeur brute pour ne pas casser une intégration existante — elle sera
-  // re-chiffrée à la prochaine sauvegarde.
+  // The token is encrypted at rest. We decrypt it; if decryption fails (legacy
+  // plaintext value stored before encryption was introduced), we fall back to
+  // the raw value so as not to break an existing integration — it will be
+  // re-encrypted on the next save.
   let token: string | null = null;
   if (typeof rawToken === "string" && rawToken.length > 0) {
     try {
@@ -95,8 +95,8 @@ export async function getNautilusConfig(): Promise<NautilusConfig> {
 }
 
 /**
- * Parse une ligne de format Prometheus text.
- * Format attendu : `metric_name{label="value",label2="value2"} 123.45`
+ * Parses a line of Prometheus text format.
+ * Expected format: `metric_name{label="value",label2="value2"} 123.45`
  */
 function parseMetricLine(line: string): ParsedMetric | null {
   line = line.trim();
@@ -109,7 +109,7 @@ function parseMetricLine(line: string): ParsedMetric | null {
   const [, name, labelsStr, valueStr] = match;
   const labels: Record<string, string> = {};
   if (labelsStr) {
-    // Parser simple : label="value" avec quoting standard
+    // Simple parser: label="value" with standard quoting
     const labelRegex = /([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"/g;
     let m: RegExpExecArray | null;
     while ((m = labelRegex.exec(labelsStr)) !== null) {
@@ -133,7 +133,7 @@ export function parseMetricsText(text: string): ParsedMetric[] {
 }
 
 /**
- * Fetch + parse /metrics Nautilus et construit un snapshot structure.
+ * Fetches + parses Nautilus /metrics and builds a structured snapshot.
  */
 export async function fetchNautilusSnapshot(): Promise<NautilusSnapshot> {
   const cfg = await getNautilusConfig();
@@ -287,7 +287,7 @@ function buildSnapshot(metrics: ParsedMetric[], durationMs: number): NautilusSna
     }
   }
 
-  // Calculer memoryPercent server-side si pas fourni (devrait l'etre normalement)
+  // Compute memoryPercent server-side if not provided (should normally be)
   for (const s of serverMap.values()) {
     if (s.memoryLimitBytes > 0) {
       s.memoryPercent = (s.memoryUsedBytes / s.memoryLimitBytes) * 100;

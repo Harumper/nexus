@@ -11,12 +11,12 @@ export async function metricsRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const { range = "1h" } = request.query as { range?: string };
 
-      // Fenêtre + taille de bucket par range. Le bucket DOWNSAMPLE la série en SQL
-      // (avg par tranche) pour viser ~120-170 points quelle que soit la fenêtre :
-      // ainsi la vue couvre TOUT le range demandé (fini le « 100 points les plus
-      // anciens » qui montrait 1h40 d'il y a 24h). 15m/1h = bucket 60s = résolution
-      // de collecte native → aucune perte. bucketSeconds vient d'une MAP en dur
-      // (pas d'input libre → sûr à injecter dans le SQL).
+      // Window + bucket size per range. The bucket DOWNSAMPLES the series in SQL
+      // (avg per slice) to target ~120-170 points regardless of the window:
+      // this way the view covers the ENTIRE requested range (no more "100 oldest
+      // points" that showed 1h40 from 24h ago). 15m/1h = 60s bucket = native
+      // collection resolution → no loss. bucketSeconds comes from a hard-coded MAP
+      // (no free input → safe to inject into the SQL).
       const RANGES: Record<string, { ms: number; bucketSec: number }> = {
         "15m": { ms: 15 * 60 * 1000, bucketSec: 60 },
         "1h": { ms: 60 * 60 * 1000, bucketSec: 60 },
@@ -29,11 +29,11 @@ export async function metricsRoutes(app: FastifyInstance): Promise<void> {
       const bucketSec = cfg.bucketSec;
       const since = new Date(Date.now() - cfg.ms);
 
-      // Downsampling en SQL (même moteur que /fleet/trends). Bucket aligné sur
-      // floor(epoch/bucket)*bucket → des buckets STABLES (réutilisés par le
-      // gap-fill front et la fusion multi-machines de Compare). disque/réseau
-      // sont en JSON : on extrait [0] (la 1re entrée, comme l'affichage), uptime
-      // en max (compteur croissant : avg n'aurait pas de sens).
+      // Downsampling in SQL (same engine as /fleet/trends). Bucket aligned on
+      // floor(epoch/bucket)*bucket → STABLE buckets (reused by the front-end
+      // gap-fill and Compare's multi-machine merge). disk/network are
+      // in JSON: we extract [0] (the 1st entry, like the display), uptime
+      // as max (monotonic counter: avg would make no sense).
       const rows = await prisma.$queryRaw<
         Array<{
           bucket: Date;
@@ -65,8 +65,8 @@ export async function metricsRoutes(app: FastifyInstance): Promise<void> {
         ORDER BY bucket ASC
       `;
 
-      // Reconstruit le shape Metric attendu par le frontend (disks/network en
-      // tableau à 1 entrée agrégée — le graphe ne lit que [0]).
+      // Rebuilds the Metric shape expected by the frontend (disks/network as a
+      // 1-entry aggregated array — the graph only reads [0]).
       const result = rows.map((r) => ({
         id: r.bucket.toISOString(),
         cpuPercent: r.cpu ?? 0,

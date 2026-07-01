@@ -44,7 +44,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
         if (to) where.createdAt.lte = new Date(to);
       }
 
-      // Recherche texte dans les détails (resourceId ou details JSON)
+      // Text search in the details (resourceId or details JSON)
       if (search) {
         where.OR = [
           { resourceId: { contains: search, mode: "insensitive" } },

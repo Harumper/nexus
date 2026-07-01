@@ -9,10 +9,10 @@ import {
 import { prisma } from "../services/database.js";
 import crypto from "node:crypto";
 
-// Cache en memoire : userId Keycloak deja upserted dans la DB (evite un upsert a chaque requete)
+// In-memory cache: Keycloak userIds already upserted into the DB (avoids an upsert on every request)
 const keycloakUserCache = new Set<string>();
 
-// Upsert un User local pour un user Keycloak afin que les FK auditLog.userId fonctionnent
+// Upsert a local User for a Keycloak user so that the auditLog.userId FKs work
 async function upsertKeycloakUser(
   sub: string,
   username: string,
@@ -28,7 +28,7 @@ async function upsertKeycloakUser(
         id: sub,
         username: `kc:${username}`,
         email: email || `${sub}@keycloak.invalid`,
-        // Password random impossible a deviner, on ne peut pas login localement
+        // Random, unguessable password: local login is impossible
         password: crypto.randomBytes(32).toString("hex"),
         role,
         isActive: true,
@@ -47,21 +47,21 @@ async function upsertKeycloakUser(
   }
 }
 
-// Extraire le token Bearer de la requête
+// Extract the Bearer token from the request
 function extractBearerToken(request: FastifyRequest): string | null {
   const authHeader = request.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return null;
   return authHeader.slice(7);
 }
 
-// Tenter l'authentification (Keycloak et/ou local selon AUTH_MODE)
+// Attempt authentication (Keycloak and/or local depending on AUTH_MODE)
 async function authenticate(
   request: FastifyRequest
 ): Promise<JwtPayload | null> {
   const token = extractBearerToken(request);
   if (!token) return null;
 
-  // 1. Essayer Keycloak si activé
+  // 1. Try Keycloak if enabled
   if (isKeycloakEnabled()) {
     const result = await verifyKeycloakToken(token);
     if (result.valid && result.payload) {
@@ -73,28 +73,28 @@ async function authenticate(
         provider: "keycloak",
         email: result.payload.email,
       };
-      // Upsert le user Keycloak en DB (pour les FK auditLog.userId)
+      // Upsert the Keycloak user into the DB (for the auditLog.userId FKs)
       await upsertKeycloakUser(
         result.payload.sub,
         result.payload.preferred_username,
         result.payload.email,
         role
       );
-      // Stocker dans request.user pour les handlers
+      // Store in request.user for the handlers
       (request as any).user = jwtPayload;
       return jwtPayload;
     }
   }
 
-  // 2. Essayer le JWT local si activé
+  // 2. Try the local JWT if enabled
   if (isLocalAuthEnabled()) {
     try {
       const payload = (await request.jwtVerify()) as JwtPayload;
       payload.provider = "local";
 
-      // Revalider l'état du compte en DB : un compte désactivé ou dont le rôle
-      // a changé ne doit PAS conserver l'accès jusqu'à l'expiration du JWT (4h).
-      // Le rôle de la DB fait foi (et non celui figé dans le token).
+      // Revalidate the account state in the DB: a disabled account, or one whose
+      // role changed, must NOT keep access until the JWT expires (4h). The DB
+      // role is authoritative (not the one frozen into the token).
       const dbUser = await prisma.user.findUnique({
         where: { id: payload.sub },
         select: { isActive: true, role: true },
@@ -106,7 +106,7 @@ async function authenticate(
       (request as any).user = payload;
       return payload;
     } catch {
-      // JWT local invalide
+      // Invalid local JWT
     }
   }
 

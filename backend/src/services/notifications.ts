@@ -1,5 +1,5 @@
-// Multi-channel notification dispatcher pour les alertes.
-// Inspire de Nautilus mais HMAC-signed pour les webhooks generiques.
+// Multi-channel notification dispatcher for alerts.
+// Inspired by Nautilus but HMAC-signed for generic webhooks.
 
 import { sendWebhook } from "./webhook.js";
 import { sendAlertEmail } from "./email.js";
@@ -40,40 +40,40 @@ export interface ChannelResult {
 // ═══════════════════════════════════════════════════════════════
 
 const DISCORD_COLORS = {
-  INFO: 0x3498db,     // bleu
+  INFO: 0x3498db,     // blue
   WARNING: 0xf39c12,  // orange
-  CRITICAL: 0xe74c3c, // rouge
+  CRITICAL: 0xe74c3c, // red
 };
 
 async function sendDiscord(webhookUrl: string, event: AlertEvent): Promise<void> {
   const color = DISCORD_COLORS[event.severity] ?? DISCORD_COLORS.WARNING;
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
     { name: "Machine", value: event.machineName, inline: true },
-    { name: "Sévérité", value: event.severity, inline: true },
+    { name: "Severity", value: event.severity, inline: true },
     { name: "Condition", value: event.conditionType, inline: true },
   ];
 
-  // Détails contextuels selon le type de condition
+  // Contextual details depending on the condition type
   if (event.details.value !== undefined && event.details.threshold !== undefined) {
     fields.push({
-      name: "Valeur",
-      value: `${event.details.value} (seuil ${event.details.threshold})`,
+      name: "Value",
+      value: `${event.details.value} (threshold ${event.details.threshold})`,
       inline: false,
     });
   }
   if (event.details.failedServices?.length) {
     fields.push({
-      name: "Services en échec",
+      name: "Failed services",
       value: event.details.failedServices.slice(0, 10).join(", "),
       inline: false,
     });
   }
   if (event.details.certs?.length) {
     fields.push({
-      name: "Certs expirant",
+      name: "Expiring certs",
       value: event.details.certs
         .slice(0, 5)
-        .map((c: any) => `${c.subject || c.path}: ${c.days_remaining}j`)
+        .map((c: any) => `${c.subject || c.path}: ${c.days_remaining}d`)
         .join("\n"),
       inline: false,
     });
@@ -116,9 +116,9 @@ async function sendSlack(webhookUrl: string, event: AlertEvent): Promise<void> {
         color,
         fields: [
           { title: "Machine", value: event.machineName, short: true },
-          { title: "Sévérité", value: event.severity, short: true },
+          { title: "Severity", value: event.severity, short: true },
           { title: "Condition", value: event.conditionType, short: true },
-          { title: "Détails", value: formatDetails(event.details), short: false },
+          { title: "Details", value: formatDetails(event.details), short: false },
         ],
         footer: "Nexus",
         ts: Math.floor(new Date(event.firedAt).getTime() / 1000),
@@ -148,7 +148,7 @@ async function sendTeams(webhookUrl: string, event: AlertEvent): Promise<void> {
     title: event.isTest ? `[TEST] ${event.ruleName}` : event.ruleName,
     sections: [
       {
-        activityTitle: `Severite : ${event.severity}`,
+        activityTitle: `Severity: ${event.severity}`,
         facts: [
           { name: "Machine", value: event.machineName },
           { name: "Condition", value: event.conditionType },
@@ -162,7 +162,7 @@ async function sendTeams(webhookUrl: string, event: AlertEvent): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Email custom (recipients par regle, override l'email global)
+// Custom email (per-rule recipients, override the global email)
 // ═══════════════════════════════════════════════════════════════
 
 async function sendChannelEmail(
@@ -181,7 +181,7 @@ async function sendChannelEmail(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Webhook generique (HMAC-signed)
+// Generic webhook (HMAC-signed)
 // ═══════════════════════════════════════════════════════════════
 
 async function sendGenericWebhook(
@@ -189,8 +189,8 @@ async function sendGenericWebhook(
   hmacSecret: string | undefined,
   event: AlertEvent
 ): Promise<void> {
-  // Si hmacSecret fourni, on l'utilise pour signer. Sinon on tombe sur le
-  // setting global (deja gere par sendWebhook).
+  // If hmacSecret is provided, we use it to sign. Otherwise we fall back to the
+  // global setting (already handled by sendWebhook).
   await sendWebhook(url, {
     event: event.isTest ? "alert.test" : "alert.fired",
     alert: {
@@ -208,12 +208,12 @@ async function sendGenericWebhook(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Dispatcher principal
+// Main dispatcher
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Dispatch une alerte sur tous les channels configures pour la regle.
- * Resout aussi les channels legacy (notifyEmail, notifyWebhook).
+ * Dispatches an alert to all channels configured for the rule.
+ * Also resolves legacy channels (notifyEmail, notifyWebhook).
  */
 export async function dispatchNotifications(
   rule: {
@@ -227,13 +227,13 @@ export async function dispatchNotifications(
   const results: ChannelResult[] = [];
   const promises: Array<Promise<ChannelResult>> = [];
 
-  // Channels modernes (JSON array)
+  // Modern channels (JSON array)
   const channels: NotificationChannel[] = Array.isArray(rule.channels) ? rule.channels : [];
   for (const channel of channels) {
     promises.push(executeChannel(channel, event));
   }
 
-  // Legacy : notifyEmail (utilise alert_email setting)
+  // Legacy: notifyEmail (uses the alert_email setting)
   if (rule.notifyEmail) {
     promises.push(
       (async (): Promise<ChannelResult> => {
@@ -255,7 +255,7 @@ export async function dispatchNotifications(
     );
   }
 
-  // Legacy : notifyWebhook (HMAC signed)
+  // Legacy: notifyWebhook (HMAC signed)
   if (rule.notifyWebhook) {
     promises.push(
       (async (): Promise<ChannelResult> => {
@@ -336,13 +336,13 @@ async function executeChannel(
 function formatDetails(details: Record<string, any>): string {
   const parts: string[] = [];
   if (details.value !== undefined && details.threshold !== undefined) {
-    parts.push(`${details.value} (seuil ${details.threshold})`);
+    parts.push(`${details.value} (threshold ${details.threshold})`);
   }
   if (details.count !== undefined) parts.push(`Count: ${details.count}`);
   if (details.failedServices?.length) {
     parts.push(`Services: ${details.failedServices.slice(0, 5).join(", ")}`);
   }
-  if (details.minDays !== undefined) parts.push(`Min jours: ${details.minDays}`);
+  if (details.minDays !== undefined) parts.push(`Min days: ${details.minDays}`);
   if (parts.length === 0) return JSON.stringify(details);
   return parts.join(" · ");
 }
@@ -370,7 +370,7 @@ async function postJson(url: string, payload: unknown, timeoutMs: number): Promi
 }
 
 /**
- * Test une regle en envoyant un evenement de test sur tous ses channels.
+ * Tests a rule by sending a test event to all its channels.
  */
 export async function testAlertRule(ruleId: string): Promise<ChannelResult[]> {
   const rule = await prisma.alertRule.findUnique({ where: { id: ruleId } });
@@ -387,7 +387,7 @@ export async function testAlertRule(ruleId: string): Promise<ChannelResult[]> {
       test: true,
       threshold: rule.threshold,
       value: rule.threshold,
-      message: "Ceci est un test de notification depuis Nexus",
+      message: "This is a notification test from Nexus",
     },
     firedAt: new Date().toISOString(),
     isTest: true,

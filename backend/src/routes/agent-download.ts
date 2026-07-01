@@ -3,13 +3,13 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { validateBootstrapToken } from "../services/bootstrap.js";
 
-// Chemins par defaut quand le backend tourne dans Docker (binaire + script bake au build)
+// Default paths when the backend runs in Docker (binary + script baked at build time)
 const AGENT_BINARY_PATH =
   process.env.NEXUS_AGENT_BINARY_PATH || "/app/agent/nexus-agent";
 const INSTALL_SCRIPT_PATH =
   process.env.NEXUS_INSTALL_SCRIPT_PATH || "/app/scripts/install-agent.sh";
 
-// Fallback dev : chemins relatifs au repo
+// Dev fallback: paths relative to the repo
 const DEV_AGENT_BINARY = resolve(process.cwd(), "../agent/nexus-agent");
 const DEV_INSTALL_SCRIPT = resolve(process.cwd(), "../scripts/install-agent.sh");
 
@@ -21,16 +21,16 @@ function resolvePath(primary: string, fallback: string): string | null {
 
 export async function agentDownloadRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/agents/download?token=...
-  // Pas d'auth JWT — le token query est l'auth (single-use, 1h expiry)
+  // No JWT auth — the query token is the auth (single-use, 1h expiry)
   app.get(
     "/api/agents/download",
     {
       config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
-      // Token accepté en header Authorization: Bearer (préféré, ne fuite pas
-      // dans les logs d'accès) OU en query ?token= (rétro-compat : bootstrap
-      // curl et anciens agents en cours d'auto-upgrade).
+      // Token accepted in the Authorization: Bearer header (preferred, does not
+      // leak into access logs) OR in the query ?token= (backward compat: bootstrap
+      // curl and older agents currently auto-upgrading).
       const authHeader = (request.headers["authorization"] as string | undefined) || "";
       const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
       const { token: queryToken } = request.query as { token?: string };

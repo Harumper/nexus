@@ -8,10 +8,10 @@ import {
 import type { WSMessage } from "../types/index.js";
 import { LRUCache } from "lru-cache";
 
-// Cache LRU de nonces aligné sur la fenêtre timestamp (5 min) pour bloquer les replays.
-// Le TTL DOIT correspondre à isTimestampValid (5 min). Si plus court, un attaquant peut
-// rejouer un message dans la fenêtre [TTL, 5min] après éviction du nonce.
-// 50 000 entrées = capacité pour ~100 agents × 5 msg/min × 5 min (worst case).
+// LRU nonce cache aligned with the timestamp window (5 min) to block replays.
+// The TTL MUST match isTimestampValid (5 min). If shorter, an attacker can replay
+// a message within the [TTL, 5min] window after the nonce is evicted.
+// 50,000 entries = capacity for ~100 agents × 5 msg/min × 5 min (worst case).
 const recentNonces = new LRUCache<string, true>({
   max: 50_000,
   ttl: 5 * 60 * 1000,
@@ -20,17 +20,17 @@ const recentNonces = new LRUCache<string, true>({
 export async function verifyAgentMessage(
   msg: WSMessage
 ): Promise<{ valid: boolean; error?: string }> {
-  // NEXUS-CRYPTO-005 — ordre durci : on n'enregistre JAMAIS le nonce avant
-  // d'avoir prouvé l'authenticité du message. Un attaquant non authentifié (qui
-  // connaît juste un machine_id) ne peut donc plus empoisonner/évincer le cache
-  // anti-replay avec des nonces de messages à signature invalide.
+  // NEXUS-CRYPTO-005 — hardened order: we NEVER record the nonce before having
+  // proven the message's authenticity. An unauthenticated attacker (who only
+  // knows a machine_id) can therefore no longer poison/evict the anti-replay
+  // cache with nonces from messages with an invalid signature.
 
-  // 1. Vérifier le timestamp (fenêtre de 5 minutes)
+  // 1. Verify the timestamp (5-minute window)
   if (!isTimestampValid(msg.timestamp)) {
     return { valid: false, error: "Message timestamp outside valid window" };
   }
 
-  // 2. Récupérer la clé publique de l'agent
+  // 2. Retrieve the agent's public key
   const machine = await prisma.machine.findUnique({
     where: { id: msg.machine_id },
     select: { agentPublicKey: true, status: true, boundIp: true },
@@ -44,7 +44,7 @@ export async function verifyAgentMessage(
     return { valid: false, error: "Machine has been revoked" };
   }
 
-  // 3. Vérifier la signature ECDSA — AVANT toute mutation du cache anti-replay
+  // 3. Verify the ECDSA signature — BEFORE any mutation of the anti-replay cache
   const signaturePayload = buildSignaturePayload(msg);
   const signatureValid = verifySignature(
     signaturePayload,
@@ -56,9 +56,9 @@ export async function verifyAgentMessage(
     return { valid: false, error: "Invalid ECDSA signature" };
   }
 
-  // 4. Anti-replay APRÈS la vérification, clé = machine_id:nonce (isolation
-  // inter-agents : le trafic d'une machine ne peut pas évincer le cache d'une
-  // autre). Seuls les messages authentiques touchent désormais le cache.
+  // 4. Anti-replay AFTER verification, key = machine_id:nonce (inter-agent
+  // isolation: one machine's traffic cannot evict another's cache). Only
+  // authentic messages now touch the cache.
   const nonceKey = `${msg.machine_id}:${msg.nonce}`;
   if (recentNonces.has(nonceKey)) {
     return { valid: false, error: "Duplicate nonce detected (replay attack)" };
@@ -77,7 +77,7 @@ export async function verifyAgentIp(
     select: { boundIp: true },
   });
 
-  if (!machine?.boundIp) return true; // Pas encore lié
+  if (!machine?.boundIp) return true; // Not bound yet
   return machine.boundIp === ip;
 }
 
@@ -108,7 +108,7 @@ export async function revokeMachine(
   });
 }
 
-// Déchiffre un payload métier avec la clé de session éphémère K (handshake ECDHE).
+// Decrypts a business payload with the ephemeral session key K (ECDHE handshake).
 export function decryptWithSharedKey(encryptedPayload: string, key: Buffer): string {
   return decryptAES(encryptedPayload, key);
 }

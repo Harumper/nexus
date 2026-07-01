@@ -6,8 +6,8 @@ import { dispatchAction } from "../services/action-dispatcher.js";
 import { waitForResponse } from "../services/action-response.js";
 import { getAgentSession } from "../websocket/sessions.js";
 
-// Actions autorisees en bulk. On exclut les actions watchdog-revert (netplan,
-// firewall) car elles necessitent confirmation individuelle.
+// Actions allowed in bulk. We exclude the watchdog-revert actions (netplan,
+// firewall) because they require individual confirmation.
 const BULK_ALLOWED_ACTIONS = new Set([
   "system.reboot",
   "system.update",
@@ -24,7 +24,7 @@ const BULK_ALLOWED_ACTIONS = new Set([
 ]);
 
 export async function bulkRoutes(app: FastifyInstance): Promise<void> {
-  // Dispatch une action sur plusieurs machines en parallele
+  // Dispatch an action to multiple machines in parallel
   app.post(
     "/api/bulk/dispatch",
     {
@@ -61,7 +61,7 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Resolver la liste de machines cibles
+      // Resolve the list of target machines
       let targetIds: string[] = [];
       if (body.machineIds && body.machineIds.length > 0) {
         targetIds = body.machineIds;
@@ -83,7 +83,7 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "Cannot target more than 100 machines at once" });
       }
 
-      // Filtrer les machines offline
+      // Filter out offline machines
       const machines = await prisma.machine.findMany({
         where: { id: { in: targetIds } },
         select: { id: true, name: true, status: true, isCritical: true },
@@ -92,7 +92,7 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
       const mode = body.mode || "sync";
       const timeout = body.timeout || 30_000;
 
-      // Dispatch en parallele avec concurrence limitee a 10
+      // Dispatch in parallel with concurrency limited to 10
       const concurrency = 10;
       const results: any[] = [];
 
@@ -140,7 +140,7 @@ export async function bulkRoutes(app: FastifyInstance): Promise<void> {
               async: true,
             };
           }
-          // Mode sync : attendre la reponse
+          // Sync mode: wait for the response
           const data = await waitForResponse(dispatch.requestId, timeout);
           return {
             machineId: machine.id,

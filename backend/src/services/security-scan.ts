@@ -1,7 +1,7 @@
 import { prisma } from "./database.js";
 import { evaluateHardeningAlerts } from "./alert-engine.js";
 
-// Données brutes renvoyées par l'action agent security.audit.
+// Raw data returned by the security.audit agent action.
 export interface AuditData {
   hardening_index?: number;
   warning_count?: number;
@@ -14,9 +14,9 @@ export interface AuditData {
   [k: string]: unknown;
 }
 
-// Persiste un point d'historique (résumé) à partir d'un résultat d'audit, puis
-// (ré)évalue les alertes de posture pour la machine. Appelé quand l'agent
-// renvoie sa réponse security.audit (dispatch asynchrone).
+// Persists a history point (summary) from an audit result, then (re)evaluates
+// the posture alerts for the machine. Called when the agent returns its
+// security.audit response (asynchronous dispatch).
 export async function recordSecurityScan(machineId: string, data: AuditData): Promise<void> {
   await prisma.securityScan.create({
     data: {
@@ -32,6 +32,6 @@ export async function recordSecurityScan(machineId: string, data: AuditData): Pr
     },
   });
 
-  // Le score qui vient d'être mesuré peut franchir un seuil d'alerte.
+  // The score just measured may cross an alert threshold.
   await evaluateHardeningAlerts(machineId);
 }

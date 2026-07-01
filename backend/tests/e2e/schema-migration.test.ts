@@ -88,8 +88,8 @@ describe("Frontend - Phase 2 Files", () => {
   const frontendDir = resolve(__dirname, "../../../frontend/src");
 
   it("should have Tags management card (integrated in Settings)", () => {
-    // La page /tags dediee a ete supprimee : la gestion des tags est
-    // maintenant integree dans Settings via TagsManagementCard.
+    // The dedicated /tags page was removed: tag management is now
+    // integrated into Settings via TagsManagementCard.
     const content = readFileSync(resolve(frontendDir, "components/TagsManagementCard.tsx"), "utf8");
     expect(content).toContain("createTag");
     expect(content).toContain("deleteTag");
@@ -100,8 +100,8 @@ describe("Frontend - Phase 2 Files", () => {
     expect(content).toContain("interface Tag");
     expect(content).toContain("interface Setting");
     expect(content).toContain("rebootRequired");
-    // NB : le type MachineGroup frontend a été retiré (scaffolding sans UI ;
-    // le modèle backend MachineGroup reste, utilisé par bulk).
+    // NB: the frontend MachineGroup type was removed (scaffolding with no UI;
+    // the backend MachineGroup model remains, used by bulk).
   });
 
   it("should have tag API methods", () => {
@@ -109,14 +109,14 @@ describe("Frontend - Phase 2 Files", () => {
     expect(content).toContain("getTags");
     expect(content).toContain("createTag");
     expect(content).toContain("getSettings");
-    // assignTag/removeTag et les méthodes groups frontend ont été retirées
-    // (clients morts, jamais appelés ; pas d'UI de gestion).
+    // assignTag/removeTag and the frontend groups methods were removed
+    // (dead clients, never called; no management UI).
   });
 
   it("should integrate Tags in Settings page (no dedicated /tags route)", () => {
     const settings = readFileSync(resolve(frontendDir, "pages/Settings.tsx"), "utf8");
     expect(settings).toContain("TagsManagementCard");
-    // Plus de route /tags dans App.tsx
+    // No more /tags route in App.tsx
     const app = readFileSync(resolve(frontendDir, "App.tsx"), "utf8");
     expect(app).not.toMatch(/path="\/tags"/);
   });

@@ -19,7 +19,7 @@ function validateChannels(channels: unknown): { ok: boolean; error?: string } {
     if (!ch.config || typeof ch.config !== "object") {
       return { ok: false, error: `channel ${ch.type} missing config` };
     }
-    // Validation par type
+    // Validation per type
     if (ch.type === "DISCORD" || ch.type === "SLACK" || ch.type === "TEAMS") {
       if (typeof ch.config.webhookUrl !== "string" || !ch.config.webhookUrl.startsWith("http")) {
         return { ok: false, error: `${ch.type} requires webhookUrl (http/https)` };
@@ -202,7 +202,7 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Test une regle (envoie un evenement de test sur tous ses channels)
+  // Test a rule (sends a test event on all its channels)
   app.post(
     "/api/alerts/rules/:id/test",
     { preHandler: [requireAdmin] },
@@ -249,9 +249,9 @@ export async function alertRoutes(app: FastifyInstance): Promise<void> {
           machine: { select: { id: true, name: true, hostname: true } },
         },
         orderBy: { firedAt: "desc" },
-        // Borne de sécurité : une tempête d'alertes (panne réseau touchant tout
-        // le parc) ne doit pas renvoyer des milliers de lignes d'un coup. Endpoint
-        // poll par le Dashboard (30s) et chaque useMachineAttention (60s).
+        // Safety bound: an alert storm (a network outage affecting the whole
+        // fleet) must not return thousands of rows at once. Endpoint polled by
+        // the Dashboard (30s) and each useMachineAttention (60s).
         take: 500,
       });
 

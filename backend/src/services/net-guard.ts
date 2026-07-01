@@ -101,15 +101,15 @@ export function assertSafeOutboundUrl(rawUrl: string): URL {
   if (u.username || u.password) {
     throw new Error("[net-guard] credentials embedded in URL are not allowed");
   }
-  // WEB-AUTHZ-001 — TROU CRITIQUE : une cible en IP LITTÉRALE (http://10.0.0.1,
-  // http://169.254.169.254, http://[::1], http://127.0.0.1:6379) ne déclenche
-  // JAMAIS le hook lookup du dispatcher — undici saute la résolution DNS pour un
-  // littéral — donc elle CONTOURNE le guard au connect. On valide donc l'IP
-  // littérale SYNCHRONEMENT ici, avant le moindre I/O. Le hook lookup reste pour
-  // les noms d'hôte (résolution + anti-rebinding). Les formes alternatives
-  // (décimal 2130706433, octal) ne sont PAS des littéraux IP au sens isIP() → elles
-  // partent en lookup, qui les canonicalise et les bloque.
-  const host = u.hostname.replace(/^\[|\]$/g, ""); // retire les crochets IPv6 [::1]
+  // WEB-AUTHZ-001 — CRITICAL HOLE: an IP-LITERAL target (http://10.0.0.1,
+  // http://169.254.169.254, http://[::1], http://127.0.0.1:6379) NEVER triggers
+  // the dispatcher's lookup hook — undici skips DNS resolution for a literal —
+  // so it BYPASSES the guard at connect. We therefore validate the IP literal
+  // SYNCHRONOUSLY here, before any I/O. The lookup hook remains for hostnames
+  // (resolution + anti-rebinding). Alternate forms (decimal 2130706433, octal)
+  // are NOT IP literals in the isIP() sense → they go through lookup, which
+  // canonicalises and blocks them.
+  const host = u.hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets [::1]
   if (isIP(host) !== 0 && isBlockedAddress(host)) {
     throw new Error(`[net-guard] blocked IP-literal target ${host} (SSRF)`);
   }

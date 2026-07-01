@@ -107,8 +107,8 @@ describe("Agent Go Files - Phase 4", () => {
   });
 
   describe("Systemd deployment", () => {
-    // Script réellement servi aux agents (route /api/agents/install-script) et
-    // lu par sudoers-version.ts. L'unité systemd y est embarquée (heredoc).
+    // Script actually served to agents (route /api/agents/install-script) and
+    // read by sudoers-version.ts. The systemd unit is embedded in it (heredoc).
     const installScript = resolve(agentDir, "../scripts/install-agent.sh");
 
     it("should have systemd service (embedded in install script) with non-root user", () => {
@@ -120,7 +120,7 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("[Install]");
       expect(content).toContain("User=nexus-agent");
       expect(content).toContain("Group=nexus-agent");
-      // NEXUS-AGENT-002 : ambient vidé + bounding set en négation (drift-guard).
+      // NEXUS-AGENT-002: ambient cleared + bounding set negated (drift-guard).
       expect(content).toContain("AmbientCapabilities=");
       expect(content).toContain("CapabilityBoundingSet=~CAP_DAC_READ_SEARCH CAP_SYS_PTRACE");
       expect(content).toContain("ProtectHome=true");
@@ -140,12 +140,12 @@ describe("Agent Go Files - Phase 4", () => {
       expect(content).toContain("/etc/sudoers.d/nexus-agent");
     });
 
-    it("should support clean uninstall and re-enroll modes (table rase)", () => {
+    it("should support clean uninstall and re-enroll modes (clean slate)", () => {
       const content = readFileSync(installScript, "utf8");
       expect(content).toContain("--uninstall");
       expect(content).toContain("--reenroll");
       expect(content).toContain("do_uninstall");
-      // Ré-enrôlement = wipe complet (sudoers/user/binaire) en gardant les logs.
+      // Re-enrollment = full wipe (sudoers/user/binary) while keeping the logs.
       expect(content).toContain("wipe_agent");
       expect(content).toContain("wipe_agent keep-logs");
     });
@@ -177,20 +177,20 @@ describe("Agent Go Files - Phase 4", () => {
 
     it("should enforce a hard size cap to keep WebSocket transport sane", () => {
       const content = readFileSync(filesGoPath, "utf8");
-      // 50 MB cap aligné avec le frontend (FS_MAX_SIZE dans FilesTab.tsx)
+      // 50 MB cap aligned with the frontend (FS_MAX_SIZE in FilesTab.tsx)
       expect(content).toMatch(/fsMaxSize\s+int64\s*=\s*50\s*\*\s*1024\s*\*\s*1024/);
     });
 
     it("should deny reading critical secret paths and extensions", () => {
       const content = readFileSync(filesGoPath, "utf8");
-      // Denylist par préfixe
+      // Denylist by prefix
       expect(content).toContain("/etc/shadow");
       expect(content).toContain("/etc/sudoers");
       expect(content).toContain("/root/.ssh/");
       expect(content).toContain("/var/lib/nexus-agent/keys/");
-      // Denylist regex (clés SSH utilisateur)
+      // Denylist regex (user SSH keys)
       expect(content).toContain("/\\.ssh/id_");
-      // Extensions sensibles
+      // Sensitive extensions
       expect(content).toContain('".pem"');
       expect(content).toContain('".key"');
       expect(content).toContain('".gpg"');
@@ -205,13 +205,13 @@ describe("Agent Go Files - Phase 4", () => {
     it("should refuse following symlinks on fs.read", () => {
       const content = readFileSync(filesGoPath, "utf8");
       expect(content).toContain("symlink read refused");
-      // Et fs.list doit utiliser Lstat (pas Stat) pour ne pas déréférencer
+      // And fs.list must use Lstat (not Stat) to avoid dereferencing
       expect(content).toContain("os.Lstat");
     });
 
     it("should auto-suffix on upload conflict (no silent overwrite)", () => {
       const content = readFileSync(filesGoPath, "utf8");
-      // Boucle de tentatives avec suffixe -N
+      // Retry loop with -N suffix
       expect(content).toContain("O_EXCL");
       expect(content).toContain("name collisions");
     });
@@ -250,7 +250,7 @@ describe("Agent Go Files - Phase 4", () => {
     it("should classify fs.list and fs.read as read-only (NOT fs.upload) in READ_ONLY_ACTIONS", () => {
       const path = resolve(__dirname, "../../../backend/src/services/machine-manager.ts");
       const content = readFileSync(path, "utf8");
-      // Extrait le bloc READ_ONLY_ACTIONS = [ ... ]
+      // Extract the READ_ONLY_ACTIONS = [ ... ] block
       const block = content.match(/READ_ONLY_ACTIONS\s*=\s*\[([\s\S]*?)\]/);
       expect(block).not.toBeNull();
       const body = block![1];
@@ -298,16 +298,16 @@ describe("Agent Go Files - Phase 4", () => {
 
     it("should preview images and text in-place before downloading", () => {
       const content = readFileSync(tabPath, "utf8");
-      // Sélection d'extension
+      // Extension selection
       expect(content).toContain("IMAGE_EXTS");
       expect(content).toContain("TEXT_EXTS");
-      // Caps de preview indépendants du cap de DL
+      // Preview caps independent of the DL cap
       expect(content).toContain("PREVIEW_IMAGE_MAX");
       expect(content).toContain("PREVIEW_TEXT_MAX");
-      // Modal de preview avec actions DL/scp
+      // Preview modal with DL/scp actions
       expect(content).toContain("PreviewModal");
       expect(content).toContain('kind === "image"');
-      // Image servie via data: URL (pas de blob temporaire qui fuite)
+      // Image served via data: URL (no leaking temporary blob)
       expect(content).toContain("data:");
       expect(content).toContain("mimeFor");
     });

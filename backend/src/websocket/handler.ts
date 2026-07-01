@@ -52,9 +52,9 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // Gate de version de protocole : un agent v1 (sans champ v, ou v != 2) est
-      // rejeté EXPLICITEMENT et de façon diagnosticable, pas traité à l'aveugle.
-      // Procédure de remédiation : ré-enrôler l'agent (install-agent.sh --reenroll).
+      // Protocol version gate: a v1 agent (no v field, or v != 2) is rejected
+      // EXPLICITLY and diagnosably, not processed blindly. Remediation
+      // procedure: re-enroll the agent (install-agent.sh --reenroll).
       if (msg.v !== PROTOCOL_VERSION) {
         ws.send(
           JSON.stringify({
@@ -65,9 +65,9 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // Enrollment ne nécessite pas d'authentification. La session n'est
-      // enregistrée qu'APRÈS un enrollment réussi (la preuve ECDSA y est
-      // vérifiée), jamais sur la simple réception du message.
+      // Enrollment does not require authentication. The session is only
+      // registered AFTER a successful enrollment (where the ECDSA proof is
+      // verified), never on mere receipt of the message.
       if (UNAUTHENTICATED_TYPES.has(msg.type)) {
         if (++unauthMsgCount > WS_MAX_UNAUTH_MSG) {
           console.warn(
@@ -81,17 +81,17 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // === Messages authentifiés ===
-      // SÉCURITÉ : ne JAMAIS (ré)enregistrer ou écraser une session sur la foi
-      // d'un message non vérifié. Sinon un attaquant peut envoyer un message
-      // forgé portant le machine_id d'une autre machine et fermer sa session
-      // légitime (DoS ciblé), car registerSession() ferme la session existante.
-      // NEXUS-CRYPTO-003 — vérifier la signature ECDSA (+ timestamp + nonce) de
-      // CHAQUE message, pas seulement du premier. La (ré)authentification par
-      // message s'appuie sur la clé long-terme stockée, relue en DB fraîche à
-      // chaque message : pas de cache pubkey → un agent révoqué/réenrôlé/roté est
-      // rejeté dès le message suivant, même session ouverte (invalidation par
-      // construction, cf. CRYPTO-004).
+      // === Authenticated messages ===
+      // SECURITY: NEVER (re)register or overwrite a session on the strength of
+      // an unverified message. Otherwise an attacker could send a forged message
+      // carrying another machine's machine_id and close its legitimate session
+      // (targeted DoS), since registerSession() closes the existing session.
+      // NEXUS-CRYPTO-003 — verify the ECDSA signature (+ timestamp + nonce) of
+      // EVERY message, not just the first. Per-message (re)authentication relies
+      // on the stored long-term key, re-read fresh from the DB on each message:
+      // no pubkey cache → a revoked/re-enrolled/rotated agent is rejected on the
+      // very next message, even on an open session (invalidation by construction,
+      // cf. CRYPTO-004).
       const verification = await verifyAgentMessage(msg);
       if (!verification.valid) {
         console.warn(
@@ -105,9 +105,10 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
       const isBoundAuthedSession =
         existing?.ws === ws && existing.authenticated && existing.established === true;
 
-      // CRYPTO-004 — handshake ECDHE X25519. session.hello (re)lie la connexion et
-      // dérive la clé de session K éphémère. C'est le SEUL message accepté avant
-      // l'établissement (avec enrollment.request, traité plus haut).
+      // CRYPTO-004 — ECDHE X25519 handshake. session.hello (re)binds the
+      // connection and derives the ephemeral session key K. It is the ONLY
+      // message accepted before establishment (along with enrollment.request,
+      // handled above).
       if (msg.type === MSG_TYPES.SESSION_HELLO) {
         const ipValid = await verifyAgentIp(msg.machine_id, ip);
         if (!ipValid) {
@@ -118,7 +119,7 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         }
         let helloPayload: any;
         try {
-          helloPayload = JSON.parse(msg.payload); // session.hello : payload en clair (pas encore de K)
+          helloPayload = JSON.parse(msg.payload); // session.hello: cleartext payload (no K yet)
         } catch {
           ws.send(JSON.stringify({ type: "error", error: "Invalid session.hello payload" }));
           return;
@@ -133,7 +134,7 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         authenticateSession(msg.machine_id);
         const s = getAgentSession(msg.machine_id);
         if (s) {
-          s.sessionKey = hs.sessionKey; // K éphémère, mémoire seule
+          s.sessionKey = hs.sessionKey; // ephemeral K, memory only
           s.established = true;
         }
         ws.send(JSON.stringify(hs.response));
@@ -141,9 +142,9 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // Message MÉTIER (tout type ≠ session.hello / enrollment.request) : exige une
-      // session ÉTABLIE sur CETTE connexion. Couvre TOUS les types métier — aucun
-      // n'est traité avant le handshake.
+      // BUSINESS message (any type ≠ session.hello / enrollment.request): requires
+      // a session ESTABLISHED on THIS connection. Covers ALL business types — none
+      // is processed before the handshake.
       if (!isBoundAuthedSession) {
         ws.send(
           JSON.stringify({ type: "error", error: "session not established; send session.hello" })
@@ -151,9 +152,9 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // Déchiffrer le payload avec la clé de SESSION éphémère (K du handshake,
-      // mémoire seule). FAIL-CLOSED : un agent établi chiffre TOUJOURS son payload
-      // (AES-GCM via K). Échec de déchiffrement → rejet, pas de fallback clair.
+      // Decrypt the payload with the ephemeral SESSION key (handshake K, memory
+      // only). FAIL-CLOSED: an established agent ALWAYS encrypts its payload
+      // (AES-GCM via K). Decryption failure → reject, no cleartext fallback.
       const session = getAgentSession(msg.machine_id);
       const sessionKey = session?.sessionKey;
       if (!sessionKey) {
@@ -169,7 +170,7 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
         return;
       }
 
-      // Router le message
+      // Route the message
       await handleAuthenticatedMessage(msg.type, msg.machine_id, payload);
     } catch (err) {
       console.error("[WS] Error handling message:", err);
@@ -180,11 +181,11 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
   ws.on("close", () => {
     if (machineId) {
       removeSession(machineId);
-      // Ne PAS marquer OFFLINE immediatement : laisse checkOfflineMachines
-      // (tourne toutes les 30s, tolere 90s sans heartbeat) faire le travail.
-      // Marquer instantanement causait du flapping ONLINE/OFFLINE quand le WS
-      // se fermait brievement (timeout proxy, network glitch) avant que
-      // l'agent reconnecte. Le grace period 90s absorbe ces blips.
+      // Do NOT mark OFFLINE immediately: let checkOfflineMachines (runs every
+      // 30s, tolerates 90s without a heartbeat) do the work. Marking instantly
+      // caused ONLINE/OFFLINE flapping when the WS closed briefly (proxy timeout,
+      // network glitch) before the agent reconnected. The 90s grace period
+      // absorbs these blips.
       prisma.machineEvent
         .create({
           data: { machineId, type: "disconnection" },
@@ -198,16 +199,16 @@ export function handleAgentConnection(ws: WebSocket, ip: string): void {
   });
 }
 
-// Retourne true si l'enrollment a réussi et que la session a été enregistrée.
+// Returns true if enrollment succeeded and the session was registered.
 async function handleUnauthenticatedMessage(
   msg: WSMessage,
   ws: WebSocket,
   ip: string
 ): Promise<boolean> {
   if (msg.type === MSG_TYPES.ENROLLMENT_REQUEST) {
-    // ENROLLMENT-001 (seal) : le payload est l'enveloppe scellée { eph_pub, sealed }.
-    // processEnrollment ouvre le seal (tag GCM vérifié) AVANT d'exploiter le token
-    // ou la pubkey — aucun plaintext touché avant authentification du seal.
+    // ENROLLMENT-001 (seal): the payload is the sealed envelope { eph_pub, sealed }.
+    // processEnrollment opens the seal (GCM tag verified) BEFORE using the token
+    // or the pubkey — no plaintext is touched before the seal is authenticated.
     let sealedRequest: { eph_pub?: string; sealed?: string };
     try {
       sealedRequest = JSON.parse(msg.payload);
@@ -251,9 +252,9 @@ async function handleAuthenticatedMessage(
       updateSessionHeartbeat(machineId);
       const hb = payload as HeartbeatData;
       await processHeartbeat(machineId, hb);
-      // Alimente le tracker de self-upgrade : si une MAJ d'agent est en cours
-      // et que le SHA rapporté correspond au binaire cible, l'upgrade est
-      // confirmé (broadcast agent.upgrade.result).
+      // Feed the self-upgrade tracker: if an agent update is in progress and the
+      // reported SHA matches the target binary, the upgrade is confirmed
+      // (broadcast agent.upgrade.result).
       onAgentHeartbeat(machineId, hb.agent_sha256, hb.agent_version);
       broadcastToDashboard({
         type: "machine.status",
@@ -267,7 +268,7 @@ async function handleAuthenticatedMessage(
       const metricsPayload = payload as MetricsReport;
       await processMetrics(machineId, metricsPayload);
 
-      // Mettre a jour les gauges Prometheus par machine
+      // Update the per-machine Prometheus gauges
       const machine = await prisma.machine.findUnique({
         where: { id: machineId },
         select: { hostname: true },
@@ -287,7 +288,7 @@ async function handleAuthenticatedMessage(
         machine_id: machineId,
         data: payload,
       });
-      // Évaluer les règles d'alerte contre ces métriques
+      // Evaluate the alert rules against these metrics
       evaluateMetrics(machineId, payload).catch((err) =>
         console.error("[Alert] Evaluation error:", err)
       );
@@ -299,7 +300,7 @@ async function handleAuthenticatedMessage(
       break;
 
     case MSG_TYPES.UPDATE_PROGRESS:
-      // Relayer la progression (MAJ système apt) vers les clients dashboard
+      // Relay the progress (apt system update) to the dashboard clients
       broadcastToDashboard({
         type: "update.progress",
         machine_id: machineId,
@@ -308,8 +309,8 @@ async function handleAuthenticatedMessage(
       break;
 
     case MSG_TYPES.AGENT_UPGRADE_PROGRESS:
-      // Relayer la progression de la self-upgrade de l'agent (phases
-      // download/install/restart, avant la perte de connexion).
+      // Relay the agent self-upgrade progress (download/install/restart phases,
+      // before the connection is lost).
       broadcastToDashboard({
         type: "agent.upgrade.progress",
         machine_id: machineId,
@@ -318,7 +319,7 @@ async function handleAuthenticatedMessage(
       break;
 
     case MSG_TYPES.SECURITY_PROGRESS:
-      // Relayer la progression de l'audit Lynis (console live de l'onglet Sécurité).
+      // Relay the Lynis audit progress (live console of the Security tab).
       broadcastToDashboard({
         type: "security.audit.progress",
         machine_id: machineId,
@@ -335,14 +336,14 @@ async function handleActionResponse(
   machineId: string,
   payload: any
 ): Promise<void> {
-  // Résoudre la promesse si quelqu'un attend cette réponse
+  // Resolve the promise if someone is waiting for this response
   if (payload.request_id) {
     resolveResponse(payload.request_id, payload);
   }
 
-  // Audit de sécurité (dispatch asynchrone) : persiste l'historique, évalue les
-  // alertes de posture, et diffuse le résultat complet au dashboard (l'onglet
-  // Sécurité l'attend via WS — pas de requête HTTP longue, donc pas de 504).
+  // Security audit (async dispatch): persists the history, evaluates the posture
+  // alerts, and broadcasts the full result to the dashboard (the Security tab
+  // waits for it over WS — no long HTTP request, hence no 504).
   if (payload.action_id === "security.audit" && payload.success && payload.data) {
     recordSecurityScan(machineId, payload.data).catch((err) =>
       console.error("[Security] recordSecurityScan failed:", err)
@@ -356,13 +357,13 @@ async function handleActionResponse(
 
   const action = payload.success ? "ACTION_COMPLETE" : "ACTION_FAILED";
 
-  // Incrementer les compteurs Prometheus
+  // Increment the Prometheus counters
   if (!payload.success) {
     actionsFailed.inc();
   }
 
-  // Ne pas auditer la complétion d'un dispatch interne (sondes alert-engine) :
-  // symétrique du skip d'ACTION_REQUEST côté dispatcher.
+  // Do not audit the completion of an internal dispatch (alert-engine probes):
+  // symmetric to the ACTION_REQUEST skip on the dispatcher side.
   if (consumeInternalRequest(payload.request_id)) {
     return;
   }

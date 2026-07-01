@@ -7,13 +7,13 @@ const rootDir = resolve(__dirname, "../../..");
 const agentDir = resolve(rootDir, "agent");
 const frontendSrc = resolve(rootDir, "frontend/src");
 
-describe("Agent self-upgrade — flow version-aware avec suivi", () => {
-  it("agent émet la progression d'upgrade et rapporte son SHA", () => {
+describe("Agent self-upgrade — version-aware flow with tracking", () => {
+  it("agent emits upgrade progress and reports its SHA", () => {
     const upgrade = readFileSync(
       resolve(agentDir, "internal/actions/agent_upgrade.go"),
       "utf8"
     );
-    // Callback de progression dédié (distinct des MAJ système apt)
+    // Dedicated progress callback (distinct from apt system updates)
     expect(upgrade).toContain("OnAgentUpgradeProgress");
     expect(upgrade).toContain("upgradeProgress(");
 
@@ -21,10 +21,10 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
       resolve(agentDir, "cmd/nexus-agent/main.go"),
       "utf8"
     );
-    // SHA du binaire courant ajouté au heartbeat
+    // SHA of the current binary added to the heartbeat
     expect(main).toContain("agent_sha256");
     expect(main).toContain("func selfSHA256()");
-    // Wiring du callback de progression
+    // Wiring of the progress callback
     expect(main).toContain("actions.OnAgentUpgradeProgress");
 
     const messages = readFileSync(
@@ -34,7 +34,7 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(messages).toContain('TypeAgentUpgradeProgress = "agent.upgrade.progress"');
   });
 
-  it("backend a un tracker en mémoire avec timeout et résultat broadcasté", () => {
+  it("backend has an in-memory tracker with timeout and broadcast result", () => {
     const p = resolve(backendSrc, "services/agent-upgrade-tracker.ts");
     expect(existsSync(p)).toBe(true);
     const content = readFileSync(p, "utf8");
@@ -42,12 +42,12 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(content).toContain("onAgentHeartbeat");
     expect(content).toContain("getServerBinarySHA256");
     expect(content).toContain("getLatestAgentSha");
-    // Succès = reconnexion avec le SHA cible ; échec = timeout
+    // Success = reconnect with the target SHA; failure = timeout
     expect(content).toContain("agent.upgrade.result");
     expect(content).toMatch(/reason:\s*"timeout"/);
   });
 
-  it("le heartbeat alimente le tracker et la progression est relayée", () => {
+  it("the heartbeat feeds the tracker and progress is relayed", () => {
     const handler = readFileSync(
       resolve(backendSrc, "websocket/handler.ts"),
       "utf8"
@@ -62,24 +62,24 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(protocol).toContain('AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress"');
   });
 
-  it("endpoint agent-status expose la comparaison de SHA (MAJ dispo)", () => {
+  it("agent-status endpoint exposes the SHA comparison (update available)", () => {
     const content = readFileSync(resolve(backendSrc, "routes/machines.ts"), "utf8");
     expect(content).toContain("/api/machines/:id/agent-status");
     expect(content).toContain("updateAvailable");
     expect(content).toContain("targetSha");
   });
 
-  it("frontend a la modal de suivi avec panneau debug/SSH", () => {
+  it("frontend has the tracking modal with debug/SSH panel", () => {
     const p = resolve(frontendSrc, "components/AgentUpgradeDialog.tsx");
     expect(existsSync(p)).toBe(true);
     const content = readFileSync(p, "utf8");
-    // Machine à états + écoute des événements WS
+    // State machine + WS event listening
     expect(content).toContain("agent.upgrade.progress");
     expect(content).toContain("agent.upgrade.result");
-    // Modal persistant pendant le travail (fermeture bloquée)
+    // Modal persistent during the work (closing blocked)
     expect(content).toContain("guardedClose");
-    // Panneau debug repliable : SSH + commandes de diagnostic
-    // i18n : titre externalisé en clé agentUpgrade:debug.title (FR dans le JSON).
+    // Collapsible debug panel: SSH + diagnostic commands
+    // i18n: title externalized to key agentUpgrade:debug.title (FR in the JSON).
     expect(content).toContain("debug.title");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/agentUpgrade.json"), "utf8");
     expect(fr).toContain("Debug & accès SSH");
@@ -87,20 +87,20 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(content).toContain("systemctl restart nexus-agent");
   });
 
-  it("MachineDetail ouvre la modal et affiche le badge MAJ dispo", () => {
+  it("MachineDetail opens the modal and shows the update-available badge", () => {
     const content = readFileSync(resolve(frontendSrc, "pages/MachineDetail.tsx"), "utf8");
     expect(content).toContain("AgentUpgradeDialog");
     expect(content).toContain("agentUpdateAvailable");
     expect(content).toContain("MAJ dispo");
   });
 
-  it("le SHA agent est persisté (schema + heartbeat) pour le badge flotte-wide", () => {
+  it("the agent SHA is persisted (schema + heartbeat) for the fleet-wide badge", () => {
     const schema = readFileSync(
       resolve(rootDir, "backend/prisma/schema.prisma"),
       "utf8"
     );
     expect(schema).toMatch(/agentSha256\s+String\?/);
-    // Migration présente
+    // Migration present
     const migDir = resolve(rootDir, "backend/prisma/migrations");
     const migs = require("fs").readdirSync(migDir) as string[];
     const hasMig = migs.some((d) =>
@@ -110,7 +110,7 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
       )
     );
     expect(hasMig).toBe(true);
-    // Persistance au heartbeat
+    // Persistence at heartbeat
     const mm = readFileSync(
       resolve(backendSrc, "services/machine-manager.ts"),
       "utf8"
@@ -118,14 +118,14 @@ describe("Agent self-upgrade — flow version-aware avec suivi", () => {
     expect(mm).toContain("agentSha256: data.agent_sha256");
   });
 
-  it("la route liste calcule agentUpdateAvailable (badge flotte)", () => {
+  it("the list route computes agentUpdateAvailable (fleet badge)", () => {
     const content = readFileSync(resolve(backendSrc, "routes/machines.ts"), "utf8");
     expect(content).toContain("agentUpdateAvailable");
-    // Comparaison au SHA cible servi
+    // Comparison against the served target SHA
     expect(content).toContain("getServerBinarySHA256");
   });
 
-  it("MachineCard affiche le badge agent dans la flotte", () => {
+  it("MachineCard shows the agent badge in the fleet", () => {
     const content = readFileSync(resolve(frontendSrc, "components/MachineCard.tsx"), "utf8");
     expect(content).toContain("agentUpdateAvailable");
   });

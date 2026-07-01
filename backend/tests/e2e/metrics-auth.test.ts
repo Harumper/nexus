@@ -2,12 +2,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import Fastify from "fastify";
 import { registerPrometheusEndpoint } from "../../src/services/prometheus.js";
 
-// NEXUS-WEB-AUTHZ-005 — auth optionnelle de /metrics, lancée par le CI.
-// Exerce le VRAI handler (registerPrometheusEndpoint, le même que main()), pas une
-// copie — via app.inject() (pas de port réel). Prouve les deux modes :
-//  - METRICS_TOKEN absent → /metrics ouvert (pas de régression ; le network-scoping
-//    reste la protection par défaut).
-//  - METRICS_TOKEN défini → bearer requis, fail-closed (absent/faux → 401 ; bon → 200).
+// NEXUS-WEB-AUTHZ-005 — optional auth for /metrics, run by CI.
+// Exercises the REAL handler (registerPrometheusEndpoint, the same as main()), not a
+// copy — via app.inject() (no real port). Proves both modes:
+//  - METRICS_TOKEN absent → /metrics open (no regression; network-scoping remains
+//    the default protection).
+//  - METRICS_TOKEN set → bearer required, fail-closed (absent/wrong → 401; correct → 200).
 
 async function makeApp() {
   const app = Fastify({ logger: false });
@@ -25,16 +25,16 @@ describe("WEB-AUTHZ-005 — /metrics token auth", () => {
     else process.env.METRICS_TOKEN = prev;
   });
 
-  it("METRICS_TOKEN absent → /metrics ouvert (pas de régression)", async () => {
+  it("METRICS_TOKEN absent → /metrics open (no regression)", async () => {
     delete process.env.METRICS_TOKEN;
     const app = await makeApp();
     const res = await app.inject({ method: "GET", url: "/metrics" });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatch(/nexus_|# HELP/); // corps Prometheus réel
+    expect(res.body).toMatch(/nexus_|# HELP/); // real Prometheus body
     await app.close();
   });
 
-  it("METRICS_TOKEN défini + AUCUN Authorization → 401", async () => {
+  it("METRICS_TOKEN set + NO Authorization → 401", async () => {
     process.env.METRICS_TOKEN = TOKEN;
     const app = await makeApp();
     const res = await app.inject({ method: "GET", url: "/metrics" });
@@ -42,7 +42,7 @@ describe("WEB-AUTHZ-005 — /metrics token auth", () => {
     await app.close();
   });
 
-  it("METRICS_TOKEN défini + bearer FAUX → 401", async () => {
+  it("METRICS_TOKEN set + WRONG bearer → 401", async () => {
     process.env.METRICS_TOKEN = TOKEN;
     const app = await makeApp();
     const res = await app.inject({
@@ -54,7 +54,7 @@ describe("WEB-AUTHZ-005 — /metrics token auth", () => {
     await app.close();
   });
 
-  it("METRICS_TOKEN défini + bon bearer → 200 + métriques", async () => {
+  it("METRICS_TOKEN set + correct bearer → 200 + metrics", async () => {
     process.env.METRICS_TOKEN = TOKEN;
     const app = await makeApp();
     const res = await app.inject({

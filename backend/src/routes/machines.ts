@@ -58,7 +58,7 @@ async function buildBootstrapArtifacts(
     reenroll: opts.reenroll,
   });
 
-  // Les 2 tokens expirent au meme moment, on prend le plus tot
+  // Both tokens expire at the same time; take the earliest
   const expiresAt = binaryTok.expiresAt < scriptTok.expiresAt ? binaryTok.expiresAt : scriptTok.expiresAt;
 
   return {
@@ -69,9 +69,9 @@ async function buildBootstrapArtifacts(
 }
 
 export async function machineRoutes(app: FastifyInstance): Promise<void> {
-  // List machines (pagination optionnelle via ?limit=N&offset=M)
-  // Cap de sécurité à 500 même sans pagination explicite pour éviter de
-  // ramener 10 000 lignes si la fleet grossit.
+  // List machines (optional pagination via ?limit=N&offset=M)
+  // Safety cap at 500 even without explicit pagination, to avoid pulling
+  // 10,000 rows if the fleet grows.
   app.get(
     "/api/machines",
     { preHandler: [requireAuth] },
@@ -108,11 +108,11 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         orderBy: { createdAt: "desc" },
       });
 
-      // Présence WS live — distincte du status BDD qui a une grâce de 90s
-      // après disconnect (anti-flapping, voir handler.ts:126). Le frontend
-      // utilise isConnected pour savoir si une action dispatchée passera.
+      // Live WS presence — distinct from the DB status, which has a 90s grace
+      // period after disconnect (anti-flapping, see handler.ts:126). The frontend
+      // uses isConnected to know whether a dispatched action will go through.
       const connectedIds = new Set(getConnectedMachineIds());
-      // Cible servie : version (préférée) + SHA (repli) — calculées une fois.
+      // Served target: version (preferred) + SHA (fallback) — computed once.
       const servedVersion = getServerAgentVersion();
       const targetSha = await getServerBinarySHA256();
 
@@ -123,8 +123,8 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
           tags: m.tags.map((t) => t.tag),
           sudoersOutdated: isSudoersOutdated(m.sudoersHash),
           isConnected: connectedIds.has(m.id),
-          // MAJ agent dispo = version servie ≠ version en cours ; ignore le sha
-          // de build pour ne pas signaler à chaque commit.
+          // Agent update available = served version ≠ current version; ignore the
+          // build sha so we don't flag it on every commit.
           agentUpdateAvailable: computeAgentUpdateAvailable(
             servedVersion,
             targetSha,
@@ -190,9 +190,9 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         sudoersOutdated: isSudoersOutdated(machine.sudoersHash),
         expectedSudoersHash: getExpectedSudoersHash(),
         tags: machine.tags.map((t) => t.tag),
-        // Live WS presence — voir route /api/machines pour le pourquoi
+        // Live WS presence — see route /api/machines for the rationale
         isConnected: getAgentSession(id)?.authenticated === true,
-        // MAJ par comparaison de version (ignore le sha de build) — voir liste.
+        // Update by version comparison (ignores the build sha) — see list.
         agentUpdateAvailable: computeAgentUpdateAvailable(
           servedVersion,
           targetSha,
@@ -233,13 +233,13 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         details: { name },
       });
 
-      // Generer les artifacts d'installation (binaire + script + commandes)
+      // Generate the install artifacts (binary + script + commands)
       const bootstrap = await buildBootstrapArtifacts(result);
       return reply.code(201).send({ ...result, bootstrap });
     }
   );
 
-  // Mettre a jour les settings d'une machine (name, sshUser)
+  // Update a machine's settings (name, sshUser)
   app.patch(
     "/api/machines/:id",
     {
@@ -261,7 +261,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const body = request.body as { name?: string; sshUser?: string | null; isCritical?: boolean };
       const user = getUserFromRequest(request);
 
-      // Validation sshUser : POSIX login name
+      // sshUser validation: POSIX login name
       if (body.sshUser && !/^[a-z_][a-z0-9_-]{0,31}$/i.test(body.sshUser)) {
         return reply.code(400).send({ error: "Invalid SSH username (POSIX login name required)" });
       }
@@ -299,7 +299,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Regenerer les tokens de bootstrap pour une machine existante
+  // Regenerate the bootstrap tokens for an existing machine
   app.post(
     "/api/machines/:id/bootstrap/regenerate",
     { preHandler: [requireAdmin] },
@@ -331,7 +331,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(500).send({ error: "Machine has no backend public key" });
       }
 
-      // Invalider tous les tokens install existants
+      // Invalidate all existing install tokens
       await invalidateInstallTokens(id);
 
       const bootstrap = await buildBootstrapArtifacts({
@@ -362,13 +362,13 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const user = getUserFromRequest(request);
 
-      // Verifier que la machine existe
+      // Verify that the machine exists
       const machine = await prisma.machine.findUnique({ where: { id }, select: { id: true } });
       if (!machine) {
         return reply.code(404).send({ error: "Machine not found" });
       }
 
-      // Deconnecter l'agent s'il est connecte
+      // Disconnect the agent if it is connected
       disconnectAgent(id);
 
       try {
@@ -412,20 +412,20 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
       const { reason } = (request.body as { reason?: string }) || {};
       const user = getUserFromRequest(request);
 
-      // Révoquer les clés
+      // Revoke the keys
       await revokeMachine(id, reason || "Manual revocation", user?.sub);
 
-      // Déconnecter l'agent immédiatement
+      // Disconnect the agent immediately
       disconnectAgent(id);
 
       return reply.send({ success: true, message: "Machine revoked and disconnected" });
     }
   );
 
-  // Re-enroll machine : régénère le token + la paire ECDSA backend, déconnecte
-  // l'agent existant, invalide les anciens tokens d'install, et renvoie une
-  // commande d'install marquée --reenroll (purge l'identité résiduelle côté
-  // machine pour éviter le deadlock "shared.secret obsolète").
+  // Re-enroll machine: regenerates the token + the backend ECDSA pair, disconnects
+  // the existing agent, invalidates the old install tokens, and returns an
+  // install command flagged --reenroll (purges the residual identity on the
+  // machine to avoid the "stale shared.secret" deadlock).
   app.post(
     "/api/machines/:id/re-enroll",
     { preHandler: [requireAdmin] },
@@ -438,16 +438,16 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "Machine not found" });
       }
 
-      // Régénère token + paire ECDSA backend, remet agentPublicKey/sharedSecret/boundIp à null
+      // Regenerates token + backend ECDSA pair, resets agentPublicKey/sharedSecret/boundIp to null
       const result = await regenerateEnrollmentToken(id);
 
-      // Coupe la session WS active : l'ancien agent utilise un secret désormais invalide
+      // Cut the active WS session: the old agent uses a now-invalid secret
       disconnectAgent(id);
 
-      // Invalide les anciens tokens d'install pour ne pas laisser de vecteur ouvert
+      // Invalidate the old install tokens so no vector is left open
       await invalidateInstallTokens(id);
 
-      // Commande d'install complète avec --reenroll (purge côté machine)
+      // Full install command with --reenroll (purge on the machine side)
       const bootstrap = await buildBootstrapArtifacts(
         { id: machine.id, name: machine.name, enrollmentToken: result.enrollmentToken, backendPublicKey: result.backendPublicKey },
         { reenroll: true }
@@ -466,7 +466,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Mettre à jour l'agent (self-upgrade vers le dernier binaire du backend)
+  // Update the agent (self-upgrade to the backend's latest binary)
   app.post(
     "/api/machines/:id/agent/upgrade",
     { preHandler: [requireAdmin] },
@@ -498,9 +498,9 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Statut de version de l'agent : compare le SHA du binaire en cours
-  // d'exécution (rapporté par heartbeat) à celui que le backend sert.
-  // Sert au badge "MAJ dispo" et à l'état initial de la modal d'upgrade.
+  // Agent version status: compares the SHA of the currently running binary
+  // (reported by heartbeat) to the one the backend serves.
+  // Used for the "update available" badge and the initial state of the upgrade modal.
   app.get(
     "/api/machines/:id/agent-status",
     { preHandler: [requireAuth] },
@@ -514,12 +514,12 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       const servedVersion = getServerAgentVersion();
       const targetSha = await getServerBinarySHA256();
-      // SHA persisté (source de vérité) avec repli sur le dernier vu en mémoire.
+      // Persisted SHA (source of truth) with fallback to the last one seen in memory.
       const currentSha = machine.agentSha256 ?? getLatestAgentSha(id) ?? null;
       const targetAvailable = targetSha !== null;
-      // upToDate (SHA) : reste la vérité "binaire identique", pilote la
-      // clicabilité du bouton d'upgrade (manuel possible en dev même si la
-      // version est la même).
+      // upToDate (SHA): remains the "identical binary" truth, drives the
+      // clickability of the upgrade button (manual upgrade possible in dev even if the
+      // version is the same).
       const upToDate =
         targetSha !== null && currentSha !== null
           ? currentSha === targetSha
@@ -531,9 +531,9 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
         targetSha,
         targetAvailable,
         upToDate,
-        // updateAvailable (version) : pilote la pastille/alerte "MAJ dispo".
-        // Ignore le sha de build → silencieux entre deux builds de dev, ne
-        // s'allume que sur un vrai changement de version (tag).
+        // updateAvailable (version): drives the "update available" badge/alert.
+        // Ignores the build sha → silent between two dev builds, only lights
+        // up on a real version change (tag).
         updateAvailable: computeAgentUpdateAvailable(
           servedVersion,
           targetSha,

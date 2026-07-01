@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-// NEXUS-CRYPTO-006 — nonce GCM canonique de 12 octets (96 bits), la taille
-// standard/optimale pour AES-GCM (J0 dérivé directement, sans GHASH). decryptAES
-// lit l'IV DEPUIS le blob, donc les anciennes données à 16 octets se déchiffrent
-// encore : seul le format des NOUVEAUX chiffrements change.
+// NEXUS-CRYPTO-006 — canonical 12-byte (96-bit) GCM nonce, the standard/optimal
+// size for AES-GCM (J0 derived directly, without GHASH). decryptAES reads the IV
+// FROM the blob, so old 16-byte data still decrypts: only the format of NEW
+// encryptions changes.
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURVE = "prime256v1"; // P-256
@@ -31,12 +31,12 @@ export function signPayload(payload: string, privateKeyPem: string): string {
   sign.end();
   const derSig = sign.sign(privateKeyPem);
 
-  // Convertir DER → raw (r||s, 64 bytes) pour compatibilité Go
+  // Convert DER → raw (r||s, 64 bytes) for Go compatibility
   const raw = derSigToRaw(derSig);
   return raw.toString("base64");
 }
 
-// Convertit une signature DER ASN.1 en raw (r||s, 32+32 bytes)
+// Converts a DER ASN.1 signature to raw (r||s, 32+32 bytes)
 function derSigToRaw(der: Buffer): Buffer {
   // DER: 0x30 len 0x02 rLen r 0x02 sLen s
   let offset = 2; // skip 0x30 + length
@@ -73,7 +73,7 @@ export function verifySignature(
   try {
     const sigBuf = Buffer.from(signature, "base64");
 
-    // Détecter le format : si 64 bytes = raw (r||s) de Go, sinon DER
+    // Detect the format: if 64 bytes = raw (r||s) from Go, otherwise DER
     let derSig: Buffer;
     if (sigBuf.length === 64) {
       derSig = rawSigToDer(sigBuf);
@@ -90,17 +90,17 @@ export function verifySignature(
   }
 }
 
-// Convertit une signature raw (r||s, 32+32 bytes) en format DER ASN.1
+// Converts a raw signature (r||s, 32+32 bytes) to DER ASN.1 format
 function rawSigToDer(raw: Buffer): Buffer {
   const r = raw.subarray(0, 32);
   const s = raw.subarray(32, 64);
 
   function encodeInteger(buf: Buffer): Buffer {
-    // Retirer les zéros non significatifs
+    // Remove non-significant zeros
     let i = 0;
     while (i < buf.length - 1 && buf[i] === 0) i++;
     let trimmed = buf.subarray(i);
-    // Ajouter un 0x00 si le bit de poids fort est set (nombre positif en ASN.1)
+    // Add a 0x00 if the high-order bit is set (positive number in ASN.1)
     if (trimmed[0] & 0x80) {
       trimmed = Buffer.concat([Buffer.from([0x00]), trimmed]);
     }
@@ -116,10 +116,10 @@ function rawSigToDer(raw: Buffer): Buffer {
 
 // ===================== Session Key Derivation (CRYPTO-004) =====================
 
-// Dérive la clé de session AES-256 à partir d'un secret ECDH X25519 éphémère,
-// avec domain-separation par machine_id (info="nexus-session:<id>", salt vide).
-// Identique à l'agent (agent/internal/security/handshake.go deriveSessionKey) —
-// interop vérifiée par vecteurs croisés Go↔Node.
+// Derives the AES-256 session key from an ephemeral ECDH X25519 secret,
+// with domain-separation by machine_id (info="nexus-session:<id>", empty salt).
+// Identical to the agent (agent/internal/security/handshake.go deriveSessionKey) —
+// interop verified via cross Go↔Node vectors.
 export function deriveSessionKey(ecdhSecret: Buffer, machineId: string): Buffer {
   return Buffer.from(
     crypto.hkdfSync("sha256", ecdhSecret, "", `nexus-session:${machineId}`, 32)
@@ -159,10 +159,10 @@ export function decryptAES(encryptedStr: string, key: Buffer | string): string {
     authTag = Buffer.from(parts[1], "base64");
     encrypted = Buffer.from(parts[2], "base64");
   } else if (parts.length === 2) {
-    // Format Go GCM: nonce:ciphertext+authTag (authTag est les 16 derniers bytes)
+    // Go GCM format: nonce:ciphertext+authTag (authTag is the last 16 bytes)
     iv = Buffer.from(parts[0], "base64");
     const ciphertextWithTag = Buffer.from(parts[1], "base64");
-    // GCM append le tag à la fin du ciphertext
+    // GCM appends the tag at the end of the ciphertext
     encrypted = ciphertextWithTag.subarray(0, ciphertextWithTag.length - AUTH_TAG_LENGTH);
     authTag = ciphertextWithTag.subarray(ciphertextWithTag.length - AUTH_TAG_LENGTH);
   } else {
@@ -228,7 +228,7 @@ export function buildSignaturePayload(msg: {
   nonce: string;
   payload: string;
 }): string {
-  // La version est liée EN TÊTE du payload signé : pas de downgrade silencieux.
+  // The version is bound AT THE HEAD of the signed payload: no silent downgrade.
   return `${msg.v}:${msg.type}:${msg.request_id || ""}:${msg.machine_id}:${msg.timestamp}:${msg.nonce}:${msg.payload}`;
 }
 

@@ -12,10 +12,10 @@ import {
 const AGENT_BINARY_PATH =
   process.env.NEXUS_AGENT_BINARY_PATH || "/app/agent/nexus-agent";
 
-// Signature minisign détachée, produite hors-ligne par l'opérateur et publiée
-// par le pipeline de release À CÔTÉ du binaire. Le backend la RELAIE seulement :
-// il ne peut pas la forger (la clé privée vit hors du backend). L'agent la
-// vérifie contre sa clé publique locale (/etc/nexus/release.pub) avant install.
+// Detached minisign signature, produced offline by the operator and published
+// by the release pipeline ALONGSIDE the binary. The backend only RELAYS it:
+// it cannot forge it (the private key lives outside the backend). The agent
+// verifies it against its local public key (/etc/nexus/release.pub) before install.
 const AGENT_SIGNATURE_PATH =
   process.env.NEXUS_AGENT_SIGNATURE_PATH || `${AGENT_BINARY_PATH}.minisig`;
 
@@ -23,7 +23,7 @@ export async function dispatchAgentUpgrade(
   machineId: string,
   userId?: string
 ): Promise<{ success: boolean; requestId?: string; error?: string; currentVersion?: string }> {
-  // Verifier que la machine existe et est online
+  // Verify the machine exists and is online
   const machine = await prisma.machine.findUnique({
     where: { id: machineId },
     select: { id: true, status: true, agentVersion: true },
@@ -33,14 +33,14 @@ export async function dispatchAgentUpgrade(
     return { success: false, error: `Machine is not online (status=${machine.status})` };
   }
 
-  // Verifier que le binaire est disponible cote serveur
+  // Verify the binary is available on the server side
   if (!existsSync(AGENT_BINARY_PATH)) {
     return { success: false, error: "Agent binary not available on server" };
   }
 
-  // La signature détachée DOIT être présente : l'agent refusera tout binaire non
-  // signé (fail-closed). On échoue tôt ici avec un message clair plutôt que de
-  // dispatcher un upgrade que l'agent rejettera.
+  // The detached signature MUST be present: the agent will refuse any unsigned
+  // binary (fail-closed). We fail early here with a clear message rather than
+  // dispatching an upgrade the agent will reject.
   if (!existsSync(AGENT_SIGNATURE_PATH)) {
     return {
       success: false,
@@ -50,7 +50,7 @@ export async function dispatchAgentUpgrade(
   }
   const signature = readFileSync(AGENT_SIGNATURE_PATH, "utf8");
 
-  // Construire l'URL de download
+  // Build the download URL
   let backendUrl: string;
   try {
     backendUrl = getAgentBackendUrl();
@@ -58,14 +58,14 @@ export async function dispatchAgentUpgrade(
     return { success: false, error: "AGENT_BACKEND_URL not configured" };
   }
 
-  // Generer un token single-use pour l'agent
+  // Generate a single-use token for the agent
   const { rawToken } = await generateBootstrapToken(machineId, "install");
 
-  // Calculer le SHA256 du binaire servi (cible) pour verification cote agent
-  // ET pour detecter la fin de l'upgrade (reconnexion avec ce SHA).
+  // Compute the SHA256 of the served (target) binary for agent-side verification
+  // AND to detect the end of the upgrade (reconnect with this SHA).
   const sha256 = await getServerBinarySHA256();
 
-  // Dispatch l'action vers l'agent
+  // Dispatch the action to the agent
   const result = await dispatchAction(
     machineId,
     {
@@ -75,7 +75,7 @@ export async function dispatchAgentUpgrade(
         token: rawToken,
         sha256: sha256 || undefined,
         signature,
-        // SELF-UPGRADE-002 : version cible (plancher anti-rollback côté agent).
+        // SELF-UPGRADE-002: target version (anti-rollback floor on the agent side).
         target_version: getServerAgentVersion() || undefined,
       },
     },
@@ -86,7 +86,7 @@ export async function dispatchAgentUpgrade(
     return { success: false, error: result.error };
   }
 
-  // Armer le suivi : succes = l'agent se reconnecte en rapportant ce SHA.
+  // Arm the tracking: success = the agent reconnects reporting this SHA.
   if (sha256) {
     beginUpgrade(machineId, sha256, machine.agentVersion || undefined);
   }

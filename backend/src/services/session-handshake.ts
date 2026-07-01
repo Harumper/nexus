@@ -10,15 +10,15 @@ import {
 import { PROTOCOL_VERSION, MSG_TYPES } from "../websocket/protocol.js";
 import type { WSMessage } from "../types/index.js";
 
-// CRYPTO-004 — handshake ECDHE X25519 (forward secrecy). L'agent envoie sa clé
-// publique éphémère (session.hello, signé par sa clé long-terme, déjà vérifié par
-// verifyAgentMessage côté handler). Ici on génère NOTRE éphémère, on dérive la clé
-// de session K (mémoire seule), et on renvoie session.hello.ack signé par la clé
-// per-machine du backend, portant notre clé publique éphémère.
+// CRYPTO-004 — ECDHE X25519 handshake (forward secrecy). The agent sends its
+// ephemeral public key (session.hello, signed by its long-term key, already
+// verified by verifyAgentMessage on the handler side). Here we generate OUR
+// ephemeral, derive the session key K (memory only), and return session.hello.ack
+// signed by the backend's per-machine key, carrying our ephemeral public key.
 //
-// Les clés long-terme AUTHENTIFIENT le handshake ; les clés éphémères CHIFFRENT.
-// La clé privée éphémère backend (eb) vit uniquement dans cette fonction et est
-// jetée au retour → forward secrecy. K n'est jamais persisté.
+// The long-term keys AUTHENTICATE the handshake; the ephemeral keys ENCRYPT.
+// The backend's ephemeral private key (eb) lives only in this function and is
+// discarded on return → forward secrecy. K is never persisted.
 export async function processSessionHello(
   machineId: string,
   agentEphemeralPubB64: string
@@ -41,7 +41,7 @@ export async function processSessionHello(
     return { success: false, error: "Machine has been revoked" };
   }
 
-  // Importer la clé publique éphémère X25519 de l'agent (32 octets bruts) via JWK.
+  // Import the agent's ephemeral X25519 public key (32 raw bytes) via JWK.
   let agentEphemeralPub: crypto.KeyObject;
   try {
     const raw = Buffer.from(agentEphemeralPubB64, "base64");
@@ -53,7 +53,7 @@ export async function processSessionHello(
     return { success: false, error: "Invalid agent ephemeral public key" };
   }
 
-  // Notre paire éphémère X25519 (eb). eb.privateKey ne quitte JAMAIS cette fonction.
+  // Our ephemeral X25519 pair (eb). eb.privateKey NEVER leaves this function.
   const eb = crypto.generateKeyPairSync("x25519");
   const ecdhSecret = crypto.diffieHellman({
     privateKey: eb.privateKey,

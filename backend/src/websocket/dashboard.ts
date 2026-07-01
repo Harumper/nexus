@@ -1,6 +1,6 @@
 import type { WebSocket } from "ws";
 
-// Clients dashboard connectés
+// Connected dashboard clients
 const dashboardClients = new Set<WebSocket>();
 // CONTROL-PLANE-002 — token expiry (epoch seconds) per client, for the liveness
 // sweep below: a long-lived socket must not outlive its token.
@@ -37,7 +37,7 @@ const sweep = setInterval(() => {
       try {
         ws.close(1000, "token expired");
       } catch {
-        // socket déjà en fermeture — ignoré
+        // socket already closing — ignored
       }
       dashboardClients.delete(ws);
       clientExpiry.delete(ws);
@@ -46,7 +46,7 @@ const sweep = setInterval(() => {
 }, DASHBOARD_SWEEP_INTERVAL_MS);
 if (typeof sweep.unref === "function") sweep.unref();
 
-// Broadcast un message à tous les clients dashboard
+// Broadcast a message to all dashboard clients
 export function broadcastToDashboard(message: {
   type: string;
   machine_id?: string;

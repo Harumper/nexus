@@ -121,13 +121,13 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
       };
       const user = getUserFromRequest(request);
 
-      // Déterminer les machines cibles
+      // Determine the target machines
       let targetIds: string[];
 
       if (body.machine_ids && body.machine_ids.length > 0) {
         targetIds = body.machine_ids;
       } else {
-        // Toutes les machines en ligne
+        // All online machines
         const connectedIds = getConnectedMachineIds();
         if (body.online_only !== false) {
           targetIds = connectedIds;
@@ -140,7 +140,7 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      // Dispatcher en parallèle
+      // Dispatch in parallel
       const results = await Promise.allSettled(
         targetIds.map(async (machineId) => {
           const result = await dispatchAction(

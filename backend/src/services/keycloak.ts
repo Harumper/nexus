@@ -7,7 +7,7 @@ export interface KeycloakConfig {
   url: string; // https://auth.example.com
   realm: string; // master
   clientId: string; // nexus
-  clientSecret?: string; // optionnel pour les clients publics
+  clientSecret?: string; // optional for public clients
   roleAdmin: string;
   roleOperator: string;
   roleReadonly: string;
@@ -15,12 +15,12 @@ export interface KeycloakConfig {
 
 let config: KeycloakConfig | null = null;
 let oidcConfig: openidClient.Configuration | null = null;
-// JWKS distant du realm : utilisé pour vérifier la SIGNATURE des tokens.
-// Mis en cache par jose (rotation de clés gérée automatiquement via le kid).
+// Remote JWKS of the realm: used to verify the SIGNATURE of tokens.
+// Cached by jose (key rotation handled automatically via the kid).
 let jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
 let expectedIssuer: string | null = null;
-// Client OIDC attendu : sert à vérifier que le token a bien été émis POUR Nexus
-// (azp/aud), pas pour un autre client du même realm Keycloak.
+// Expected OIDC client: used to verify the token was indeed issued FOR Nexus
+// (azp/aud), not for another client of the same Keycloak realm.
 let expectedClientId: string | null = null;
 
 export function isKeycloakEnabled(): boolean {
@@ -74,7 +74,7 @@ export async function initKeycloak(): Promise<void> {
         : undefined,
     );
 
-    // jwks_uri issu de la discovery (fallback sur le chemin standard Keycloak)
+    // jwks_uri from discovery (fallback to the standard Keycloak path)
     const jwksUri =
       oidcConfig.serverMetadata().jwks_uri ||
       `${issuerUrl}/protocol/openid-connect/certs`;
@@ -109,14 +109,14 @@ export async function verifyKeycloakToken(
   }
 
   try {
-    // Contrôle AUTORITAIRE : vérification cryptographique de la signature via
-    // le JWKS du realm + validation de l'issuer et de l'expiration (gérées par
-    // jose). On n'accepte JAMAIS un token dont la signature n'est pas vérifiée,
-    // et les rôles sont lus UNIQUEMENT depuis ce payload vérifié.
+    // AUTHORITATIVE check: cryptographic signature verification via the realm's
+    // JWKS + issuer and expiration validation (handled by jose). We NEVER accept
+    // a token whose signature is not verified, and roles are read ONLY from this
+    // verified payload.
     const { payload } = await jose.jwtVerify(accessToken, jwks, {
       issuer: expectedIssuer,
-      // Keycloak signe les access tokens en RS256/ES256 ; on interdit
-      // explicitement les algorithmes symétriques et "none".
+      // Keycloak signs access tokens with RS256/ES256; we explicitly forbid
+      // symmetric algorithms and "none".
       algorithms: ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256"],
     });
 
@@ -135,18 +135,18 @@ export async function verifyKeycloakToken(
       return { valid: false, error: "Token missing sub claim" };
     }
 
-    // Contrôle d'audience : le token doit avoir été émis POUR le client Nexus,
-    // pas pour un autre client du même realm (sinon un token portant un rôle
-    // realm `nexus-admin` émis par une autre app donnerait ADMIN ici). Keycloak
-    // positionne `azp` = client émetteur ; on accepte aussi un `aud` contenant
-    // notre client. Tolérant si expectedClientId non configuré (ne casse rien).
+    // Audience check: the token must have been issued FOR the Nexus client, not
+    // for another client of the same realm (otherwise a token carrying a realm
+    // role `nexus-admin` issued by another app would grant ADMIN here). Keycloak
+    // sets `azp` = issuing client; we also accept an `aud` containing our client.
+    // Tolerant if expectedClientId is not configured (breaks nothing).
     if (expectedClientId) {
       const aud = payload.aud;
       const audOk = Array.isArray(aud)
         ? aud.includes(expectedClientId)
         : aud === expectedClientId;
       if (p.azp !== expectedClientId && !audOk) {
-        return { valid: false, error: "Token audience mismatch (émis pour un autre client)" };
+        return { valid: false, error: "Token audience mismatch (issued for another client)" };
       }
     }
 
@@ -184,7 +184,7 @@ export function mapKeycloakRole(
   return "READONLY";
 }
 
-// ===================== OIDC Endpoints (pour le frontend) =====================
+// ===================== OIDC Endpoints (for the frontend) =====================
 
 export function getOidcEndpoints() {
   if (!config) return null;

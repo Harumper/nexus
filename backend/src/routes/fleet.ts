@@ -113,8 +113,8 @@ export async function fleetRoutes(app: FastifyInstance) {
     const ms = rangeMs[range] || rangeMs["1h"];
     const since = new Date(Date.now() - ms);
 
-    // Agrégation en SQL (buckets de 5 min) plutôt que de ramener toutes les
-    // lignes Metric et agréger en JS (~144k lignes pour 24h × 100 machines).
+    // Aggregate in SQL (5-min buckets) rather than fetching all Metric rows
+    // and aggregating in JS (~144k rows for 24h × 100 machines).
     const rows = await prisma.$queryRaw<
       Array<{ bucket: Date; avgCpu: number; avgMemory: number }>
     >`

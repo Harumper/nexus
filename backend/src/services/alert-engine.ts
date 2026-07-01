@@ -4,11 +4,11 @@ import { dispatchActionSync } from "./action-sync.js";
 import { dispatchNotifications } from "./notifications.js";
 import type { AlertConditionType, AlertSeverity, AlertRule } from "@prisma/client";
 
-// Cache mémoire des règles activées : evaluateMetrics tourne à CHAQUE rapport de
-// métriques (toutes les ~60s/machine) et faisait un findMany à chaque fois.
-// On garde un superset court (TTL 30s) invalidé explicitement sur mutation de
-// règle (voir invalidateAlertRulesCache dans routes/alerts.ts). Le filtrage
-// par machine se fait en mémoire. Le TTL est un filet si une invalidation manque.
+// In-memory cache of enabled rules: evaluateMetrics runs on EVERY metrics
+// report (every ~60s/machine) and used to do a findMany each time.
+// We keep a short superset (TTL 30s) invalidated explicitly on rule mutation
+// (see invalidateAlertRulesCache in routes/alerts.ts). Per-machine filtering
+// is done in memory. The TTL is a safety net if an invalidation is missed.
 let rulesCache: AlertRule[] | null = null;
 let rulesCacheAt = 0;
 const RULES_CACHE_TTL_MS = 30_000;
@@ -27,7 +27,7 @@ async function getEnabledRules(): Promise<AlertRule[]> {
   return rulesCache;
 }
 
-// Conditions qui necessitent un poll actif (dispatch action vers l'agent)
+// Conditions that require an active poll (dispatch action to the agent)
 const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
   "SERVICE_FAILED",
   "TIMER_FAILED",
@@ -35,23 +35,23 @@ const HEALTH_CHECK_CONDITIONS: AlertConditionType[] = [
   "UPDATES_AVAILABLE",
 ];
 
-// Conditions qui necessitent un scan SSL (moins frequent, plus lourd)
+// Conditions that require an SSL scan (less frequent, heavier)
 const CERT_CHECK_CONDITIONS: AlertConditionType[] = ["CERT_EXPIRING"];
 
-// Condition de posture : evaluee sur le DERNIER SecurityScan persiste (pas de
-// poll agent — Lynis est trop lent). Declenchee aussi apres chaque audit.
+// Posture condition: evaluated against the LATEST persisted SecurityScan (no
+// agent poll — Lynis is too slow). Also triggered after each audit.
 const HARDENING_CHECK_CONDITIONS: AlertConditionType[] = ["HARDENING_INDEX_BELOW"];
 
-// ===================== Cache des alertes actives =====================
-// Set en mémoire des (ruleId:machineId) actuellement FIRING/ACKNOWLEDGED.
-// C'est un SUPERSET de l'état DB (initialisé au boot, alimenté par fireAlert).
-// Permet à resolveAlert/fireAlert d'éviter un findFirst par (règle×machine×cycle)
-// quand rien n'est en alerte — le cas ultra-majoritaire sur le chemin chaud
-// (evaluateMetrics tourne à chaque rapport métrique × N machines).
+// ===================== Active alerts cache =====================
+// In-memory Set of (ruleId:machineId) currently FIRING/ACKNOWLEDGED.
+// It's a SUPERSET of the DB state (initialized at boot, fed by fireAlert).
+// Lets resolveAlert/fireAlert avoid a findFirst per (rule×machine×cycle)
+// when nothing is alerting — the vast-majority case on the hot path
+// (evaluateMetrics runs on every metric report × N machines).
 const firingKeys = new Set<string>();
 const fkey = (ruleId: string, machineId: string) => `${ruleId}:${machineId}`;
 
-// À appeler au démarrage du backend : recharge l'état FIRING depuis la DB.
+// To be called at backend startup: reloads the FIRING state from the DB.
 export async function initAlertState(): Promise<void> {
   firingKeys.clear();
   const active = await prisma.alertState.findMany({
@@ -59,10 +59,10 @@ export async function initAlertState(): Promise<void> {
     select: { ruleId: true, machineId: true },
   });
   for (const a of active) firingKeys.add(fkey(a.ruleId, a.machineId));
-  console.log(`[AlertEngine] ${firingKeys.size} alerte(s) active(s) chargée(s) en cache`);
+  console.log(`[AlertEngine] ${firingKeys.size} active alert(s) loaded into cache`);
 }
 
-// ===================== Évaluation des métriques entrantes =====================
+// ===================== Incoming metrics evaluation =====================
 
 export async function evaluateMetrics(
   machineId: string,
@@ -73,8 +73,8 @@ export async function evaluateMetrics(
     load_avg_1?: number;
   }
 ): Promise<void> {
-  // Règles actives concernant cette machine, filtrées en mémoire depuis le
-  // cache (évite un findMany par rapport de métriques sur le chemin chaud).
+  // Enabled rules concerning this machine, filtered in memory from the
+  // cache (avoids a findMany per metrics report on the hot path).
   const enabled = await getEnabledRules();
   const rules = enabled.filter(
     (r) => r.machineIds.length === 0 || r.machineIds.includes(machineId)
@@ -95,7 +95,7 @@ export async function evaluateMetrics(
   }
 }
 
-// ===================== Vérification machines offline =====================
+// ===================== Offline machines check =====================
 
 export async function evaluateOfflineAlerts(): Promise<void> {
   const rules = await prisma.alertRule.findMany({
@@ -111,7 +111,7 @@ export async function evaluateOfflineAlerts(): Promise<void> {
     const durationSeconds = rule.durationSeconds || 60;
     const threshold = new Date(Date.now() - durationSeconds * 1000);
 
-    // Machines qui devraient être en ligne mais ne le sont plus
+    // Machines that should be online but no longer are
     const offlineMachines = await prisma.machine.findMany({
       where: {
         status: "OFFLINE",
@@ -131,7 +131,7 @@ export async function evaluateOfflineAlerts(): Promise<void> {
       });
     }
 
-    // Résoudre les alertes pour les machines revenues en ligne
+    // Resolve alerts for machines that came back online
     const onlineMachineIds = await prisma.machine.findMany({
       where: {
         status: "ONLINE",
@@ -148,11 +148,11 @@ export async function evaluateOfflineAlerts(): Promise<void> {
   }
 }
 
-// ===================== Health checks periodique (services/timers/updates) =====================
+// ===================== Periodic health checks (services/timers/updates) =====================
 
 /**
- * Pour chaque machine ONLINE avec au moins une regle SERVICE_FAILED/TIMER_FAILED/
- * UPDATES_AVAILABLE active, dispatche system.health_summary et evalue les regles.
+ * For each ONLINE machine with at least one enabled SERVICE_FAILED/TIMER_FAILED/
+ * UPDATES_AVAILABLE rule, dispatches system.health_summary and evaluates the rules.
  */
 export async function evaluateHealthAlerts(): Promise<void> {
   const rules = await prisma.alertRule.findMany({
@@ -163,7 +163,7 @@ export async function evaluateHealthAlerts(): Promise<void> {
   });
   if (rules.length === 0) return;
 
-  // Collecter les machineIds concernees (si machineIds vide = toutes)
+  // Collect the concerned machineIds (if machineIds empty = all)
   const needAllMachines = rules.some((r) => r.machineIds.length === 0);
   const specificIds = new Set(rules.flatMap((r) => r.machineIds));
 
@@ -175,7 +175,7 @@ export async function evaluateHealthAlerts(): Promise<void> {
     select: { id: true, name: true },
   });
 
-  // Dispatcher en parallele avec concurrence limitee (10 machines a la fois)
+  // Dispatch in parallel with limited concurrency (10 machines at a time)
   const concurrency = 10;
   for (let i = 0; i < machines.length; i += concurrency) {
     const batch = machines.slice(i, i + concurrency);
@@ -190,7 +190,7 @@ export async function evaluateHealthAlerts(): Promise<void> {
           );
           await evaluateHealthForMachine(machine.id, summary, rules);
         } catch (err) {
-          // Ignore silently : la machine peut etre offline entre temps
+          // Ignore silently: the machine may have gone offline in the meantime
         }
       })
     );
@@ -223,7 +223,7 @@ function checkHealthCondition(
   switch (rule.conditionType) {
     case "SERVICE_FAILED": {
       const failed = summary?.services?.failed || [];
-      // Filtre optionnel par pattern (nom de service)
+      // Optional filter by pattern (service name)
       const matching = rule.targetPattern
         ? failed.filter((f: any) => String(f.unit || "").includes(rule.targetPattern))
         : failed;
@@ -254,7 +254,7 @@ function checkHealthCondition(
       const count = summary?.updates?.count || 0;
       const security = summary?.updates?.security || 0;
       const threshold = rule.threshold ?? 0;
-      // Fire si count > threshold (ex: threshold=0 -> au moindre update)
+      // Fire if count > threshold (e.g. threshold=0 -> on any update)
       return {
         fired: count > threshold,
         details: {
@@ -270,7 +270,7 @@ function checkHealthCondition(
   }
 }
 
-// ===================== Cert expiration scan (toutes les 6h) =====================
+// ===================== Cert expiration scan (every 6h) =====================
 
 export async function evaluateCertAlerts(): Promise<void> {
   const rules = await prisma.alertRule.findMany({
@@ -308,7 +308,7 @@ export async function evaluateCertAlerts(): Promise<void> {
 
           for (const rule of applicableRules) {
             const threshold = rule.threshold ?? 30;
-            // Fire si au moins un cert expire dans <= threshold jours
+            // Fire if at least one cert expires within <= threshold days
             const triggering = (scan?.certs || []).filter((c: any) => c.days_remaining <= threshold);
             if (triggering.length > 0) {
               await fireAlert(rule.id, machine.id, rule.severity, {
@@ -325,7 +325,7 @@ export async function evaluateCertAlerts(): Promise<void> {
             } else {
               await resolveAlert(rule.id, machine.id);
             }
-            // expiring est utilise pour logging mais pas pour le trigger
+            // expiring is used for logging but not for the trigger
             void expiring;
           }
         } catch (err) {
@@ -336,18 +336,18 @@ export async function evaluateCertAlerts(): Promise<void> {
   }
 }
 
-// ===================== Posture de durcissement =====================
+// ===================== Hardening posture =====================
 
-// Evalue les regles HARDENING_INDEX_BELOW contre le DERNIER SecurityScan
-// persiste de chaque machine ciblee. Pas de poll agent (lecture DB only) :
-// appelable frequemment et apres chaque audit. machineId optionnel = scope.
+// Evaluates HARDENING_INDEX_BELOW rules against the LATEST persisted
+// SecurityScan of each targeted machine. No agent poll (DB read only):
+// callable frequently and after each audit. Optional machineId = scope.
 export async function evaluateHardeningAlerts(machineId?: string): Promise<void> {
   const rules = await prisma.alertRule.findMany({
     where: { enabled: true, conditionType: { in: HARDENING_CHECK_CONDITIONS } },
   });
   if (rules.length === 0) return;
 
-  // Machines ciblees : si machineId fourni, on se limite a elle.
+  // Targeted machines: if machineId is provided, we limit to it.
   const needAll = rules.some((r) => r.machineIds.length === 0);
   const specificIds = new Set(rules.flatMap((r) => r.machineIds));
   const machines = await prisma.machine.findMany({
@@ -370,8 +370,8 @@ export async function evaluateHardeningAlerts(machineId?: string): Promise<void>
 
     for (const rule of applicable) {
       const threshold = rule.threshold ?? 60;
-      // On ne declenche que si on a un indice valide (>= 0) sous le seuil.
-      // Indice -1 (Lynis sans indice) ou pas de scan -> ne rien declencher.
+      // We only trigger if we have a valid index (>= 0) below the threshold.
+      // Index -1 (Lynis with no index) or no scan -> trigger nothing.
       if (latest && latest.hardeningIndex >= 0 && latest.hardeningIndex < threshold) {
         await fireAlert(rule.id, machine.id, rule.severity, {
           conditionType: "HARDENING_INDEX_BELOW",
@@ -394,8 +394,8 @@ async function fireAlert(
   details: Record<string, any>
 ): Promise<void> {
   const k = fkey(ruleId, machineId);
-  // Si la clé n'est pas dans le cache (superset), il n'y a certainement pas
-  // d'alerte active : on saute le findFirst et on crée directement.
+  // If the key isn't in the cache (superset), there's certainly no active
+  // alert: we skip the findFirst and create directly.
   const existing = firingKeys.has(k)
     ? await prisma.alertState.findFirst({
         where: {
@@ -408,15 +408,15 @@ async function fireAlert(
     : null;
 
   if (existing) {
-    // Vérifier le cooldown
+    // Check the cooldown
     if (
       existing.lastNotified &&
       Date.now() - existing.lastNotified.getTime() < (existing.rule.cooldownSeconds * 1000)
     ) {
-      return; // Encore en cooldown
+      return; // Still in cooldown
     }
 
-    // Mettre à jour la dernière notification
+    // Update the last notification
     await prisma.alertState.update({
       where: { id: existing.id },
       data: { lastNotified: new Date(), details: details as any },
@@ -424,7 +424,7 @@ async function fireAlert(
     return;
   }
 
-  // Créer une nouvelle alerte
+  // Create a new alert
   const alertState = await prisma.alertState.create({
     data: {
       ruleId,
@@ -437,7 +437,7 @@ async function fireAlert(
   });
   firingKeys.add(k);
 
-  // Notifier le dashboard en temps réel
+  // Notify the dashboard in real time
   broadcastToDashboard({
     type: "alert.fired",
     machine_id: machineId,
@@ -468,9 +468,9 @@ async function fireAlert(
   });
 
   // Multi-channel notifications (Discord, Slack, Teams, Email, Webhook)
-  // Dispatcher gere les channels modernes (rule.channels JSON) + legacy
-  // (notifyEmail, notifyWebhook). Fire-and-forget pour ne pas bloquer le
-  // pipeline d'alertes — les erreurs sont loggees par le dispatcher.
+  // Dispatcher handles the modern channels (rule.channels JSON) + legacy
+  // (notifyEmail, notifyWebhook). Fire-and-forget so as not to block the
+  // alert pipeline — errors are logged by the dispatcher.
   dispatchNotifications(
     {
       id: alertState.rule.id,
@@ -504,7 +504,7 @@ async function resolveAlert(
   machineId: string
 ): Promise<void> {
   const k = fkey(ruleId, machineId);
-  // Négative-cache : si pas dans le superset, rien à résoudre → 0 requête DB.
+  // Negative cache: if not in the superset, nothing to resolve → 0 DB queries.
   if (!firingKeys.has(k)) return;
 
   const firing = await prisma.alertState.findFirst({
@@ -516,7 +516,7 @@ async function resolveAlert(
   });
 
   if (!firing) {
-    // Clé stale (résolue via l'API p.ex.) : on nettoie le cache.
+    // Stale key (resolved via the API for instance): we clean the cache.
     firingKeys.delete(k);
     return;
   }

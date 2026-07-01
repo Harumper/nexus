@@ -1,15 +1,15 @@
 import crypto from "node:crypto";
 import { decryptAES } from "./crypto.js";
 
-// NEXUS-ENROLLMENT-001 (seal) — ouverture du seal de bootstrap (ECIES P-256).
+// NEXUS-ENROLLMENT-001 (seal) — opening the bootstrap seal (ECIES P-256).
 //
-// Asymétrie de courbes (volontaire) : P-256 ICI (seal + identité), car contraint
-// par la clé serveur PINNÉE (ECDSA P-256) déjà déployée à l'install ; X25519 pour
-// le canal (handshake de session). Deux courbes, deux rôles.
+// Curve asymmetry (intentional): P-256 HERE (seal + identity), because constrained
+// by the PINNED server key (ECDSA P-256) already deployed at install; X25519 for
+// the channel (session handshake). Two curves, two roles.
 //
-// LÈVE sur échec d'authentification (tag GCM invalide via decipher.final() dans
-// decryptAES) → l'appelant DOIT return immédiatement. AUCUN octet du plaintext
-// scellé (token, pubkey, proof) n'est exploité avant la vérification du tag.
+// THROWS on authentication failure (invalid GCM tag via decipher.final() in
+// decryptAES) → the caller MUST return immediately. NO byte of the sealed
+// plaintext (token, pubkey, proof) is used before the tag is verified.
 export function openEnrollmentSeal(
   serverPrivatePem: string,
   ephPubPem: string,
@@ -18,13 +18,13 @@ export function openEnrollmentSeal(
 ): string {
   const serverPriv = crypto.createPrivateKey(serverPrivatePem);
   const ephPub = crypto.createPublicKey(ephPubPem);
-  // ECDH P-256 via diffieHellman (PAS de point-mult maison).
+  // ECDH P-256 via diffieHellman (NO homegrown point-mult).
   const secret = crypto.diffieHellman({ privateKey: serverPriv, publicKey: ephPub });
-  // HKDF domain-separée par machine_id, identique à l'agent (interop vérifiée).
+  // HKDF domain-separated by machine_id, identical to the agent (interop verified).
   const kSeal = Buffer.from(
     crypto.hkdfSync("sha256", secret, "", `nexus-enroll:${machineId}`, 32)
   );
-  // decryptAES vérifie le tag GCM (decipher.final lève si invalide) AVANT de
-  // retourner le moindre octet de plaintext.
+  // decryptAES verifies the GCM tag (decipher.final throws if invalid) BEFORE
+  // returning a single byte of plaintext.
   return decryptAES(sealed, kSeal);
 }

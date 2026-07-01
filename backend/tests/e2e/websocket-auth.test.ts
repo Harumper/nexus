@@ -26,7 +26,7 @@ beforeAll(async () => {
   app = Fastify({ logger: false });
   await app.register(jwt, { secret: JWT_SECRET });
 
-  // Simuler les env pour isLocalAuthEnabled
+  // Simulate the env for isLocalAuthEnabled
   process.env.AUTH_MODE = "local";
 
   app.get("/health", async () => ({ status: "ok" }));
@@ -120,7 +120,7 @@ describe("WebSocket Dashboard Authentication", () => {
   });
 
   it("should reject connection with expired JWT token", async () => {
-    // Créer un token avec une date d'expiration dans le passé
+    // Create a token with an expiration date in the past
     const token = app.jwt.sign(
       {
         sub: "test-user-id",

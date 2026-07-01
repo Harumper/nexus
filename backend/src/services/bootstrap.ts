@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { prisma } from "./database.js";
 
 const TOKEN_BYTES = 32;
-const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 heure
+const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 type Purpose = "install" | "upgrade";
 
@@ -39,7 +39,7 @@ export async function validateBootstrapToken(
 
   const tokenHash = hashToken(rawToken);
 
-  // Claim atomique : single UPDATE qui rejette les tokens utilises ou expires
+  // Atomic claim: single UPDATE that rejects used or expired tokens
   const claimed = await prisma.bootstrapToken.updateMany({
     where: {
       tokenHash,

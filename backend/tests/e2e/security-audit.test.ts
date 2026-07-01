@@ -80,54 +80,55 @@ describe("Security Audit — Agent Hardening", () => {
   });
 
   it("should derive the session key with a domain-separated HKDF label (ECDHE)", () => {
-    // CRYPTO-004 : l'ancien ECDH statique (label "nexus-shared-secret") est
-    // remplacé par un handshake ECDHE X25519 éphémère ; la clé de session est
-    // dérivée via HKDF avec domain-separation par machine_id ("nexus-session:<id>"),
-    // identique côté backend (interop vérifiée). Salt vide des deux côtés.
+    // CRYPTO-004: the old static ECDH (label "nexus-shared-secret") is replaced
+    // by an ephemeral ECDHE X25519 handshake; the session key is derived via
+    // HKDF with domain-separation by machine_id ("nexus-session:<id>"), identical
+    // on the backend side (interop verified). Empty salt on both sides.
     const agentHs = readFileSync(resolve(agentDir, "internal/security/handshake.go"), "utf8");
     expect(agentHs).toContain("nexus-session:");
   });
 
   it("should fully verify incoming action.request (signature + nonce + timestamp)", () => {
-    // action.request dispatche TOUTES les actions mutantes (script.execute,
-    // package.install, user.create, firewall...). Il doit etre verifie comme
-    // action.confirm : VerifyServerMessage controle la signature ECDSA du
-    // backend + le nonce (anti-replay) + le timestamp. Un simple controle de
-    // timestamp ne suffit pas (trame chiffree rejouable dans la fenetre).
+    // action.request dispatches ALL mutating actions (script.execute,
+    // package.install, user.create, firewall...). It must be verified like
+    // action.confirm: VerifyServerMessage checks the backend ECDSA signature +
+    // the nonce (anti-replay) + the timestamp. A plain timestamp check is not
+    // enough (encrypted frame replayable within the window).
     const content = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
     const actionReqIdx = content.indexOf("case transport.TypeActionRequest:");
     const actionConfIdx = content.indexOf("case transport.TypeActionConfirm:");
     expect(actionReqIdx).toBeGreaterThan(-1);
-    // Le bloc action.request doit appeler VerifyServerMessage avant de dispatcher.
+    // The action.request block must call VerifyServerMessage before dispatching.
     const actionReqBlock = content.slice(actionReqIdx, actionConfIdx);
     expect(actionReqBlock).toContain("VerifyServerMessage");
     expect(actionReqBlock).toContain("serverPublicKey");
   });
 
   it("should enforce per-action RBAC centrally in dispatchAction", () => {
-    // C1 : sans RBAC par action, tout utilisateur authentifie (READONLY/OPERATOR)
-    // pouvait dispatcher script.execute = RCE root. Le controle doit etre dans
-    // dispatchAction (couvre sync/async/bulk/batch), pas seulement au niveau route.
+    // C1: without per-action RBAC, any authenticated user (READONLY/OPERATOR)
+    // could dispatch script.execute = root RCE. The check must be in
+    // dispatchAction (covers sync/async/bulk/batch), not only at the route level.
     const dispatcher = readFileSync(resolve(backendSrc, "services/action-dispatcher.ts"), "utf8");
     expect(dispatcher).toContain("checkRoleForAction");
 
     const priv = readFileSync(resolve(backendSrc, "services/privileged-actions.ts"), "utf8");
     expect(priv).toContain("checkRoleForAction");
-    // script.execute doit etre reserve ADMIN.
+    // script.execute must be reserved to ADMIN.
     expect(priv).toContain("ADMIN_ONLY_ACTIONS");
     expect(priv).toMatch(/ADMIN_ONLY_ACTIONS[\s\S]*script\.execute/);
-    // READONLY borné à la liste lecture seule (source unique : READ_ONLY_ACTIONS,
-    // machine-manager.ts — anciennement PROBE_ALLOWED_ACTIONS avant le retrait du
-    // type PROBE ; même liste, vrai rôle « read-only »).
+    // READONLY bound to the read-only list (single source: READ_ONLY_ACTIONS,
+    // machine-manager.ts — formerly PROBE_ALLOWED_ACTIONS before the PROBE type
+    // was removed; same list, real "read-only" role).
     expect(priv).toContain("READ_ONLY_ACTIONS");
   });
 
   it("enforces access centrally at backend dispatch (single agent type, no agent-side probe gate)", () => {
-    // Le type PROBE a été retiré : un seul type d'agent. Le contrôle d'accès n'est
-    // plus une whitelist dupliquée côté agent (defense-in-depth supprimée avec le
-    // PROBE) mais le RBAC central de dispatchAction (READONLY borné à READ_ONLY_ACTIONS,
-    // OPERATOR aux mutations, ADMIN-only sur script.execute). On vérifie que l'agent
-    // ne porte PLUS de gate de type, et que le backend porte la frontière.
+    // The PROBE type was removed: a single agent type. Access control is no
+    // longer a whitelist duplicated on the agent side (defense-in-depth removed
+    // with PROBE) but the central RBAC of dispatchAction (READONLY bound to
+    // READ_ONLY_ACTIONS, OPERATOR for mutations, ADMIN-only on script.execute).
+    // We verify that the agent NO LONGER carries a type gate, and that the
+    // backend holds the boundary.
     const mainGo = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
     expect(mainGo).not.toContain("probeAllowedActions");
     expect(mainGo).not.toContain("action not allowed in probe mode");
@@ -143,7 +144,7 @@ describe("Security Audit — Agent Hardening", () => {
   });
 
   it("should have secure sudoers without dangerous wildcards", () => {
-    // Script réellement servi aux agents (pas l'ancien agent/deploy/install.sh).
+    // Script actually served to the agents (not the old agent/deploy/install.sh).
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     // apt-get update should NOT have wildcard
     expect(content).toMatch(/apt-get update\n/);
@@ -151,20 +152,20 @@ describe("Security Audit — Agent Hardening", () => {
     expect(content).toContain("NOEXEC:");
     // kill should use explicit signals
     expect(content).toContain("/bin/kill -SIGTERM");
-    // Scripts in dedicated dir, not /tmp. Depuis NEXUS-AGENT-005 la règle sudoers
-    // `bash …/nexus-script-*.sh` est OPT-IN (--allow-remote-script) et émise via
-    // $AGENT_SCRIPT_DIR hors du heredoc statique : on ne vérifie donc plus un
-    // chemin littéral toujours présent, mais que le répertoire d'état dédié et le
-    // motif de nom restent utilisés (la garantie « pas /tmp » côté agent est
-    // testée séparément sur script_execute.go).
+    // Scripts in dedicated dir, not /tmp. Since NEXUS-AGENT-005 the sudoers rule
+    // `bash …/nexus-script-*.sh` is OPT-IN (--allow-remote-script) and emitted via
+    // $AGENT_SCRIPT_DIR outside the static heredoc: so we no longer check for a
+    // literal path always present, but that the dedicated state directory and the
+    // name pattern remain used (the "no /tmp" guarantee on the agent side is
+    // tested separately on script_execute.go).
     expect(content).toMatch(/AGENT_SCRIPT_DIR="\/var\/lib\/nexus-agent"/);
     expect(content).toContain("nexus-script-*.sh");
     // Uses mktemp instead of hardcoded /tmp path
     expect(content).toContain("mktemp");
-    // upgrade/update must use EXACT args (no trailing wildcard → pas d'injection -o)
+    // upgrade/update must use EXACT args (no trailing wildcard → no -o injection)
     expect(content).not.toMatch(/apt-get upgrade -y \*/);
     expect(content).toContain("/usr/bin/apt-get upgrade -y -q");
-    // Les clés privées TLS ne doivent JAMAIS être lisibles via sudo cat
+    // TLS private keys must NEVER be readable via sudo cat
     expect(content).not.toContain("/etc/ssl/private/");
     expect(content).not.toMatch(/cat \/etc\/letsencrypt\/live\/\*\/\*\.pem/);
     expect(content).not.toMatch(/cat \/etc\/nginx\/ssl\/\*$/m);
@@ -172,11 +173,11 @@ describe("Security Audit — Agent Hardening", () => {
 
   it("should enforce mandatory server key pinning in the agent", () => {
     const mainGo = readFileSync(resolve(agentDir, "cmd/nexus-agent/main.go"), "utf8");
-    // Boot fatal si pas de clé serveur (plus de simple WARNING)
+    // Fatal at boot if no server key (no longer a mere WARNING)
     expect(mainGo).toMatch(/ServerPublicKey == ""/);
     expect(mainGo).toContain("log.Fatal");
     const enroll = readFileSync(resolve(agentDir, "internal/security/enrollment.go"), "utf8");
-    // Enrollement refusé sans clé pinnée + ECDH contre la clé pinnée
+    // Enrollment refused without a pinned key + ECDH against the pinned key
     expect(enroll).toMatch(/serverPublicKeyPEM == ""/);
     expect(enroll).toContain("pinnedServerKey");
   });
@@ -188,19 +189,19 @@ describe("Security Audit — Agent Hardening", () => {
   });
 
   it("should have restricted systemd sandbox without blocking sudo/apt", () => {
-    // Unité systemd embarquée dans le script d'install réellement servi.
+    // systemd unit embedded in the install script actually served.
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    // NEXUS-AGENT-002 — least-privilege : le process agent non-root n'a AUCUNE
-    // capability ambiante dangereuse (DAC_READ_SEARCH / SYS_PTRACE retirées).
+    // NEXUS-AGENT-002 — least-privilege: the non-root agent process has NO
+    // dangerous ambient capability (DAC_READ_SEARCH / SYS_PTRACE removed).
     const ambient = content.split("\n").find((l) => l.startsWith("AmbientCapabilities=")) ?? "";
     expect(ambient).not.toMatch(/CAP_DAC_READ_SEARCH|CAP_SYS_PTRACE/);
-    // Bounding set en NÉGATION (~) : retire les 2 caps d'attaque de toute l'unité
-    // (drift-guard) SANS plafonner les enfants sudo — un allow-list aurait cassé
-    // apt/netplan/useradd (chown, fowner, dac_override, setuid…).
+    // Bounding set in NEGATION (~): removes the 2 attack caps from the whole unit
+    // (drift-guard) WITHOUT capping the sudo children — an allow-list would have
+    // broken apt/netplan/useradd (chown, fowner, dac_override, setuid…).
     expect(content).toMatch(/CapabilityBoundingSet=~[^\n]*CAP_DAC_READ_SEARCH[^\n]*CAP_SYS_PTRACE/);
-    // Pas de ProtectSystem=strict : casserait les écritures sudo (apt/netplan/users)
+    // No ProtectSystem=strict: would break the sudo writes (apt/netplan/users)
     expect(content).not.toContain("ProtectSystem=strict");
-    // Sandbox reste actif via les autres directives
+    // Sandbox stays active via the other directives
     expect(content).toContain("ProtectHome=true");
     expect(content).toContain("ProtectKernelModules=true");
     expect(content).toContain("LockPersonality=true");
@@ -323,7 +324,7 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
   it("should have a read-only security.audit agent action that parses Lynis", () => {
     const content = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
     expect(content).toContain('"security.audit"');
-    // Lecture seule : audit non interactif (--quick), sortie streamée, jamais de remédiation
+    // Read-only: non-interactive audit (--quick), streamed output, never any remediation
     expect(content).toContain("audit");
     expect(content).toContain("--quick");
     expect(content).toContain("lynis-report.dat");
@@ -345,12 +346,12 @@ describe("Security hardening module (Lynis audit — MVP)", () => {
 
   it("should expose the security audit in the frontend (SecurityTab + api)", () => {
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
-    expect(tab).toContain("SecurityAuditDialog"); // modal de progression
+    expect(tab).toContain("SecurityAuditDialog"); // progress modal
     expect(tab).toContain("hardening_index");
     const dialog = readFileSync(resolve(frontendSrc, "components/SecurityAuditDialog.tsx"), "utf8");
     expect(dialog).toContain("securityAudit");
     const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    // securityAudit appelle la route dédiée /security/audit (dispatch async).
+    // securityAudit calls the dedicated /security/audit route (async dispatch).
     expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/);
   });
 });
@@ -386,7 +387,7 @@ describe("Security hardening remediations (Phase 2 — fail2ban / auto-updates)"
     expect(apiFile).toMatch(/enableAutoUpdates[\s\S]*security\.enable_auto_updates/);
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("hardenFail2ban");
-    // i18n : titre externalisé en clé security:remediations.title (label FR dans le JSON).
+    // i18n: title externalized to key security:remediations.title (FR label in the JSON).
     expect(tab).toContain("remediations.title");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
     expect(fr).toContain("Remédiations recommandées");
@@ -401,11 +402,11 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     expect(content).toContain("HandleSshdConfirm");
     expect(content).toContain("RecoverPendingSshd");
     expect(content).toContain("time.AfterFunc");
-    // Anti-lock-out : sshd -t AVANT reload, et reload par SIGHUP (pas systemctl)
+    // Anti-lock-out: sshd -t BEFORE reload, and reload via SIGHUP (not systemctl)
     expect(content).toMatch(/sshd.*-t/);
     expect(content).toContain("SIGHUP");
     expect(content).toContain("99-nexus-hardening.conf");
-    // Ne touche PAS l'auth (pas de désactivation password/root login dans le drop-in)
+    // Does NOT touch auth (no disabling of password/root login in the drop-in)
     expect(content).not.toContain("PasswordAuthentication no");
     expect(content).not.toContain("PermitRootLogin no");
   });
@@ -418,7 +419,7 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
 
   it("should keep systemctl reload/restart of ssh BLOCKED in sudoers (anti-lockout)", () => {
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
-    // sshd -t + drop-in install/rm whitelistés
+    // sshd -t + drop-in install/rm whitelisted
     expect(content).toContain("/usr/sbin/sshd -t");
     expect(content).toContain("/etc/ssh/sshd_config.d/99-nexus-hardening.conf");
     // AGENT-006: anti-lockout now enforced in the compiled privhelper (option-
@@ -449,7 +450,7 @@ describe("SSH hardening with watchdog-revert (Phase 2.2)", () => {
     expect(apiFile).toContain("sshdConfirm");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("sshdHarden");
-    // i18n : bouton de confirmation externalisé en clé security:watchdog.confirmButton.
+    // i18n: confirmation button externalized to key security:watchdog.confirmButton.
     expect(tab).toContain("watchdog.confirmButton");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
     expect(fr).toContain("Confirmer");
@@ -474,9 +475,9 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
   it("should apply a firewall policy via the existing watchdog (one snapshot, revert on failure)", () => {
     const content = readFileSync(resolve(agentDir, "internal/actions/firewall.go"), "utf8");
     expect(content).toContain('"firewall.apply_policy"');
-    expect(content).toContain("registerPendingRevert"); // réutilise le watchdog existant
-    expect(content).toContain("restoreFromSnapshot"); // revert immédiat sur échec
-    expect(content).toContain("firewallPortRegex"); // validation stricte des ports
+    expect(content).toContain("registerPendingRevert"); // reuses the existing watchdog
+    expect(content).toContain("restoreFromSnapshot"); // immediate revert on failure
+    expect(content).toContain("firewallPortRegex"); // strict port validation
   });
 
   it("should NOT classify firewall.apply_policy as read-only (it mutates)", () => {
@@ -495,7 +496,7 @@ describe("Firewall assistant (Phase 2.3 — listening services -> policy)", () =
     expect(apiFile).toMatch(/firewallApplyPolicy[\s\S]*firewall\.apply_policy/);
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("Assistant pare-feu");
-    expect(tab).toContain("firewallConfirm"); // confirm réutilisé
+    expect(tab).toContain("firewallConfirm"); // reused confirm
   });
 });
 
@@ -504,7 +505,7 @@ describe("Security scan history & trend (Phase 3)", () => {
     const schema = readFileSync(resolve(backendSrc, "../prisma/schema.prisma"), "utf8");
     expect(schema).toContain("model SecurityScan {");
     expect(schema).toContain("hardeningIndex");
-    expect(schema).toMatch(/securityScans\s+SecurityScan\[\]/); // relation côté Machine
+    expect(schema).toMatch(/securityScans\s+SecurityScan\[\]/); // relation on the Machine side
     const mig = resolve(backendSrc, "../prisma/migrations/20260624120000_add_security_scan/migration.sql");
     expect(existsSync(mig)).toBe(true);
     expect(readFileSync(mig, "utf8")).toContain('CREATE TABLE "SecurityScan"');
@@ -514,8 +515,8 @@ describe("Security scan history & trend (Phase 3)", () => {
     const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
     expect(route).toContain("/api/machines/:id/security/audit");
     expect(route).toContain("/api/machines/:id/security/scans");
-    // La persistance est faite à la réception de la réponse agent (async),
-    // dans le service security-scan (appelé par handleActionResponse).
+    // Persistence happens on receipt of the agent response (async),
+    // in the security-scan service (called by handleActionResponse).
     const svc = readFileSync(resolve(backendSrc, "services/security-scan.ts"), "utf8");
     expect(svc).toContain("securityScan.create");
     const handler = readFileSync(resolve(backendSrc, "websocket/handler.ts"), "utf8");
@@ -525,14 +526,14 @@ describe("Security scan history & trend (Phase 3)", () => {
   });
 
   it("should stream the audit live via WebSocket (async, no blocking HTTP / 504)", () => {
-    // L'audit est dispatché en async (renvoie request_id) ; progression et
-    // résultat arrivent via WS — plus de waitForResponse côté route.
+    // The audit is dispatched async (returns request_id); progress and result
+    // arrive via WS — no more waitForResponse on the route side.
     const route = readFileSync(resolve(backendSrc, "routes/security.ts"), "utf8");
     expect(route).not.toContain("waitForResponse");
     const handler = readFileSync(resolve(backendSrc, "websocket/handler.ts"), "utf8");
     expect(handler).toContain("security.audit.progress");
     expect(handler).toContain("security.audit.result");
-    // La modal de progression écoute le stream WS (console live, comme la MAJ agent).
+    // The progress modal listens to the WS stream (live console, like the agent upgrade).
     const dialog = readFileSync(resolve(frontendSrc, "components/SecurityAuditDialog.tsx"), "utf8");
     expect(dialog).toContain("useWebSocket");
     expect(dialog).toContain("security.audit.progress");
@@ -540,11 +541,11 @@ describe("Security scan history & trend (Phase 3)", () => {
 
   it("should render a hardening trend chart from history in the frontend", () => {
     const apiFile = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/); // route persistante
+    expect(apiFile).toMatch(/securityAudit[\s\S]*security\/audit/); // persistent route
     expect(apiFile).toContain("securityScans");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("HardeningTrend");
-    // i18n : titre externalisé en clé security:trend.title.
+    // i18n: title externalized to key security:trend.title.
     expect(tab).toContain("trend.title");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
     expect(fr).toContain("Tendance de l'indice");
@@ -566,15 +567,15 @@ describe("Hardening regression alert (Phase 3.2b)", () => {
     const engine = readFileSync(resolve(backendSrc, "services/alert-engine.ts"), "utf8");
     expect(engine).toContain("evaluateHardeningAlerts");
     expect(engine).toContain("HARDENING_CHECK_CONDITIONS");
-    // Lecture du dernier scan persisté, pas de dispatchActionSync ici.
+    // Reads the latest persisted scan, no dispatchActionSync here.
     expect(engine).toMatch(/securityScan\.findFirst/);
   });
 
   it("should wire the hardening evaluator (periodic + after each audit)", () => {
     const index = readFileSync(resolve(backendSrc, "index.ts"), "utf8");
-    expect(index).toContain("evaluateHardeningAlerts"); // interval périodique
-    // Déclenché après chaque audit : recordSecurityScan (à la réception de la
-    // réponse agent) appelle evaluateHardeningAlerts.
+    expect(index).toContain("evaluateHardeningAlerts"); // periodic interval
+    // Triggered after each audit: recordSecurityScan (on receipt of the agent
+    // response) calls evaluateHardeningAlerts.
     const svc = readFileSync(resolve(backendSrc, "services/security-scan.ts"), "utf8");
     expect(svc).toContain("evaluateHardeningAlerts");
   });
@@ -587,38 +588,38 @@ describe("Hardening regression alert (Phase 3.2b)", () => {
   });
 });
 
-describe("Security — remédiation bannière légale (1-clic)", () => {
-  it("agent: action security.set_login_banner + détection d'état", () => {
+describe("Security — legal login banner remediation (1-click)", () => {
+  it("agent: action security.set_login_banner + state detection", () => {
     const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
     expect(h).toContain('"security.set_login_banner"');
     expect(h).toContain("SetLoginBannerAction");
     expect(h).toContain("func loginBannerSet()");
     expect(h).toContain("/etc/issue.net");
-    expect(h).toContain('params["text"]'); // bannière configurable
+    expect(h).toContain('params["text"]'); // configurable banner
     const audit = readFileSync(resolve(agentDir, "internal/actions/security_audit.go"), "utf8");
     expect(audit).toContain('parsed["login_banner_set"]');
   });
 
-  it("sudoers: install whitelisté pour /etc/issue et /etc/issue.net", () => {
+  it("sudoers: install whitelisted for /etc/issue and /etc/issue.net", () => {
     const s = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     expect(s).toMatch(/sec-banner-\*\.tmp \/etc\/issue\b/);
     expect(s).toContain("sec-banner-*.tmp /etc/issue.net");
   });
 
-  it("frontend: api + carte de remédiation", () => {
+  it("frontend: api + remediation card", () => {
     const api = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
     expect(api).toContain("setLoginBanner");
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("login_banner_set");
-    // i18n : libellé externalisé en clé security:remediations.bannerLabel (FR dans le JSON).
+    // i18n: label externalized to key security:remediations.bannerLabel (FR in the JSON).
     expect(tab).toContain("remediations.bannerLabel");
     const frSec = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
     expect(frSec).toContain("Bannière légale");
   });
 });
 
-describe("Security — remédiations durcissement + doc inline", () => {
-  it("agent: actions core_dumps + login_defs", () => {
+describe("Security — hardening remediations + inline doc", () => {
+  it("agent: core_dumps + login_defs actions", () => {
     const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
     expect(h).toContain('"security.disable_core_dumps"');
     expect(h).toContain('"security.harden_login_defs"');
@@ -629,14 +630,14 @@ describe("Security — remédiations durcissement + doc inline", () => {
     expect(audit).toContain('parsed["login_defs_hardened"]');
   });
 
-  it("sudoers: install + sysctl whitelistés", () => {
+  it("sudoers: install + sysctl whitelisted", () => {
     const s = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     expect(s).toContain("99-nexus-nocore.conf");
     expect(s).toContain("/usr/sbin/sysctl -p /etc/sysctl.d/99-nexus-coredump.conf");
     expect(s).toContain("sec-logindefs-*.tmp /etc/login.defs");
   });
 
-  it("frontend: cartes + lien doc Lynis sur chaque finding", () => {
+  it("frontend: cards + Lynis doc link on each finding", () => {
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("core_dumps_disabled");
     expect(tab).toContain("login_defs_hardened");
@@ -644,37 +645,37 @@ describe("Security — remédiations durcissement + doc inline", () => {
   });
 });
 
-describe("Pare-feu : exclusion des ports gérés par Docker", () => {
-  it("agent: marque docker_managed (docker-proxy/dockerd)", () => {
+describe("Firewall: exclusion of Docker-managed ports", () => {
+  it("agent: marks docker_managed (docker-proxy/dockerd)", () => {
     const n = readFileSync(resolve(agentDir, "internal/actions/network_listening.go"), "utf8");
     expect(n).toContain("DockerManaged");
     expect(n).toContain("docker-proxy");
     expect(n).toContain('json:"docker_managed"');
   });
-  it("frontend: sépare et exclut les services Docker de la politique ufw", () => {
+  it("frontend: separates and excludes Docker services from the ufw policy", () => {
     const tab = readFileSync(resolve(frontendSrc, "components/SecurityTab.tsx"), "utf8");
     expect(tab).toContain("docker_managed");
     expect(tab).toContain("fwDockerServices");
-    // i18n : hint externalisé en clé security:firewallWizard.dockerHint (FR dans le JSON).
+    // i18n: hint externalized to key security:firewallWizard.dockerHint (FR in the JSON).
     expect(tab).toContain("firewallWizard.dockerHint");
     const fr = readFileSync(resolve(frontendSrc, "i18n/locales/fr/security.json"), "utf8");
     expect(fr).toContain("chaîne DOCKER");
   });
 });
 
-describe("Durcissement SSH : aperçu (dry-run) avant application", () => {
-  it("agent: sshd.harden gère dry_run (renvoie le contenu, sans appliquer)", () => {
+describe("SSH hardening: preview (dry-run) before applying", () => {
+  it("agent: sshd.harden handles dry_run (returns the content, without applying)", () => {
     const s = readFileSync(resolve(agentDir, "internal/actions/ssh_harden.go"), "utf8");
     expect(s).toContain('params["dry_run"]');
     expect(s).toContain('"content":');
   });
-  it("agent: dry-run générique (core-dumps/login.defs/auto-updates)", () => {
+  it("agent: generic dry-run (core-dumps/login.defs/auto-updates)", () => {
     const h = readFileSync(resolve(agentDir, "internal/actions/security_harden.go"), "utf8");
     expect(h).toContain("func dryRunChanges");
     expect(h).toContain("func isDryRun");
   });
 
-  it("frontend: aperçu inline générique (dry-run) + bouton Voir + panneau", () => {
+  it("frontend: generic inline preview (dry-run) + View button + panel", () => {
     const api = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
     expect(api).toContain("remediationPreview");
     expect(api).toContain("dry_run: true");

@@ -1,5 +1,5 @@
-// Gestionnaire de réponses d'actions
-// Permet d'attendre la réponse d'un agent après un dispatch
+// Action response manager
+// Allows waiting for an agent's response after a dispatch
 
 interface PendingRequest {
   resolve: (data: any) => void;
@@ -9,12 +9,12 @@ interface PendingRequest {
 
 const pending = new Map<string, PendingRequest>();
 
-// Tampon des réponses arrivées AVANT que waitForResponse ne soit enregistré.
-// Race : dispatchAction envoie l'action à l'agent puis `await` (audit log) avant
-// que la route n'appelle waitForResponse. Pour une action instantanée (dry-run),
-// l'agent répond pendant cet await → sans tampon la réponse arriverait dans le
-// vide et provoquerait un timeout systématique. On la garde ici brièvement pour
-// que waitForResponse la consomme dès son appel (l'ordre n'importe plus).
+// Buffer for responses that arrive BEFORE waitForResponse is registered.
+// Race: dispatchAction sends the action to the agent then `await`s (audit log)
+// before the route calls waitForResponse. For an instant action (dry-run), the
+// agent responds during that await → without a buffer the response would arrive
+// into the void and cause a systematic timeout. We keep it here briefly so
+// waitForResponse consumes it as soon as it's called (order no longer matters).
 interface EarlyResponse {
   payload: any;
   at: number;
@@ -42,13 +42,13 @@ function settle(
   }
 }
 
-// Enregistrer une attente de réponse pour un request_id
+// Register a wait for a response for a given request_id
 export function waitForResponse(
   requestId: string,
   timeoutMs: number = 30_000
 ): Promise<any> {
   return new Promise((resolve, reject) => {
-    // La réponse est-elle déjà arrivée (agent ultra-rapide, ex. dry-run) ?
+    // Has the response already arrived (ultra-fast agent, e.g. dry-run)?
     const early = earlyResponses.get(requestId);
     if (early) {
       earlyResponses.delete(requestId);
@@ -65,12 +65,12 @@ export function waitForResponse(
   });
 }
 
-// Appelé quand l'agent renvoie une réponse
+// Called when the agent returns a response
 export function resolveResponse(requestId: string, payload: any): boolean {
   const req = pending.get(requestId);
   if (!req) {
-    // Réponse arrivée avant l'enregistrement de l'attente (action instantanée) :
-    // on la met en tampon pour que waitForResponse la consomme dès son appel.
+    // Response arrived before the wait was registered (instant action):
+    // buffer it so waitForResponse consumes it as soon as it's called.
     const now = Date.now();
     sweepEarlyResponses(now);
     earlyResponses.set(requestId, { payload, at: now });

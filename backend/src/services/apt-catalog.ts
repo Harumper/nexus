@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { prisma } from "./database.js";
 import { assertSafeOutboundUrl, safeFetch } from "./net-guard.js";
 
-// Repos Ubuntu a ingerer. Chaque combinaison (suite × component × arch) donne un Packages.gz.
+// Ubuntu repos to ingest. Each combination (suite × component × arch) yields one Packages.gz.
 interface Source {
   baseUrl: string;
   suite: string;
@@ -33,7 +33,7 @@ interface ParsedPackage {
   size: number | null;
 }
 
-// Parse un paragraphe RFC822 Debian Packages (blocs separes par "\n\n")
+// Parse an RFC822 Debian Packages paragraph (blocks separated by "\n\n")
 function parseParagraph(para: string, source: Source): ParsedPackage | null {
   const fields = new Map<string, string>();
   let currentKey: string | null = null;
@@ -41,10 +41,10 @@ function parseParagraph(para: string, source: Source): ParsedPackage | null {
 
   for (const line of para.split("\n")) {
     if (line.startsWith(" ") || line.startsWith("\t")) {
-      // Continuation de la ligne precedente
+      // Continuation of the previous line
       if (currentKey) currentVal.push(line.trim());
     } else {
-      // Nouvelle cle
+      // New key
       if (currentKey) fields.set(currentKey, currentVal.join("\n"));
       const m = line.match(/^([A-Za-z0-9-]+):\s*(.*)$/);
       if (m) {
@@ -81,11 +81,11 @@ function parseParagraph(para: string, source: Source): ParsedPackage | null {
 
 async function downloadPackages(source: Source): Promise<string> {
   const url = `${source.baseUrl}/dists/${source.suite}/${source.component}/binary-${source.arch}/Packages.gz`;
-  // WEB-AUTHZ-001 — invariant « toute URL sortante est validée, sans exception » :
-  // le miroir APT (baseUrl) passe par le même egress guard que les webhooks. Bloque
-  // les cibles en réseau privé / métadonnées même si la surface qui définit baseUrl
-  // évolue. Les défauts (archive/security.ubuntu.com) sont publics → aucun impact ;
-  // un miroir interne (10.x) sera couvert par la future allow-list opérateur.
+  // WEB-AUTHZ-001 — invariant "every outbound URL is validated, no exception":
+  // the APT mirror (baseUrl) goes through the same egress guard as webhooks. Blocks
+  // private-network / metadata targets even if the surface that defines baseUrl
+  // evolves. The defaults (archive/security.ubuntu.com) are public → no impact;
+  // an internal mirror (10.x) will be covered by the future operator allow-list.
   assertSafeOutboundUrl(url);
   const res = await safeFetch(url);
   if (!res.ok) {
@@ -113,7 +113,7 @@ async function ingestSource(source: Source): Promise<number> {
   const paragraphs = text.split("\n\n").filter((p) => p.trim().length > 0);
   console.log(`[AptCatalog] Parsing ${paragraphs.length} entries`);
 
-  // Truncate l'ancienne ingestion pour cette source
+  // Truncate the old ingestion for this source
   await prisma.aptPackage.deleteMany({
     where: { suite: source.suite, component: source.component, arch: source.arch },
   });
@@ -164,7 +164,7 @@ export async function refreshAptCatalog(sources: Source[] = DEFAULT_SOURCES): Pr
   }
 }
 
-// Declenche le refresh au demarrage si la table est vide (ingestion initiale)
+// Triggers the refresh at startup if the table is empty (initial ingestion)
 export async function initAptCatalogIfEmpty(): Promise<void> {
   const count = await prisma.aptPackage.count();
   if (count === 0) {

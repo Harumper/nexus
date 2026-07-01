@@ -12,7 +12,7 @@ import {
 } from "../services/crypto.js";
 
 export async function firewallRoutes(app: FastifyInstance): Promise<void> {
-  // Confirme une modification firewall en attente (annule le watchdog-revert)
+  // Confirm a pending firewall change (cancels the watchdog-revert)
   app.post(
     "/api/machines/:id/firewall/confirm",
     {
@@ -37,7 +37,7 @@ export async function firewallRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "Agent is not connected" });
       }
 
-      // Recuperer la cle privee pour signer le message action.confirm
+      // Retrieve the private key to sign the action.confirm message
       const machine = await prisma.machine.findUnique({
         where: { id },
         select: { backendPrivateKey: true },

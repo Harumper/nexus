@@ -1,19 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 
-// NEXUS-WEB-AUTHZ-001 — régression COMPORTEMENTALE du chemin réel, lancée par le CI.
+// NEXUS-WEB-AUTHZ-001 — BEHAVIORAL regression of the real path, run by CI.
 //
-// Le GUARD structurel (pentest) passait à 10/10 alors que le sender webhook réel
-// laissait partir une requête vers une IP privée : undici saute le hook DNS
-// `lookup` quand l'URL est déjà une IP littérale → le blocage de plage privée
-// (qui vivait au lookup) était contourné pour http://10.0.0.1, http://169.254.169.254…
+// The structural GUARD (pentest) passed 10/10 while the real webhook sender
+// still let a request go out to a private IP: undici skips the DNS `lookup` hook
+// when the URL is already a literal IP → the private-range block (which lived at
+// the lookup) was bypassed for http://10.0.0.1, http://169.254.169.254…
 //
-// Ce test exerce le CHEMIN RÉEL (safeFetch + la fonction exportée sendWebhook) et
-// vérifie qu'une cible privée/métadonnées est refusée AVANT toute tentative réseau,
-// avec une erreur [net-guard] (pas un "fetch failed"). Si une future modif
-// re-débranche safeFetch / assertSafeOutboundUrl, ce test casse — en CI.
+// This test exercises the REAL PATH (safeFetch + the exported sendWebhook
+// function) and verifies that a private/metadata target is refused BEFORE any
+// network attempt, with a [net-guard] error (not a "fetch failed"). If a future
+// change re-disconnects safeFetch / assertSafeOutboundUrl, this test breaks — in CI.
 
-// webhook.ts importe prisma (database.js) ; avec customSecret, sendWebhook ne le
-// requête jamais → un mock vide suffit à charger le module hors DB.
+// webhook.ts imports prisma (database.js); with customSecret, sendWebhook never
+// queries it → an empty mock is enough to load the module without a DB.
 vi.mock("../../src/services/database.js", () => ({ prisma: {} }));
 
 import { safeFetch, assertSafeOutboundUrl } from "../../src/services/net-guard.js";
@@ -21,29 +21,29 @@ import { sendWebhook } from "../../src/services/webhook.js";
 
 const PRIVATE_TARGETS = [
   "http://10.0.0.1/test", // RFC1918
-  "http://169.254.169.254/latest/meta-data", // métadonnées cloud
+  "http://169.254.169.254/latest/meta-data", // cloud metadata
   "http://127.0.0.1:6379/", // loopback (redis)
-  "http://[::1]/", // IPv6 loopback littéral
+  "http://[::1]/", // literal IPv6 loopback
   "http://192.168.1.1/",
   "http://172.16.5.5/",
 ];
 
-describe("WEB-AUTHZ-001 — SSRF egress sur le chemin réel (CI)", () => {
-  it("assertSafeOutboundUrl bloque les IP littérales privées/métadonnées (sync, avant I/O)", () => {
+describe("WEB-AUTHZ-001 — SSRF egress on the real path (CI)", () => {
+  it("assertSafeOutboundUrl blocks private/metadata literal IPs (sync, before I/O)", () => {
     for (const u of PRIVATE_TARGETS) {
       expect(() => assertSafeOutboundUrl(u), u).toThrow(/SSRF|blocked/i);
     }
-    // une IP publique littérale reste autorisée (pas de sur-blocage)
+    // a public literal IP stays allowed (no over-blocking)
     expect(() => assertSafeOutboundUrl("http://8.8.8.8/")).not.toThrow();
   });
 
-  it("safeFetch refuse une IP privée avec une erreur net-guard (pas un échec réseau)", async () => {
+  it("safeFetch refuses a private IP with a net-guard error (not a network failure)", async () => {
     for (const u of PRIVATE_TARGETS) {
       await expect(safeFetch(u), u).rejects.toThrow(/\[net-guard\].*SSRF/i);
     }
   });
 
-  it("la VRAIE sendWebhook() refuse une IP privée/métadonnées avant l'envoi", async () => {
+  it("the REAL sendWebhook() refuses a private/metadata IP before sending", async () => {
     await expect(
       sendWebhook("http://10.0.0.1/test", { test: true }, "dummysecret"),
     ).rejects.toThrow(/\[net-guard\].*SSRF/i);

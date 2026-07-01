@@ -12,12 +12,12 @@ import {
 } from "../services/keycloak.js";
 
 /**
- * Extraire le token JWT depuis les sous-protocoles WebSocket.
- * Le frontend envoie : new WebSocket(url, ['nexus-auth', '<token>'])
- * Le header Sec-WebSocket-Protocol contient : "nexus-auth, <token>"
+ * Extract the JWT token from the WebSocket subprotocols.
+ * The frontend sends: new WebSocket(url, ['nexus-auth', '<token>'])
+ * The Sec-WebSocket-Protocol header contains: "nexus-auth, <token>"
  *
- * Utilisé pour Keycloak (le SDK garde le token côté JS) et en fallback
- * pour les anciens clients pré-cookie.
+ * Used for Keycloak (the SDK keeps the token on the JS side) and as a fallback
+ * for old pre-cookie clients.
  */
 function extractTokenFromProtocol(request: IncomingMessage): string | null {
   const protocols = request.headers["sec-websocket-protocol"];
@@ -31,10 +31,9 @@ function extractTokenFromProtocol(request: IncomingMessage): string | null {
 }
 
 /**
- * Extraire le token JWT depuis le cookie httpOnly nexus_token.
- * Le navigateur envoie automatiquement les cookies de même provenance
- * (same-site) lors de l'upgrade WebSocket — pas besoin que le frontend
- * les transmette.
+ * Extract the JWT token from the httpOnly nexus_token cookie.
+ * The browser automatically sends same-site cookies on the WebSocket upgrade —
+ * no need for the frontend to pass them along.
  */
 function extractTokenFromCookie(request: IncomingMessage): string | null {
   const cookieHeader = request.headers.cookie;
@@ -44,26 +43,26 @@ function extractTokenFromCookie(request: IncomingMessage): string | null {
 }
 
 /**
- * Vérifier un token JWT (Keycloak et/ou local selon AUTH_MODE).
- * Réutilise la même logique que auth.ts mais sans dépendre d'un FastifyRequest.
+ * Verify a JWT token (Keycloak and/or local depending on AUTH_MODE).
+ * Reuses the same logic as auth.ts but without depending on a FastifyRequest.
  */
 async function verifyDashboardToken(
   token: string,
   app: FastifyInstance
 ): Promise<{ valid: boolean; exp?: number }> {
-  // 1. Essayer Keycloak si activé
+  // 1. Try Keycloak if enabled
   if (isKeycloakEnabled()) {
     const result = await verifyKeycloakToken(token);
     if (result.valid) return { valid: true, exp: result.payload?.exp };
   }
 
-  // 2. Essayer le JWT local si activé
+  // 2. Try the local JWT if enabled
   if (isLocalAuthEnabled()) {
     try {
       const payload = app.jwt.verify(token) as { sub?: string; exp?: number };
-      // CONTROL-PLANE-002 — revalider l'état du compte en DB comme le middleware
-      // HTTP authenticate() : un compte désactivé/supprimé ne doit pas garder un
-      // WebSocket dashboard authentifié jusqu'à l'expiration du token (jusqu'à 4h).
+      // CONTROL-PLANE-002 — revalidate the account state in the DB like the HTTP
+      // middleware authenticate(): a disabled/deleted account must not keep an
+      // authenticated dashboard WebSocket until the token expires (up to 4h).
       const dbUser = await prisma.user.findUnique({
         where: { id: payload.sub },
         select: { isActive: true },
@@ -72,7 +71,7 @@ async function verifyDashboardToken(
         return { valid: true, exp: payload.exp };
       }
     } catch {
-      // JWT local invalide
+      // Invalid local JWT
     }
   }
 
@@ -80,18 +79,18 @@ async function verifyDashboardToken(
 }
 
 /**
- * Rejeter une connexion WebSocket avec un code HTTP.
+ * Reject a WebSocket connection with an HTTP code.
  */
 function rejectUpgrade(socket: Duplex, code: number, reason: string): void {
   socket.write(`HTTP/1.1 ${code} ${reason}\r\n\r\n`);
   socket.destroy();
 }
 
-// Keepalive WS : un reverse-proxy (Traefik, nginx…) coupe une connexion dont
-// le sens serveur→client reste inactif (les heartbeats agent→serveur ne
-// suffisent pas). On envoie donc un ping périodique vers chaque agent — la lib
-// websocket de l'agent répond automatiquement au pong via sa boucle de lecture.
-// Effet de bord utile : détection des connexions mortes (pas de pong → terminate).
+// WS keepalive: a reverse proxy (Traefik, nginx…) drops a connection whose
+// server→client direction stays idle (the agent→server heartbeats are not
+// enough). So we send a periodic ping to each agent — the agent's websocket lib
+// automatically replies with a pong via its read loop. Useful side effect:
+// detection of dead connections (no pong → terminate).
 const WS_PING_INTERVAL_MS = parseInt(
   process.env.WS_PING_INTERVAL_MS || "30000",
   10
@@ -162,12 +161,12 @@ export function setupWebSocketServer(app: FastifyInstance): void {
   const agentWss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
   const dashboardWss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
-  // Heartbeat ping/pong sur les connexions agents (anti-timeout proxy).
+  // Heartbeat ping/pong on the agent connections (anti proxy-timeout).
   const pingInterval = setInterval(() => {
     for (const ws of agentWss.clients) {
       const sock = ws as typeof ws & { isAlive?: boolean };
       if (sock.isAlive === false) {
-        // Pas de pong depuis le dernier ping → connexion morte.
+        // No pong since the last ping → dead connection.
         ws.terminate();
         continue;
       }
@@ -175,14 +174,14 @@ export function setupWebSocketServer(app: FastifyInstance): void {
       try {
         ws.ping();
       } catch {
-        // socket en cours de fermeture — ignoré
+        // socket closing — ignored
       }
     }
   }, WS_PING_INTERVAL_MS);
-  // Ne pas empêcher l'arrêt du process à cause de ce timer.
+  // Do not prevent the process from exiting because of this timer.
   if (typeof pingInterval.unref === "function") pingInterval.unref();
 
-  // Intercepter les upgrades HTTP pour le WebSocket
+  // Intercept HTTP upgrades for the WebSocket
   app.server.on("upgrade", (request: IncomingMessage, socket: Duplex, head) => {
     const url = request.url || "";
     const pathname = url.split("?")[0];
@@ -204,7 +203,7 @@ export function setupWebSocketServer(app: FastifyInstance): void {
         acquireConnSlot(ip);
         onSocketClosed(ws, ip);
         console.log(`[WS] New agent connection from ${ip}`);
-        // Marqueur de vivacité pour le keepalive ping/pong ci-dessus.
+        // Liveness marker for the keepalive ping/pong above.
         const sock = ws as typeof ws & { isAlive?: boolean };
         sock.isAlive = true;
         ws.on("pong", () => {
@@ -213,8 +212,8 @@ export function setupWebSocketServer(app: FastifyInstance): void {
         handleAgentConnection(ws, ip);
       });
     } else if (pathname === "/ws/dashboard") {
-      // Cookie httpOnly d'abord (auth locale post-migration), puis Sec-WebSocket-Protocol
-      // (Keycloak SDK ou anciens clients).
+      // httpOnly cookie first (local auth post-migration), then Sec-WebSocket-Protocol
+      // (Keycloak SDK or old clients).
       const token =
         extractTokenFromCookie(request) || extractTokenFromProtocol(request);
 
@@ -242,7 +241,7 @@ export function setupWebSocketServer(app: FastifyInstance): void {
             return;
           }
 
-          // Token valide — accepter la connexion avec le sous-protocole nexus-auth
+          // Valid token — accept the connection with the nexus-auth subprotocol
           dashboardWss.handleUpgrade(request, socket, head, (ws) => {
             acquireConnSlot(ip);
             onSocketClosed(ws, ip);

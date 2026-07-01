@@ -68,12 +68,12 @@ export async function sendAlertEmail(
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="padding: 8px 0; color: #6b7280;">Machine</td><td style="padding: 8px 0; font-weight: bold;">${alert.machineName}</td></tr>
           <tr><td style="padding: 8px 0; color: #6b7280;">Condition</td><td style="padding: 8px 0;">${alert.details.conditionType || "N/A"}</td></tr>
-          <tr><td style="padding: 8px 0; color: #6b7280;">Valeur</td><td style="padding: 8px 0;">${alert.details.value ?? "N/A"}</td></tr>
-          <tr><td style="padding: 8px 0; color: #6b7280;">Seuil</td><td style="padding: 8px 0;">${alert.details.threshold ?? "N/A"}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Value</td><td style="padding: 8px 0;">${alert.details.value ?? "N/A"}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Threshold</td><td style="padding: 8px 0;">${alert.details.threshold ?? "N/A"}</td></tr>
           <tr><td style="padding: 8px 0; color: #6b7280;">Date</td><td style="padding: 8px 0;">${new Date(alert.firedAt).toLocaleString("fr-FR")}</td></tr>
         </table>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;">
-        <p style="color: #9ca3af; font-size: 12px; margin: 0;">Envoy\u00e9 par Nexus Infrastructure Manager</p>
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">Sent by Nexus Infrastructure Manager</p>
       </div>
     </div>
   `;

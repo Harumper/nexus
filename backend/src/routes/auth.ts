@@ -11,7 +11,7 @@ import {
 import { isUserPrivilegeMgmtEnabled, isRemoteScriptAllowed } from "../services/privileged-actions.js";
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  // Auth config (le frontend demande comment s'authentifier)
+  // Auth config (the frontend asks how to authenticate)
   app.get("/api/auth/config", async (_request, reply) => {
     const authMode = process.env.AUTH_MODE || "local";
     const keycloakEndpoints = isKeycloakEnabled()
@@ -29,17 +29,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           }
         : null,
       features: {
-        // Gestion des clés SSH / sudo via l'UI (désactivé par défaut, ADMIN only).
-        // Purement indicatif pour le front : le vrai contrôle est dans dispatchAction().
+        // SSH key / sudo management via the UI (disabled by default, ADMIN only).
+        // Purely indicative for the front end: the real control is in dispatchAction().
         userPrivilegeMgmt: isUserPrivilegeMgmtEnabled(),
-        // Exécution distante de script (désactivé par défaut, ADMIN only, scripts
-        // signés). Indicatif ; backend autoritaire (dispatchAction + signature agent).
+        // Remote script execution (disabled by default, ADMIN only, signed
+        // scripts). Indicative; the backend is authoritative (dispatchAction + agent signature).
         remoteScript: isRemoteScriptAllowed(),
       },
     });
   });
 
-  // Login local (seulement si AUTH_MODE=local ou both)
+  // Local login (only if AUTH_MODE=local or both)
   app.post(
     "/api/auth/login",
     {
@@ -104,21 +104,21 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         details: { provider: "local" },
       });
 
-      // JWT en cookie httpOnly : protégé du JS (XSS), envoyé automatiquement
-      // par le navigateur sur chaque requête same-origin. SameSite=Strict bloque
-      // les attaques CSRF cross-site. Secure activé en prod (HTTPS only).
+      // JWT in an httpOnly cookie: protected from JS (XSS), sent automatically
+      // by the browser on every same-origin request. SameSite=Strict blocks
+      // cross-site CSRF attacks. Secure enabled in prod (HTTPS only).
       reply.setCookie("nexus_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
         path: "/",
-        maxAge: 4 * 60 * 60, // 4h en secondes (aligné sur expiresIn JWT)
+        maxAge: 4 * 60 * 60, // 4h in seconds (aligned with the JWT expiresIn)
       });
 
       return reply.send({
-        // Token retourné aussi pour rétro-compat (clients existants qui le lisent
-        // via sessionStorage). Les nouveaux clients ignorent ce champ et lisent
-        // le cookie httpOnly.
+        // Token also returned for backward compat (existing clients that read it
+        // via sessionStorage). New clients ignore this field and read the
+        // httpOnly cookie.
         token,
         user: {
           id: user.id,
@@ -130,8 +130,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Logout : clear le cookie httpOnly. Pas de side-effect côté DB (le JWT
-  // reste valide jusqu'à expiration mais le navigateur l'oublie).
+  // Logout: clear the httpOnly cookie. No DB side-effect (the JWT stays
+  // valid until expiration but the browser forgets it).
   app.post(
     "/api/auth/logout",
     { preHandler: [requireAuth] },
@@ -151,7 +151,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Current user (fonctionne avec les deux types de tokens)
+  // Current user (works with both token types)
   app.get(
     "/api/auth/me",
     { preHandler: [requireAuth] },
@@ -164,7 +164,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         email?: string;
       };
 
-      // Si auth Keycloak, pas de user en BDD locale
+      // If Keycloak auth, no user in the local DB
       if (payload.provider === "keycloak") {
         return reply.send({
           id: payload.sub,
@@ -175,7 +175,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Auth locale : chercher en BDD
+      // Local auth: look up in the DB
       const user = await prisma.user.findUnique({
         where: { id: payload.sub },
         select: {

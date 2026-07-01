@@ -9,7 +9,7 @@ export function registerSession(
   ws: WebSocket,
   ip: string
 ): void {
-  // Fermer la session existante si présente
+  // Close the existing session if present
   const existing = sessions.get(machineId);
   if (existing) {
     try {

@@ -9,7 +9,7 @@ import {
 } from "../services/nautilus-integration.js";
 
 export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
-  // Retourne la config actuelle (url, enabled, token masque)
+  // Returns the current config (url, enabled, masked token)
   app.get(
     "/api/integrations/nautilus/config",
     { preHandler: [requireAuth] },
@@ -18,13 +18,13 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({
         enabled: cfg.enabled,
         url: cfg.url,
-        // Ne jamais retourner le token en clair. Juste l'info qu'il est set.
+        // Never return the token in clear text. Just whether it is set.
         tokenConfigured: cfg.token !== null,
       });
     }
   );
 
-  // Met a jour la config (ADMIN)
+  // Update the config (ADMIN)
   app.put(
     "/api/integrations/nautilus/config",
     {
@@ -59,7 +59,7 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
         );
       }
       if (body.url !== undefined) {
-        // Validation URL minimale
+        // Minimal URL validation
         try {
           new URL(body.url);
         } catch {
@@ -74,18 +74,18 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
         );
       }
       if (body.token !== undefined) {
-        // Si token est null ou vide, on supprime le setting
+        // If token is null or empty, delete the setting
         if (body.token === null || body.token === "") {
           updates.push(
             prisma.setting
               .delete({ where: { key: NAUTILUS_SETTINGS_KEYS.TOKEN } })
               .catch((err) => {
-                // P2025 = record not found, légitime quand on supprime un token absent
+                // P2025 = record not found, legitimate when deleting an absent token
                 if (err?.code !== "P2025") console.error("[Nautilus] token delete failed:", err);
               })
           );
         } else {
-          // Chiffré au repos avec le master secret (comme les clés privées agent).
+          // Encrypted at rest with the master secret (like agent private keys).
           const encrypted = encryptAES(body.token, process.env.ECDSA_MASTER_SECRET!);
           updates.push(
             prisma.setting.upsert({
@@ -107,7 +107,7 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Test la connexion Nautilus (ADMIN)
+  // Test the Nautilus connection (ADMIN)
   app.post(
     "/api/integrations/nautilus/test",
     { preHandler: [requireAdmin] },
@@ -130,7 +130,7 @@ export async function integrationsRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // Retourne le snapshot courant (utilise par la page Containers)
+  // Returns the current snapshot (used by the Containers page)
   app.get(
     "/api/integrations/nautilus/snapshot",
     { preHandler: [requireAuth] },

@@ -1,7 +1,7 @@
-// Protections additionnelles pour les machines critiques (flag Machine.isCritical).
-// Bloque les actions qui peuvent rendre la machine inaccessible.
+// Additional protections for critical machines (Machine.isCritical flag).
+// Blocks actions that could make the machine inaccessible.
 
-// Services dont l'arret casserait Nexus ou la prod critique.
+// Services whose stop would break Nexus or critical production.
 const CRITICAL_SERVICES = new Set([
   "docker",
   "docker.service",
@@ -21,7 +21,7 @@ const CRITICAL_SERVICES = new Set([
   "keycloak.service",
 ]);
 
-// Paquets dont le retrait casserait la machine ou Nexus.
+// Packages whose removal would break the machine or Nexus.
 const CRITICAL_PACKAGES = new Set([
   "docker-ce",
   "docker-ce-cli",
@@ -40,7 +40,7 @@ const CRITICAL_PACKAGES = new Set([
   "apt",
 ]);
 
-// Actions toujours bloquees sur machine critique.
+// Actions always blocked on a critical machine.
 const ALWAYS_BLOCKED = new Set([
   "system.reboot",
 ]);
@@ -51,8 +51,8 @@ export interface ProtectionCheckResult {
 }
 
 /**
- * Verifie si une action peut etre executee sur une machine critique.
- * Si la machine n'est pas critique, toutes les actions sont autorisees.
+ * Checks whether an action can be executed on a critical machine.
+ * If the machine is not critical, all actions are allowed.
  */
 export function checkCriticalProtection(
   isCritical: boolean,
@@ -68,7 +68,7 @@ export function checkCriticalProtection(
     };
   }
 
-  // service_stop / service_restart sur un service critique
+  // service_stop / service_restart on a critical service
   if (actionId === "system.service_stop" || actionId === "system.service_restart") {
     const service = typeof params?.service === "string" ? params.service : "";
     const normalized = service.replace(/\.service$/, "");
@@ -80,7 +80,7 @@ export function checkCriticalProtection(
     }
   }
 
-  // package.remove sur un paquet critique
+  // package.remove on a critical package
   if (actionId === "package.remove") {
     const name = typeof params?.name === "string" ? params.name : "";
     if (CRITICAL_PACKAGES.has(name)) {

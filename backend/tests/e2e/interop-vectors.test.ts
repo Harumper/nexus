@@ -5,18 +5,18 @@ import crypto from "node:crypto";
 import { deriveSessionKey } from "../../src/services/crypto.js";
 import { openEnrollmentSeal } from "../../src/services/enrollment-seal.js";
 
-// Filet d'interop cross-langage Go↔Node (TEST-DEBT-001, filet partiel permanent).
+// Cross-language Go↔Node interop net (TEST-DEBT-001, permanent partial net).
 //
-// Le fixture est produit par le VRAI code Go (agent : deriveSessionKey +
-// SealToServer) et committé dans agent/internal/security/testdata. Ici Node
-// vérifie l'ACCORD :
-//   - X25519 : Node dérive la même clé de session K que Go pour les mêmes clés.
-//   - Seal P-256 : Node OUVRE (via la vraie openEnrollmentSeal) un seal produit
-//     par Go et retrouve le plaintext exact → les formats (PEM eph, AES-GCM,
-//     HKDF "nexus-enroll") s'accordent.
-// Si un format/HKDF dérive d'un côté, ce test casse. Ce n'est PAS le e2e complet
-// (harnais agent↔backend réel, toujours dû — TEST-DEBT-001), mais c'est le filet
-// d'interop le plus critique, déjà écrit.
+// The fixture is produced by the REAL Go code (agent: deriveSessionKey +
+// SealToServer) and committed in agent/internal/security/testdata. Here Node
+// verifies AGREEMENT:
+//   - X25519: Node derives the same session key K as Go for the same keys.
+//   - Seal P-256: Node OPENS (via the real openEnrollmentSeal) a seal produced
+//     by Go and recovers the exact plaintext → the formats (PEM eph, AES-GCM,
+//     HKDF "nexus-enroll") agree.
+// If a format/HKDF drifts on one side, this test breaks. This is NOT the full e2e
+// (real agent↔backend harness, still owed — TEST-DEBT-001), but it's the most
+// critical interop net, already written.
 
 const vectors = JSON.parse(
   readFileSync(
@@ -28,7 +28,7 @@ const vectors = JSON.parse(
 describe("Interop Go↔Node — canal v2 (TEST-DEBT-001 partial net)", () => {
   it("X25519 session key: Node derives the same K as Go", () => {
     const v = vectors.x25519;
-    // Importer ea_pub (raw 32o) + eb_priv (raw 32o scalar) via JWK, côté Node.
+    // Import ea_pub (raw 32B) + eb_priv (raw 32B scalar) via JWK, on the Node side.
     const eaPubRaw = Buffer.from(v.ea_pub, "base64");
     const eaPub = crypto.createPublicKey({
       key: { kty: "OKP", crv: "X25519", x: eaPubRaw.toString("base64url") },

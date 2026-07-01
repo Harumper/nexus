@@ -1,8 +1,9 @@
-// Types de messages WebSocket
+// WebSocket message types
 
-// Version du protocole de canal (enveloppe + handshake). Liée DANS la signature de
-// chaque message pour empêcher tout downgrade. Doit rester en phase avec
-// transport.ProtocolVersion et security.ProtocolVersion côté agent. v1 est rejeté.
+// Channel protocol version (envelope + handshake). Bound INTO the signature of
+// every message to prevent any downgrade. Must stay in sync with
+// transport.ProtocolVersion and security.ProtocolVersion on the agent side.
+// v1 is rejected.
 export const PROTOCOL_VERSION = 2;
 
 export const MSG_TYPES = {
@@ -16,7 +17,7 @@ export const MSG_TYPES = {
   AGENT_UPGRADE_PROGRESS: "agent.upgrade.progress",
   SECURITY_PROGRESS: "security.audit.progress",
 
-  // Handshake de session (ECDHE X25519, forward secrecy)
+  // Session handshake (ECDHE X25519, forward secrecy)
   SESSION_HELLO: "session.hello",          // Agent -> Server
   SESSION_HELLO_ACK: "session.hello.ack",  // Server -> Agent
 
@@ -29,7 +30,7 @@ export const MSG_TYPES = {
   PONG: "pong",
 } as const;
 
-// Messages qui ne nécessitent pas d'authentification
+// Messages that do not require authentication
 export const UNAUTHENTICATED_TYPES = new Set<string>([
   MSG_TYPES.ENROLLMENT_REQUEST,
 ]);

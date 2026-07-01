@@ -12,7 +12,7 @@ import {
 } from "../services/crypto.js";
 
 export async function networkRoutes(app: FastifyInstance): Promise<void> {
-  // Confirme une modification netplan en attente (annule le watchdog-revert 120s)
+  // Confirms a pending netplan change (cancels the 120s watchdog-revert)
   app.post(
     "/api/machines/:id/netplan/confirm",
     {

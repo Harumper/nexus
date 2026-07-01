@@ -21,8 +21,8 @@ export async function processHeartbeat(
     },
   });
 
-  // Pas de machineEvent "heartbeat" : c'était du bruit pur (jamais consulté,
-  // ~288k lignes/jour pour 100 agents). lastHeartbeat sur Machine suffit.
+  // No "heartbeat" machineEvent: it was pure noise (never consulted,
+  // ~288k rows/day for 100 agents). lastHeartbeat on Machine is enough.
 }
 
 export async function processMetrics(
@@ -63,11 +63,11 @@ export async function checkOfflineMachines(): Promise<void> {
   });
 }
 
-// Actions en LECTURE SEULE (monitoring, ne mutent pas l'hôte). Source unique de
-// vérité réutilisée par privileged-actions.ts pour distinguer reads vs writes
-// dans le gating des actions privilégiées (WEB-AUTHZ). Anciennement la liste des
-// actions autorisées au type PROBE (retiré) ; son vrai rôle a toujours été
-// « read-only », d'où le renommage.
+// READ-ONLY actions (monitoring, do not mutate the host). Single source of
+// truth reused by privileged-actions.ts to distinguish reads vs writes in the
+// gating of privileged actions (WEB-AUTHZ). Formerly the list of actions
+// allowed for the PROBE type (removed); its true role has always been
+// "read-only", hence the renaming.
 export const READ_ONLY_ACTIONS = [
   "system.metrics",
   "system.info",
@@ -97,7 +97,7 @@ export const READ_ONLY_ACTIONS = [
   "ssl.scan",
   "security.audit",
   "agent.sudoers_check",
-  // File browser : list/read sont en lecture seule (fs.upload mute → exclu).
+  // File browser: list/read are read-only (fs.upload mutates → excluded).
   "fs.list",
   "fs.read",
 ];

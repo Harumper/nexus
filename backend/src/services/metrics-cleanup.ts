@@ -1,6 +1,6 @@
 import { prisma } from "./database.js";
 
-// Retention par defaut en jours (configurable via settings)
+// Default retention in days (configurable via settings)
 const DEFAULT_METRICS_RETENTION = 30;
 const DEFAULT_EVENTS_RETENTION = 90;
 const DEFAULT_AUDIT_RETENTION = 365;
@@ -25,7 +25,7 @@ export async function runMetricsCleanup(): Promise<void> {
 
   // Metrics
   if (retentionDays === 0) {
-    // 0 = pas de stockage DB, Prometheus seul gere l'historique
+    // 0 = no DB storage, Prometheus alone handles history
     const result = await prisma.metric.deleteMany({});
     if (result.count > 0) {
       console.log(`[Cleanup] Deleted all metrics (retention=0): ${result.count} rows`);
@@ -40,7 +40,7 @@ export async function runMetricsCleanup(): Promise<void> {
     }
   }
 
-  // MachineEvents (90 jours)
+  // MachineEvents (90 days)
   const eventsCutoff = new Date(Date.now() - DEFAULT_EVENTS_RETENTION * 24 * 60 * 60 * 1000);
   const eventsResult = await prisma.machineEvent.deleteMany({
     where: { timestamp: { lt: eventsCutoff } },
@@ -49,7 +49,7 @@ export async function runMetricsCleanup(): Promise<void> {
     console.log(`[Cleanup] Deleted ${eventsResult.count} events older than ${DEFAULT_EVENTS_RETENTION} days`);
   }
 
-  // Resolved alerts (7 jours)
+  // Resolved alerts (7 days)
   const alertsCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const alertsResult = await prisma.alertState.deleteMany({
     where: {
@@ -61,7 +61,7 @@ export async function runMetricsCleanup(): Promise<void> {
     console.log(`[Cleanup] Deleted ${alertsResult.count} resolved alerts older than 7 days`);
   }
 
-  // AuditLog (365 jours)
+  // AuditLog (365 days)
   const auditCutoff = new Date(Date.now() - DEFAULT_AUDIT_RETENTION * 24 * 60 * 60 * 1000);
   const auditResult = await prisma.auditLog.deleteMany({
     where: { createdAt: { lt: auditCutoff } },

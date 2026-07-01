@@ -40,17 +40,17 @@ import { requireStrongSecret, requireStrongSecretIfSet } from "./services/boot-s
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 
-// Validation des env vars critiques au boot — fail-fast plutôt que crash
-// silencieux à la première utilisation.
+// Validate critical env vars at boot — fail-fast rather than a silent crash
+// on first use.
 function requireEnv(key: string): void {
   if (!process.env[key]) {
     throw new Error(`${key} environment variable is required. Set it before starting the server.`);
   }
 }
 
-// Démarre un setInterval avec un offset aléatoire initial (jitter) pour
-// éviter le thundering herd : sans jitter, tous les intervals fixes démarrent
-// au même tick et créent des spikes CPU/DB synchronisés.
+// Start a setInterval with an initial random offset (jitter) to avoid the
+// thundering herd: without jitter, all fixed intervals start on the same tick
+// and create synchronized CPU/DB spikes.
 function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () => void {
   const offset = Math.floor(Math.random() * baseMs * jitterPct);
   let intervalId: NodeJS.Timeout | null = null;
@@ -63,11 +63,11 @@ function jitteredInterval(fn: () => void, baseMs: number, jitterPct = 0.3): () =
   };
 }
 
-// CONTROL-PLANE-001 — footgun de déploiement : FRONTEND_URL gouverne l'allowlist
-// d'Origin du WS dashboard (CSWSH). Si elle reste sur un fallback localhost, le
-// dashboard rejette SILENCIEUSEMENT le vrai domaine ("forbidden origin" en boucle,
-// sans indice au boot). On AVERTIT bruyamment au démarrage — un défaut qui casse en
-// silence est pire qu'un échec bruyant.
+// CONTROL-PLANE-001 — deployment footgun: FRONTEND_URL governs the dashboard WS
+// Origin allowlist (CSWSH). If it stays on a localhost fallback, the dashboard
+// SILENTLY rejects the real domain ("forbidden origin" in a loop, with no hint
+// at boot). We WARN loudly at startup — a defect that fails silently is worse
+// than a noisy failure.
 function warnIfFrontendUrlLooksLocal(): void {
   const v = process.env.FRONTEND_URL;
   const origins = (v || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -76,19 +76,19 @@ function warnIfFrontendUrlLooksLocal(): void {
       const h = new URL(o).hostname;
       return h !== "localhost" && h !== "127.0.0.1" && h !== "::1";
     } catch {
-      return false; // origine non parsable → ne compte pas comme « vrai domaine »
+      return false; // unparsable origin → does not count as a "real domain"
     }
   });
   if (!hasRealOrigin) {
     console.warn(
       [
         "",
-        `⚠️  [Nexus] FRONTEND_URL absent ou local (${v || "non défini"}).`,
-        "    → Le WebSocket du dashboard REJETTERA toute origine réelle (CSWSH / CONTROL-PLANE-001) :",
-        "      erreurs 'forbidden origin' en boucle dès l'ouverture de l'UI sur un vrai domaine.",
-        "    → Déploiement derrière un domaine : définis",
-        "          FRONTEND_URL=https://ton-domaine",
-        "      (origine COMPLÈTE, sans slash final, sans :443, byte-identique à l'Origin du navigateur).",
+        `⚠️  [Nexus] FRONTEND_URL missing or local (${v || "undefined"}).`,
+        "    → The dashboard WebSocket WILL REJECT any real origin (CSWSH / CONTROL-PLANE-001):",
+        "      'forbidden origin' errors in a loop as soon as the UI is opened on a real domain.",
+        "    → Deploying behind a domain: set",
+        "          FRONTEND_URL=https://your-domain",
+        "      (the FULL origin, no trailing slash, no :443, byte-identical to the browser's Origin).",
         "",
       ].join("\n"),
     );
@@ -96,12 +96,12 @@ function warnIfFrontendUrlLooksLocal(): void {
 }
 
 async function main() {
-  // Fail-fast sur les secrets manquants — sinon crash plus tard sur le 1er use
+  // Fail-fast on missing secrets — otherwise a later crash on first use
   requireStrongSecret("JWT_SECRET");
   requireStrongSecret("ECDSA_MASTER_SECRET");
   requireStrongSecretIfSet("METRICS_TOKEN");
   requireEnv("DATABASE_URL");
-  // Non fatal (localhost est valide en dev local), mais visible au boot.
+  // Non-fatal (localhost is valid in local dev), but visible at boot.
   warnIfFrontendUrlLooksLocal();
 
   const app = Fastify({
@@ -116,7 +116,7 @@ async function main() {
 
   // ===================== Plugins =====================
 
-  // CSP : autoriser Keycloak dans frame-src si SSO actif
+  // CSP: allow Keycloak in frame-src if SSO is active
   const keycloakUrl = process.env.KEYCLOAK_URL || "";
   const cspFrameSrc = keycloakUrl
     ? ["'self'", keycloakUrl]
@@ -130,11 +130,11 @@ async function main() {
         styleSrc: ["'self'", "'unsafe-inline'"],
         connectSrc: ["'self'", ...(keycloakUrl ? [keycloakUrl] : [])],
         frameSrc: cspFrameSrc,
-        // data: pour la preview d'image du FilesTab (servies inline en
-        // data:image/...;base64 après fs.read). blob: au cas où une lib
-        // utilise URL.createObjectURL. Pas d'origine externe whitelistée :
-        // l'attaquant qui injecterait une img ne peut servir que ses
-        // propres bytes encodés en data, déjà passés par notre auth.
+        // data: for the FilesTab image preview (served inline as
+        // data:image/...;base64 after fs.read). blob: in case a lib uses
+        // URL.createObjectURL. No external origin whitelisted: an attacker
+        // injecting an img can only serve their own data-encoded bytes, which
+        // already went through our auth.
         imgSrc: ["'self'", "data:", "blob:"],
       },
     },
@@ -145,19 +145,19 @@ async function main() {
     credentials: true,
   });
 
-  // Compression HTTP (gzip/br) — gain ~10x sur les payloads JSON volumineux
-  // (machines list, metrics, audit logs). threshold 1KB pour éviter la
-  // surcharge sur petits payloads.
+  // HTTP compression (gzip/br) — ~10x gain on large JSON payloads (machines
+  // list, metrics, audit logs). 1KB threshold to avoid the overhead on small
+  // payloads.
   await app.register(compress, {
     global: true,
     threshold: 1024,
     encodings: ["br", "gzip", "deflate"],
   });
 
-  // Cookie parsing — doit être enregistré AVANT @fastify/jwt pour que la
-  // config cookie de jwt puisse lire les cookies parsés.
+  // Cookie parsing — must be registered BEFORE @fastify/jwt so that jwt's
+  // cookie config can read the parsed cookies.
   await app.register(cookie, {
-    secret: process.env.JWT_SECRET!, // pour les cookies signés (non utilisé ici, mais requis)
+    secret: process.env.JWT_SECRET!, // for signed cookies (not used here, but required)
   });
 
   await app.register(jwt, {
@@ -167,8 +167,8 @@ async function main() {
     // The local path only ever issues HS256; refuse anything else outright.
     verify: { algorithms: ["HS256"] },
     sign: { algorithm: "HS256" },
-    // Lire le JWT depuis le cookie httpOnly en plus du header Authorization.
-    // Le cookie est défini par /api/auth/login après auth locale réussie.
+    // Read the JWT from the httpOnly cookie in addition to the Authorization
+    // header. The cookie is set by /api/auth/login after a successful local auth.
     cookie: {
       cookieName: "nexus_token",
       signed: false,
@@ -189,14 +189,14 @@ async function main() {
   }));
 
   // ===================== Prometheus /metrics =====================
-  // NEXUS-WEB-AUTHZ-005 — bearer optionnel (METRICS_TOKEN, temps constant, fail-closed)
-  // ADDITIF au network-scoping. Extrait dans prometheus.ts pour être testable en CI.
+  // NEXUS-WEB-AUTHZ-005 — optional bearer (METRICS_TOKEN, constant-time, fail-closed)
+  // ADDITIVE to network scoping. Extracted into prometheus.ts to be testable in CI.
   registerPrometheusEndpoint(app);
 
-  // Hook HTTP pour mesurer les requetes
+  // HTTP hook to measure requests
   app.addHook("onResponse", (request, reply, done) => {
     const route = request.routeOptions?.url || request.url;
-    // Exclure /metrics et /health du comptage
+    // Exclude /metrics and /health from the count
     if (route !== "/metrics" && route !== "/health") {
       httpRequestsTotal.inc({
         method: request.method,
@@ -234,14 +234,14 @@ async function main() {
 
   await connectDatabase();
 
-  // Seeder les capabilities/settings builtin (idempotent)
+  // Seed the builtin capabilities/settings (idempotent)
   try {
     await ensureBuiltinSeed();
   } catch (err) {
     console.error("[Seed] Failed to seed builtin data:", err);
   }
 
-  // Calculer le hash sudoers de reference pour la detection drift
+  // Compute the reference sudoers hash for drift detection
   initSudoersVersion();
 
   // ===================== Keycloak =====================
@@ -254,12 +254,12 @@ async function main() {
 
 
   // ===================== Background Tasks =====================
-  // Tous les intervals utilisent jitteredInterval pour décaler leur démarrage
-  // de 0-30 % de leur période et éviter le thundering herd (tous les setInterval
-  // se déclenchaient au même tick avant, créant des spikes CPU/DB synchronisés).
+  // All intervals use jitteredInterval to offset their start by 0-30% of their
+  // period and avoid the thundering herd (before, every setInterval fired on the
+  // same tick, creating synchronized CPU/DB spikes).
 
-  // Charge l'état des alertes actives en cache mémoire (évite les findFirst N+1
-  // dans evaluateMetrics/resolveAlert sur le chemin chaud).
+  // Load the state of active alerts into an in-memory cache (avoids the N+1
+  // findFirst in evaluateMetrics/resolveAlert on the hot path).
   await initAlertState().catch((err) => console.error("[AlertEngine] initAlertState failed:", err));
 
   const stopOfflineCheck = jitteredInterval(checkOfflineMachines, 30_000);
@@ -275,11 +275,11 @@ async function main() {
     () => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] Cert scan error:", err)),
     6 * 60 * 60_000
   );
-  // Premier scan 30s apres demarrage
+  // First scan 30s after startup
   setTimeout(() => evaluateCertAlerts().catch((err) => console.error("[AlertEngine] initial cert scan failed:", err)), 30_000);
 
-  // Posture de durcissement : lecture DB du dernier SecurityScan (peu couteux),
-  // toutes les 15 min. Aussi declenche apres chaque audit (route /security/audit).
+  // Hardening posture: DB read of the latest SecurityScan (cheap), every
+  // 15 min. Also triggered after each audit (route /security/audit).
   const stopHardeningAlert = jitteredInterval(
     () => evaluateHardeningAlerts().catch((err) => console.error("[AlertEngine] Hardening eval error:", err)),
     15 * 60_000
@@ -287,7 +287,7 @@ async function main() {
 
   const stopLifecycle = jitteredInterval(checkMachineLifecycle, 60 * 60 * 1000);
 
-  // Rafraichir les metriques fleet pour Prometheus toutes les 30s
+  // Refresh the fleet metrics for Prometheus every 30s
   const stopFleetMetrics = jitteredInterval(refreshFleetMetrics, 30_000);
   refreshFleetMetrics();
 
@@ -298,7 +298,7 @@ async function main() {
     24 * 60 * 60 * 1000
   );
 
-  // Apt catalog : ingestion initiale si vide, puis refresh quotidien
+  // Apt catalog: initial ingestion if empty, then daily refresh
   initAptCatalogIfEmpty().catch((err) => console.error("[AptCatalog] Init error:", err));
   const stopAptRefresh = jitteredInterval(
     () => refreshAptCatalog().catch((err) => console.error("[AptCatalog] Refresh error:", err)),

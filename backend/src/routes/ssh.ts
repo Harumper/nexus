@@ -12,8 +12,8 @@ import {
 } from "../services/crypto.js";
 
 export async function sshRoutes(app: FastifyInstance): Promise<void> {
-  // Confirme un durcissement SSH en attente (annule le watchdog-revert 120s).
-  // Calqué sur netplan/firewall confirm : envoie un action.confirm signé.
+  // Confirms a pending SSH hardening (cancels the 120s watchdog-revert).
+  // Modeled on netplan/firewall confirm: sends a signed action.confirm.
   app.post(
     "/api/machines/:id/sshd/confirm",
     {

@@ -1,15 +1,15 @@
-// Gating des actions "à persistance hors-bande" : ajout/suppression de clés
-// SSH et bascule du groupe sudo. Contrairement aux autres actions (firewall,
-// services, reboot…) qui restent dans le périmètre de Nexus (tracées,
-// révocables, dépendantes de l'agent), ces trois-là créent un accès qui
-// SURVIT à la désinstallation de l'agent et n'est plus révocable par Nexus.
+// Gating of "out-of-band persistence" actions: adding/removing SSH keys and
+// toggling the sudo group. Unlike the other actions (firewall, services,
+// reboot…) which stay within Nexus's scope (traced, revocable, dependent on the
+// agent), these three create access that SURVIVES the agent's uninstallation and
+// is no longer revocable by Nexus.
 //
-// Double verrou :
-//   1. Désactivées par défaut — il faut ALLOW_USER_PRIVILEGE_MGMT=true.
-//   2. Réservées au rôle ADMIN, même flag activé.
+// Double lock:
+//   1. Disabled by default — ALLOW_USER_PRIVILEGE_MGMT=true is required.
+//   2. Reserved for the ADMIN role, even when the flag is enabled.
 //
-// Le contrôle est appliqué dans dispatchAction() — donc il couvre TOUS les
-// chemins de dispatch (/actions/sync, /actions, /bulk, batch).
+// The check is applied in dispatchAction() — so it covers ALL the dispatch
+// paths (/actions/sync, /actions, /bulk, batch).
 
 import { READ_ONLY_ACTIONS as READ_ONLY_ACTION_LIST } from "./machine-manager.js";
 
@@ -19,41 +19,41 @@ export const PRIVILEGED_USER_ACTIONS = new Set<string>([
   "sshkey.remove",
 ]);
 
-// Actions en lecture seule (source unique de vérité, machine-manager.ts). Un
-// utilisateur READONLY ne peut invoquer QUE celles-ci.
+// Read-only actions (single source of truth, machine-manager.ts). A READONLY
+// user can invoke ONLY these.
 const READ_ONLY_ACTIONS = new Set<string>(READ_ONLY_ACTION_LIST);
 
-// Actions si dangereuses qu'elles exigent ADMIN même si elles restent dans le
-// périmètre Nexus (révocables, tracées) :
-//   - script.execute  = exécution root arbitraire sur la machine cible.
-//   - process.kill (NEXUS-AGENT-004) = primitive DESTRUCTRICE à impact arbitraire
-//     (tuer n'importe quel PID = DoS/perte de données du workload, sans reprise
-//     supervisée). Sa seule protection runtime est une DENYLIST de services
-//     critiques (process_kill.go), incomplète par nature : un workload non listé
-//     (DB custom, broker, app métier, autre reverse-proxy) est tuable sans garde.
-//     Le gate ADMIN couvre ce résiduel. Cohérent avec script.execute, l'autre membre
-//     du bucket ALLOW_REMOTE_SCRIPT (REMOTE_SCRIPT_ACTIONS) — les deux primitives
-//     root à impact arbitraire exigent désormais le même rôle.
+// Actions so dangerous that they require ADMIN even though they stay within
+// Nexus's scope (revocable, traced):
+//   - script.execute  = arbitrary root execution on the target machine.
+//   - process.kill (NEXUS-AGENT-004) = DESTRUCTIVE primitive with arbitrary impact
+//     (killing any PID = DoS / data loss of the workload, without supervised
+//     recovery). Its only runtime protection is a DENYLIST of critical services
+//     (process_kill.go), incomplete by nature: an unlisted workload (custom DB,
+//     broker, business app, another reverse-proxy) is killable without a guard.
+//     The ADMIN gate covers this residual. Consistent with script.execute, the other
+//     member of the ALLOW_REMOTE_SCRIPT bucket (REMOTE_SCRIPT_ACTIONS) — both root
+//     primitives with arbitrary impact now require the same role.
 export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
 
-// Exécution distante de script = root arbitraire (amplificateur de kill-chain).
-// Opt-in DÉSACTIVÉ par défaut, en plus d'ADMIN-only : un parc confiné n'a aucune
-// voie d'exécution de script, même pour un ADMIN, tant que le flag est off. Verrou
-// indépendant de la signature (clé locale, côté agent) et de la capacité sudoers
-// (ligne omise à l'install) — les trois doivent être réunis. process.kill
-// NEXUS-AGENT-004 (0.8) : process.kill rejoint l'ensemble — opt-in default-off,
-// comme script.execute (kill brut de PID = primitive dangereuse ; la garde Go
-// process_kill.go refuse en plus l'agent et les services critiques).
+// Remote script execution = arbitrary root (kill-chain amplifier). Opt-in
+// DISABLED by default, on top of ADMIN-only: a locked-down fleet has no script
+// execution path, even for an ADMIN, as long as the flag is off. Lock independent
+// of the signature (local key, agent side) and of the sudoers capability (line
+// omitted at install) — all three must be present. process.kill
+// NEXUS-AGENT-004 (0.8): process.kill joins the set — opt-in default-off, like
+// script.execute (raw PID kill = dangerous primitive; the Go guard
+// process_kill.go additionally refuses the agent and critical services).
 export const REMOTE_SCRIPT_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
 
-// Activé uniquement si ALLOW_REMOTE_SCRIPT vaut explicitement "true".
+// Enabled only if ALLOW_REMOTE_SCRIPT is explicitly "true".
 export function isRemoteScriptAllowed(): boolean {
   return (process.env.ALLOW_REMOTE_SCRIPT || "").toLowerCase() === "true";
 }
 
-// Gate central (appliqué dans dispatchAction → couvre sync/async/bulk/batch) :
-// quand le flag est off, l'action est refusée pour TOUS (y compris appels
-// internes), car la fonctionnalité entière est désactivée.
+// Central gate (applied in dispatchAction → covers sync/async/bulk/batch):
+// when the flag is off, the action is refused for ALL (including internal
+// calls), because the entire feature is disabled.
 export function checkRemoteScriptAction(actionId: string): {
   allowed: boolean;
   reason?: string;
@@ -68,28 +68,28 @@ export function checkRemoteScriptAction(actionId: string): {
   return { allowed: true };
 }
 
-// RBAC par action, appliqué centralement dans dispatchAction() — couvre donc
-// TOUS les chemins de dispatch (/actions/sync, /actions, /bulk, batch).
+// Per-action RBAC, applied centrally in dispatchAction() — so it covers ALL the
+// dispatch paths (/actions/sync, /actions, /bulk, batch).
 //
-// IMPORTANT sur userRole === undefined : c'est la signature d'un appel SYSTÈME
-// interne (agent-upgrade, alert-engine poll de santé) — jamais déclenché
-// directement par un utilisateur non authentifié (les routes HTTP qui les
-// initient sont gardées séparément, ex. requireAdmin sur l'upgrade). Tout appel
-// d'un utilisateur authentifié porte TOUJOURS un rôle (les JWT local ET
-// Keycloak incluent `role`), donc la restriction ci-dessous s'applique bien aux
-// utilisateurs. On traite donc undefined comme appel interne de confiance, et
-// tout rôle inconnu en fail-closed.
+// IMPORTANT about userRole === undefined: this is the signature of an internal
+// SYSTEM call (agent-upgrade, alert-engine health poll) — never triggered
+// directly by an unauthenticated user (the HTTP routes that initiate them are
+// guarded separately, e.g. requireAdmin on the upgrade). Any call from an
+// authenticated user ALWAYS carries a role (both local and Keycloak JWTs
+// include `role`), so the restriction below does apply to users. We therefore
+// treat undefined as a trusted internal call, and any unknown role as
+// fail-closed.
 export function checkRoleForAction(
   actionId: string,
   userRole?: string
 ): { allowed: boolean; reason?: string } {
-  // Appel système interne (pas de rôle) → confiance.
+  // Internal system call (no role) → trusted.
   if (userRole === undefined) return { allowed: true };
 
-  // ADMIN : tout.
+  // ADMIN: everything.
   if (userRole === "ADMIN") return { allowed: true };
 
-  // READONLY : uniquement les actions en lecture seule.
+  // READONLY: read-only actions only.
   if (userRole === "READONLY") {
     if (READ_ONLY_ACTIONS.has(actionId)) return { allowed: true };
     return {
@@ -98,7 +98,7 @@ export function checkRoleForAction(
     };
   }
 
-  // OPERATOR : mutations autorisées, sauf les actions réservées ADMIN.
+  // OPERATOR: mutations allowed, except the ADMIN-reserved actions.
   if (userRole === "OPERATOR") {
     if (ADMIN_ONLY_ACTIONS.has(actionId)) {
       return {
@@ -109,25 +109,25 @@ export function checkRoleForAction(
     return { allowed: true };
   }
 
-  // Rôle inconnu → fail-closed.
+  // Unknown role → fail-closed.
   return {
     allowed: false,
     reason: `Action '${actionId}' not permitted for role '${userRole}'.`,
   };
 }
 
-// Activé uniquement si la variable d'env vaut explicitement "true".
-// Toute autre valeur (absente, "false", "0"…) → désactivé.
+// Enabled only if the env variable is explicitly "true".
+// Any other value (absent, "false", "0"…) → disabled.
 export function isUserPrivilegeMgmtEnabled(): boolean {
   return (process.env.ALLOW_USER_PRIVILEGE_MGMT || "").toLowerCase() === "true";
 }
 
-// Une action est "privilégiée" si elle accorde/retire des accès persistants :
-//   - bascule sudo (user.update_sudo)
-//   - clés SSH (sshkey.add / sshkey.remove)
-//   - création d'un utilisateur DIRECTEMENT dans le groupe sudo
-//     (user.create avec params.sudo === true) — sinon c'est un contournement
-//     trivial de la bascule sudo.
+// An action is "privileged" if it grants/revokes persistent access:
+//   - sudo toggle (user.update_sudo)
+//   - SSH keys (sshkey.add / sshkey.remove)
+//   - creating a user DIRECTLY in the sudo group
+//     (user.create with params.sudo === true) — otherwise it's a trivial
+//     bypass of the sudo toggle.
 export function isPrivilegedUserAction(
   actionId: string,
   params?: Record<string, unknown>
@@ -137,9 +137,9 @@ export function isPrivilegedUserAction(
   return false;
 }
 
-// Renvoie { allowed } pour une action donnée et un rôle d'appelant.
-// userRole peut être undefined (appel système interne) → traité comme
-// non-ADMIN, donc refusé pour les actions privilégiées (fail-closed).
+// Returns { allowed } for a given action and caller role.
+// userRole may be undefined (internal system call) → treated as non-ADMIN, so
+// refused for privileged actions (fail-closed).
 export function checkPrivilegedAction(
   actionId: string,
   userRole?: string,
