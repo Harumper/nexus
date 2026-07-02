@@ -1,0 +1,60 @@
+{
+  "title": "Export des logs",
+  "subtitle": "Transfère le journal systemd de cette machine vers un Loki central via Fluent Bit. Nexus configure l'agent d'export ; il ne stocke pas les logs.",
+  "adminOnly": "Configurer l'export des logs nécessite le rôle ADMIN.",
+  "status": {
+    "title": "État",
+    "refresh": "Rafraîchir",
+    "installed": "Fluent Bit installé",
+    "notInstalled": "Fluent Bit non installé",
+    "configPresent": "Config Nexus présente",
+    "serviceActive": "Service actif",
+    "serviceInactive": "Service arrêté",
+    "healthOk": "Endpoint de santé OK",
+    "healthKo": "Endpoint de santé injoignable"
+  },
+  "install": {
+    "title": "1. Installer l'agent d'export",
+    "desc": "Installe Fluent Bit depuis son dépôt apt officiel, avec la clé de signature épinglée par empreinte. Ubuntu/Debian uniquement.",
+    "button": "Installer Fluent Bit",
+    "already": "Déjà installé",
+    "done": "Fluent Bit installé"
+  },
+  "configure": {
+    "title": "2. Le pointer vers Loki",
+    "host": "Hôte Loki",
+    "hostPlaceholder": "192.0.2.10",
+    "port": "Port",
+    "tenant": "Tenant (X-Scope-OrgID)",
+    "tenantOptional": "optionnel, laisser vide en mono-tenant",
+    "tls": "Utiliser TLS (https)",
+    "needInstall": "Installez d'abord Fluent Bit.",
+    "preview": "Aperçu de la config",
+    "apply": "Appliquer",
+    "confirmTitle": "Configurer l'export des logs ?",
+    "confirmDesc": "Le journal de cette machine sera transféré vers {{target}}. La config est écrite et Fluent Bit est (re)démarré.",
+    "done": "Export configuré → {{target}}"
+  },
+  "disable": {
+    "title": "Désactiver l'export",
+    "desc": "Arrête Fluent Bit et retire la config gérée par Nexus. Le journal reste local.",
+    "button": "Désactiver",
+    "confirmTitle": "Désactiver l'export des logs ?",
+    "confirmDesc": "Fluent Bit sera arrêté et la config Nexus retirée. Les logs cessent d'être transférés.",
+    "done": "Export désactivé"
+  },
+  "preview": {
+    "title": "Aperçu de la config",
+    "desc": "Ceci est écrit dans /etc/fluent-bit/nexus.yaml (root:root 0644). Aucune modification n'est encore appliquée.",
+    "close": "Fermer"
+  },
+  "errors": {
+    "status": "Impossible de lire l'état de l'agent d'export.",
+    "install": "Échec de l'installation.",
+    "preview": "Échec de l'aperçu.",
+    "configure": "Échec de la configuration.",
+    "disable": "Échec de la désactivation.",
+    "hostRequired": "L'hôte Loki est requis.",
+    "portRequired": "Le port est requis."
+  }
+}

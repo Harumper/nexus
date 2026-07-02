@@ -147,6 +147,16 @@ export interface SecurityAuditResult {
   sysctl_network_hardened?: boolean;
 }
 
+// logs.shipping_status → state of the Fluent Bit log shipper on a machine.
+export interface LogShippingStatus {
+  installed: boolean; // fluent-bit binary present
+  config_present: boolean; // Nexus-managed config in place
+  managed: boolean; // Nexus systemd drop-in in place
+  service_active: boolean; // fluent-bit running
+  health_ok: boolean; // local health endpoint (127.0.0.1:2020) answers 200
+  http_port: number;
+}
+
 export interface MetricsResponse {
   machineId: string;
   range: string;

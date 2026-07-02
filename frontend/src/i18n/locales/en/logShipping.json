@@ -1,0 +1,60 @@
+{
+  "title": "Log shipping",
+  "subtitle": "Forward this machine's systemd journal to a central Loki via Fluent Bit. Nexus configures the shipper; it does not store logs.",
+  "adminOnly": "Configuring log egress requires an ADMIN role.",
+  "status": {
+    "title": "Status",
+    "refresh": "Refresh",
+    "installed": "Fluent Bit installed",
+    "notInstalled": "Fluent Bit not installed",
+    "configPresent": "Nexus config present",
+    "serviceActive": "Service running",
+    "serviceInactive": "Service stopped",
+    "healthOk": "Health endpoint OK",
+    "healthKo": "Health endpoint unreachable"
+  },
+  "install": {
+    "title": "1. Install the shipper",
+    "desc": "Installs Fluent Bit from its official apt repository, with the signing key pinned by fingerprint. Ubuntu/Debian only.",
+    "button": "Install Fluent Bit",
+    "already": "Already installed",
+    "done": "Fluent Bit installed"
+  },
+  "configure": {
+    "title": "2. Point it at Loki",
+    "host": "Loki host",
+    "hostPlaceholder": "192.0.2.10",
+    "port": "Port",
+    "tenant": "Tenant (X-Scope-OrgID)",
+    "tenantOptional": "optional, leave empty for single-tenant",
+    "tls": "Use TLS (https)",
+    "needInstall": "Install Fluent Bit first.",
+    "preview": "Preview config",
+    "apply": "Apply",
+    "confirmTitle": "Configure log shipping?",
+    "confirmDesc": "This machine's journal will be forwarded to {{target}}. The config is written and Fluent Bit is (re)started.",
+    "done": "Shipping configured → {{target}}"
+  },
+  "disable": {
+    "title": "Disable shipping",
+    "desc": "Stops Fluent Bit and removes the Nexus-managed config. The journal stays local.",
+    "button": "Disable",
+    "confirmTitle": "Disable log shipping?",
+    "confirmDesc": "Fluent Bit will be stopped and the Nexus config removed. Logs stop being forwarded.",
+    "done": "Shipping disabled"
+  },
+  "preview": {
+    "title": "Config preview",
+    "desc": "This is written to /etc/fluent-bit/nexus.yaml (root:root 0644). No changes are applied yet.",
+    "close": "Close"
+  },
+  "errors": {
+    "status": "Could not read shipper status.",
+    "install": "Install failed.",
+    "preview": "Preview failed.",
+    "configure": "Configuration failed.",
+    "disable": "Disable failed.",
+    "hostRequired": "Loki host is required.",
+    "portRequired": "Port is required."
+  }
+}

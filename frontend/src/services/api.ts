@@ -788,6 +788,67 @@ class ApiClient {
     );
   }
 
+  // ── Log shipping (journald → Loki via Fluent Bit) ──
+
+  async logShippingStatus(id: string) {
+    return this.request<{ success: boolean; data: import("../types").LogShippingStatus }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "logs.shipping_status", params: {}, timeout: 15000 }),
+      }
+    );
+  }
+
+  // Installs Fluent Bit from the official apt repo (GPG-pinned). ADMIN-only, apt =
+  // slow → generous timeout.
+  async installLogShipper(id: string) {
+    return this.request<{ success: boolean; data: { installed?: boolean; already_installed?: boolean; binary: string; codename?: string } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "logs.install_shipper", params: {}, timeout: 180000 }),
+      }
+    );
+  }
+
+  // Points Fluent Bit at Loki. dryRun=true returns the rendered config without
+  // applying anything.
+  async configureLogShipping(
+    id: string,
+    params: { loki_host: string; loki_port: string; tls: boolean; tenant?: string },
+    dryRun = false
+  ) {
+    return this.request<{
+      success: boolean;
+      data: {
+        configured?: boolean;
+        config_path?: string;
+        loki?: string;
+        active?: boolean;
+        dry_run?: boolean;
+        content?: string;
+      };
+    }>(`/machines/${id}/actions/sync`, {
+      method: "POST",
+      body: JSON.stringify({
+        action_id: "logs.configure_shipping",
+        params: { ...params, dry_run: dryRun },
+        timeout: 60000,
+      }),
+    });
+  }
+
+  async disableLogShipping(id: string) {
+    return this.request<{ success: boolean; data: { disabled: boolean; service_active: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "logs.disable_shipping", params: {}, timeout: 60000 }),
+      }
+    );
+  }
+
   // Generic preview (dry-run) of a remediation: returns the files/directives
   // that would be written, without applying anything.
   async remediationPreview(id: string, actionId: string) {

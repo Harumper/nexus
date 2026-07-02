@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download,
-  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen,
+  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, ScrollText,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -26,6 +26,7 @@ import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
 import SecurityTab from "../components/SecurityTab";
+import LogShippingTab from "../components/LogShippingTab";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import AgentUpgradeDialog from "../components/AgentUpgradeDialog";
@@ -37,7 +38,7 @@ import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 import { getErrorMessage } from "../services/errors";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security" | "logs";
 
 // Header action button: icon only (the label lives in the Tooltip).
 const ICON_BTN =
@@ -243,6 +244,7 @@ export default function MachineDetail() {
         { id: "metrics", icon: Cpu, show: isOnline },
         { id: "processes", icon: ListTree, show: isOnline },
         { id: "storage", icon: HardDrive, show: isOnline },
+        { id: "logs", icon: ScrollText, show: isOnline },
       ],
     },
     {
@@ -645,6 +647,10 @@ export default function MachineDetail() {
 
         {activeTab === "security" && isOnline && (
           <SecurityTab machineId={machine.id} />
+        )}
+
+        {activeTab === "logs" && isOnline && (
+          <LogShippingTab machineId={machine.id} />
         )}
 
         {activeTab === "netplan" && isOnline && (
