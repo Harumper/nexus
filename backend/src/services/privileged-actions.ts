@@ -34,7 +34,18 @@ const READ_ONLY_ACTIONS = new Set<string>(READ_ONLY_ACTION_LIST);
 //     The ADMIN gate covers this residual. Consistent with script.execute, the other
 //     member of the ALLOW_REMOTE_SCRIPT bucket (REMOTE_SCRIPT_ACTIONS) — both root
 //     primitives with arbitrary impact now require the same role.
-export const ADMIN_ONLY_ACTIONS = new Set<string>(["script.execute", "process.kill"]);
+//   - logs.configure_shipping = redirects egress of ALL system logs to an
+//     arbitrary endpoint (data-exfiltration vector); logs.install_shipper adds a
+//     third-party apt repo + installs software fleet-wide (supply-chain/infra
+//     decision). Both require ADMIN. logs.disable_shipping stays OPERATOR — it is
+//     the SAFE direction (stops egress), a normal remediation. logs.shipping_status
+//     is read-only (READ_ONLY_ACTIONS).
+export const ADMIN_ONLY_ACTIONS = new Set<string>([
+  "script.execute",
+  "process.kill",
+  "logs.configure_shipping",
+  "logs.install_shipper",
+]);
 
 // Remote script execution = arbitrary root (kill-chain amplifier). Opt-in
 // DISABLED by default, on top of ADMIN-only: a locked-down fleet has no script
