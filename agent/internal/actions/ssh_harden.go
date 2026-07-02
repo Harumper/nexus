@@ -26,7 +26,7 @@ func init() {
 //      blocked in sudoers): does NOT cut existing sessions.
 //   3. 120s watchdog: if not confirmed, the previous drop-in is restored.
 // The drop-in does NOT touch PasswordAuthentication/PermitRootLogin (avoids
-// involuntary lockout) — only modern algos + limits.
+// involuntary lockout) — modern algos + CIS-safe limits/hardening only.
 // ═══════════════════════════════════════════════════════════════
 
 const (
@@ -45,6 +45,14 @@ MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@op
 MaxAuthTries 4
 LoginGraceTime 30
 X11Forwarding no
+# CIS-safe hardening (no lock-out risk, no impact on legit workflows):
+PermitEmptyPasswords no
+IgnoreRhosts yes
+HostbasedAuthentication no
+PermitUserEnvironment no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+LogLevel VERBOSE
 `
 
 type PendingSshd struct {
