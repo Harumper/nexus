@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight, PackageCheck } from "lucide-react";
+import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight, PackageCheck, ScrollText } from "lucide-react";
 
-type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security" | "supplychain";
+type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security" | "supplychain" | "logshipping";
 
 const sections: { id: Section; icon: typeof Book }[] = [
   { id: "start", icon: Book },
@@ -14,6 +14,7 @@ const sections: { id: Section; icon: typeof Book }[] = [
   { id: "updates", icon: Download },
   { id: "ssh", icon: Terminal },
   { id: "security", icon: Shield },
+  { id: "logshipping", icon: ScrollText },
   { id: "supplychain", icon: PackageCheck },
   { id: "api", icon: Settings },
 ];
@@ -23,7 +24,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "supplychain", "api"];
+    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "logshipping", "supplychain", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -77,6 +78,7 @@ function DocContent({ section }: { section: Section }) {
     case "updates": return <UpdatesDoc />;
     case "ssh": return <SshDoc />;
     case "security": return <SecurityDoc />;
+    case "logshipping": return <LogShippingDoc />;
     case "supplychain": return <SupplyChainDoc />;
     case "api": return <ApiDoc />;
   }
@@ -516,6 +518,41 @@ function SecurityDoc() {
       <li><Trans t={t} i18nKey="security.roleAdmin" components={{ b: <strong className="text-foreground" /> }} /></li>
       <li><Trans t={t} i18nKey="security.roleOperator" components={{ b: <strong className="text-foreground" /> }} /></li>
       <li><Trans t={t} i18nKey="security.roleReadonly" components={{ b: <strong className="text-foreground" /> }} /></li>
+    </ul>
+  </>);
+}
+
+function LogShippingDoc() {
+  const { t } = useTranslation("docs");
+  const b = { b: <strong className="text-foreground" /> };
+  const bc = { b: <strong className="text-foreground" />, c: <IC /> };
+  return (<>
+    <H1>{t("logshipping.title")}</H1>
+    <P><Trans t={t} i18nKey="logshipping.intro" components={b} /></P>
+
+    <H2>{t("logshipping.pipelineTitle")}</H2>
+    <P><Trans t={t} i18nKey="logshipping.pipelineText" components={bc} /></P>
+
+    <H2>{t("logshipping.installTitle")}</H2>
+    <P><Trans t={t} i18nKey="logshipping.installText" components={bc} /></P>
+
+    <H2>{t("logshipping.rbacTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="logshipping.rbacConfigure" components={b} /></li>
+      <li><Trans t={t} i18nKey="logshipping.rbacDisable" components={b} /></li>
+      <li><Trans t={t} i18nKey="logshipping.rbacStatus" components={b} /></li>
+    </ul>
+
+    <H2>{t("logshipping.confidTitle")}</H2>
+    <Warn><Trans t={t} i18nKey="logshipping.confidText" components={b} /></Warn>
+
+    <H2>{t("logshipping.bulkTitle")}</H2>
+    <P>{t("logshipping.bulkText")}</P>
+
+    <H2>{t("logshipping.notesTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="logshipping.noteAuth" components={b} /></li>
+      <li><Trans t={t} i18nKey="logshipping.noteTail" components={b} /></li>
     </ul>
   </>);
 }
