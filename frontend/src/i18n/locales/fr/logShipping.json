@@ -23,7 +23,7 @@
   "configure": {
     "title": "2. Le pointer vers Loki",
     "host": "Hôte Loki",
-    "hostPlaceholder": "192.0.2.10",
+    "hostPlaceholder": "loki.example.com",
     "port": "Port",
     "tenant": "Tenant (X-Scope-OrgID)",
     "tenantOptional": "optionnel, laisser vide en mono-tenant",

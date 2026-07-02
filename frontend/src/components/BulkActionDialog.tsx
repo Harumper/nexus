@@ -222,7 +222,7 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
                   <Input
                     value={lokiHost}
                     onChange={(e) => setLokiHost(e.target.value)}
-                    placeholder="192.0.2.10"
+                    placeholder="loki.example.com"
                     className="font-mono"
                   />
                 </div>
