@@ -48,20 +48,66 @@
     "security": "Security"
   },
   "tabs": {
-    "overview": { "label": "Overview", "tooltip": "Global status: alerts, failed services, pending updates, expiring certs" },
-    "metrics": { "label": "Metrics", "tooltip": "CPU/RAM/disk/load/network charts from 15m to 24h" },
-    "processes": { "label": "Processes", "tooltip": "Top 10 processes by CPU and RAM, kill possible" },
-    "storage": { "label": "Storage", "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
-    "services": { "label": "Services", "tooltip": "systemd: start/stop/restart, link to journalctl logs" },
-    "scheduling": { "label": "Tasks", "tooltip": "Cron jobs (read) + systemd timers (enable/disable)" },
-    "users": { "label": "Users", "tooltip": "Linux users UID≥1000, sudo membership, SSH keys" },
-    "files": { "label": "Files", "tooltip": "File browser: download, upload restricted to the inbox (50 MB max), generated scp/rsync commands" },
-    "network": { "label": "Interfaces", "tooltip": "ip addr / routes / DNS (read-only)" },
-    "netplan": { "label": "Netplan", "tooltip": "YAML editor /etc/netplan + apply with 120s watchdog" },
-    "firewall": { "label": "Firewall", "tooltip": "ufw: allow/deny rules, 60s watchdog to avoid lock-out" },
-    "updates": { "label": "Updates", "tooltip": "apt list --upgradable + run apt upgrade (all or security only)" },
-    "packages": { "label": "Packages", "tooltip": "Full-text search on the Ubuntu catalog + install/remove + holds" },
-    "security": { "label": "Hardening", "tooltip": "Hardening audit (Lynis): index, warnings, suggestions" }
+    "overview": {
+      "label": "Overview",
+      "tooltip": "Global status: alerts, failed services, pending updates, expiring certs"
+    },
+    "metrics": {
+      "label": "Metrics",
+      "tooltip": "CPU/RAM/disk/load/network charts from 15m to 24h"
+    },
+    "processes": {
+      "label": "Processes",
+      "tooltip": "Top 10 processes by CPU and RAM, kill possible"
+    },
+    "storage": {
+      "label": "Storage",
+      "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)"
+    },
+    "logs": {
+      "label": "Log shipping",
+      "tooltip": "Forward the systemd journal to a central Loki via Fluent Bit"
+    },
+    "services": {
+      "label": "Services",
+      "tooltip": "systemd: start/stop/restart, link to journalctl logs"
+    },
+    "scheduling": {
+      "label": "Tasks",
+      "tooltip": "Cron jobs (read) + systemd timers (enable/disable)"
+    },
+    "users": {
+      "label": "Users",
+      "tooltip": "Linux users UID≥1000, sudo membership, SSH keys"
+    },
+    "files": {
+      "label": "Files",
+      "tooltip": "File browser: download, upload restricted to the inbox (50 MB max), generated scp/rsync commands"
+    },
+    "network": {
+      "label": "Interfaces",
+      "tooltip": "ip addr / routes / DNS (read-only)"
+    },
+    "netplan": {
+      "label": "Netplan",
+      "tooltip": "YAML editor /etc/netplan + apply with 120s watchdog"
+    },
+    "firewall": {
+      "label": "Firewall",
+      "tooltip": "ufw: allow/deny rules, 60s watchdog to avoid lock-out"
+    },
+    "updates": {
+      "label": "Updates",
+      "tooltip": "apt list --upgradable + run apt upgrade (all or security only)"
+    },
+    "packages": {
+      "label": "Packages",
+      "tooltip": "Full-text search on the Ubuntu catalog + install/remove + holds"
+    },
+    "security": {
+      "label": "Hardening",
+      "tooltip": "Hardening audit (Lynis): index, warnings, suggestions"
+    }
   },
   "metricsHistory": "Metrics history",
   "overview": {

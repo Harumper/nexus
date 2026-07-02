@@ -48,20 +48,66 @@
     "security": "Sécurité"
   },
   "tabs": {
-    "overview": { "label": "Vue d'ensemble", "tooltip": "Statut global : alertes, services en échec, mises à jour en attente, certs expirant" },
-    "metrics": { "label": "Métriques", "tooltip": "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h" },
-    "processes": { "label": "Processus", "tooltip": "Top 10 processus par CPU et RAM, kill possible" },
-    "storage": { "label": "Stockage", "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)" },
-    "services": { "label": "Services", "tooltip": "systemd : start/stop/restart, lien vers logs journalctl" },
-    "scheduling": { "label": "Tâches", "tooltip": "Cron jobs (lecture) + systemd timers (enable/disable)" },
-    "users": { "label": "Utilisateurs", "tooltip": "Linux users UID≥1000, sudo membership, clés SSH" },
-    "files": { "label": "Fichiers", "tooltip": "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées" },
-    "network": { "label": "Interfaces", "tooltip": "ip addr / routes / DNS (lecture seule)" },
-    "netplan": { "label": "Netplan", "tooltip": "Éditeur YAML /etc/netplan + apply avec watchdog 120s" },
-    "firewall": { "label": "Pare-feu", "tooltip": "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out" },
-    "updates": { "label": "Mises à jour", "tooltip": "apt list --upgradable + run apt upgrade (toutes ou sécu only)" },
-    "packages": { "label": "Paquets", "tooltip": "Recherche full-text sur le catalogue Ubuntu + install/remove + holds" },
-    "security": { "label": "Durcissement", "tooltip": "Audit de durcissement (Lynis) : indice, avertissements, suggestions" }
+    "overview": {
+      "label": "Vue d'ensemble",
+      "tooltip": "Statut global : alertes, services en échec, mises à jour en attente, certs expirant"
+    },
+    "metrics": {
+      "label": "Métriques",
+      "tooltip": "Graphs CPU/RAM/disque/load/réseau sur 15m à 24h"
+    },
+    "processes": {
+      "label": "Processus",
+      "tooltip": "Top 10 processus par CPU et RAM, kill possible"
+    },
+    "storage": {
+      "label": "Stockage",
+      "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)"
+    },
+    "logs": {
+      "label": "Export logs",
+      "tooltip": "Transfère le journal systemd vers un Loki central via Fluent Bit"
+    },
+    "services": {
+      "label": "Services",
+      "tooltip": "systemd : start/stop/restart, lien vers logs journalctl"
+    },
+    "scheduling": {
+      "label": "Tâches",
+      "tooltip": "Cron jobs (lecture) + systemd timers (enable/disable)"
+    },
+    "users": {
+      "label": "Utilisateurs",
+      "tooltip": "Linux users UID≥1000, sudo membership, clés SSH"
+    },
+    "files": {
+      "label": "Fichiers",
+      "tooltip": "Navigateur de fichiers : download, upload restreint à l'inbox (50 MB max), commandes scp/rsync générées"
+    },
+    "network": {
+      "label": "Interfaces",
+      "tooltip": "ip addr / routes / DNS (lecture seule)"
+    },
+    "netplan": {
+      "label": "Netplan",
+      "tooltip": "Éditeur YAML /etc/netplan + apply avec watchdog 120s"
+    },
+    "firewall": {
+      "label": "Pare-feu",
+      "tooltip": "ufw : règles allow/deny, watchdog 60s pour éviter le lock-out"
+    },
+    "updates": {
+      "label": "Mises à jour",
+      "tooltip": "apt list --upgradable + run apt upgrade (toutes ou sécu only)"
+    },
+    "packages": {
+      "label": "Paquets",
+      "tooltip": "Recherche full-text sur le catalogue Ubuntu + install/remove + holds"
+    },
+    "security": {
+      "label": "Durcissement",
+      "tooltip": "Audit de durcissement (Lynis) : indice, avertissements, suggestions"
+    }
   },
   "metricsHistory": "Historique des métriques",
   "overview": {
