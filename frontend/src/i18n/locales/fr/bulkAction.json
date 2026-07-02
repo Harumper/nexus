@@ -20,8 +20,17 @@
   "moreTargets": "+{{count}} autres",
   "runningTitle": "Exécution en cours...",
   "runningDetail": "Dispatch sur {{count}} machines, batchs de 10 en parallèle",
-  "stats": { "total": "Total", "success": "Succès", "failed": "Échec", "skipped": "Skippé" },
-  "resultHeaders": { "machine": "Machine", "status": "Statut", "detail": "Détail" },
+  "stats": {
+    "total": "Total",
+    "success": "Succès",
+    "failed": "Échec",
+    "skipped": "Skippé"
+  },
+  "resultHeaders": {
+    "machine": "Machine",
+    "status": "Statut",
+    "detail": "Détail"
+  },
   "skipped": "— skippé",
   "resultFailed": "✗ Échec",
   "executed": "exécuté",
@@ -33,16 +42,69 @@
     "packageRequired": "Paquet requis"
   },
   "bulkActions": {
-    "systemUpdate": { "label": "Mise à jour système", "desc": "apt upgrade complet" },
-    "updateSecurity": { "label": "Mises à jour sécu uniquement", "desc": "apt upgrade -s" },
-    "reboot": { "label": "Redémarrer", "desc": "systemctl reboot (60s avant retour)" },
-    "agentUpgrade": { "label": "Mettre à jour l'agent Nexus", "desc": "Self-upgrade + restart" },
-    "serviceRestart": { "label": "Redémarrer un service", "desc": "systemctl restart" },
-    "serviceStart": { "label": "Démarrer un service", "desc": "systemctl start" },
-    "serviceStop": { "label": "Arrêter un service", "desc": "systemctl stop" },
-    "packageInstall": { "label": "Installer un paquet", "desc": "apt install" },
-    "packageRemove": { "label": "Supprimer un paquet", "desc": "apt remove" },
-    "packageHold": { "label": "Bloquer un paquet (hold)", "desc": "apt-mark hold" },
-    "packageUnhold": { "label": "Débloquer un paquet", "desc": "apt-mark unhold" }
+    "systemUpdate": {
+      "label": "Mise à jour système",
+      "desc": "apt upgrade complet"
+    },
+    "updateSecurity": {
+      "label": "Mises à jour sécu uniquement",
+      "desc": "apt upgrade -s"
+    },
+    "reboot": {
+      "label": "Redémarrer",
+      "desc": "systemctl reboot (60s avant retour)"
+    },
+    "agentUpgrade": {
+      "label": "Mettre à jour l'agent Nexus",
+      "desc": "Self-upgrade + restart"
+    },
+    "serviceRestart": {
+      "label": "Redémarrer un service",
+      "desc": "systemctl restart"
+    },
+    "serviceStart": {
+      "label": "Démarrer un service",
+      "desc": "systemctl start"
+    },
+    "serviceStop": {
+      "label": "Arrêter un service",
+      "desc": "systemctl stop"
+    },
+    "packageInstall": {
+      "label": "Installer un paquet",
+      "desc": "apt install"
+    },
+    "packageRemove": {
+      "label": "Supprimer un paquet",
+      "desc": "apt remove"
+    },
+    "packageHold": {
+      "label": "Bloquer un paquet (hold)",
+      "desc": "apt-mark hold"
+    },
+    "packageUnhold": {
+      "label": "Débloquer un paquet",
+      "desc": "apt-mark unhold"
+    },
+    "logsInstall": {
+      "label": "Installer l'agent d'export",
+      "desc": "Installer Fluent Bit (dépôt apt GPG-épinglé)"
+    },
+    "logsConfigure": {
+      "label": "Configurer l'export des logs",
+      "desc": "Pointer le journald de la flotte vers un Loki central"
+    },
+    "logsDisable": {
+      "label": "Désactiver l'export des logs",
+      "desc": "Arrêter Fluent Bit et retirer la config Nexus"
+    }
+  },
+  "bulkLogShipping": {
+    "host": "Hôte Loki",
+    "port": "Port",
+    "tenant": "Tenant (optionnel)",
+    "tls": "TLS (https)",
+    "hostRequired": "L'hôte Loki est requis.",
+    "portRequired": "Le port est requis."
   }
 }

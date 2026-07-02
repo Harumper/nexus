@@ -11,6 +11,7 @@
     "updates": "Updates",
     "ssh": "SSH configuration",
     "security": "Security",
+    "logshipping": "Log shipping",
     "supplychain": "Build & signing",
     "api": "API Reference"
   },
@@ -238,6 +239,25 @@
     "roleAdmin": "<b>ADMIN</b> — Full access (create/delete machines, profiles, tags, etc.)",
     "roleOperator": "<b>OPERATOR</b> — Read + actions on machines",
     "roleReadonly": "<b>READONLY</b> — Read-only"
+  },
+  "logshipping": {
+    "title": "Log shipping",
+    "intro": "Nexus <b>configures a log shipper</b> on each machine; it is not a log platform. It installs and points <b>Fluent Bit</b> (Apache-2.0, CNCF) at a central Loki, then the aggregated view and search live in Grafana — not in Nexus.",
+    "pipelineTitle": "What gets shipped",
+    "pipelineText": "The systemd journal is forwarded as a <b>readable message line</b> plus low-cardinality labels (host, machine_id, unit, level) and structured metadata (ident, pid). Journald noise is dropped by an allowlist. The rendered <c>/etc/fluent-bit/nexus.yaml</c> is shown in a dry-run preview before anything is applied.",
+    "installTitle": "Install",
+    "installText": "<b>1-click install</b> adds the official Fluent Bit apt repository with its signing key <b>pinned by fingerprint</b> — the fetched key is refused if the fingerprint does not match, so TLS alone is never the trust anchor. Ubuntu/Debian only.",
+    "rbacTitle": "Access control",
+    "rbacConfigure": "<b>Configure &amp; install → ADMIN only</b>: redirecting the egress of all system logs to an arbitrary endpoint is an exfiltration vector, and adding a third-party apt repo fleet-wide is a supply-chain decision.",
+    "rbacDisable": "<b>Disable → OPERATOR</b>: it is the safe direction (it stops egress).",
+    "rbacStatus": "<b>Status → read-only</b>: any role can view whether the shipper is installed, running and healthy.",
+    "confidTitle": "Destination confidentiality",
+    "confidText": "<b>The central plane stays blind to the destinations.</b> The UI never shows the configured Loki target, and the audit log redacts the host/port/tenant of a shipping change — a Nexus-DB compromise cannot map where each machine ships its logs. The change event itself (who / when) is still audited.",
+    "bulkTitle": "Fleet-wide",
+    "bulkText": "Install, configure or disable shipping across the whole fleet in one bulk action — point every machine at the central Loki at once.",
+    "notesTitle": "Notes",
+    "noteAuth": "<b>No-auth / trusted LAN</b> is the MVP target (matches a Loki with auth_enabled off on a trusted subnet). Loki basic-auth / bearer tokens are a later increment.",
+    "noteTail": "<b>Shipping starts at (re)configuration</b>: Fluent Bit tails the journal from restart onward, so new logs flow immediately — the pre-existing backlog is not replayed."
   },
   "supplychain": {
     "title": "Agent build, signing & verification",

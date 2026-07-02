@@ -19,7 +19,7 @@ interface Props {
 const BULK_ACTIONS: {
   id: string;
   key: string;
-  paramsUI?: "service" | "package" | "script";
+  paramsUI?: "service" | "package" | "script" | "logShipping";
   destructive?: boolean;
   confirmText?: string;
 }[] = [
@@ -34,12 +34,22 @@ const BULK_ACTIONS: {
   { id: "package.remove", key: "packageRemove", paramsUI: "package", destructive: true },
   { id: "package.hold", key: "packageHold", paramsUI: "package" },
   { id: "package.unhold", key: "packageUnhold", paramsUI: "package" },
+  // Log shipping: install/configure/disable Fluent Bit across the whole fleet.
+  // configure carries a multi-field destination → dedicated paramsUI.
+  { id: "logs.install_shipper", key: "logsInstall" },
+  { id: "logs.configure_shipping", key: "logsConfigure", paramsUI: "logShipping" },
+  { id: "logs.disable_shipping", key: "logsDisable", destructive: true, confirmText: "DISABLE" },
 ];
 
 export default function BulkActionDialog({ machines, onClose, onCompleted }: Props) {
   const { t } = useTranslation(["bulkAction", "common"]);
   const [actionId, setActionId] = useState<string>("");
   const [paramValue, setParamValue] = useState("");
+  // Multi-field params for logs.configure_shipping (bulk).
+  const [lokiHost, setLokiHost] = useState("");
+  const [lokiPort, setLokiPort] = useState("3100");
+  const [lokiTenant, setLokiTenant] = useState("");
+  const [lokiTls, setLokiTls] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
@@ -65,6 +75,13 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
       } else if (action.paramsUI === "package") {
         if (!paramValue) throw new Error(t("toasts.packageRequired"));
         params.name = paramValue;
+      } else if (action.paramsUI === "logShipping") {
+        if (!lokiHost.trim()) throw new Error(t("bulkLogShipping.hostRequired"));
+        if (!lokiPort.trim()) throw new Error(t("bulkLogShipping.portRequired"));
+        params.loki_host = lokiHost.trim();
+        params.loki_port = lokiPort.trim();
+        params.tls = lokiTls;
+        if (lokiTenant.trim()) params.tenant = lokiTenant.trim();
       }
 
       const res = await api.bulkDispatch({
@@ -146,6 +163,11 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
               onChange={(e) => {
                 setActionId(e.target.value);
                 setParamValue("");
+                setLokiHost("");
+                setLokiPort("3100");
+                setLokiTenant("");
+                setLokiTls(false);
+                setConfirmInput("");
               }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -189,6 +211,36 @@ export default function BulkActionDialog({ machines, onClose, onCompleted }: Pro
                 placeholder={t("packagePlaceholder")}
                 className="font-mono"
               />
+            </div>
+          )}
+
+          {action?.paramsUI === "logShipping" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium mb-1.5">{t("bulkLogShipping.host")}</label>
+                  <Input
+                    value={lokiHost}
+                    onChange={(e) => setLokiHost(e.target.value)}
+                    placeholder="10.0.10.103"
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5">{t("bulkLogShipping.port")}</label>
+                  <Input value={lokiPort} onChange={(e) => setLokiPort(e.target.value)} placeholder="3100" className="font-mono" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium mb-1.5">{t("bulkLogShipping.tenant")}</label>
+                  <Input value={lokiTenant} onChange={(e) => setLokiTenant(e.target.value)} className="font-mono" />
+                </div>
+                <label className="flex items-center gap-2 text-xs self-end pb-2 cursor-pointer">
+                  <input type="checkbox" checked={lokiTls} onChange={(e) => setLokiTls(e.target.checked)} />
+                  {t("bulkLogShipping.tls")}
+                </label>
+              </div>
             </div>
           )}
 

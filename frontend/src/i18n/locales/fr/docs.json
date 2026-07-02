@@ -11,6 +11,7 @@
     "updates": "Mises à jour",
     "ssh": "Configuration SSH",
     "security": "Sécurité",
+    "logshipping": "Export des logs",
     "supplychain": "Build & signature",
     "api": "API Reference"
   },
@@ -238,6 +239,25 @@
     "roleAdmin": "<b>ADMIN</b> — Accès total (créer/supprimer machines, profils, tags, etc.)",
     "roleOperator": "<b>OPERATOR</b> — Lecture + actions sur les machines",
     "roleReadonly": "<b>READONLY</b> — Lecture seule"
+  },
+  "logshipping": {
+    "title": "Export des logs",
+    "intro": "Nexus <b>configure un agent d'export</b> de logs sur chaque machine ; ce n'est pas une plateforme de logs. Il installe et pointe <b>Fluent Bit</b> (Apache-2.0, CNCF) vers un Loki central ; la vue agrégée et la recherche vivent ensuite dans Grafana — pas dans Nexus.",
+    "pipelineTitle": "Ce qui est exporté",
+    "pipelineText": "Le journal systemd est transféré sous forme d'une <b>ligne de message lisible</b> plus des labels à faible cardinalité (host, machine_id, unit, level) et des métadonnées structurées (ident, pid). Le bruit journald est écarté par une allowlist. La config <c>/etc/fluent-bit/nexus.yaml</c> générée est montrée en aperçu (dry-run) avant toute application.",
+    "installTitle": "Installation",
+    "installText": "L'<b>installation en 1 clic</b> ajoute le dépôt apt officiel de Fluent Bit avec sa clé de signature <b>épinglée par empreinte</b> — la clé récupérée est refusée si l'empreinte ne correspond pas, donc TLS n'est jamais l'ancre de confiance à lui seul. Ubuntu/Debian uniquement.",
+    "rbacTitle": "Contrôle d'accès",
+    "rbacConfigure": "<b>Configurer &amp; installer → ADMIN uniquement</b> : rediriger l'egress de tous les logs système vers un endpoint arbitraire est un vecteur d'exfiltration, et ajouter un dépôt apt tiers à l'échelle du parc est une décision supply-chain.",
+    "rbacDisable": "<b>Désactiver → OPERATOR</b> : c'est la direction sûre (ça arrête l'egress).",
+    "rbacStatus": "<b>Statut → lecture seule</b> : tout rôle peut voir si l'agent est installé, actif et en bonne santé.",
+    "confidTitle": "Confidentialité des destinations",
+    "confidText": "<b>Le plan central reste aveugle sur les destinations.</b> L'UI n'affiche jamais la cible Loki configurée, et l'audit caviarde le host/port/tenant d'un changement d'export — une compromission de la DB Nexus ne permet pas de cartographier où chaque machine envoie ses logs. L'événement de changement lui-même (qui / quand) reste tracé.",
+    "bulkTitle": "À l'échelle du parc",
+    "bulkText": "Installer, configurer ou désactiver l'export sur toute la flotte en une action groupée — pointer toutes les machines vers le Loki central d'un coup.",
+    "notesTitle": "Notes",
+    "noteAuth": "<b>Sans auth / LAN de confiance</b> est la cible du MVP (correspond à un Loki avec auth_enabled désactivé sur un sous-réseau de confiance). Le basic-auth / bearer token Loki est un incrément ultérieur.",
+    "noteTail": "<b>L'export démarre à la (re)configuration</b> : Fluent Bit suit le journal à partir du redémarrage, les nouveaux logs partent donc immédiatement — le backlog préexistant n'est pas rejoué."
   },
   "supplychain": {
     "title": "Build, signature et vérification de l'agent",
