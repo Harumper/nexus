@@ -475,6 +475,9 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -D -m 644 -o root -g root /var
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/systemd/system/fluent-bit.service.d/10-nexus.conf
 nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/fluent-bit/nexus.yaml
+# logs.install_shipper: GPG-pinned Fluent Bit repo (key + source list; apt install/update already whitelisted)
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-flbkey-*.tmp /usr/share/keyrings/fluentbit-keyring.gpg
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-flbrepo-*.tmp /etc/apt/sources.list.d/fluent-bit.list
 
 # === Firewall assistant: listening sockets (read-only) ===
 # ss -p (process names) requires root. Paths depend on packaging (sbin/bin).
