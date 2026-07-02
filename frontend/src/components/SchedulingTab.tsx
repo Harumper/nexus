@@ -105,20 +105,20 @@ export default function SchedulingTab({ machineId }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {sortedTimers.map((t, i) => {
-                  const unit = t.unit || "—";
-                  const enabled = t.enabled_state === "enabled";
+                {sortedTimers.map((timer, i) => {
+                  const unit = timer.unit || "—";
+                  const enabled = timer.enabled_state === "enabled";
                   return (
                     <tr key={i} className="border-t" style={{ borderColor: "var(--nx-border)" }}>
                       <Td className="font-mono">{unit}</Td>
-                      <Td style={{ color: "var(--nx-text-weak)" }}>{t.next || "—"}</Td>
-                      <Td style={{ color: "var(--nx-text-weak)" }}>{t.last || "—"}</Td>
+                      <Td style={{ color: "var(--nx-text-weak)" }}>{timer.next || "—"}</Td>
+                      <Td style={{ color: "var(--nx-text-weak)" }}>{timer.last || "—"}</Td>
                       <Td>
                         <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
-                          background: t.activates ? "var(--nx-success-subtle)" : "var(--nx-bg-elevated)",
-                          color: t.activates ? "var(--nx-success)" : "var(--nx-text-weak)",
+                          background: timer.activates ? "var(--nx-success-subtle)" : "var(--nx-bg-elevated)",
+                          color: timer.activates ? "var(--nx-success)" : "var(--nx-text-weak)",
                         }}>
-                          {t.activates || "—"}
+                          {timer.activates || "—"}
                         </span>
                       </Td>
                       <Td>
@@ -126,7 +126,7 @@ export default function SchedulingTab({ machineId }: Props) {
                           background: enabled ? "var(--nx-success-subtle)" : "var(--nx-bg-elevated)",
                           color: enabled ? "var(--nx-success)" : "var(--nx-text-weak)",
                         }}>
-                          {t.enabled_state || "?"}
+                          {timer.enabled_state || "?"}
                         </span>
                       </Td>
                       <Td>
