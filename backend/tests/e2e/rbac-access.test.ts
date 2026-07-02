@@ -3,6 +3,7 @@ import {
   checkRoleForAction,
   checkPrivilegedAction,
   isPrivilegedUserAction,
+  redactAuditParams,
   ADMIN_ONLY_ACTIONS,
 } from "../../src/services/privileged-actions.js";
 import { READ_ONLY_ACTIONS } from "../../src/services/machine-manager.js";
@@ -101,5 +102,37 @@ describe("checkPrivilegedAction — out-of-band access (SSH keys / sudo)", () =>
   it("user.create+sudo + flag ON + non-ADMIN: DENIED (sudo bypass protection)", () => {
     process.env.ALLOW_USER_PRIVILEGE_MGMT = "true";
     expect(checkPrivilegedAction("user.create", "OPERATOR", { sudo: true }).allowed).toBe(false);
+  });
+});
+
+// Audit redaction: the Loki destination of logs.configure_shipping must NOT be
+// persisted in the audit log — a Nexus-DB compromise would otherwise expose the
+// fleet's log destinations. The event is kept; the destination is scrubbed.
+describe("redactAuditParams — audit confidentiality of log destinations", () => {
+  it("logs.configure_shipping: host/port/tenant are redacted, tls kept", () => {
+    const out = redactAuditParams("logs.configure_shipping", {
+      loki_host: "10.0.10.103",
+      loki_port: "3100",
+      tenant: "team-a",
+      tls: true,
+    });
+    expect(out.loki_host).toBe("[redacted]");
+    expect(out.loki_port).toBe("[redacted]");
+    expect(out.tenant).toBe("[redacted]");
+    expect(out.tls).toBe(true); // non-identifying → kept
+  });
+
+  it("does not leak the destination string anywhere in the audit payload", () => {
+    const out = redactAuditParams("logs.configure_shipping", { loki_host: "10.0.10.103", loki_port: "3100" });
+    expect(JSON.stringify(out)).not.toContain("10.0.10.103");
+  });
+
+  it("other actions pass through unchanged (no accidental scrubbing)", () => {
+    const params = { name: "nginx" };
+    expect(redactAuditParams("system.service_restart", params)).toEqual(params);
+  });
+
+  it("undefined params → empty object (no crash)", () => {
+    expect(redactAuditParams("logs.configure_shipping", undefined)).toEqual({});
   });
 });
