@@ -1,9 +1,12 @@
 package actions
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +16,7 @@ func init() {
 	Register(&LogConfigureShippingAction{})
 	Register(&LogShippingStatusAction{})
 	Register(&LogDisableShippingAction{})
+	Register(&LogInstallShipperAction{})
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -273,4 +277,143 @@ func (a *LogDisableShippingAction) Execute(_ map[string]interface{}) (interface{
 		"disabled":       true,
 		"service_active": systemctlActive(fluentBitService),
 	}, nil
+}
+
+// ── logs.install_shipper (mutation) — GPG-pinned apt repo install ──
+
+const (
+	fluentBitKeyURL         = "https://packages.fluentbit.io/fluentbit.key"
+	fluentBitKeyFingerprint = "C3C0A28534B9293EAF51FABD9F9DDC083888C1CD" // pinned: current signing key (>=1.8.15/1.9)
+	fluentBitKeyringPath    = "/usr/share/keyrings/fluentbit-keyring.gpg"
+	fluentBitRepoPath       = "/etc/apt/sources.list.d/fluent-bit.list"
+)
+
+type LogInstallShipperAction struct{}
+
+func (a *LogInstallShipperAction) ID() string                              { return "logs.install_shipper" }
+func (a *LogInstallShipperAction) Capability() string                      { return "monitoring" }
+func (a *LogInstallShipperAction) Validate(_ map[string]interface{}) error { return nil }
+
+func (a *LogInstallShipperAction) Execute(_ map[string]interface{}) (interface{}, error) {
+	if fileExists(fluentBitBinary) {
+		return map[string]interface{}{"already_installed": true, "binary": fluentBitBinary}, nil
+	}
+	distroID := osReleaseField("ID")
+	codename := osReleaseField("VERSION_CODENAME")
+	if (distroID != "ubuntu" && distroID != "debian") || codename == "" {
+		return nil, fmt.Errorf("auto-install supports ubuntu/debian only (got ID=%q codename=%q) — install fluent-bit manually", distroID, codename)
+	}
+
+	// 1. Fetch the repo signing key over HTTPS.
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(fluentBitKeyURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch fluent-bit key: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch fluent-bit key: HTTP %d", resp.StatusCode)
+	}
+	armored, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read key: %w", err)
+	}
+
+	// 2. AUTHORITY: the fetched key's fingerprint MUST equal the pinned one, else
+	// abort — we never trust a key we did not pin (TLS alone is not enough).
+	fpr, err := gpgFingerprint(armored)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(fpr), fluentBitKeyFingerprint) {
+		return nil, fmt.Errorf("fluent-bit key fingerprint mismatch: pinned %s, got %s — refusing install", fluentBitKeyFingerprint, fpr)
+	}
+
+	// 3. Dearmor + install the keyring (root:root 0644).
+	dearmored, err := gpgDearmor(armored)
+	if err != nil {
+		return nil, err
+	}
+	if err := installRootBytes(dearmored, "sec-flbkey-*.tmp", fluentBitKeyringPath, "644"); err != nil {
+		return nil, err
+	}
+
+	// 4. Signed-by apt source for this distro/codename.
+	repo := fmt.Sprintf("deb [signed-by=%s] https://packages.fluentbit.io/%s/%s %s main\n",
+		fluentBitKeyringPath, distroID, codename, codename)
+	if err := installRootFile(repo, "sec-flbrepo-*.tmp", fluentBitRepoPath); err != nil {
+		return nil, err
+	}
+
+	// 5. apt update + install (apt install carries the NOEXEC backstop in sudoers).
+	if err := sudoRun("/usr/bin/apt-get", "update"); err != nil {
+		return nil, fmt.Errorf("apt-get update: %w", err)
+	}
+	if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "fluent-bit"); err != nil {
+		return nil, fmt.Errorf("apt-get install fluent-bit: %w", err)
+	}
+	return map[string]interface{}{"installed": fileExists(fluentBitBinary), "binary": fluentBitBinary, "codename": codename}, nil
+}
+
+// osReleaseField reads KEY=value from /etc/os-release (quotes stripped).
+func osReleaseField(key string) string {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, key+"=") {
+			return strings.Trim(strings.TrimPrefix(line, key+"="), `"`)
+		}
+	}
+	return ""
+}
+
+// gpgFingerprint returns the primary-key fingerprint of an ASCII-armored key,
+// parsed from `gpg --show-keys --with-colons` (the `fpr:` record). No keyring is
+// touched (parse-only).
+func gpgFingerprint(armored []byte) (string, error) {
+	cmd := exec.Command("gpg", "--show-keys", "--with-colons")
+	cmd.Stdin = bytes.NewReader(armored)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("gpg --show-keys: %w", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "fpr:") {
+			f := strings.Split(line, ":")
+			if len(f) >= 10 && f[9] != "" {
+				return f[9], nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no fingerprint found in key")
+}
+
+func gpgDearmor(armored []byte) ([]byte, error) {
+	cmd := exec.Command("gpg", "--dearmor")
+	cmd.Stdin = bytes.NewReader(armored)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gpg --dearmor: %w", err)
+	}
+	return out, nil
+}
+
+// installRootBytes is installRootFile for binary content (the dearmored keyring).
+func installRootBytes(content []byte, tmpPattern, dest, mode string) error {
+	tmp, err := os.CreateTemp("/var/lib/nexus-agent", tmpPattern)
+	if err != nil {
+		return fmt.Errorf("tempfile: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write tempfile: %w", err)
+	}
+	tmp.Close()
+	if err := sudoRun("/usr/bin/install", "-m", mode, "-o", "root", "-g", "root", tmp.Name(), dest); err != nil {
+		return fmt.Errorf("install %s: %w", dest, err)
+	}
+	return nil
 }
