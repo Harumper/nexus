@@ -406,8 +406,9 @@ func (a *FirewallDisableAction) Execute(params map[string]interface{}) (interfac
 // ===================== firewall.apply_policy =====================
 // Firewall assistant: allows a list of detected ports then enables ufw
 // (deny incoming by default). ONE single watchdog'd operation (iptables snapshot
-// + 60s revert). Anti-lock-out: the SSH port must be present in 'allow' (guaranteed
-// on the UI side), and the watchdog restores everything if access is lost.
+// + 60s revert). Anti-lock-out (defense in depth): the SSH port(s) the machine is
+// currently listening on are ALWAYS added to the allow list AGENT-SIDE (not only
+// in the UI), and the watchdog restores everything if access is lost.
 
 type FirewallApplyPolicyAction struct{}
 
@@ -437,6 +438,10 @@ func (a *FirewallApplyPolicyAction) Execute(params map[string]interface{}) (inte
 	for _, item := range raw {
 		allow = append(allow, item.(string))
 	}
+
+	// Anti-lock-out enforced AGENT-SIDE: guarantee the SSH port(s) are allowed,
+	// even if the caller omitted them (e.g. a direct API call bypassing the UI).
+	allow = ensureAllowed(allow, sshAllowPorts())
 
 	reqID, _ := params["request_id"].(string)
 	if reqID == "" {
@@ -476,4 +481,50 @@ func (a *FirewallApplyPolicyAction) Execute(params map[string]interface{}) (inte
 		"watchdog_expires_in": int(watchdogDuration.Seconds()),
 		"watchdog_expires_at": pr.CreatedAt.Add(watchdogDuration).Format(time.RFC3339),
 	}, nil
+}
+
+// ensureAllowed appends every token of `extra` not already in `base`
+// (order-preserving, de-duplicated). Pure helper — the anti-lock-out merge is
+// unit-tested here.
+func ensureAllowed(base, extra []string) []string {
+	present := make(map[string]bool, len(base))
+	for _, p := range base {
+		present[p] = true
+	}
+	for _, p := range extra {
+		if !present[p] {
+			base = append(base, p)
+			present[p] = true
+		}
+	}
+	return base
+}
+
+// sshAllowPorts returns the ufw "allow" tokens for the SSH port(s) the machine is
+// currently listening on (reuses the `ss` detection of network.listening_services).
+// Falls back to "22/tcp" when detection is unavailable, so firewall.apply_policy
+// can NEVER lock SSH out — the anti-lock-out golden rule is enforced here, not only
+// in the UI. Ports are re-validated against firewallPortRegex before being emitted.
+func sshAllowPorts() []string {
+	set := map[string]bool{}
+	if bin := ssPath(); bin != "" {
+		out, err := exec.Command("sudo", "-n", bin, "-Htlnp").Output()
+		if err != nil {
+			out, _ = exec.Command(bin, "-Htln").Output()
+		}
+		for _, s := range parseSsListening(string(out)) {
+			tok := s.Port + "/tcp"
+			if s.IsSSH && firewallPortRegex.MatchString(tok) {
+				set[tok] = true
+			}
+		}
+	}
+	if len(set) == 0 {
+		set["22/tcp"] = true // safe default: never leave SSH unprotected
+	}
+	ports := make([]string, 0, len(set))
+	for p := range set {
+		ports = append(ports, p)
+	}
+	return ports
 }

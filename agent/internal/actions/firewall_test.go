@@ -104,3 +104,41 @@ func TestHandleConfirmUnknownIDIsSafe(t *testing.T) {
 	}()
 	HandleConfirm("nonexistent-request-id-12345")
 }
+
+func TestEnsureAllowedMergesSSHWithoutDup(t *testing.T) {
+	// The anti-lock-out merge: apply_policy must always end up with the SSH
+	// port(s), without duplicating one the caller already provided.
+	cases := []struct {
+		name  string
+		base  []string
+		extra []string
+		want  string
+	}{
+		{"adds missing ssh", []string{"80/tcp"}, []string{"22/tcp"}, "80/tcp,22/tcp"},
+		{"no dup when present", []string{"22/tcp", "80/tcp"}, []string{"22/tcp"}, "22/tcp,80/tcp"},
+		{"empty base gets ssh", []string{}, []string{"22/tcp"}, "22/tcp"},
+		{"multiple ssh ports", []string{"443/tcp"}, []string{"22/tcp", "2222/tcp"}, "443/tcp,22/tcp,2222/tcp"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := strings.Join(ensureAllowed(tc.base, tc.extra), ",")
+			if got != tc.want {
+				t.Errorf("ensureAllowed(%v,%v)=%q, want %q", tc.base, tc.extra, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSSHAllowPortsAlwaysReturnsValidPort(t *testing.T) {
+	// Even with no ss/sudo available (test container), it MUST fall back to a
+	// valid, non-empty SSH token so apply_policy can never omit SSH.
+	ports := sshAllowPorts()
+	if len(ports) == 0 {
+		t.Fatal("sshAllowPorts returned empty — SSH could be locked out")
+	}
+	for _, p := range ports {
+		if !firewallPortRegex.MatchString(p) {
+			t.Errorf("sshAllowPorts returned invalid token %q", p)
+		}
+	}
+}
