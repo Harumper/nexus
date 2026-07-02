@@ -778,6 +778,16 @@ class ApiClient {
     );
   }
 
+  async hardenSysctlNetwork(id: string) {
+    return this.request<{ success: boolean; data: { sysctl_network_hardened: boolean } }>(
+      `/machines/${id}/actions/sync`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action_id: "security.harden_sysctl_network", params: {}, timeout: 30000 }),
+      }
+    );
+  }
+
   // Generic preview (dry-run) of a remediation: returns the files/directives
   // that would be written, without applying anything.
   async remediationPreview(id: string, actionId: string) {

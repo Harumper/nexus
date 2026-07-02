@@ -144,6 +144,7 @@ export interface SecurityAuditResult {
   login_banner_set?: boolean;
   core_dumps_disabled?: boolean;
   login_defs_hardened?: boolean;
+  sysctl_network_hardened?: boolean;
 }
 
 export interface MetricsResponse {

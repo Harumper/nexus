@@ -560,6 +560,20 @@ export default function SecurityTab({ machineId }: SecurityTabProps) {
                   )
                 }
               />
+
+              <RemediationRow
+                label={t("remediations.sysctlNetworkLabel")}
+                active={!!result.sysctl_network_hardened}
+                activeLabel={t("remediations.sysctlNetworkActive")}
+                busy={applying === "netsysctl"}
+                previewLoading={previewLoading === "netsysctl"}
+                previewing={preview?.key === "netsysctl"}
+                onPreview={() =>
+                  togglePreview("netsysctl", "security.harden_sysctl_network", t("remediations.sysctlNetworkPreviewTitle"), t("remediations.sysctlNetworkApply"), () =>
+                    applyFromPreview("netsysctl", () => api.hardenSysctlNetwork(machineId), { sysctl_network_hardened: true })
+                  )
+                }
+              />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               {t("remediations.sshNote")}

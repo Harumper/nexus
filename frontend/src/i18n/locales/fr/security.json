@@ -58,7 +58,11 @@
     "loginDefsLabel": "Durcir /etc/login.defs (umask 027 + âges de mot de passe)",
     "loginDefsActive": "Durci",
     "loginDefsPreviewTitle": "Durcir /etc/login.defs",
-    "loginDefsApply": "Durcir"
+    "loginDefsApply": "Durcir",
+    "sysctlNetworkLabel": "Durcir le sysctl réseau/noyau (redirects ICMP, source routing, syncookies…)",
+    "sysctlNetworkActive": "Durci",
+    "sysctlNetworkPreviewTitle": "Durcir le sysctl réseau/noyau",
+    "sysctlNetworkApply": "Durcir"
   },
   "firewallWizard": {
     "title": "Assistant pare-feu",

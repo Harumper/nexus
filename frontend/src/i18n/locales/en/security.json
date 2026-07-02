@@ -58,7 +58,11 @@
     "loginDefsLabel": "Harden /etc/login.defs (umask 027 + password ages)",
     "loginDefsActive": "Hardened",
     "loginDefsPreviewTitle": "Harden /etc/login.defs",
-    "loginDefsApply": "Harden"
+    "loginDefsApply": "Harden",
+    "sysctlNetworkLabel": "Harden network/kernel sysctl (ICMP redirects, source routing, syncookies…)",
+    "sysctlNetworkActive": "Hardened",
+    "sysctlNetworkPreviewTitle": "Harden network/kernel sysctl",
+    "sysctlNetworkApply": "Harden"
   },
   "firewallWizard": {
     "title": "Firewall wizard",
