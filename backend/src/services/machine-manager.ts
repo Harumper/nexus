@@ -100,4 +100,6 @@ export const READ_ONLY_ACTIONS = [
   // File browser: list/read are read-only (fs.upload mutates → excluded).
   "fs.list",
   "fs.read",
+  // Log shipping: status is read-only (configure/disable/install mutate → excluded).
+  "logs.shipping_status",
 ];

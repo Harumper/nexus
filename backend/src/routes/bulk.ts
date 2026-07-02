@@ -21,6 +21,10 @@ const BULK_ALLOWED_ACTIONS = new Set([
   "package.hold",
   "package.unhold",
   "script.execute",
+  // Log shipping: point the whole fleet at the central Loki in one shot.
+  "logs.install_shipper",
+  "logs.configure_shipping",
+  "logs.disable_shipping",
 ]);
 
 export async function bulkRoutes(app: FastifyInstance): Promise<void> {
