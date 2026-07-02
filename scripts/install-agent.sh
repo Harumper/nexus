@@ -465,6 +465,9 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/li
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sysctl -p /etc/sysctl.d/99-nexus-coredump.conf
 # login.defs hardening (security.harden_login_defs)
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-logindefs-*.tmp /etc/login.defs
+# Network/kernel sysctl hardening (security.harden_sysctl_network); -e ignores unknown keys (IPv6 off)
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-netsysctl-*.tmp /etc/sysctl.d/99-nexus-network.conf
+nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sysctl -e -p /etc/sysctl.d/99-nexus-network.conf
 
 # === Firewall assistant: listening sockets (read-only) ===
 # ss -p (process names) requires root. Paths depend on packaging (sbin/bin).

@@ -136,6 +136,7 @@ func (a *SecurityAuditAction) Execute(_ map[string]interface{}) (interface{}, er
 	parsed["login_banner_set"] = loginBannerSet()
 	parsed["core_dumps_disabled"] = coreDumpsDisabled()
 	parsed["login_defs_hardened"] = loginDefsHardened()
+	parsed["sysctl_network_hardened"] = networkSysctlHardened()
 	return parsed, nil
 }
 
