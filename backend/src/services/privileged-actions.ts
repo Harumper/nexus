@@ -127,6 +127,33 @@ export function checkRoleForAction(
   };
 }
 
+// Audit redaction: some action params reveal infrastructure that must NOT be
+// retained in the central Nexus DB. logs.configure_shipping carries the Loki
+// destination (host/port/tenant); persisting it would let a Nexus-DB compromise
+// map where every machine ships its logs — a ready-made target list for an
+// attacker to tamper with or cover their tracks. We keep the audit EVENT
+// (who / when / which action) but scrub the destination. Trade-off: the audit no
+// longer shows "to where" a machine was pointed, only that it was (re)configured.
+const AUDIT_REDACT_KEYS: Record<string, string[]> = {
+  "logs.configure_shipping": ["loki_host", "loki_port", "tenant"],
+};
+
+// Returns a copy of params safe to persist in the audit log (sensitive keys for
+// this action replaced by "[redacted]"). Non-redacted actions pass through.
+export function redactAuditParams(
+  actionId: string,
+  params?: Record<string, unknown>
+): Record<string, unknown> {
+  const src = params ?? {};
+  const keys = AUDIT_REDACT_KEYS[actionId];
+  if (!keys) return src;
+  const out: Record<string, unknown> = { ...src };
+  for (const k of keys) {
+    if (k in out) out[k] = "[redacted]";
+  }
+  return out;
+}
+
 // Enabled only if the env variable is explicitly "true".
 // Any other value (absent, "false", "0"…) → disabled.
 export function isUserPrivilegeMgmtEnabled(): boolean {

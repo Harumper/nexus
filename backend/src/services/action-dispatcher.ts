@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "./database.js";
 import { checkCriticalProtection } from "./machine-protection.js";
-import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction } from "./privileged-actions.js";
+import { checkPrivilegedAction, checkRoleForAction, checkRemoteScriptAction, redactAuditParams } from "./privileged-actions.js";
 import { PROTOCOL_VERSION } from "../websocket/protocol.js";
 import {
   signPayload,
@@ -151,7 +151,10 @@ export async function dispatchAction(
         details: {
           request_id: requestId,
           action_id: action.action_id,
-          params: action.params || {},
+          // Scrub infrastructure secrets (e.g. the Loki destination of
+          // logs.configure_shipping) so a Nexus-DB compromise can't map the
+          // fleet's log destinations. Keeps the event; drops the "to where".
+          params: redactAuditParams(action.action_id, action.params),
         } as any,
       },
     });
