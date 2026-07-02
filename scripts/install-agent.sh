@@ -469,6 +469,13 @@ nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/li
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-netsysctl-*.tmp /etc/sysctl.d/99-nexus-network.conf
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/sysctl -e -p /etc/sysctl.d/99-nexus-network.conf
 
+# === Log shipping (logs.configure_shipping / logs.disable_shipping): Fluent Bit ===
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /var/lib/nexus-agent/sec-flbconf-*.tmp /etc/fluent-bit/nexus.yaml
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/install -D -m 644 -o root -g root /var/lib/nexus-agent/sec-flbdropin-*.tmp /etc/systemd/system/fluent-bit.service.d/10-nexus.conf
+nexus-agent ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/systemd/system/fluent-bit.service.d/10-nexus.conf
+nexus-agent ALL=(root) NOPASSWD: /bin/rm -f /etc/fluent-bit/nexus.yaml
+
 # === Firewall assistant: listening sockets (read-only) ===
 # ss -p (process names) requires root. Paths depend on packaging (sbin/bin).
 nexus-agent ALL=(root) NOPASSWD: /usr/sbin/ss -Htlnp
