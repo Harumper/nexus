@@ -27,8 +27,24 @@ export default function HeaderBadges({ data, onTabChange, onShowFailedServices }
     ? Math.min(...expiringCerts.map((c) => c.days_remaining))
     : null;
 
+  const empty =
+    alerts.length === 0 && failedServices.length === 0 && updatesCount === 0 && expiringCerts.length === 0;
+
+  // While the (slow, agent-round-trip) attention data loads, reserve the badge
+  // row's height with skeleton pills so the real badges don't push the content
+  // below them down when they arrive ~1-2s later (layout shift). Once loaded, an
+  // empty result collapses to nothing (a healthy machine keeps a clean header).
+  if (empty && data.initialLoading) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 mt-2" aria-hidden="true">
+        <span className="h-[18px] w-28 rounded-full animate-pulse motion-reduce:animate-none" style={{ background: "var(--nx-bg-elevated)" }} />
+        <span className="h-[18px] w-20 rounded-full animate-pulse motion-reduce:animate-none" style={{ background: "var(--nx-bg-elevated)" }} />
+      </div>
+    );
+  }
+
   // If nothing is critical, we render nothing (the header stays clean)
-  if (alerts.length === 0 && failedServices.length === 0 && updatesCount === 0 && expiringCerts.length === 0) {
+  if (empty) {
     return null;
   }
 

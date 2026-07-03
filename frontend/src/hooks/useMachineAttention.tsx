@@ -19,6 +19,9 @@ export interface MachineAttentionData {
   certs: SslCert[];
   minCertDays: number | null;
   loading: boolean;
+  // True only during the very FIRST load (before any result). Stays false on the
+  // 60s re-polls, so a healthy machine doesn't flicker a skeleton every minute.
+  initialLoading: boolean;
   error: string;
   reload: () => Promise<void>;
 }
@@ -40,6 +43,7 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
   const [certs, setCerts] = useState<SslCert[]>([]);
   const [minCertDays, setMinCertDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [error, setError] = useState("");
 
   const reload = useCallback(async () => {
@@ -70,6 +74,7 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
       setError(err instanceof Error ? err.message : "load failed");
     } finally {
       setLoading(false);
+      setFirstLoadDone(true);
     }
   }, [machineId, enabled]);
 
@@ -84,5 +89,5 @@ export function useMachineAttention(machineId: string, enabled = true): MachineA
     return () => clearInterval(interval);
   }, [reload, enabled]);
 
-  return { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, error, reload };
+  return { alerts, failedServices, updatesCount, securityUpdates, certs, minCertDays, loading, initialLoading: loading && !firstLoadDone, error, reload };
 }
