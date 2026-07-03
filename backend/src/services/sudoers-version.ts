@@ -37,8 +37,13 @@ function computeExpectedSudoersHash(): string {
 
   const content = readFileSync(path, "utf-8");
 
-  // Look for the heredoc: cat > "$SUDOERS_TEMP" << SUDOERS ... SUDOERS
-  const match = content.match(/cat\s*>\s*"\$SUDOERS_TEMP"\s*<<\s*SUDOERS\s*\n([\s\S]*?)\nSUDOERS\b/);
+  // Look for the heredoc: cat > "$SUDOERS_TEMP" << 'SUDOERS' ... SUDOERS
+  // The opening delimiter is QUOTED (<< 'SUDOERS') on purpose — it disables $/`
+  // expansion inside a sudoers file — so the quote is optional in the regex.
+  // (Before this was fixed, the regex required an unquoted delimiter, never
+  // matched, and drift detection was silently disabled: the "Redeploy required"
+  // badge never fired.)
+  const match = content.match(/cat\s*>\s*"\$SUDOERS_TEMP"\s*<<\s*'?SUDOERS'?\s*\n([\s\S]*?)\nSUDOERS\b/);
   if (!match) {
     console.warn("[Sudoers] SUDOERS heredoc not found in install-agent.sh");
     return "";
