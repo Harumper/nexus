@@ -121,5 +121,16 @@
     "days": "{{d}}d {{h}}h",
     "hours": "{{h}}h {{m}}m",
     "minutes": "{{m}}m"
+  },
+  "agentMaint": {
+    "redeploy": "⚠ Redeploy required",
+    "redeployShort": "⚠ Redeploy",
+    "update": "↑ Update available",
+    "updateShort": "↑ Update",
+    "both": "⚠ Redeploy + update",
+    "bothShort": "⚠ Redeploy +↑",
+    "redeployTitle": "New agent actions require up-to-date sudoers. Re-run install-agent.sh (without --enrollment-token) — it refreshes the binary AND the sudoers. Not just the auto-upgrade; this is not a re-enrollment.",
+    "updateTitle": "A new agent binary version is available (signed auto-upgrade).",
+    "bothTitle": "Both the binary and the sudoers are out of date. One move covers both: re-run install-agent.sh (refresh) — it installs the new version AND the sudoers."
   }
 }

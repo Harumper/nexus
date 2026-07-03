@@ -27,6 +27,7 @@ import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
 import SecurityTab from "../components/SecurityTab";
 import LogShippingTab from "../components/LogShippingTab";
+import AgentMaintenanceBadge from "../components/AgentMaintenanceBadge";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
 import AgentUpgradeDialog from "../components/AgentUpgradeDialog";
@@ -323,14 +324,11 @@ export default function MachineDetail() {
                     {t("criticalBadge")}
                   </span>
                 )}
-                {machine.sudoersOutdated && (
-                  <span
-                    className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1 bg-warning-subtle text-warning"
-                    title={t("sudoersBadgeTitle")}
-                  >
-                    {t("sudoersBadge")}
-                  </span>
-                )}
+                <AgentMaintenanceBadge
+                  sudoersOutdated={machine.sudoersOutdated}
+                  updateAvailable={agentUpdateAvailable}
+                  size="md"
+                />
                 {machine.rebootRequired && <span title={t("rebootRequiredTitle")}><RotateCcw className="w-4 h-4" style={{ color: "var(--nx-warning)" }} /></span>}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--nx-text-weak)" }}>

@@ -8,6 +8,7 @@ import { timeAgo } from "../lib/format";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useConfirm } from "./ui";
+import AgentMaintenanceBadge from "./AgentMaintenanceBadge";
 import type { Machine, Metric } from "../types";
 
 interface MachineCardProps {
@@ -158,25 +159,14 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
                   {t("card.criticalBadge")}
                 </span>
               )}
-              {machine.sudoersOutdated && (
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-warning-subtle text-warning"
-                  title={t("card.sudoersTitle")}
-                >
-                  {t("card.sudoersBadge")}
-                </span>
-              )}
+              <AgentMaintenanceBadge
+                sudoersOutdated={machine.sudoersOutdated}
+                updateAvailable={machine.agentUpdateAvailable}
+                size="sm"
+              />
               {machine.rebootRequired && (
                 <span title={t("card.rebootRequiredTitle")}>
                   <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--nx-warning)" }} />
-                </span>
-              )}
-              {machine.agentUpdateAvailable && (
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-info-subtle text-info"
-                  title={t("card.agentUpdateTitle")}
-                >
-                  {t("card.agentBadge")}
                 </span>
               )}
               {alertCount > 0 && (

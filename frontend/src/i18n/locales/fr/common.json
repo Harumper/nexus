@@ -121,5 +121,16 @@
     "days": "{{d}}j {{h}}h",
     "hours": "{{h}}h {{m}}m",
     "minutes": "{{m}}m"
+  },
+  "agentMaint": {
+    "redeploy": "⚠ Redéploiement requis",
+    "redeployShort": "⚠ Redéploiement",
+    "update": "↑ Mise à jour dispo",
+    "updateShort": "↑ Mise à jour",
+    "both": "⚠ Redéploiement + MàJ",
+    "bothShort": "⚠ Redéploy +↑",
+    "redeployTitle": "De nouvelles actions de l'agent nécessitent des sudoers à jour. Relancez install-agent.sh (sans --enrollment-token) — ça repose le binaire ET les sudoers. Pas juste l'auto-upgrade ; ce n'est pas un ré-enrôlement.",
+    "updateTitle": "Une nouvelle version du binaire de l'agent est disponible (auto-upgrade signé).",
+    "bothTitle": "Le binaire ET les sudoers sont à mettre à jour. Un seul geste couvre les deux : relancez install-agent.sh (refresh) — il pose la nouvelle version ET les sudoers."
   }
 }
