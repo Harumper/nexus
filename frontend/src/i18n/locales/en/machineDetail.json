@@ -3,8 +3,8 @@
   "reconnectingTitle": "WebSocket dropped. The machine stays marked ONLINE for ~90s after a disconnect to absorb network blips; actions will fail until the agent reconnects.",
   "criticalBadge": "⚠ Critical",
   "criticalBadgeTitle": "Critical machine: reboot and stop of critical services are blocked",
-  "sudoersBadge": "⚠ Outdated sudoers",
-  "sudoersBadgeTitle": "This agent's sudoers differ from the expected version. Reinstall the agent with install-agent.sh to enable the new actions.",
+  "sudoersBadge": "⚠ Redeploy required",
+  "sudoersBadgeTitle": "New agent actions require up-to-date sudoers. Re-run install-agent.sh (without --enrollment-token) to refresh the binary AND sudoers. ⚠ The automatic binary update alone is not enough — this is not a re-enrollment.",
   "rebootRequiredTitle": "Reboot required",
   "actions": {
     "reloadTooltip": "Reload (machine, metrics, attention)",

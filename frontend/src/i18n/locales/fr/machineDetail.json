@@ -3,8 +3,8 @@
   "reconnectingTitle": "WebSocket coupé. La machine reste marquée ONLINE pendant ~90s après une déconnexion pour absorber les blips réseau ; les actions échoueront tant que l'agent ne s'est pas reconnecté.",
   "criticalBadge": "⚠ Critique",
   "criticalBadgeTitle": "Machine critique : reboot et stop de services critiques bloqués",
-  "sudoersBadge": "⚠ Sudoers obsolètes",
-  "sudoersBadgeTitle": "Les sudoers de cet agent diffèrent de la version attendue. Ré-installez l'agent avec install-agent.sh pour bénéficier des nouvelles actions.",
+  "sudoersBadge": "⚠ Redéploiement requis",
+  "sudoersBadgeTitle": "De nouvelles actions de l'agent nécessitent des sudoers à jour. Relancez install-agent.sh (sans --enrollment-token) pour reposer le binaire ET les sudoers. ⚠ La mise à jour automatique du binaire seule ne suffit pas — ce n'est pas un ré-enrôlement.",
   "rebootRequiredTitle": "Reboot requis",
   "actions": {
     "reloadTooltip": "Recharger (machine, métriques, attention)",
