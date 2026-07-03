@@ -84,6 +84,7 @@ service:
   http_server: on
   http_listen: 127.0.0.1
   http_port: 2020
+  health_check: on
 
 pipeline:
   inputs:

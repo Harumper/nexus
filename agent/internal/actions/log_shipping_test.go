@@ -33,6 +33,7 @@ func TestValidateLokiShipParams(t *testing.T) {
 func TestBuildFluentBitConfig(t *testing.T) {
 	cfg := buildFluentBitConfig(LokiShipParams{Host: "192.0.2.10", Port: "3100", TLS: false})
 	for _, want := range []string{
+		"health_check: on", // /api/v1/health returns 200 only when this is set
 		"name: systemd", "read_from_tail: on", "record_modifier",
 		"Allowlist_key: MESSAGE", "name: loki",
 		"host: 192.0.2.10", "port: 3100", "tls: off",

@@ -10,8 +10,8 @@
     "configPresent": "Config Nexus présente",
     "serviceActive": "Service actif",
     "serviceInactive": "Service arrêté",
-    "healthOk": "Endpoint de santé OK",
-    "healthKo": "Endpoint de santé injoignable"
+    "healthOk": "Santé OK (envoi vers Loki actif)",
+    "healthKo": "Santé en échec (arrêté ou envoi KO)"
   },
   "install": {
     "title": "1. Installer l'agent d'export",

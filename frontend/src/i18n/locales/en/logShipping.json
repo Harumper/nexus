@@ -10,8 +10,8 @@
     "configPresent": "Nexus config present",
     "serviceActive": "Service running",
     "serviceInactive": "Service stopped",
-    "healthOk": "Health endpoint OK",
-    "healthKo": "Health endpoint unreachable"
+    "healthOk": "Healthy (delivering to Loki)",
+    "healthKo": "Health check failing (down or delivery KO)"
   },
   "install": {
     "title": "1. Install the shipper",
