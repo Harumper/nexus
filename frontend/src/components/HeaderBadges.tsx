@@ -1,4 +1,5 @@
 import { Bell, XCircle, Download, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { MachineAttentionData } from "../hooks/useMachineAttention";
 
@@ -113,11 +114,13 @@ function Badge({
   const style = { background: bg, color };
 
   if (href) {
+    // Client-side navigation (react-router), like AttentionPanel — not a full
+    // page reload that drops SPA state.
     return (
-      <a href={href} className={className} style={style} onClick={(e) => { e.preventDefault(); window.location.href = href; }}>
+      <Link to={href} className={className} style={style}>
         {icon}
         {children}
-      </a>
+      </Link>
     );
   }
   if (onClick) {

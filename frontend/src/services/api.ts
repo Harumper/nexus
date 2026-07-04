@@ -109,13 +109,6 @@ class ApiClient {
     return this.request<void>(`/machines/${id}`, { method: "DELETE" });
   }
 
-  async regenerateBootstrap(id: string) {
-    return this.request<import("../types").BootstrapArtifacts>(
-      `/machines/${id}/bootstrap/regenerate`,
-      { method: "POST" }
-    );
-  }
-
   async upgradeAgent(id: string) {
     return this.request<{ success: boolean; message: string; request_id?: string; currentVersion?: string }>(
       `/machines/${id}/agent/upgrade`,
