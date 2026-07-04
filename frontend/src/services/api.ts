@@ -1011,6 +1011,21 @@ class ApiClient {
       body: JSON.stringify({ value }),
     });
   }
+
+  // Sends a test email with the given SMTP config (validates before saving).
+  async testSmtp(config: unknown) {
+    return this.request<{ success: boolean; to: string }>("/settings/smtp/test", {
+      method: "POST",
+      body: JSON.stringify({ value: config }),
+    });
+  }
+
+  // Generates a fresh webhook signing secret server-side and returns it.
+  async regenerateWebhookSecret() {
+    return this.request<import("../types").Setting>("/settings/webhook/regenerate", {
+      method: "POST",
+    });
+  }
 }
 
 export class ApiError extends Error {

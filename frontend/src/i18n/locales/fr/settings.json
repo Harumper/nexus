@@ -15,7 +15,9 @@
     "port": "Port",
     "user": "Utilisateur",
     "password": "Mot de passe",
-    "from": "Adresse expéditeur"
+    "from": "Adresse expéditeur",
+    "testSent": "Email de test envoyé à {{to}}",
+    "testFailed": "Échec du test SMTP"
   },
   "webhook": {
     "secret": "Secret webhook",

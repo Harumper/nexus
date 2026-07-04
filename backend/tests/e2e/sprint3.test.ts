@@ -162,8 +162,11 @@ describe("Phase 7 — Email", () => {
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, "utf8");
     expect(content).toContain("sendAlertEmail");
+    expect(content).toContain("sendTestEmail");
     expect(content).toContain("nodemailer");
-    expect(content).toContain("smtp_config");
+    // Reads the SMTP config under the "smtp" key — the same key the UI persists
+    // (it used to read "smtp_config", which never matched → emails never sent).
+    expect(content).toContain('key: "smtp"');
     expect(content).toContain("createTransport");
     expect(content).toContain("Nexus Alert");
   });

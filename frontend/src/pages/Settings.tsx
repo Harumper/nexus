@@ -15,7 +15,9 @@ import {
   Container,
   Tag as TagIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../services/api";
+import { getErrorMessage } from "../services/errors";
 import NautilusIntegrationCard from "../components/NautilusIntegrationCard";
 import TagsManagementCard from "../components/TagsManagementCard";
 import { PageLoader } from "../components/ui";
@@ -131,7 +133,7 @@ export default function Settings() {
   const regenerateWebhook = async () => {
     setSaving("webhook");
     try {
-      const result = await api.updateSetting("webhook_secret", "__regenerate__");
+      const result = await api.regenerateWebhookSecret();
       if (result.value) {
         setWebhookSecret(result.value as string);
       }
@@ -139,6 +141,18 @@ export default function Settings() {
       setTimeout(() => setSaved(null), 2000);
     } catch {
       // ignore
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const testSmtp = async () => {
+    setSaving("smtp_test");
+    try {
+      const res = await api.testSmtp(smtp);
+      toast.success(t("smtp.testSent", { to: res.to }));
+    } catch (err) {
+      toast.error(getErrorMessage(err, t("smtp.testFailed")));
     } finally {
       setSaving(null);
     }
@@ -287,7 +301,7 @@ export default function Settings() {
               {saved === "smtp" ? t("saved") : t("common:actions.save")}
             </button>
             <button
-              onClick={() => saveSetting("smtp_test", smtp)}
+              onClick={testSmtp}
               disabled={saving === "smtp_test"}
               className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >

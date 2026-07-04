@@ -5,22 +5,29 @@ interface SmtpConfig {
   host: string;
   port: number;
   user: string;
-  pass: string;
+  password: string;
   from: string;
 }
 
-async function getSmtpConfig(): Promise<SmtpConfig | null> {
-  const setting = await prisma.setting.findUnique({ where: { key: "smtp_config" } });
-  if (!setting) return null;
-  const config = setting.value as any;
+// Normalizes a raw settings value into an SmtpConfig. The UI persists the SMTP
+// config under the "smtp" key with a "password" field (see Settings.tsx), so we
+// read exactly that shape. (Historically this read "smtp_config"/"pass", which
+// never matched the UI → alert emails silently never sent.)
+function normalizeSmtpConfig(config: any): SmtpConfig | null {
   if (!config || !config.host || !config.user) return null;
   return {
     host: config.host,
     port: config.port || 587,
     user: config.user,
-    pass: config.pass || "",
+    password: config.password || "",
     from: config.from || config.user,
   };
+}
+
+async function getSmtpConfig(): Promise<SmtpConfig | null> {
+  const setting = await prisma.setting.findUnique({ where: { key: "smtp" } });
+  if (!setting) return null;
+  return normalizeSmtpConfig(setting.value);
 }
 
 export async function sendAlertEmail(
@@ -45,7 +52,7 @@ export async function sendAlertEmail(
     secure: config.port === 465,
     auth: {
       user: config.user,
-      pass: config.pass,
+      pass: config.password,
     },
   });
 
@@ -89,4 +96,32 @@ export async function sendAlertEmail(
   } catch (err: any) {
     console.error(`[Email] Failed to send: ${err.message}`);
   }
+}
+
+// Sends a test email using an EXPLICIT config (the values currently in the UI
+// form, so the admin can validate SMTP before saving). Unlike sendAlertEmail,
+// this THROWS on failure so the route can surface the real SMTP error. Recipient
+// defaults to the from/user address (send-to-self).
+export async function sendTestEmail(raw: unknown): Promise<{ to: string }> {
+  const config = normalizeSmtpConfig(raw);
+  if (!config) {
+    throw new Error("SMTP host and user are required");
+  }
+  const to = config.from || config.user;
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.port === 465,
+    auth: { user: config.user, pass: config.password },
+  });
+
+  await transporter.sendMail({
+    from: `"Nexus" <${config.from}>`,
+    to,
+    subject: "[Nexus] SMTP test",
+    text: "This is a test email from Nexus. If you received it, your SMTP settings work.",
+  });
+  console.log(`[Email] Test email sent to ${to}`);
+  return { to };
 }
