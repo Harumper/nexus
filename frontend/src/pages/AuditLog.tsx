@@ -40,13 +40,8 @@ const ACTION_META: Record<string, { icon: typeof Activity; color: string }> = {
   ACTION_REQUEST: { icon: Activity, color: "text-amber-400" },
   ACTION_COMPLETE: { icon: Activity, color: "text-emerald-400" },
   ACTION_FAILED: { icon: Activity, color: "text-red-400" },
-  CAPABILITY_GRANT: { icon: Shield, color: "text-emerald-400" },
-  CAPABILITY_REVOKE: { icon: Shield, color: "text-amber-400" },
   ALERT_TRIGGERED: { icon: AlertTriangle, color: "text-red-400" },
   ALERT_RESOLVED: { icon: AlertTriangle, color: "text-emerald-400" },
-  SECURITY_ALERT: { icon: Shield, color: "text-red-400" },
-  CERT_ROTATE: { icon: Key, color: "text-blue-400" },
-  CERT_REVOKE: { icon: Key, color: "text-red-400" },
 };
 
 const PAGE_SIZE = 50;

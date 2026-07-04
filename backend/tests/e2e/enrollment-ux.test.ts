@@ -158,10 +158,12 @@ describe("Enrollment UX v2 — Frontend", () => {
     expect(content).toContain("MachineEnroll");
   });
 
-  it("should have regenerateBootstrap in api client", () => {
+  it("should have the re-enroll helper in api client", () => {
+    // regenerateBootstrap (install WITHOUT --reenroll) was removed in favor of
+    // reEnrollMachine — see MachineEnroll.tsx.
     const content = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
-    expect(content).toContain("regenerateBootstrap");
-    expect(content).toContain("bootstrap/regenerate");
+    expect(content).toContain("reEnrollMachine");
+    expect(content).toContain("/re-enroll");
   });
 
   it("should have BootstrapArtifacts types", () => {
