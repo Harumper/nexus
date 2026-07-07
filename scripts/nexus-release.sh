@@ -261,6 +261,16 @@ rsync -a --delay-updates -e "ssh -i $NEXUS_RELEASE_SSH_KEY -o StrictHostKeyCheck
   "$PROD_RELEASE_USER@$PROD_HOST:/" \
   || die "rsync to $PROD_RELEASE_USER@$PROD_HOST failed — NOTHING published (atomic switch not performed)."
 
+# 5b. Keep a LOCAL copy of the signed artifacts (binary + detached signature + VERSION,
+# + public key if available) under $LOG_DIR/artifacts/<tag>/. Lets you re-distribute the
+# EXACT same signed binary later (audit, manual upload) WITHOUT re-signing — the same
+# signed bytes served from /release can be published elsewhere.
+ARTIFACT_DIR="$LOG_DIR/artifacts/$VER"
+mkdir -p "$ARTIFACT_DIR"
+cp -f "$WORKDIR/nexus-agent" "$WORKDIR/nexus-agent.minisig" "$WORKDIR/VERSION" "$ARTIFACT_DIR/"
+[ -f "${RELEASE_KEY%.key}.pub" ] && cp -f "${RELEASE_KEY%.key}.pub" "$ARTIFACT_DIR/nexus-release.pub"
+log "signed artifacts kept locally: $ARTIFACT_DIR"
+
 # 6. log
 audit OK "published"
 log "${c_grn}Release $VER published (version $VERSION_STR).${c_rst}"
