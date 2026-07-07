@@ -211,7 +211,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Stats ─────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
         <KPI icon={Server} label={t("common:nav.machines")} value={stats.total} color="var(--nx-primary)" />
         <KPI icon={Activity} label={t("common:status.online")} value={stats.online} color="var(--nx-success)" glow={stats.online > 0} />
         <KPI icon={ServerOff} label={t("common:status.offline")} value={stats.offline} color="var(--nx-danger)" glow={stats.offline > 0} />
