@@ -1,6 +1,7 @@
 {
   "subtitle": "Sélectionnez 2 à 3 machines pour comparer leurs métriques",
   "empty": "Sélectionnez des machines ci-dessus pour commencer la comparaison",
+  "live": "En direct",
   "metrics": {
     "cpu": "CPU %",
     "memory": "Mémoire %",

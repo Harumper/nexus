@@ -75,11 +75,12 @@ describe("Metrics Retention & Cleanup", () => {
     expect(existsSync(path)).toBe(true);
 
     const content = readFileSync(path, "utf8");
-    expect(content).toContain("metrics_retention_days");
     expect(content).toContain("deleteMany");
     expect(content).toContain("MachineEvent");
     expect(content).toContain("auditLog");
     expect(content).toContain("alertState");
+    // Metrics are live-only now (in-memory buffer) → cleanup no longer purges a Metric table.
+    expect(content).not.toContain("prisma.metric");
   });
 
   it("should have cleanup interval in index.ts", () => {
@@ -88,9 +89,14 @@ describe("Metrics Retention & Cleanup", () => {
     expect(content).toContain("stopMetricsCleanup");
   });
 
-  it("should support retention = 0 (no DB storage)", () => {
-    const content = readFileSync(resolve(backendSrc, "services/metrics-cleanup.ts"), "utf8");
-    expect(content).toContain("retentionDays === 0");
+  it("should keep live metrics in an in-memory buffer (no DB persistence)", async () => {
+    const buf = await import("../../src/services/metrics-buffer.js");
+    expect(typeof buf.pushMetric).toBe("function");
+    expect(typeof buf.getSeries).toBe("function");
+    expect(typeof buf.getLatest).toBe("function");
+    const mm = readFileSync(resolve(backendSrc, "services/machine-manager.ts"), "utf8");
+    expect(mm).toContain("pushMetric");
+    expect(mm).not.toContain("prisma.metric.create");
   });
 
   it("should export runMetricsCleanup function", async () => {

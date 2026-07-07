@@ -1,6 +1,7 @@
 {
   "subtitle": "Select 2 to 3 machines to compare their metrics",
   "empty": "Select machines above to start comparing",
+  "live": "Live",
   "metrics": {
     "cpu": "CPU %",
     "memory": "Memory %",

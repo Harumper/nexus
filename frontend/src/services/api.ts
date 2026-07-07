@@ -550,9 +550,9 @@ class ApiClient {
   }
 
   // Metrics
-  async getMetrics(machineId: string, range: string = "1h") {
+  async getMetrics(machineId: string) {
     return this.request<import("../types").MetricsResponse>(
-      `/machines/${machineId}/metrics?range=${range}`
+      `/machines/${machineId}/metrics`
     );
   }
 
@@ -994,10 +994,6 @@ class ApiClient {
   // Fleet
   async getFleetSummary() {
     return this.request<any>("/fleet/summary");
-  }
-
-  async getFleetTrends(range: string = "1h") {
-    return this.request<{ buckets: any[] }>(`/fleet/trends?range=${range}`);
   }
 
   // Settings

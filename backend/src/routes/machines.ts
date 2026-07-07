@@ -16,6 +16,7 @@ import {
   type BootstrapArtifacts,
 } from "../services/agent-bootstrap.js";
 import { dispatchAgentUpgrade } from "../services/agent-upgrade.js";
+import { evictMachine } from "../services/metrics-buffer.js";
 import {
   getServerBinarySHA256,
   getServerAgentVersion,
@@ -373,6 +374,7 @@ export async function machineRoutes(app: FastifyInstance): Promise<void> {
 
       try {
         await prisma.machine.delete({ where: { id } });
+        evictMachine(id); // drop its live metrics buffer
       } catch (err: any) {
         request.log.error({ err, machineId: id }, "[Machines] Delete failed");
         return reply.code(500).send({

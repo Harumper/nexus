@@ -1,45 +1,12 @@
 import { prisma } from "./database.js";
 
-// Default retention in days (configurable via settings)
-const DEFAULT_METRICS_RETENTION = 30;
+// Retention for the remaining time-series-ish tables. Metrics are no longer stored
+// in the DB (live-only in-memory buffer; history is Prometheus/Grafana), so there is
+// nothing to prune for them here.
 const DEFAULT_EVENTS_RETENTION = 90;
 const DEFAULT_AUDIT_RETENTION = 365;
 
-async function getRetentionDays(): Promise<number> {
-  try {
-    const setting = await prisma.setting.findUnique({
-      where: { key: "metrics_retention_days" },
-    });
-    if (setting?.value !== undefined) {
-      const days = Number(setting.value);
-      if (!isNaN(days) && days >= 0) return days;
-    }
-  } catch {
-    // Setting not found, use default
-  }
-  return DEFAULT_METRICS_RETENTION;
-}
-
 export async function runMetricsCleanup(): Promise<void> {
-  const retentionDays = await getRetentionDays();
-
-  // Metrics
-  if (retentionDays === 0) {
-    // 0 = no DB storage, Prometheus alone handles history
-    const result = await prisma.metric.deleteMany({});
-    if (result.count > 0) {
-      console.log(`[Cleanup] Deleted all metrics (retention=0): ${result.count} rows`);
-    }
-  } else {
-    const metricsCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-    const result = await prisma.metric.deleteMany({
-      where: { timestamp: { lt: metricsCutoff } },
-    });
-    if (result.count > 0) {
-      console.log(`[Cleanup] Deleted ${result.count} metrics older than ${retentionDays} days`);
-    }
-  }
-
   // MachineEvents (90 days)
   const eventsCutoff = new Date(Date.now() - DEFAULT_EVENTS_RETENTION * 24 * 60 * 60 * 1000);
   const eventsResult = await prisma.machineEvent.deleteMany({

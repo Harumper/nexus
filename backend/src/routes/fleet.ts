@@ -1,41 +1,40 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
 import { requireAuth } from "../middleware/auth.js";
+import { getFleetLatest } from "../services/metrics-buffer.js";
 
 export async function fleetRoutes(app: FastifyInstance) {
-  // GET /api/fleet/summary — Aggregated metrics across all online machines
+  // GET /api/fleet/summary — instantaneous aggregate across online machines, from the
+  // live in-memory buffer (latest point per machine). No history here — that's
+  // Prometheus/Grafana (the old /fleet/trends endpoint was removed with the DB table).
   app.get("/api/fleet/summary", { preHandler: [requireAuth] }, async (request, reply) => {
-    // Get all online machines
     const machines = await prisma.machine.findMany({
       where: { status: "ONLINE" },
       select: { id: true, name: true, rebootRequired: true },
     });
-    const machineIds = machines.map(m => m.id);
     const machineMap = new Map(machines.map(m => [m.id, m.name]));
 
-    // Single query : latest metric per machine via raw SQL (DISTINCT ON)
-    const validMetrics: any[] = machineIds.length > 0
-      ? await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT ON ("machineId")
-            "machineId", "cpuPercent", "memoryPercent", "memoryUsed", "memoryTotal",
-            "disks", "loadAvg1", "uptime", "timestamp"
-          FROM "Metric"
-          WHERE "machineId" = ANY($1::text[])
-          ORDER BY "machineId", "timestamp" DESC
-        `, machineIds)
-      : [];
+    // Latest live point per ONLINE machine.
+    const fleetLatest = getFleetLatest();
+    const validMetrics = machines
+      .map(m => {
+        const p = fleetLatest.get(m.id);
+        return p ? { machineId: m.id, ...p } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
 
-    // Calculate averages
+    const diskPercent = (m: { disks: unknown }): number => {
+      const disks = m.disks as any[];
+      return Array.isArray(disks) && disks.length > 0 ? disks[0].percent ?? 0 : 0;
+    };
+
+    // Averages
     const avgCpu = validMetrics.length > 0
       ? validMetrics.reduce((sum, m) => sum + m.cpuPercent, 0) / validMetrics.length : 0;
     const avgMemory = validMetrics.length > 0
       ? validMetrics.reduce((sum, m) => sum + m.memoryPercent, 0) / validMetrics.length : 0;
     const avgDisk = validMetrics.length > 0
-      ? validMetrics.reduce((sum, m) => {
-          const disks = m.disks as any[];
-          const primaryDisk = Array.isArray(disks) && disks.length > 0 ? disks[0].percent : 0;
-          return sum + primaryDisk;
-        }, 0) / validMetrics.length : 0;
+      ? validMetrics.reduce((sum, m) => sum + diskPercent(m), 0) / validMetrics.length : 0;
 
     // Top 5 consumers
     const topCpu = [...validMetrics]
@@ -47,16 +46,9 @@ export async function fleetRoutes(app: FastifyInstance) {
       .slice(0, 5)
       .map(m => ({ machineId: m.machineId, name: machineMap.get(m.machineId), value: m.memoryPercent }));
     const topDisk = [...validMetrics]
-      .sort((a, b) => {
-        const aDisks = a.disks as any[];
-        const bDisks = b.disks as any[];
-        return (Array.isArray(bDisks) && bDisks[0]?.percent || 0) - (Array.isArray(aDisks) && aDisks[0]?.percent || 0);
-      })
+      .sort((a, b) => diskPercent(b) - diskPercent(a))
       .slice(0, 5)
-      .map(m => {
-        const disks = m.disks as any[];
-        return { machineId: m.machineId, name: machineMap.get(m.machineId), value: Array.isArray(disks) && disks[0]?.percent || 0 };
-      });
+      .map(m => ({ machineId: m.machineId, name: machineMap.get(m.machineId), value: diskPercent(m) }));
 
     // Health score — pre-load all thresholds in one query
     const thresholdSettings = await prisma.setting.findMany({
@@ -100,40 +92,6 @@ export async function fleetRoutes(app: FastifyInstance) {
     };
   });
 
-  // GET /api/fleet/trends?range=1h — Aggregated metrics over time in 5-min buckets
-  app.get("/api/fleet/trends", { preHandler: [requireAuth] }, async (request, reply) => {
-    const { range = "1h" } = request.query as { range?: string };
-
-    const rangeMs: Record<string, number> = {
-      "15m": 15 * 60 * 1000,
-      "1h": 60 * 60 * 1000,
-      "6h": 6 * 60 * 60 * 1000,
-      "24h": 24 * 60 * 60 * 1000,
-    };
-    const ms = rangeMs[range] || rangeMs["1h"];
-    const since = new Date(Date.now() - ms);
-
-    // Aggregate in SQL (5-min buckets) rather than fetching all Metric rows
-    // and aggregating in JS (~144k rows for 24h × 100 machines).
-    const rows = await prisma.$queryRaw<
-      Array<{ bucket: Date; avgCpu: number; avgMemory: number }>
-    >`
-      SELECT
-        to_timestamp(floor(extract(epoch from "timestamp") / 300) * 300) AS bucket,
-        round(avg("cpuPercent")::numeric, 1)::float8 AS "avgCpu",
-        round(avg("memoryPercent")::numeric, 1)::float8 AS "avgMemory"
-      FROM "Metric"
-      WHERE "timestamp" >= ${since}
-      GROUP BY bucket
-      ORDER BY bucket ASC
-    `;
-
-    const result = rows.map((r) => ({
-      timestamp: r.bucket.toISOString(),
-      avgCpu: r.avgCpu,
-      avgMemory: r.avgMemory,
-    }));
-
-    return { range, buckets: result };
-  });
+  // NOTE: GET /api/fleet/trends was removed — long-term time-series history is served
+  // by Prometheus/Grafana (per-machine nexus_machine_* gauges), not by Nexus.
 }

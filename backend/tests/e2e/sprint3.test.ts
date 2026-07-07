@@ -6,13 +6,14 @@ const backendSrc = resolve(__dirname, "../../src");
 const frontendSrc = resolve(__dirname, "../../../frontend/src");
 
 describe("Phase 3 — Fleet Summary API", () => {
-  it("should have fleet route file with summary and trends endpoints", () => {
+  it("should have fleet route file with a summary endpoint (trends removed)", () => {
     const path = resolve(backendSrc, "routes/fleet.ts");
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, "utf8");
     expect(content).toContain("fleetRoutes");
     expect(content).toContain('"/api/fleet/summary"');
-    expect(content).toContain('"/api/fleet/trends"');
+    // /fleet/trends removed — long-term history is Prometheus/Grafana.
+    expect(content).not.toContain('"/api/fleet/trends"');
     expect(content).toContain("avgCpu");
     expect(content).toContain("topCpu");
     expect(content).toContain("healthScore");
@@ -33,12 +34,9 @@ describe("Phase 3 — Fleet Summary API", () => {
 describe("Phase 3 — Dashboard Redesign", () => {
   it("should have redesigned Dashboard with fleet sections", () => {
     const content = readFileSync(resolve(frontendSrc, "pages/Dashboard.tsx"), "utf8");
-    // Fleet summary state
+    // Fleet summary state (trends/Recharts removed — history is Prometheus/Grafana)
     expect(content).toContain("fleetSummary");
-    expect(content).toContain("fleetTrends");
-    // Recharts imports
-    expect(content).toContain("AreaChart");
-    expect(content).toContain("recharts");
+    expect(content).not.toContain("fleetTrends");
     // New stat cards
     expect(content).toContain("alertCount");
     expect(content).toContain("rebootCount");
@@ -52,8 +50,9 @@ describe("Phase 3 — Dashboard Redesign", () => {
   it("should have fleet API methods in api.ts", () => {
     const content = readFileSync(resolve(frontendSrc, "services/api.ts"), "utf8");
     expect(content).toContain("getFleetSummary");
-    expect(content).toContain("getFleetTrends");
     expect(content).toContain("fleet/summary");
+    // getFleetTrends removed — long-term history is Prometheus/Grafana.
+    expect(content).not.toContain("getFleetTrends");
   });
 });
 

@@ -1,4 +1,5 @@
 import { prisma } from "./database.js";
+import { pushMetric } from "./metrics-buffer.js";
 import type { MetricsReport, HeartbeatData } from "../types/index.js";
 
 const HEARTBEAT_TIMEOUT = parseInt(
@@ -29,21 +30,10 @@ export async function processMetrics(
   machineId: string,
   metrics: MetricsReport
 ): Promise<void> {
-  await prisma.metric.create({
-    data: {
-      machineId,
-      cpuPercent: metrics.cpu_percent,
-      memoryUsed: BigInt(metrics.memory_used),
-      memoryTotal: BigInt(metrics.memory_total),
-      memoryPercent: metrics.memory_percent,
-      disks: metrics.disks as any,
-      network: metrics.network as any,
-      loadAvg1: metrics.load_avg_1,
-      loadAvg5: metrics.load_avg_5,
-      loadAvg15: metrics.load_avg_15,
-      uptime: metrics.uptime ? BigInt(metrics.uptime) : null,
-    },
-  });
+  // Live only: keep the report in the in-memory buffer (no persistence). Long-term
+  // history is Prometheus/Grafana via the per-machine gauges (fed separately in
+  // prometheus.ts). The Prometheus feed and alert evaluation do NOT read this.
+  pushMetric(machineId, metrics);
 
   await prisma.machine.update({
     where: { id: machineId },

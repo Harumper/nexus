@@ -24,7 +24,6 @@ export default function Compare() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [metric, setMetric] = useState("cpu");
-  const [range, setRange] = useState("1h");
   const [series, setSeries] = useState<Series[]>([]);
   const [bucketMs, setBucketMs] = useState(60_000);
   const [sinceMs, setSinceMs] = useState<number | null>(null);
@@ -42,7 +41,7 @@ export default function Compare() {
     let cancelled = false;
     setLoading(true);
     Promise.all(
-      selectedIds.map((id) => api.getMetrics(id, range).then((res) => ({ res, id })))
+      selectedIds.map((id) => api.getMetrics(id).then((res) => ({ res, id })))
     ).then((results) => {
       if (cancelled) return;
       setSeries(results.map((r) => ({ id: r.id, metrics: r.res.metrics })));
@@ -52,7 +51,7 @@ export default function Compare() {
     }).catch((err) => console.warn("[Compare] load metrics failed:", err))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedIds, range]);
+  }, [selectedIds]);
 
   const nameOf = (id: string) => machines.find((m) => m.id === id)?.name || id;
   const selectedNames = selectedIds.map(nameOf);
@@ -138,21 +137,10 @@ export default function Compare() {
             </button>
           ))}
         </div>
-        {/* Range selector */}
-        <div className="flex gap-1 rounded-lg border border-border p-1">
-          {["15m", "1h", "6h", "24h"].map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                range === r
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        {/* Live window — long-term history is Prometheus/Grafana */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          {t("live")}
         </div>
       </div>
 
@@ -176,7 +164,7 @@ export default function Compare() {
                   type="number"
                   scale="time"
                   domain={xDomain ?? ["dataMin", "dataMax"]}
-                  tickFormatter={(ts) => formatAxisTick(ts as number, range)}
+                  tickFormatter={(ts) => formatAxisTick(ts as number, "live")}
                   tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}

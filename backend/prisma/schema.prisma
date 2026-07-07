@@ -144,7 +144,6 @@ model Machine {
   agentSha256     String?     // SHA256 of the running agent binary (sent at heartbeat) -> fleet-wide "update available" badge
 
   // Relations
-  metrics      Metric[]
   events       MachineEvent[]
   auditLogs    AuditLog[]
   alertStates  AlertState[]
@@ -229,33 +228,10 @@ model AptPackage {
   @@index([suite])
 }
 
-// ===================== METRICS =====================
-
-model Metric {
-  id        String  @id @default(cuid())
-  machineId String
-  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
-
-  cpuPercent    Float
-  memoryUsed    BigInt
-  memoryTotal   BigInt
-  memoryPercent Float
-
-  disks     Json    // [{mountpoint, used, total, percent}]
-  network   Json?   // [{name, rx_bytes, tx_bytes, rx_bytes_per_sec, tx_bytes_per_sec}]
-  processes Json?   // {top_cpu: [...], top_memory: [...]}
-
-  loadAvg1  Float?
-  loadAvg5  Float?
-  loadAvg15 Float?
-
-  uptime BigInt?  // seconds
-
-  timestamp DateTime @default(now())
-
-  @@index([machineId, timestamp])
-  @@index([timestamp])
-}
+// Metrics are no longer persisted. They live in an in-memory buffer (last ~30 min,
+// services/metrics-buffer.ts) for the live UI view; long-term history is served by
+// Prometheus/Grafana via the per-machine nexus_machine_* gauges. The Metric table was
+// dropped (migration 20260707_drop_metric_table).
 
 // ===================== EVENTS =====================
 

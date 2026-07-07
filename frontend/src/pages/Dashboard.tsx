@@ -10,19 +10,9 @@ import {
   AlertTriangle,
   RotateCcw,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { useMachines } from "../hooks/useMachines";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { api } from "../services/api";
-import { niceYDomain } from "../lib/utils";
-import { formatAxisTick, formatAxisLabel } from "../lib/chartTime";
 import MachineCard from "../components/MachineCard";
 import { useNavigate } from "react-router-dom";
 import BatchUpdateDialog from "../components/BatchUpdateDialog";
@@ -43,12 +33,6 @@ interface FleetSummary {
   rebootCount: number;
 }
 
-interface TrendBucket {
-  timestamp: string;
-  avgCpu: number;
-  avgMemory: number;
-}
-
 export default function Dashboard() {
   const { t } = useTranslation(["dashboard", "common"]);
   const navigate = useNavigate();
@@ -58,7 +42,6 @@ export default function Dashboard() {
   );
   const [showBatchUpdate, setShowBatchUpdate] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetSummary | null>(null);
-  const [fleetTrends, setFleetTrends] = useState<TrendBucket[]>([]);
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"cpu" | "memory" | "disk">("cpu");
 
@@ -105,10 +88,6 @@ export default function Dashboard() {
         .getFleetSummary()
         .then(setFleetSummary)
         .catch((err) => console.warn("[Dashboard] fleet summary failed:", err));
-      api
-        .getFleetTrends("1h")
-        .then((r) => setFleetTrends(r.buckets))
-        .catch((err) => console.warn("[Dashboard] fleet trends failed:", err));
       // Count of active alerts per machine — shown as a badge on MachineCard
       api
         .getActiveAlerts()
@@ -290,13 +269,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Trends ─────────────────────────────── */}
-      {fleetTrends.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <TrendChart data={fleetTrends} dataKey="avgCpu" label={t("trends.cpu")} seriesName="CPU" color="var(--nx-chart-1)" gradientId="cpuG" />
-          <TrendChart data={fleetTrends} dataKey="avgMemory" label={t("trends.ram")} seriesName="RAM" color="var(--nx-chart-3)" gradientId="ramG" />
-        </div>
-      )}
 
       {/* ── Machines ───────────────────────────── */}
       {machines.length === 0 ? (
@@ -372,37 +344,3 @@ function AvgBar({ label, value, color }: { label: string; value: number; color: 
   );
 }
 
-function TrendChart({ data, dataKey, label, seriesName, color, gradientId }: {
-  data: any[]; dataKey: string; label: string; seriesName: string; color: string; gradientId: string;
-}) {
-  // Floor 10 % avoids zooming into noise when the fleet is quiet.
-  // Cap 100 % because these charts always plot percentages.
-  const yValues = data.map((d) => d?.[dataKey]).filter((v): v is number => typeof v === "number");
-  const yDomain = niceYDomain(yValues, { floor: 10, cap: 100 });
-  return (
-    <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
-      <SectionTitle>{label}</SectionTitle>
-      <div className="h-36 mt-3">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false}
-              tickFormatter={(v) => formatAxisTick(v as string | number, "1h")} />
-            <YAxis domain={yDomain} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
-            <Tooltip
-              contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
-              labelFormatter={(v) => formatAxisLabel(v as string | number)}
-              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, seriesName]}
-            />
-            <Area type="monotone" dataKey={dataKey} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}

@@ -1,6 +1,6 @@
 {
-  "empty": "No metrics for this period",
-  "range7d": "7d",
+  "empty": "No live metrics yet",
+  "live": "Live",
   "charts": {
     "cpu": "CPU",
     "memory": "Memory",

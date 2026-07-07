@@ -77,9 +77,10 @@ describe("Prisma Schema - Phase 2 Models", () => {
 
   });
 
-  describe("Metric model updates", () => {
-    it("should have processes Json field", () => {
-      expect(schema).toContain("processes Json?");
+  describe("Metric model removed", () => {
+    it("should no longer define the Metric model (live-only in-memory buffer)", () => {
+      // Metrics are not persisted anymore — history is Prometheus/Grafana.
+      expect(schema).not.toContain("model Metric");
     });
   });
 });

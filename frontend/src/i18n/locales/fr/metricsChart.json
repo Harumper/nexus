@@ -1,6 +1,6 @@
 {
-  "empty": "Aucune métrique pour cette période",
-  "range7d": "7j",
+  "empty": "Aucune métrique en direct pour l'instant",
+  "live": "En direct",
   "charts": {
     "cpu": "CPU",
     "memory": "Mémoire",

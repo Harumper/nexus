@@ -12,8 +12,6 @@ interface MetricsChartProps {
   machineId: string;
 }
 
-const RANGES = ["15m", "1h", "6h", "24h", "7d"];
-
 type ChartPoint = {
   timestamp: number;
   cpu: number | null;
@@ -26,26 +24,27 @@ type ChartPoint = {
 
 export default function MetricsChart({ machineId }: MetricsChartProps) {
   const { t } = useTranslation("metricsChart");
-  const [range, setRange] = useState("1h");
   const [data, setData] = useState<MetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Live-only: the backend serves an in-memory window (~30 min). Long-term history
+  // is Prometheus/Grafana. Poll every 60s (the collection cadence).
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    api.getMetrics(machineId, range)
+    api.getMetrics(machineId)
       .then((res) => { if (!cancelled) setData(res); })
       .catch((err) => console.warn("[MetricsChart] initial fetch failed:", err))
       .finally(() => { if (!cancelled) setLoading(false); });
 
     const interval = setInterval(() => {
-      api.getMetrics(machineId, range)
+      api.getMetrics(machineId)
         .then((res) => { if (!cancelled) setData(res); })
         .catch((err) => console.warn("[MetricsChart] poll failed:", err));
     }, 60_000);
 
     return () => { cancelled = true; clearInterval(interval); };
-  }, [machineId, range]);
+  }, [machineId]);
 
   // Transforms the downsampled series for Recharts. X axis = NUMERIC timestamp
   // (no more "HH:mm" string that glued two points of the same minute together and
@@ -93,21 +92,10 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
 
   return (
     <div className="space-y-6">
-      {/* Range selector */}
-      <div className="flex gap-1 rounded-lg border border-border p-1 w-fit">
-        {RANGES.map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              range === r
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {r === "7d" ? t("range7d") : r}
-          </button>
-        ))}
+      {/* Live window indicator — long-term history is Prometheus/Grafana */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground w-fit">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        {t("live")}
       </div>
 
       {loading ? (
@@ -128,7 +116,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             color="#3b82f6"
             unit="%"
             max={100}
-            range={range}
+            range="live"
             domain={xDomain}
           />
           <RechartCard
@@ -139,7 +127,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             color="#8b5cf6"
             unit="%"
             max={100}
-            range={range}
+            range="live"
             domain={xDomain}
           />
           <RechartCard
@@ -149,7 +137,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             dataKey="load"
             color="#f59e0b"
             unit=""
-            range={range}
+            range="live"
             domain={xDomain}
           />
           <RechartCard
@@ -160,7 +148,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             color="#ef4444"
             unit="%"
             max={100}
-            range={range}
+            range="live"
             domain={xDomain}
           />
           <RechartCard
@@ -170,7 +158,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             dataKey="networkIn"
             color="#06b6d4"
             unit=" KB/s"
-            range={range}
+            range="live"
             domain={xDomain}
           />
           <RechartCard
@@ -180,7 +168,7 @@ export default function MetricsChart({ machineId }: MetricsChartProps) {
             dataKey="networkOut"
             color="#10b981"
             unit=" KB/s"
-            range={range}
+            range="live"
             domain={xDomain}
           />
         </div>
