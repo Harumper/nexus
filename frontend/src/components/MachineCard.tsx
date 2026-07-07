@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Cpu, MemoryStick, HardDrive, Clock, AlertTriangle, Trash2, ShieldOff, MoreVertical, RefreshCw, Bell } from "lucide-react";
-import { useState, memo } from "react";
+import { useState, memo, useEffect } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { statusColor, statusKey } from "../lib/utils";
@@ -29,6 +29,20 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const { confirm, ConfirmDialogElement } = useConfirm();
+
+  // Live CPU sparkline (~30 min) from the in-memory buffer — online machines only.
+  const [spark, setSpark] = useState<number[]>([]);
+  useEffect(() => {
+    if (!isOnline) { setSpark([]); return; }
+    let cancelled = false;
+    const load = () =>
+      api.getMetrics(machine.id)
+        .then((res) => { if (!cancelled) setSpark(res.metrics.map((m) => m.cpuPercent)); })
+        .catch(() => {});
+    load();
+    const iv = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [machine.id, isOnline]);
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -201,11 +215,18 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
 
       {/* Metrics */}
       {latestMetric && isOnline ? (
-        <div className="grid grid-cols-3 gap-3">
-          <Gauge label="CPU" value={latestMetric.cpuPercent} icon={Cpu} />
-          <Gauge label="RAM" value={latestMetric.memoryPercent} icon={MemoryStick} />
-          <Gauge label="Disk" value={latestMetric.disks?.[0]?.percent ?? 0} icon={HardDrive} />
-        </div>
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <Gauge label="CPU" value={latestMetric.cpuPercent} icon={Cpu} />
+            <Gauge label="RAM" value={latestMetric.memoryPercent} icon={MemoryStick} />
+            <Gauge label="Disk" value={latestMetric.disks?.[0]?.percent ?? 0} icon={HardDrive} />
+          </div>
+          {spark.length > 1 && (
+            <div className="mt-3">
+              <Sparkline values={spark} color="var(--nx-chart-1)" />
+            </div>
+          )}
+        </>
       ) : (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
@@ -238,6 +259,22 @@ function MachineCard({ machine, latestMetric, alertCount = 0, onDeleted }: Machi
 // card (machine/latestMetric/alertCount/onDeleted compared shallowly),
 // not the whole grid.
 export default memo(MachineCard);
+
+/** Tiny inline CPU sparkline (SVG, no Recharts — cheap for N cards). */
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const w = 100, h = 22;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const pts = values
+    .map((v, i) => `${((i / (values.length - 1)) * w).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-5" aria-hidden>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 /** Mini circular gauge for machine cards */
 function Gauge({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Cpu }) {

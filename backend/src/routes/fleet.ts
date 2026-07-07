@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../services/database.js";
 import { requireAuth } from "../middleware/auth.js";
-import { getFleetLatest } from "../services/metrics-buffer.js";
+import { getFleetLatest, getFleetSeries, liveWindow } from "../services/metrics-buffer.js";
 
 export async function fleetRoutes(app: FastifyInstance) {
   // GET /api/fleet/summary — instantaneous aggregate across online machines, from the
@@ -92,6 +92,11 @@ export async function fleetRoutes(app: FastifyInstance) {
     };
   });
 
-  // NOTE: GET /api/fleet/trends was removed — long-term time-series history is served
-  // by Prometheus/Grafana (per-machine nexus_machine_* gauges), not by Nexus.
+  // GET /api/fleet/live — small live fleet trend (avg cpu/memory per bucket) over the
+  // ~30 min window, aggregated from the in-memory buffer. Feeds the Dashboard mini-charts.
+  // (Long-term history stays in Prometheus/Grafana; the old persisted /fleet/trends is gone.)
+  app.get("/api/fleet/live", { preHandler: [requireAuth] }, async () => {
+    const w = liveWindow();
+    return { bucketSeconds: w.bucketSeconds, since: w.since, series: getFleetSeries() };
+  });
 }

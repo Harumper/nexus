@@ -8,6 +8,10 @@
   "fleetHealth": "Fleet health",
   "topConsumers": "Top consumers",
   "noData": "No data",
+  "trends": {
+    "cpu": "Avg CPU (30 min)",
+    "ram": "Avg RAM (30 min)"
+  },
   "empty": {
     "title": "No machines",
     "description": "Add your first machine to get started."

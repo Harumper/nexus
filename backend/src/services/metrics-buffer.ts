@@ -90,6 +90,31 @@ export function getFleetLatest(): Map<string, MetricPoint> {
   return out;
 }
 
+/** Fleet-wide live trend: average cpu/memory across machines, per aligned bucket, over
+ *  the window. Feeds the small live charts on the Dashboard (no persistence). */
+export function getFleetSeries(): Array<{ timestamp: string; avgCpu: number; avgMemory: number }> {
+  const bucketMs = BUCKET_SECONDS * 1000;
+  const byBucket = new Map<number, { cpu: number; mem: number; n: number }>();
+  for (const arr of buffers.values()) {
+    prune(arr);
+    for (const p of arr) {
+      const b = Math.floor(new Date(p.timestamp).getTime() / bucketMs) * bucketMs;
+      const agg = byBucket.get(b) ?? { cpu: 0, mem: 0, n: 0 };
+      agg.cpu += p.cpuPercent;
+      agg.mem += p.memoryPercent;
+      agg.n += 1;
+      byBucket.set(b, agg);
+    }
+  }
+  return [...byBucket.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([ts, a]) => ({
+      timestamp: new Date(ts).toISOString(),
+      avgCpu: Math.round((a.cpu / a.n) * 10) / 10,
+      avgMemory: Math.round((a.mem / a.n) * 10) / 10,
+    }));
+}
+
 /** Drop a machine's buffer (call when the machine is deleted). */
 export function evictMachine(machineId: string): void {
   buffers.delete(machineId);

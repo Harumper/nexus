@@ -996,6 +996,14 @@ class ApiClient {
     return this.request<any>("/fleet/summary");
   }
 
+  async getFleetLive() {
+    return this.request<{
+      bucketSeconds: number;
+      since: string;
+      series: Array<{ timestamp: string; avgCpu: number; avgMemory: number }>;
+    }>("/fleet/live");
+  }
+
   // Settings
   async getSettings() {
     return this.request<import("../types").Setting[]>("/settings");

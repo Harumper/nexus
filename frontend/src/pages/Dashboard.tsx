@@ -10,6 +10,8 @@ import {
   AlertTriangle,
   RotateCcw,
 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { buildTimeGrid, formatAxisTick, formatAxisLabel } from "../lib/chartTime";
 import { useMachines } from "../hooks/useMachines";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { api } from "../services/api";
@@ -42,6 +44,11 @@ export default function Dashboard() {
   );
   const [showBatchUpdate, setShowBatchUpdate] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetSummary | null>(null);
+  const [fleetLive, setFleetLive] = useState<{
+    bucketSeconds: number;
+    since: string;
+    series: Array<{ timestamp: string; avgCpu: number; avgMemory: number }>;
+  } | null>(null);
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"cpu" | "memory" | "disk">("cpu");
 
@@ -88,6 +95,10 @@ export default function Dashboard() {
         .getFleetSummary()
         .then(setFleetSummary)
         .catch((err) => console.warn("[Dashboard] fleet summary failed:", err));
+      api
+        .getFleetLive()
+        .then(setFleetLive)
+        .catch((err) => console.warn("[Dashboard] fleet live failed:", err));
       // Count of active alerts per machine — shown as a badge on MachineCard
       api
         .getActiveAlerts()
@@ -269,6 +280,14 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Live fleet trend (~30 min; long-term history is Grafana) ── */}
+      {fleetLive && fleetLive.series.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <LiveTrend title={t("trends.cpu")} data={fleetLive} dataKey="avgCpu" color="var(--nx-chart-1)" gradientId="cpuLiveG" />
+          <LiveTrend title={t("trends.ram")} data={fleetLive} dataKey="avgMemory" color="var(--nx-chart-3)" gradientId="ramLiveG" />
+        </div>
+      )}
+
 
       {/* ── Machines ───────────────────────────── */}
       {machines.length === 0 ? (
@@ -340,6 +359,54 @@ function AvgBar({ label, value, color }: { label: string; value: number; color: 
           style={{ width: `${Math.min(value, 100)}%`, background: value > 90 ? "var(--nx-danger)" : value > 70 ? "var(--nx-warning)" : color }} />
       </div>
       <span className="w-12 text-[11px] text-right font-semibold tabular-nums text-foreground">{value.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+// Small live fleet trend (~30 min) fed by the in-memory buffer aggregate. Numeric
+// temporal axis + gap-fill (missing bucket → null → visible hole, no false line).
+function LiveTrend({ title, data, dataKey, color, gradientId }: {
+  title: string;
+  data: { bucketSeconds: number; since: string; series: Array<{ timestamp: string; avgCpu: number; avgMemory: number }> };
+  dataKey: "avgCpu" | "avgMemory";
+  color: string;
+  gradientId: string;
+}) {
+  const bucketMs = (data.bucketSeconds || 60) * 1000;
+  const sinceMs = new Date(data.since).getTime();
+  const byTs = new Map<number, number>();
+  for (const s of data.series) byTs.set(new Date(s.timestamp).getTime(), s[dataKey]);
+  const chartData = buildTimeGrid(sinceMs, Date.now(), bucketMs).map((ts) => ({
+    timestamp: ts,
+    value: byTs.has(ts) ? byTs.get(ts)! : null,
+  }));
+  const xDomain: [number, number] | undefined =
+    chartData.length > 0 ? [chartData[0].timestamp, chartData[chartData.length - 1].timestamp] : undefined;
+  return (
+    <div className="rounded-xl p-5" style={{ background: "var(--nx-bg-surface)", border: "1px solid var(--nx-border)" }}>
+      <SectionTitle>{title}</SectionTitle>
+      <div className="h-36 mt-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="timestamp" type="number" scale="time" domain={xDomain ?? ["dataMin", "dataMax"]}
+              tickFormatter={(v) => formatAxisTick(v as number, "live")}
+              tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--nx-text-weak)" }} tickLine={false} axisLine={false} width={28} />
+            <Tooltip
+              contentStyle={{ background: "var(--nx-bg-elevated)", border: "1px solid var(--nx-border)", borderRadius: "8px", fontSize: 12, color: "var(--nx-text)" }}
+              labelFormatter={(v) => formatAxisLabel(v as number)}
+              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, title]}
+            />
+            <Area type="monotone" dataKey="value" stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} connectNulls={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
