@@ -19,9 +19,8 @@ export async function ensureBuiltinSeed(): Promise<void> {
     console.log("[Seed] Created default admin user (username=admin, password=admin — CHANGE IT!)");
   }
 
-  // Default settings (retention, health thresholds)
+  // Default settings (health thresholds, lifecycle)
   const defaultSettings = [
-    { key: "metrics_retention_days", value: 30 },
     { key: "health_threshold_cpu", value: 90 },
     { key: "health_threshold_memory", value: 85 },
     { key: "health_threshold_disk", value: 80 },

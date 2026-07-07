@@ -620,10 +620,9 @@ POST /api/machines/:id/actions       { action_id, params? } → { request_id }
 POST /api/machines/actions/batch     { action_id, machine_ids?, params? } (ADMIN)`}</Code>
 
     <H2>{t("api.metricsTitle")}</H2>
-    <Code>{`GET /api/machines/:id/metrics?range=1h    → { metrics[], count }
+    <Code>{`GET /api/machines/:id/metrics            → { metrics[], count }   (live, ~30 min)
 GET /api/machines/:id/metrics/latest     → Metric
-GET /api/fleet/summary                   → FleetSummary
-GET /api/fleet/trends?range=1h           → { buckets[] }`}</Code>
+GET /api/fleet/summary                   → FleetSummary`}</Code>
 
     <H2>{t("api.tagsTitle")}</H2>
     <Code>{`GET/POST        /api/tags              (ADMIN)
