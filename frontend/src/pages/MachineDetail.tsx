@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download,
-  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, ScrollText,
+  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, Gauge,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -26,7 +26,7 @@ import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
 import SecurityTab from "../components/SecurityTab";
-import LogShippingTab from "../components/LogShippingTab";
+import ObservabilityTab from "../components/ObservabilityTab";
 import AgentMaintenanceBadge from "../components/AgentMaintenanceBadge";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
@@ -245,7 +245,7 @@ export default function MachineDetail() {
         { id: "metrics", icon: Cpu, show: isOnline },
         { id: "processes", icon: ListTree, show: isOnline },
         { id: "storage", icon: HardDrive, show: isOnline },
-        { id: "logs", icon: ScrollText, show: isOnline },
+        { id: "logs", icon: Gauge, show: isOnline },
       ],
     },
     {
@@ -648,7 +648,7 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "logs" && isOnline && (
-          <LogShippingTab machineId={machine.id} />
+          <ObservabilityTab machineId={machine.id} />
         )}
 
         {activeTab === "netplan" && isOnline && (

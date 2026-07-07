@@ -202,20 +202,47 @@ export async function refreshFleetMetrics(): Promise<void> {
 // Reads METRICS_TOKEN at registration (like the rest of the boot config).
 export function registerPrometheusEndpoint(app: FastifyInstance): void {
   const METRICS_TOKEN = process.env.METRICS_TOKEN || "";
-  app.get("/metrics", async (request, reply) => {
-    if (METRICS_TOKEN) {
-      const header = request.headers.authorization || "";
-      const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
-      const expected = Buffer.from(METRICS_TOKEN);
-      const got = Buffer.from(presented);
-      // Constant-time comparison; the length check is required (timingSafeEqual
-      // throws if the sizes differ) and the token length is not a secret.
-      const ok = got.length === expected.length && timingSafeEqual(got, expected);
-      if (!ok) {
-        return reply.code(401).send("Unauthorized");
-      }
+
+  // Constant-time bearer check, shared by /metrics and the SD endpoint. Returns
+  // true if authorized; otherwise sends 401 and returns false. (A) token set →
+  // fail-closed; (B) token absent → no check (network-scoping is the control).
+  const authOk = (request: any, reply: any): boolean => {
+    if (!METRICS_TOKEN) return true;
+    const header = request.headers.authorization || "";
+    const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
+    const expected = Buffer.from(METRICS_TOKEN);
+    const got = Buffer.from(presented);
+    // Length check required (timingSafeEqual throws on size mismatch); length is not secret.
+    const ok = got.length === expected.length && timingSafeEqual(got, expected);
+    if (!ok) {
+      reply.code(401).send("Unauthorized");
+      return false;
     }
+    return true;
+  };
+
+  app.get("/metrics", async (request, reply) => {
+    if (!authOk(request, reply)) return;
     reply.header("Content-Type", register.contentType);
     return register.metrics();
+  });
+
+  // Prometheus HTTP service discovery (http_sd_config) for the fleet's
+  // node-exporters. Returns machines that are ONLINE and flagged as having
+  // node-exporter installed (install intent). Same bearer auth as /metrics.
+  // Point a Prometheus job's http_sd_config at this URL to auto-discover targets.
+  app.get("/api/prometheus/targets", async (request, reply) => {
+    if (!authOk(request, reply)) return;
+    const machines = await prisma.machine.findMany({
+      where: { status: "ONLINE", nodeExporter: true },
+      select: { id: true, hostname: true, ipAddress: true },
+    });
+    const groups = machines
+      .filter((m) => m.ipAddress)
+      .map((m) => ({
+        targets: [`${m.ipAddress}:9100`],
+        labels: { machine_id: m.id, hostname: m.hostname || "", project: "nexus" },
+      }));
+    return reply.send(groups);
   });
 }

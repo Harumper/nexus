@@ -45,6 +45,20 @@
     "software": "Software",
     "security": "Security"
   },
+  "nodeExporter": {
+    "title": "Node exporter (metrics)",
+    "description": "Installs prometheus-node-exporter (port 9100). Detailed system metrics are then scraped by Prometheus — Nexus does not store them.",
+    "running": "Active on port {{port}}",
+    "installedInactive": "Installed but inactive",
+    "notInstalled": "Not installed",
+    "install": "Install",
+    "installing": "Installing…",
+    "uninstall": "Uninstall",
+    "uninstalling": "Uninstalling…",
+    "installedOk": "node-exporter installed",
+    "uninstalledOk": "node-exporter uninstalled",
+    "error": "node-exporter action failed"
+  },
   "tabs": {
     "overview": {
       "label": "Overview",
@@ -63,8 +77,8 @@
       "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)"
     },
     "logs": {
-      "label": "Log shipping",
-      "tooltip": "Forward the systemd journal to a central Loki via Fluent Bit"
+      "label": "Observability",
+      "tooltip": "Metrics (node-exporter) + log shipping (Fluent Bit → Loki)"
     },
     "services": {
       "label": "Services",

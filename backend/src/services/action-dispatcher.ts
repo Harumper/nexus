@@ -162,5 +162,15 @@ export async function dispatchAction(
     markInternalRequest(requestId);
   }
 
+  // node-exporter: track install intent for Prometheus service discovery
+  // (GET /api/prometheus/targets). Optimistic on dispatch — the real state stays
+  // re-checkable via monitoring.node_exporter_status; a listed-but-down target
+  // simply shows "down" in Prometheus. Best-effort (never breaks the dispatch).
+  if (action.action_id === "monitoring.install_node_exporter") {
+    await prisma.machine.update({ where: { id: machineId }, data: { nodeExporter: true } }).catch(() => {});
+  } else if (action.action_id === "monitoring.uninstall_node_exporter") {
+    await prisma.machine.update({ where: { id: machineId }, data: { nodeExporter: false } }).catch(() => {});
+  }
+
   return { success: true, requestId };
 }

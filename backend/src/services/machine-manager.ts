@@ -92,4 +92,6 @@ export const READ_ONLY_ACTIONS = [
   "fs.read",
   // Log shipping: status is read-only (configure/disable/install mutate → excluded).
   "logs.shipping_status",
+  // Node-exporter: status is read-only (install/uninstall mutate → excluded).
+  "monitoring.node_exporter_status",
 ];

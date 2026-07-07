@@ -142,6 +142,7 @@ model Machine {
   isCritical      Boolean     @default(false) // Critical machine: reboot/service_stop/package.remove blocked
   sudoersHash     String?     // SHA256 of the /etc/sudoers.d/nexus-agent file (sent by the agent at heartbeat)
   agentSha256     String?     // SHA256 of the running agent binary (sent at heartbeat) -> fleet-wide "update available" badge
+  nodeExporter    Boolean     @default(false) // prometheus-node-exporter install intent -> Prometheus http_sd targets
 
   // Relations
   events       MachineEvent[]
