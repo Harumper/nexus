@@ -3,7 +3,9 @@
   "updateAll": "Update all",
   "addMachine": "Add a machine",
   "kpi": {
-    "reboot": "Reboot"
+    "reboot": "Reboot",
+    "agentUpdate": "Agent update",
+    "agentRedeploy": "Redeploy"
   },
   "fleetHealth": "Fleet health",
   "topConsumers": "Top consumers",

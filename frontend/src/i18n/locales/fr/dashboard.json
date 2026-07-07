@@ -3,7 +3,9 @@
   "updateAll": "Tout mettre à jour",
   "addMachine": "Ajouter une machine",
   "kpi": {
-    "reboot": "Reboot"
+    "reboot": "Reboot",
+    "agentUpdate": "MAJ agent",
+    "agentRedeploy": "Redéploiement"
   },
   "fleetHealth": "Santé de la flotte",
   "topConsumers": "Top Consommateurs",

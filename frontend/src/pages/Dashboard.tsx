@@ -9,6 +9,7 @@ import {
   Download,
   AlertTriangle,
   RotateCcw,
+  Wrench,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { buildTimeGrid, formatAxisTick, formatAxisLabel } from "../lib/chartTime";
@@ -153,6 +154,8 @@ export default function Dashboard() {
     online: machines.filter((m) => m.status === "ONLINE").length,
     offline: machines.filter((m) => m.status === "OFFLINE").length,
     pending: machines.filter((m) => m.status === "ENROLLMENT_PENDING").length,
+    updates: machines.filter((m) => m.agentUpdateAvailable).length,
+    redeploys: machines.filter((m) => m.sudoersOutdated).length,
   };
 
   // Top consumers data based on active tab
@@ -215,6 +218,8 @@ export default function Dashboard() {
         <KPI icon={AlertTriangle} label={t("common:nav.alerts")} value={fleetSummary?.alertCount ?? 0} color="var(--nx-warning)" glow={(fleetSummary?.alertCount ?? 0) > 0} />
         <KPI icon={RotateCcw} label={t("kpi.reboot")} value={fleetSummary?.rebootCount ?? 0} color="#fb923c" />
         <KPI icon={Shield} label={t("common:status.pending")} value={stats.pending} color="var(--nx-info)" />
+        <KPI icon={Download} label={t("kpi.agentUpdate")} value={stats.updates} color="var(--nx-info)" glow={stats.updates > 0} />
+        <KPI icon={Wrench} label={t("kpi.agentRedeploy")} value={stats.redeploys} color="#f59e0b" glow={stats.redeploys > 0} />
       </div>
 
       {/* ── Fleet Health + Top Consumers ────────── */}
