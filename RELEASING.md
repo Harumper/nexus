@@ -116,6 +116,40 @@ in each agent's status; trigger the self-upgrade from the UI (or
 backend over https, re-checks the signature and an anti-rollback version floor,
 and reverts via a dead-man's switch if the new binary fails to reconnect.
 
+## Optional — distribute the binary via GitHub Releases
+
+The `release/` volume above is what your **backend** serves to agents. If you also
+want to distribute the signed binary **publicly** (manual installs, third-party
+verification), attach it to a GitHub Release. Publish the **same** already-signed
+bytes — never re-sign (a second signature diverges and re-prompts for the offline
+key). A GitHub Release is a distinct object: if you mirror the repo to GitHub, the
+mirror carries tags/commits but **not** Releases, so this is an explicit step.
+
+1. Re-verify locally before publishing (never upload unverified bytes), and build
+   the checksums:
+
+   ```sh
+   minisign -Vm nexus-agent -p nexus-release.pub
+   sha256sum nexus-agent nexus-agent.minisig nexus-release.pub > SHA256SUMS
+   ```
+
+2. Ensure the tag already exists on GitHub. If you mirror the repo, wait for the
+   tag to propagate first — the Release must attach to the existing (mirrored)
+   tag, not create a competing one.
+
+3. Create the Release and upload the assets with the
+   [`gh`](https://cli.github.com/) CLI (authenticated, scope `contents:write`):
+
+   ```sh
+   gh release create v0.1.0 \
+     nexus-agent nexus-agent.minisig nexus-release.pub SHA256SUMS \
+     -R owner/repo --verify-tag --title v0.1.0 \
+     --notes 'Verify: minisign -Vm nexus-agent -p nexus-release.pub && sha256sum -c SHA256SUMS'
+   ```
+
+Consumers verify with the published `nexus-release.pub` (pin it out-of-band) — the
+same trust model as the in-product signed auto-upgrade.
+
 ## Maintainer automation (GitLab)
 
 `scripts/nexus-release.sh` does all of the above **for a GitLab CI setup**: it
