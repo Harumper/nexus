@@ -218,8 +218,10 @@ export default function Dashboard() {
         <KPI icon={AlertTriangle} label={t("common:nav.alerts")} value={fleetSummary?.alertCount ?? 0} color="var(--nx-warning)" glow={(fleetSummary?.alertCount ?? 0) > 0} />
         <KPI icon={RotateCcw} label={t("kpi.reboot")} value={fleetSummary?.rebootCount ?? 0} color="#fb923c" />
         <KPI icon={Shield} label={t("common:status.pending")} value={stats.pending} color="var(--nx-info)" />
-        <KPI icon={Download} label={t("kpi.agentUpdate")} value={stats.updates} color="var(--nx-info)" glow={stats.updates > 0} />
-        <KPI icon={Wrench} label={t("kpi.agentRedeploy")} value={stats.redeploys} color="#f59e0b" glow={stats.redeploys > 0} />
+        <AgentMaintenanceKPI
+          left={{ icon: Download, label: t("kpi.agentUpdate"), value: stats.updates, color: "var(--nx-info)" }}
+          right={{ icon: Wrench, label: t("kpi.agentRedeploy"), value: stats.redeploys, color: "#f59e0b" }}
+        />
       </div>
 
       {/* ── Fleet Health + Top Consumers ────────── */}
@@ -350,6 +352,40 @@ function KPI({ icon: Icon, label, value, color, glow }: {
           <div className="text-2xl font-bold tabular-nums leading-none" style={{ color }}>{value}</div>
           <div className="text-[10px] font-medium mt-0.5" style={{ color: "var(--nx-text-weak)" }}>{label}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Two agent-maintenance signals grouped in one card: agent update available
+// (new binary version) on the left, redeploy needed (sudoers/binary refresh via
+// install-agent.sh) on the right. Spans 2 grid columns so the KPI row stays 8-wide.
+type MaintCell = { icon: typeof Server; label: string; value: number; color: string };
+
+function AgentMaintenanceKPI({ left, right }: { left: MaintCell; right: MaintCell }) {
+  const glow = left.value > 0 || right.value > 0;
+  const renderCell = ({ icon: Icon, label, value, color }: MaintCell) => (
+    <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}12` }}>
+        <Icon className="w-4 h-4" style={{ color }} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-2xl font-bold tabular-nums leading-none" style={{ color }}>{value}</div>
+        <div className="text-[10px] font-medium mt-0.5 truncate" style={{ color: "var(--nx-text-weak)" }}>{label}</div>
+      </div>
+    </div>
+  );
+  return (
+    <div className="col-span-2 rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        background: "var(--nx-bg-surface)",
+        border: "1px solid var(--nx-border)",
+        boxShadow: glow ? "0 0 16px #f59e0b22" : "var(--nx-shadow-sm)",
+      }}>
+      <div className="flex items-center gap-3">
+        {renderCell(left)}
+        <div className="w-px self-stretch" style={{ background: "var(--nx-border)" }} />
+        {renderCell(right)}
       </div>
     </div>
   );
