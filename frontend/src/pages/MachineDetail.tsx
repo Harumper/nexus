@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download,
-  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, Gauge,
+  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, Gauge, ScrollText,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -26,7 +26,8 @@ import SchedulingTab from "../components/SchedulingTab";
 import UsersTab from "../components/UsersTab";
 import FilesTab from "../components/FilesTab";
 import SecurityTab from "../components/SecurityTab";
-import ObservabilityTab from "../components/ObservabilityTab";
+import NodeExporterCard from "../components/NodeExporterCard";
+import LogShippingTab from "../components/LogShippingTab";
 import AgentMaintenanceBadge from "../components/AgentMaintenanceBadge";
 import NetworkConfigTab from "../components/NetworkConfigTab";
 import SshConnectDialog from "../components/SshConnectDialog";
@@ -39,7 +40,7 @@ import { toast } from "sonner";
 import type { Machine, Metric, WSDashboardMessage } from "../types";
 import { getErrorMessage } from "../services/errors";
 
-type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security" | "logs";
+type Tab = "overview" | "metrics" | "updates" | "processes" | "network" | "netplan" | "services" | "firewall" | "packages" | "storage" | "scheduling" | "users" | "files" | "security" | "exporter" | "logs";
 
 // Header action button: icon only (the label lives in the Tooltip).
 const ICON_BTN =
@@ -245,7 +246,8 @@ export default function MachineDetail() {
         { id: "metrics", icon: Cpu, show: isOnline },
         { id: "processes", icon: ListTree, show: isOnline },
         { id: "storage", icon: HardDrive, show: isOnline },
-        { id: "logs", icon: Gauge, show: isOnline },
+        { id: "exporter", icon: Gauge, show: isOnline },
+        { id: "logs", icon: ScrollText, show: isOnline },
       ],
     },
     {
@@ -647,8 +649,12 @@ export default function MachineDetail() {
           <SecurityTab machineId={machine.id} />
         )}
 
+        {activeTab === "exporter" && isOnline && (
+          <NodeExporterCard machineId={machine.id} />
+        )}
+
         {activeTab === "logs" && isOnline && (
-          <ObservabilityTab machineId={machine.id} />
+          <LogShippingTab machineId={machine.id} />
         )}
 
         {activeTab === "netplan" && isOnline && (

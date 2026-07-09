@@ -76,9 +76,13 @@
       "label": "Stockage",
       "tooltip": "Block devices (lsblk), filesystems (df), LVM (PV/VG/LV)"
     },
+    "exporter": {
+      "label": "Node exporter",
+      "tooltip": "Installe prometheus-node-exporter (:9100) pour le scraping Prometheus"
+    },
     "logs": {
-      "label": "Observabilité",
-      "tooltip": "Métriques (node-exporter) + export des logs (Fluent Bit → Loki)"
+      "label": "Export logs",
+      "tooltip": "Transfère le journal systemd vers un Loki central via Fluent Bit"
     },
     "services": {
       "label": "Services",
