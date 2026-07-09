@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight, PackageCheck, ScrollText } from "lucide-react";
+import { Book, Server, Shield, Terminal, Download, Tag, Bell, Settings, Network, ChevronRight, PackageCheck, ScrollText, Gauge } from "lucide-react";
 
-type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security" | "supplychain" | "logshipping";
+type Section = "start" | "agent" | "self" | "machines" | "tags" | "alerts" | "updates" | "ssh" | "api" | "security" | "supplychain" | "exporter" | "logshipping";
 
 const sections: { id: Section; icon: typeof Book }[] = [
   { id: "start", icon: Book },
@@ -14,6 +14,7 @@ const sections: { id: Section; icon: typeof Book }[] = [
   { id: "updates", icon: Download },
   { id: "ssh", icon: Terminal },
   { id: "security", icon: Shield },
+  { id: "exporter", icon: Gauge },
   { id: "logshipping", icon: ScrollText },
   { id: "supplychain", icon: PackageCheck },
   { id: "api", icon: Settings },
@@ -24,7 +25,7 @@ export default function Docs() {
   const initial = (() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("section") as Section | null;
-    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "logshipping", "supplychain", "api"];
+    const valid: Section[] = ["start", "agent", "self", "machines", "tags", "alerts", "updates", "ssh", "security", "exporter", "logshipping", "supplychain", "api"];
     return s && valid.includes(s) ? s : "start";
   })();
   const [active, setActive] = useState<Section>(initial);
@@ -78,6 +79,7 @@ function DocContent({ section }: { section: Section }) {
     case "updates": return <UpdatesDoc />;
     case "ssh": return <SshDoc />;
     case "security": return <SecurityDoc />;
+    case "exporter": return <ExporterDoc />;
     case "logshipping": return <LogShippingDoc />;
     case "supplychain": return <SupplyChainDoc />;
     case "api": return <ApiDoc />;
@@ -144,6 +146,11 @@ function StartDoc() {
       <li><Trans t={t} i18nKey="start.archAgent" components={{ b: <strong className="text-foreground" /> }} /></li>
     </ul>
 
+    <Tip>{t("start.contextNote")}</Tip>
+
+    <H2>{t("start.firstLoginTitle")}</H2>
+    <P>{t("start.firstLoginText")}</P>
+
     <H2>{t("start.prereqTitle")}</H2>
     <ul className={UL}>
       <li>{t("start.prereq1")}</li>
@@ -151,18 +158,15 @@ function StartDoc() {
       <li>{t("start.prereq3")}</li>
     </ul>
 
-    <H2>{t("start.serverInstallTitle")}</H2>
-    <Code>{t("start.installCode")}</Code>
-
-    <H2>{t("start.firstLoginTitle")}</H2>
-    <P>{t("start.firstLoginText")}</P>
-
     <H2>{t("start.firstMachineTitle")}</H2>
     <P>{t("start.firstMachineText")}</P>
-
     <Warn>
       <Trans t={t} i18nKey="start.bootstrapWarn" components={{ b: <strong />, c: <code /> }} />
     </Warn>
+
+    <H2>{t("start.serverInstallTitle")}</H2>
+    <P>{t("start.serverInstallRef")}</P>
+    <Code>{t("start.installCode")}</Code>
   </>);
 }
 
@@ -190,9 +194,6 @@ function AgentDoc() {
       <li><Trans t={t} i18nKey="agent.scriptStep3" components={{ c: <IC /> }} /></li>
       <li>{t("agent.scriptStep4")}</li>
     </ul>
-
-    <H2>{t("agent.step3Title")}</H2>
-    <Code>{t("agent.manualCode")}</Code>
 
     <H2>{t("agent.step4Title")}</H2>
     <P>{t("agent.step4Text")}</P>
@@ -518,6 +519,29 @@ function SecurityDoc() {
       <li><Trans t={t} i18nKey="security.roleAdmin" components={{ b: <strong className="text-foreground" /> }} /></li>
       <li><Trans t={t} i18nKey="security.roleOperator" components={{ b: <strong className="text-foreground" /> }} /></li>
       <li><Trans t={t} i18nKey="security.roleReadonly" components={{ b: <strong className="text-foreground" /> }} /></li>
+    </ul>
+  </>);
+}
+
+function ExporterDoc() {
+  const { t } = useTranslation("docs");
+  const bc = { b: <strong className="text-foreground" />, c: <IC /> };
+  return (<>
+    <H1>{t("exporter.title")}</H1>
+    <P>{t("exporter.intro")}</P>
+
+    <H2>{t("exporter.installTitle")}</H2>
+    <P><Trans t={t} i18nKey="exporter.installText" components={bc} /></P>
+
+    <H2>{t("exporter.scrapeTitle")}</H2>
+    <P><Trans t={t} i18nKey="exporter.scrapeText" components={bc} /></P>
+    <Code>{t("exporter.scrapeCode")}</Code>
+
+    <H2>{t("exporter.notesTitle")}</H2>
+    <ul className={UL}>
+      <li><Trans t={t} i18nKey="exporter.note1" components={bc} /></li>
+      <li><Trans t={t} i18nKey="exporter.note2" components={bc} /></li>
+      <li><Trans t={t} i18nKey="exporter.note3" components={bc} /></li>
     </ul>
   </>);
 }
