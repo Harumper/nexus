@@ -148,8 +148,14 @@ describe("Security Audit — Agent Hardening", () => {
     const content = readFileSync(resolve(rootDir, "scripts/install-agent.sh"), "utf8");
     // apt-get update should NOT have wildcard
     expect(content).toMatch(/apt-get update\n/);
-    // NOEXEC tag on install/remove
-    expect(content).toContain("NOEXEC:");
+    // NEXUS-AGENT-010: package install/remove no longer use a raw `apt-get
+    // install *` sudoers wildcard (whose NOEXEC backstop both broke apt's method
+    // exec and mis-targeted the real -o/-c/changelog injection vectors). They are
+    // routed through the compiled privhelper, so the wildcards must be ABSENT and
+    // the privhelper wrapper present.
+    expect(content).not.toMatch(/apt-get (install|remove) -y -qq \*/);
+    expect(content).not.toMatch(/(dnf|yum) (install|remove) -y -q \*/);
+    expect(content).toContain("/usr/local/bin/nexus-agent privhelper *");
     // kill should use explicit signals
     expect(content).toContain("/bin/kill -SIGTERM");
     // Scripts in dedicated dir, not /tmp. Since NEXUS-AGENT-005 the sudoers rule

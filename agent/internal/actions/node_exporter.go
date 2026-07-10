@@ -20,10 +20,11 @@ func init() {
 // backend http_sd endpoint. No third-party repo/GPG pinning is needed (unlike
 // fluent-bit): the distro package is current and maintained.
 //
-// Security wiring reused as-is: `apt-get install/remove -y -qq *` is already
-// whitelisted (NOEXEC backstop) in sudoers, and service control goes through the
-// compiled privhelper `svc` (deny-list of protected units; node-exporter is not
-// protected) — so this file adds NO new sudoers line and NO privhelper change.
+// Security wiring reused as-is: package install/remove goes through the compiled
+// privhelper `pkg` (validated names, fixed argv), and service control through
+// privhelper `svc` (deny-list of protected units; node-exporter is not
+// protected) — both covered by the existing `nexus-agent privhelper *` sudoers
+// line, so this file adds NO new sudoers line.
 // ═══════════════════════════════════════════════════════════════
 
 const (
@@ -56,8 +57,8 @@ func (a *InstallNodeExporterAction) Execute(_ map[string]interface{}) (interface
 		if err := sudoRun("/usr/bin/apt-get", "update"); err != nil {
 			return nil, fmt.Errorf("apt-get update: %w", err)
 		}
-		if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "prometheus-node-exporter"); err != nil {
-			return nil, fmt.Errorf("apt-get install prometheus-node-exporter: %w", err)
+		if err := sudoRun(nexusAgentBin, "privhelper", "pkg", "install", "prometheus-node-exporter"); err != nil {
+			return nil, fmt.Errorf("install prometheus-node-exporter: %w", err)
 		}
 	}
 	// Ensure enabled + started (via the compiled privhelper; systemctl stays out of sudoers).
@@ -91,8 +92,8 @@ func (a *UninstallNodeExporterAction) Validate(_ map[string]interface{}) error {
 func (a *UninstallNodeExporterAction) Execute(_ map[string]interface{}) (interface{}, error) {
 	_ = sudoRun(nexusAgentBin, "privhelper", "svc", "disable", nodeExporterService)
 	_ = sudoRun(nexusAgentBin, "privhelper", "svc", "stop", nodeExporterService)
-	if err := sudoRun("/usr/bin/apt-get", "remove", "-y", "-qq", "prometheus-node-exporter"); err != nil {
-		return nil, fmt.Errorf("apt-get remove prometheus-node-exporter: %w", err)
+	if err := sudoRun(nexusAgentBin, "privhelper", "pkg", "remove", "prometheus-node-exporter"); err != nil {
+		return nil, fmt.Errorf("remove prometheus-node-exporter: %w", err)
 	}
 	return map[string]interface{}{"installed": fileExists(nodeExporterBinary)}, nil
 }

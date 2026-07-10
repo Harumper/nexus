@@ -36,6 +36,15 @@ var (
 	// unit (the bug that bypassed the sudoers blocklist `systemctl stop ssh*`).
 	svcVerbRe = regexp.MustCompile(`^(start|stop|restart|reload|enable|disable)$`)
 	svcUnitRe = regexp.MustCompile(`^[a-zA-Z0-9@_.][a-zA-Z0-9@_.\-]{0,127}$`)
+
+	// NEXUS-AGENT-010 — package install/remove via the compiled wrapper. The verb
+	// is enumerated and each name is a package token with NO leading dash: only a
+	// package name can ever follow the fixed verb, so the apt/dnf/yum option-
+	// injection vectors (`-o APT::…::Pre-Invoke=`, `-c <config>`, `changelog`)
+	// are structurally impossible. Replaces the `apt-get install *` sudoers
+	// wildcard (whose NOEXEC backstop broke apt's own method/dpkg exec).
+	pkgVerbRe = regexp.MustCompile(`^(install|remove)$`)
+	pkgNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9+.\-]*$`)
 )
 
 // Units the agent must NEVER stop/disrupt, even if the Go layer is bypassed
@@ -65,6 +74,8 @@ func Run(args []string) int {
 		return doInstallAuthkeys(rest)
 	case "svc":
 		return doSvc(rest)
+	case "pkg":
+		return doPkg(rest)
 	default:
 		return fail("privhelper: unknown operation " + op)
 	}
@@ -237,6 +248,55 @@ func doSvc(args []string) int {
 		}
 	}
 	return run("/usr/bin/systemctl", verb, unit)
+}
+
+// doPkg installs/removes distro packages as root. Names are validated (no
+// leading dash → no option injection), the argv is FIXED, and the manager is
+// exec'd directly (no NOEXEC) so it can spawn its download methods + dpkg/rpm.
+func doPkg(args []string) int {
+	if len(args) < 2 {
+		return fail("usage: privhelper pkg <install|remove> <name>...")
+	}
+	verb, names := args[0], args[1:]
+	if !pkgVerbRe.MatchString(verb) {
+		return fail("pkg: invalid verb")
+	}
+	for _, n := range names {
+		if !pkgNameRe.MatchString(n) {
+			return fail("pkg: invalid package name: " + n)
+		}
+	}
+	// Fixed paths (no PATH lookup); first available manager wins.
+	var argv, env []string
+	switch {
+	case fileExecutable("/usr/bin/apt-get"):
+		argv = append([]string{"/usr/bin/apt-get", verb, "-y", "-qq"}, names...)
+		env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	case fileExecutable("/usr/bin/dnf"):
+		argv = append([]string{"/usr/bin/dnf", verb, "-y", "-q"}, names...)
+	case fileExecutable("/usr/bin/yum"):
+		argv = append([]string{"/usr/bin/yum", verb, "-y", "-q"}, names...)
+	default:
+		return fail("pkg: no supported package manager (apt-get/dnf/yum)")
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if env != nil {
+		cmd.Env = env
+	}
+	if err := cmd.Run(); err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			return ee.ExitCode()
+		}
+		fmt.Fprintf(os.Stderr, "privhelper: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func fileExecutable(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && !fi.IsDir() && fi.Mode()&0111 != 0
 }
 
 func fail(msg string) int {

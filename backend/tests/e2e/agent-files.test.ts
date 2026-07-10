@@ -73,7 +73,9 @@ describe("Agent Go Files - Phase 4", () => {
       const content = readFileSync(path, "utf8");
       expect(content).toContain('"package.install"');
       expect(content).toContain('"packages"');
-      expect(content).toContain("apt-get");
+      // Install routes through the compiled privhelper (validated names, fixed
+      // argv), not a raw `sudo apt-get install *` (NEXUS-AGENT-010).
+      expect(content).toContain('"privhelper", "pkg", "install"');
     });
 
     it("should have package.remove action", () => {

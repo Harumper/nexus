@@ -105,7 +105,7 @@ func (a *HardenFail2banAction) Validate(params map[string]interface{}) error {
 func (a *HardenFail2banAction) Execute(params map[string]interface{}) (interface{}, error) {
 	// 1. Install if absent (whitelisted apt)
 	if !fileExists("/usr/bin/fail2ban-client") {
-		if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "fail2ban"); err != nil {
+		if err := sudoRun(nexusAgentBin, "privhelper", "pkg", "install", "fail2ban"); err != nil {
 			return nil, fmt.Errorf("fail2ban installation: %w", err)
 		}
 	}
@@ -152,7 +152,7 @@ func (a *EnableAutoUpdatesAction) Execute(params map[string]interface{}) (interf
 		), nil
 	}
 	if !fileExists("/usr/bin/unattended-upgrade") && !fileExists("/usr/bin/unattended-upgrades") {
-		if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "unattended-upgrades"); err != nil {
+		if err := sudoRun(nexusAgentBin, "privhelper", "pkg", "install", "unattended-upgrades"); err != nil {
 			return nil, fmt.Errorf("unattended-upgrades installation: %w", err)
 		}
 	}

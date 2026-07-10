@@ -350,8 +350,8 @@ func (a *LogInstallShipperAction) Execute(_ map[string]interface{}) (interface{}
 	if err := sudoRun("/usr/bin/apt-get", "update"); err != nil {
 		return nil, fmt.Errorf("apt-get update: %w", err)
 	}
-	if err := sudoRun("/usr/bin/apt-get", "install", "-y", "-qq", "fluent-bit"); err != nil {
-		return nil, fmt.Errorf("apt-get install fluent-bit: %w", err)
+	if err := sudoRun(nexusAgentBin, "privhelper", "pkg", "install", "fluent-bit"); err != nil {
+		return nil, fmt.Errorf("install fluent-bit: %w", err)
 	}
 	return map[string]interface{}{"installed": fileExists(fluentBitBinary), "binary": fluentBitBinary, "codename": codename}, nil
 }

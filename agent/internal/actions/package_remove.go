@@ -62,22 +62,10 @@ func (a *PackageRemoveAction) Execute(params map[string]interface{}) (interface{
 		}
 	}
 
-	var cmd *exec.Cmd
-	switch pm {
-	case collector.PMApt:
-		args := append([]string{"/usr/bin/apt-get", "remove", "-y", "-qq"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-		cmd.Env = append(cmd.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	case collector.PMDnf:
-		args := append([]string{"/usr/bin/dnf", "remove", "-y", "-q"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-	case collector.PMYum:
-		args := append([]string{"/usr/bin/yum", "remove", "-y", "-q"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-	default:
-		return nil, fmt.Errorf("unsupported package manager: %s", pm)
-	}
-
+	// Remove via the compiled privhelper (root wrapper): validated names, fixed
+	// argv, no NOEXEC — same rationale as package.install.
+	args := append([]string{"-n", nexusAgentBin, "privhelper", "pkg", "remove"}, packageNames...)
+	cmd := exec.Command("/usr/bin/sudo", args...)
 	output, err := cmd.CombinedOutput()
 	return map[string]interface{}{
 		"success":  err == nil,

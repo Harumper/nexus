@@ -80,22 +80,11 @@ func (a *PackageInstallAction) Execute(params map[string]interface{}) (interface
 		}
 	}
 
-	var cmd *exec.Cmd
-	switch pm {
-	case collector.PMApt:
-		args := append([]string{"/usr/bin/apt-get", "install", "-y", "-qq"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-		cmd.Env = append(cmd.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	case collector.PMDnf:
-		args := append([]string{"/usr/bin/dnf", "install", "-y", "-q"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-	case collector.PMYum:
-		args := append([]string{"/usr/bin/yum", "install", "-y", "-q"}, packageNames...)
-		cmd = exec.Command("/usr/bin/sudo", args...)
-	default:
-		return nil, fmt.Errorf("unsupported package manager: %s", pm)
-	}
-
+	// Install via the compiled privhelper (root wrapper): names are re-validated
+	// and the argv is fixed inside it, so no apt/dnf/yum option can be injected —
+	// and it execs the manager WITHOUT NOEXEC, so downloads + dpkg/rpm work.
+	args := append([]string{"-n", nexusAgentBin, "privhelper", "pkg", "install"}, packageNames...)
+	cmd := exec.Command("/usr/bin/sudo", args...)
 	output, err := cmd.CombinedOutput()
 	return map[string]interface{}{
 		"success":  err == nil,

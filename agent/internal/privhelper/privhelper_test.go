@@ -132,3 +132,28 @@ func TestDoSvc_AllowsStartOnProtected_PassesValidation(t *testing.T) {
 		t.Errorf("doSvc(start ssh) refused in validation while a start is allowed")
 	}
 }
+
+// NEXUS-AGENT-010 — doPkg is the whole point of routing apt/dnf/yum through the
+// wrapper: only a validated package name can ever follow the fixed verb, so the
+// option-injection vectors (`-o …Pre-Invoke=`, `-c <config>`, `changelog`) are
+// structurally impossible. All cases below are refused BEFORE any exec.
+func TestDoPkg_RejectsInjection(t *testing.T) {
+	refused := [][]string{
+		{},                                                // no args
+		{"install"},                                       // missing name
+		{"purge", "foo"},                                  // verb not enumerated
+		{"changelog", "foo"},                              // less-based shell vector
+		{"install", "-oAPT::Update::Pre-Invoke=/bin/sh"},  // -o option injection
+		{"install", "--config-file=/tmp/x"},               // long option
+		{"install", "-c/tmp/evil"},                        // -c config injection
+		{"install", "foo", "-c/tmp/evil"},                 // injection in a later arg
+		{"install", "foo;bar"},                            // shell metacharacter
+		{"install", "../evil"},                            // leading dot / traversal-ish
+		{"remove", "Foo"},                                 // uppercase (regex is lowercase-first)
+	}
+	for _, args := range refused {
+		if rc := doPkg(args); rc == 0 {
+			t.Errorf("doPkg(%v) = 0, expected refusal (rc != 0)", args)
+		}
+	}
+}

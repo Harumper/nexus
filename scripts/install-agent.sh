@@ -389,35 +389,32 @@ Defaults:nexus-agent secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/
 nexus-agent ALL=(root) NOPASSWD: /bin/cat /etc/sudoers.d/nexus-agent
 
 # === APT ===
-# NEXUS-AGENT-010 — SCOPE of NOEXEC (do not over-interpret): NOEXEC is
-# NOT a pillar of general confinement. It applies ONLY to the
-# install/remove lines of the package managers (apt-get/dnf/yum, ~6 lines), as
-# a targeted BACKSTOP for the package-name wildcard: it prevents a package/hook
-# from triggering the execution of an arbitrary subprocess (like `-o
-# DPkg::Pre-Invoke=`). The ~44 other lines do NOT rely on NOEXEC but on
-# fixed paths, EXACT arguments, the compiled privhelper, and the Go-side
-# validation regexes. NOEXEC is a net over a single primitive, not the overall
-# guarantee.
-# upgrade/update: EXACT arguments (no wildcard) — otherwise `-o
-# DPkg::Pre-Invoke=...` would allow the execution of arbitrary root commands.
-# install/remove keep a wildcard (package names, validated in Go by
-# packageNameRegex) + NOEXEC.
+# NEXUS-AGENT-010 — package install/remove go through the compiled privhelper
+# (`nexus-agent privhelper pkg <install|remove> <name>`, allowed by the wrapper
+# line above), NOT a raw `apt-get install *` sudoers wildcard. Rationale:
+#   - the option-injection vectors (`-o APT::…::Pre-Invoke=`, `-c <config>`,
+#     `changelog`) are what turn apt-get into an arbitrary-command primitive; the
+#     privhelper only ever passes a validated package name after a fixed verb, so
+#     none of them can appear. The Go actions validate the names too (belt +
+#     braces).
+#   - the old `NOEXEC:` backstop on these lines was BOTH wrong and broken: it
+#     tried to net the wildcard but NOEXEC also blocks apt's own download methods
+#     (/usr/lib/apt/methods/http) and dpkg → "Failed to exec method http", i.e.
+#     no real install ever worked.
+# update/upgrade stay as direct sudo calls with EXACT arguments (no wildcard →
+# no `-o` injection surface).
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get update
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade -y -q
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get install -y -qq *
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/apt-get remove -y -qq *
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/unattended-upgrades --minimal_upgrade_steps
 
 # === Package management (DNF/YUM) === (exact arguments, see system_update.go)
+# install/remove go through `privhelper pkg` (see NEXUS-AGENT-010 above), not a
+# wildcard line here. Only the exact-argument update/upgrade calls remain.
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update --security -y -q
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf update -y -q
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/dnf upgrade -y -q
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/dnf install -y -q *
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/dnf remove -y -q *
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum update --security -y -q
 nexus-agent ALL=(root) NOPASSWD: /usr/bin/yum update -y -q
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum install -y -q *
-nexus-agent ALL=(root) NOPASSWD: NOEXEC: /usr/bin/yum remove -y -q *
 
 # === Processes (explicit signals only) ===
 nexus-agent ALL=(root) NOPASSWD: /bin/kill -SIGTERM [0-9]*
@@ -788,7 +785,7 @@ ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
 # RestrictSUIDSGID removed: sudo is a SUID binary required for privileged actions
-# The protection remains via the targeted sudoers (whitelist + NOEXEC)
+# The protection remains via the targeted sudoers (whitelist + compiled privhelper)
 RestrictRealtime=true
 LockPersonality=true
 # Address families: the agent only speaks TCP (WS); AF_NETLINK required to
