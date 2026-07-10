@@ -305,3 +305,27 @@ notify-failure:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
   when: on_failure
+
+# Warns when the agent source changed since the last published (signed) release,
+# i.e. deployed agents cannot be upgraded to it until a new release is tagged.
+# This is the guard-rail for the "merged agent code but forgot to publish" trap:
+# the served binary only moves on a signed release, so drift here = stale fleet.
+notify-agent-drift:
+  stage: .post
+  image: alpine:latest
+  variables:
+    GIT_DEPTH: 0 # full clone: required to reach tags + agent/ history
+  before_script:
+    - apk add --no-cache git curl
+  script:
+    - |
+      LAST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+      if [ -z "$LAST_TAG" ]; then echo "No release tag yet — nothing to compare, skipping."; exit 0; fi
+      COUNT="$(git rev-list --count "$LAST_TAG"..HEAD -- agent/ 2>/dev/null || echo 0)"
+      if [ "$COUNT" -eq 0 ]; then echo "Agent is in sync with release ${LAST_TAG}."; exit 0; fi
+      MSG="Nexus: agent code changed since release ${LAST_TAG} (${COUNT} commit(s) under agent/). Publish a signed release (scripts/nexus-release.sh + git tag vX.Y.Z) or deployed agents stay outdated."
+      echo "$MSG"
+      test -n "$SLACK_WEBHOOK_URL" && curl -sf -X POST -H "Content-type:application/json" --data "{\"text\":\"${MSG}\"}" "$SLACK_WEBHOOK_URL" || echo "Notifications not configured"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  when: on_success
