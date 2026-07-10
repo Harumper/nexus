@@ -7,6 +7,8 @@
   "actions": {
     "reloadTooltip": "Reload (machine, metrics, attention)",
     "reload": "Reload",
+    "statsCollapse": "Collapse metrics",
+    "statsExpand": "Expand metrics",
     "sshTooltip": "SSH connection (copies the command + instructions)",
     "ssh": "SSH connection",
     "agentUpToDate": "Agent already on the latest version",
@@ -57,7 +59,17 @@
     "uninstalling": "Uninstalling…",
     "installedOk": "node-exporter installed",
     "uninstalledOk": "node-exporter uninstalled",
-    "error": "node-exporter action failed"
+    "error": "node-exporter action failed",
+    "trackInstallTitle": "Installing node-exporter",
+    "trackUninstallTitle": "Uninstalling node-exporter",
+    "trackRunning": "Working… (up to ~1 min)",
+    "close": "Close",
+    "promTitle": "Add to your Prometheus",
+    "promHint": "Nexus deploys the exporter; your Prometheus scrapes it. Add one of these blocks under scrape_configs.",
+    "promHttpSd": "Auto-discovery (http_sd) — once for the whole fleet",
+    "promStatic": "Static target — this machine only",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "tabs": {
     "overview": {

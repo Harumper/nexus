@@ -4,7 +4,7 @@ import {
   ArrowLeft, Server, Shield, Trash2, ShieldOff, RefreshCw,
   Cpu, MemoryStick, HardDrive, Clock, Globe, Terminal,
   Activity, Network, ListTree, Download,
-  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, Gauge, ScrollText,
+  RotateCcw, ArrowUpCircle, Cog, Power, FolderOpen, Gauge, ScrollText, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../services/api";
@@ -60,6 +60,13 @@ export default function MachineDetail() {
   const [showSshDialog, setShowSshDialog] = useState(false);
   const [showAgentUpgrade, setShowAgentUpgrade] = useState(false);
   const [agentUpdateAvailable, setAgentUpdateAvailable] = useState(false);
+  // Header live-gauges panel is collapsible; the choice is remembered across machines/sessions.
+  const [statsCollapsed, setStatsCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem("nx:machineStatsCollapsed") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("nx:machineStatsCollapsed", statsCollapsed ? "1" : "0"); } catch { /* ignore */ }
+  }, [statsCollapsed]);
   // null = undetermined (target or current SHA unknown) → we don't block the update.
   const [agentUpToDate, setAgentUpToDate] = useState<boolean | null>(null);
   // "One-shot" request to filter Services on the "failed" state — emitted by
@@ -348,8 +355,20 @@ export default function MachineDetail() {
             </div>
           </div>
 
-          {isAdmin && (
-            <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isOnline && latestMetric && (
+              <Tooltip content={statsCollapsed ? t("actions.statsExpand") : t("actions.statsCollapse")}>
+                <button
+                  onClick={() => setStatsCollapsed((v) => !v)}
+                  aria-label={statsCollapsed ? t("actions.statsExpand") : t("actions.statsCollapse")}
+                  className={ICON_BTN}
+                  style={{ border: "1px solid var(--nx-border)", color: "var(--nx-text-weak)" }}
+                >
+                  {statsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+              </Tooltip>
+            )}
+            {isAdmin && (<>
               <Tooltip content={t("actions.reloadTooltip")}>
                 <button
                   onClick={async () => {
@@ -459,12 +478,12 @@ export default function MachineDetail() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </Tooltip>
-            </div>
-          )}
+            </>)}
+          </div>
         </div>
 
-        {/* ── Live gauges (quand online) ──── */}
-        {isOnline && latestMetric && (
+        {/* ── Live gauges (quand online, repliable) ──── */}
+        {isOnline && latestMetric && !statsCollapsed && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mt-5 pt-5" style={{ borderTop: "1px solid var(--nx-border)" }}>
             <MiniGauge label="CPU" value={latestMetric.cpuPercent} unit="%" icon={Cpu} />
             <MiniGauge label="RAM" value={latestMetric.memoryPercent} unit="%" icon={MemoryStick} subtext={`${formatBytes(latestMetric.memoryUsed)} / ${formatBytes(latestMetric.memoryTotal)}`} />
@@ -650,7 +669,7 @@ export default function MachineDetail() {
         )}
 
         {activeTab === "exporter" && isOnline && (
-          <NodeExporterCard machineId={machine.id} />
+          <NodeExporterCard machineId={machine.id} ip={machine.ipAddress} hostname={machine.hostname} />
         )}
 
         {activeTab === "logs" && isOnline && (

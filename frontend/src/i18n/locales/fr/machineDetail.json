@@ -7,6 +7,8 @@
   "actions": {
     "reloadTooltip": "Recharger (machine, métriques, attention)",
     "reload": "Recharger",
+    "statsCollapse": "Replier les métriques",
+    "statsExpand": "Déplier les métriques",
     "sshTooltip": "Connexion SSH (copie la commande + instructions)",
     "ssh": "Connexion SSH",
     "agentUpToDate": "Agent déjà à la dernière version",
@@ -57,7 +59,17 @@
     "uninstalling": "Désinstallation…",
     "installedOk": "node-exporter installé",
     "uninstalledOk": "node-exporter désinstallé",
-    "error": "Échec de l'action node-exporter"
+    "error": "Échec de l'action node-exporter",
+    "trackInstallTitle": "Installation de node-exporter",
+    "trackUninstallTitle": "Désinstallation de node-exporter",
+    "trackRunning": "Opération en cours… (jusqu'à ~1 min)",
+    "close": "Fermer",
+    "promTitle": "À ajouter à votre Prometheus",
+    "promHint": "Nexus déploie l'exporter ; c'est votre Prometheus qui collecte. Ajoutez l'un de ces blocs sous scrape_configs.",
+    "promHttpSd": "Auto-découverte (http_sd) — une seule fois pour toute la flotte",
+    "promStatic": "Cible statique — cette machine uniquement",
+    "copy": "Copier",
+    "copied": "Copié"
   },
   "tabs": {
     "overview": {
